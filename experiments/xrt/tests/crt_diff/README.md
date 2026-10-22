@@ -16,15 +16,15 @@ real DLL on 4,452 of the 172,412 cases they could run at all, and crashed or abo
 `xrt_output` (msvcr70's narrow `_output`), against the real `sprintf`: 31,175 narrow cases. These are the
 integer/float/pointer/`%n`/odd/fuzz/counted/truncation generators routed to narrow output, plus narrow-typed
 `%s %S %hs %ls %c %C` cases, high-bit format bytes, wide text stopped by the C-locale `wctomb`, and 600 random
-mixes of common conversions. All cases match except one open divergence, 17 mismatches in both corpora (209,573 and
-312,985 cases):
+mixes of common conversions. Result: **0 mismatches** in both corpora (209,573 and 312,985 cases).
 
+The first run found 17 mismatches, now fixed in `xrt_fmt.c`:
 - **The case:** a narrow-string conversion (`%s`, `%hs`) whose precision is negative but not -1, which
   `%.*5s` with a `*` argument of -1 produces (-1*10+5).
 - **The real narrow `_output`** counts narrow text with `while (i-- && *p)`, so it prints the whole string
   (including `(null)`).
-- **The runtime** prints none of it, as the wide `_woutput` does for its narrow-string branch.
-- Wide-string conversions in narrow output (`%S`, `%ls`, `%ws`) match.
+- **The runtime** printed none of it, the rule the wide `_woutput` correctly uses for its narrow-string branch.
+- Wide-string conversions in narrow output (`%S`, `%ls`, `%ws`) always matched.
 
 `sprintf` has no bound. Each `A` case therefore first measures its output length on both sides (reference: the
 real `_vsnprintf` into a 65,536-character buffer; candidate: `xrt_output` with a sink that refuses the 65,537th
@@ -57,8 +57,7 @@ rem check that the generated power-of-ten tables equal the ones in the DLL (read
 .venv\Scripts\python.exe -I experiments\xrt\tests\crt_diff\i10_model.py --check-dll sandbox_ref\hellofull\System\msvcr70.dll
 ```
 
-`compare.py` exits 0 only when every case matches, so it currently exits 1 because of the open narrow
-negative-precision divergence above. The default run takes about 30 s. `compare.py --json` writes only the
+`compare.py` exits 0 only when every case matches. The default run takes about 30 s. `compare.py --json` writes only the
 default-run sections; the others were merged in by hand from one-off runs:
 - `extended_run`: the extended command above, now including the narrow cases;
 - `extended_run_wide_only`: the same command before the narrow cases existed;

@@ -204,7 +204,7 @@
   },
   "noddB": {
    "cases": 20,
-   "mismatches": 2
+   "mismatches": 0
   },
   "nfuzz": {
    "cases": 1587,
@@ -232,74 +232,16 @@
   },
   "ntext": {
    "cases": 62,
-   "mismatches": 15
+   "mismatches": 0
   },
   "nmix": {
    "cases": 600,
    "mismatches": 0
   }
  },
- "total_mismatches": 17,
+ "total_mismatches": 0,
  "reference_faults": [],
- "mismatch_examples": {
-  "noddB": [
-   {
-    "id": "noddB.16",
-    "case": "A noddB.16 252E2A35737C252E2A35537C iFFFFFFFF w0077006900640065 iFFFFFFFF a6E6172726F77",
-    "ref": "R=3 B=777C7C00CCCCCCCCCCCCCCCC",
-    "cand": "R=2 B=7C7C00CCCCCCCCCCCCCCCC"
-   },
-   {
-    "id": "noddB.17",
-    "case": "A noddB.17 252E2A30737C252E2A30537C iFFFFFFFF w0077006900640065 iFFFFFFFF a6E6172726F77",
-    "ref": "R=3 B=777C7C00CCCCCCCCCCCCCCCC",
-    "cand": "R=2 B=7C7C00CCCCCCCCCCCCCCCC"
-   }
-  ],
-  "ntext": [
-   {
-    "id": "ntext.17",
-    "case": "A ntext.17 252E2A35737C iFFFFFFFF a6E6172726F77",
-    "ref": "R=7 B=6E6172726F777C00CCCCCCCCCCCCCCCC",
-    "cand": "R=1 B=7C00CCCCCCCCCCCCCCCC"
-   },
-   {
-    "id": "ntext.19",
-    "case": "A ntext.19 252E2A35737C iFFFFFFFF aE978FF",
-    "ref": "R=4 B=E978FF7C00CCCCCCCCCCCCCCCC",
-    "cand": "R=1 B=7C00CCCCCCCCCCCCCCCC"
-   },
-   {
-    "id": "ntext.20",
-    "case": "A ntext.20 252E2A35737C iFFFFFFFF 0",
-    "ref": "R=7 B=286E756C6C297C00CCCCCCCCCCCCCCCC",
-    "cand": "R=1 B=7C00CCCCCCCCCCCCCCCC"
-   },
-   {
-    "id": "ntext.21",
-    "case": "A ntext.21 252E2A30737C iFFFFFFFF a6E6172726F77",
-    "ref": "R=7 B=6E6172726F777C00CCCCCCCCCCCCCCCC",
-    "cand": "R=1 B=7C00CCCCCCCCCCCCCCCC"
-   },
-   {
-    "id": "ntext.23",
-    "case": "A ntext.23 252E2A30737C iFFFFFFFF aE978FF",
-    "ref": "R=4 B=E978FF7C00CCCCCCCCCCCCCCCC",
-    "cand": "R=1 B=7C00CCCCCCCCCCCCCCCC"
-   }
-  ]
- },
- "extended_run": {
-  "command": "compare.py --i10 60000 --seed 7",
-  "cases": 312985,
-  "total_mismatches": 17,
-  "note": "includes the narrow sprintf ('A') cases; all 17 mismatches are the open narrow negative-precision %s divergence (see README)"
- },
- "narrow_sprintf": {
-  "cases_default": 31175,
-  "skipped_both_sides_65536_or_more": 389,
-  "open_divergence": "narrow-string conversions (%s, %hs) with a negative precision other than -1 (e.g. %.*5s with * = -1): msvcr70's narrow _output prints the whole string (while (i-- && *p)); xrt_output prints nothing (the wide _woutput's narrow-string rule)"
- },
+ "mismatch_examples": {},
  "extended_run_wide_only": {
   "command": "compare.py --i10 60000 --seed 7",
   "cases": 281898,
@@ -394,5 +336,16 @@
     "mismatches": 398
    }
   }
+ },
+ "extended_run": {
+  "command": "compare.py --i10 60000 --seed 7",
+  "cases": 312985,
+  "total_mismatches": 0,
+  "note": "includes the narrow sprintf ('A') cases"
+ },
+ "narrow_sprintf": {
+  "cases_default": 31175,
+  "skipped_both_sides_65536_or_more": 389,
+  "found_and_fixed": "narrow-string conversions (%s, %hs) with a negative precision other than -1 (e.g. %.*5s with * = -1): msvcr70's narrow _output prints the whole string (while (i-- && *p)); xrt_output printed nothing (17 cases) until the fix in xrt_fmt.c the same day"
  }
 }

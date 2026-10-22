@@ -3,7 +3,9 @@
  *   STUB_EVENT  xrt_event (evidence timeline, xrt_events.c): ignored
  *   STUB_JSTR   xrt_jstr: a real JSON quoting, since callers use its result as text
  *   STUB_EH     xrt_eh_throw (C++ exception dispatch, xrt_eh.c): fatal, because no harness throws
- *   STUB_LOADLIB xrt_load_library / xrt_free_library (module loading, xrt_main.c): fatal, no harness loads DLLs */
+ *   STUB_LOADLIB xrt_load_library / xrt_free_library (module loading, xrt_main.c): fatal, no harness loads DLLs
+ *   STUB_POW    xrt_msvcr70_pow (_CIpow's translated SSE2 core, xrt_msvcr70img.c): fatal, no harness calls _CIpow
+ *               (tools/xrt/tests/crt_gatef tests it) */
 #include "xrt_internal.h"
 
 #ifdef STUB_EVENT
@@ -38,6 +40,15 @@ const char* xrt_jstr(char* out, size_t n, const char* s) {
 
 #ifdef STUB_EH
 void xrt_eh_throw(CPU* c) { xrt_fatal(c, XRT_EXIT_UNSUPPORTED, "test harness: _CxxThrowException reached"); }
+#endif
+
+#ifdef STUB_POW
+double xrt_msvcr70_pow(CPU* c, double x, double y, uint32_t* error_type) {
+    (void)x;
+    (void)y;
+    (void)error_type;
+    xrt_fatal(c, XRT_EXIT_UNSUPPORTED, "test harness: xrt_msvcr70_pow reached");
+}
 #endif
 
 #ifdef STUB_LOADLIB
