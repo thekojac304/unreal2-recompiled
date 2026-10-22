@@ -11,6 +11,9 @@
  * The debuggee's stdout/stderr go to files. Output: one JSON document.
  *
  * Usage: uctrace <entries-dir> <out.json> <stdout-file> <exe> [args...]   (cwd = the exe's directory)
+ * Optional: UCTRACE_SITES=name1,name2 (substrings of "DLL!function") additionally records, for those
+ * imports, a histogram of return addresses ("import_sites") for site-by-site comparison with the
+ * translated runtime (xrt_ucc --count-sites).
  */
 #include <stdio.h>
 #include <stdlib.h>
@@ -42,6 +45,18 @@ static FILE* jout;
 static char entries_dir[MAX_PATH];
 static unsigned cws[64]; static char cw_where[64][160]; static int ncws;
 static int order_counter;
+#define MAX_SITES 65536
+static char site_names[8][64]; static int nsite_names;
+static struct { int imp; DWORD ret, ret2; int count; } sites[MAX_SITES]; static int nsites;
+static int site_extra_off = -1;   /* UCTRACE_SITE_EXTRA=<byte offset>: also key by the dword at [esp+offset] */
+static int site_wanted(const char* name) {
+    for (int i = 0; i < nsite_names; i++) if (strstr(name, site_names[i])) return 1;
+    return 0;
+}
+static void site_count(int imp, DWORD ret, DWORD ret2) {
+    for (int i = 0; i < nsites; i++) if (sites[i].imp == imp && sites[i].ret == ret && sites[i].ret2 == ret2) { sites[i].count++; return; }
+    if (nsites < MAX_SITES) { sites[nsites].imp = imp; sites[nsites].ret = ret; sites[nsites].ret2 = ret2; sites[nsites].count = 1; nsites++; }
+}
 static int loader_done;   /* set at the loader's initial breakpoint: later DLL loads are dynamic */
 
 static HANDLE thread_handle(DWORD tid) {
@@ -191,6 +206,17 @@ static CfRec cfs[256]; static int ncfs;
 int main(int argc, char** argv) {
     if (argc < 5) { fprintf(stderr, "usage: uctrace <entries-dir> <out.json> <stdout-file> <exe> [args...]\n"); return 2; }
     strncpy(entries_dir, argv[1], MAX_PATH - 1);
+    {
+        const char* env = getenv("UCTRACE_SITES");
+        if (getenv("UCTRACE_SITE_EXTRA")) site_extra_off = atoi(getenv("UCTRACE_SITE_EXTRA"));
+        while (env && *env && nsite_names < 8) {
+            const char* comma = strchr(env, ',');
+            size_t n = comma ? (size_t)(comma - env) : strlen(env);
+            if (n > 63) n = 63;
+            memcpy(site_names[nsite_names], env, n); site_names[nsite_names][n] = 0; nsite_names++;
+            env = comma ? comma + 1 : NULL;
+        }
+    }
     bps = malloc(MAX_BP * sizeof(BP));
     bpmap = malloc(bpmap_size * sizeof(int));
     memset(bpmap, 0xFF, bpmap_size * sizeof(int));
@@ -253,6 +279,11 @@ int main(int argc, char** argv) {
                     Imp* im = &imps[b->imp];
                     if (cm >= 0 && mods[cm].instrumented) {
                         im->count[cm]++; im->total++;
+                        if (site_wanted(im->name)) {
+                            DWORD ret2 = 0;
+                            if (site_extra_off >= 0) rd(ctx.Esp + (DWORD)site_extra_off, &ret2, 4);
+                            site_count(b->imp, ret, ret2);
+                        }
                         char where[160]; snprintf(where, sizeof where, "%s from %s", im->name, mods[cm].name);
                         note_cw(th, where);
                         if (strstr(im->name, "_controlfp") && ncfs < 256) {
@@ -337,6 +368,12 @@ int main(int argc, char** argv) {
         int f2 = 1;
         for (int k = 0; k < nmods; k++) if (imps[i].count[k]) { fprintf(jout, "%s", f2 ? "" : ", "); f2 = 0; json_str(jout, mods[k].name); fprintf(jout, ": %d", imps[i].count[k]); }
         fprintf(jout, "}}");
+    }
+    fprintf(jout, "\n ],\n \"import_sites\": [");
+    for (int i = 0; i < nsites; i++) {
+        fprintf(jout, "%s\n  {\"import\": ", i ? "," : "");
+        json_str(jout, imps[sites[i].imp].name);
+        fprintf(jout, ", \"return_address\": \"0x%08lx\", \"extra\": \"0x%08lx\", \"count\": %d}", sites[i].ret, sites[i].ret2, sites[i].count);
     }
     fprintf(jout, "\n ],\n \"exceptions\": [");
     for (int i = 0; i < nexs; i++)

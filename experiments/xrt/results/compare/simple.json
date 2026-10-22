@@ -1,0 +1,157 @@
+{
+ "case": "simple",
+ "args": [
+  "Core.SimpleCommandlet"
+ ],
+ "repeat": 3,
+ "runs": [
+  {
+   "run": 0,
+   "xrt": {
+    "exit_code": 0,
+    "seconds": 1.858,
+    "stdout_sha256": "8b1619e9af247ab87cc8d80e24e1a8a1f456bfacd08519df44d6101feaa5e8da",
+    "stderr": ""
+   },
+   "worker": {
+    "main": {
+     "sleeps": 1,
+     "contended_cs": 0,
+     "preemptions": 69
+    },
+    "worker": {
+     "entry": "1015a520 (Core.dll+5a520)",
+     "state": "exited",
+     "exit_via": "ExitThread",
+     "exit_code": 0,
+     "sleeps": 69,
+     "contended_cs": 0,
+     "preemptions": 0
+    },
+    "destroyed_flag_timeline": [
+     "watch 101edbe0: -559038737 -> 0, first observed by thread 0 at its call to msvcr70.dll!malloc from 1015d764 (Core.dll+5d764, in f_1015d736+2e)",
+     "watch 101edbe0: 0 -> 1, first observed by thread 0 at its call to msvcr70.dll!_vsnwprintf from 10117335 (Core.dll+17335, in f_10117320+15 ?appGetVarArgs@@YAHPAGHAAPBG@Z)",
+     "watch 101edbe0: 1 -> 2, first observed by thread 1 at its call to kernel32.dll!ExitThread from 1015a607 (Core.dll+5a607, in f_1015a520+e7)"
+    ],
+    "thread_events": [
+     "thread 1 created by thread 0: entry 1015a520 (Core.dll+5a520) param 00000000 guest stack 01220000-01420000 teb 00014000",
+     "thread 1 running: guest entry 1015a520 (Core.dll+5a520), param 00000000",
+     "watch 101edbe0: 1 -> 2, first observed by thread 1 at its call to kernel32.dll!ExitThread from 1015a607 (Core.dll+5a607, in f_1015a520+e7)",
+     "ExitThread(0) on thread 1",
+     "thread 1 exited with code 0 via ExitThread after 69 Sleep calls (0 contended critical sections, 0 preemptions)",
+     "thread 1 at process exit: already exited"
+    ]
+   },
+   "original": {
+    "exit_code": 0,
+    "seconds": 1.724,
+    "stdout_sha256": "8b1619e9af247ab87cc8d80e24e1a8a1f456bfacd08519df44d6101feaa5e8da"
+   },
+   "stdout_byte_identical": true,
+   "stdout_identical_after_normalisation": true,
+   "exit_code_identical": true,
+   "ucc_log_identical_after_normalisation": true,
+   "ucc_log_diff": [],
+   "match": true
+  },
+  {
+   "run": 1,
+   "xrt": {
+    "exit_code": 0,
+    "seconds": 1.859,
+    "stdout_sha256": "8b1619e9af247ab87cc8d80e24e1a8a1f456bfacd08519df44d6101feaa5e8da",
+    "stderr": ""
+   },
+   "worker": {
+    "main": {
+     "sleeps": 1,
+     "contended_cs": 0,
+     "preemptions": 73
+    },
+    "worker": {
+     "entry": "1015a520 (Core.dll+5a520)",
+     "state": "exited",
+     "exit_via": "ExitThread",
+     "exit_code": 0,
+     "sleeps": 73,
+     "contended_cs": 0,
+     "preemptions": 0
+    },
+    "destroyed_flag_timeline": [
+     "watch 101edbe0: -559038737 -> 0, first observed by thread 0 at its call to msvcr70.dll!malloc from 1015d764 (Core.dll+5d764, in f_1015d736+2e)",
+     "watch 101edbe0: 0 -> 1, first observed by thread 0 at its call to msvcr70.dll!_vsnwprintf from 10117335 (Core.dll+17335, in f_10117320+15 ?appGetVarArgs@@YAHPAGHAAPBG@Z)",
+     "watch 101edbe0: 1 -> 2, first observed by thread 1 at its call to kernel32.dll!ExitThread from 1015a607 (Core.dll+5a607, in f_1015a520+e7)"
+    ],
+    "thread_events": [
+     "thread 1 created by thread 0: entry 1015a520 (Core.dll+5a520) param 00000000 guest stack 01220000-01420000 teb 00014000",
+     "thread 1 running: guest entry 1015a520 (Core.dll+5a520), param 00000000",
+     "watch 101edbe0: 1 -> 2, first observed by thread 1 at its call to kernel32.dll!ExitThread from 1015a607 (Core.dll+5a607, in f_1015a520+e7)",
+     "ExitThread(0) on thread 1",
+     "thread 1 exited with code 0 via ExitThread after 73 Sleep calls (0 contended critical sections, 0 preemptions)",
+     "thread 1 at process exit: already exited"
+    ]
+   },
+   "original": {
+    "exit_code": 0,
+    "seconds": 1.729,
+    "stdout_sha256": "8b1619e9af247ab87cc8d80e24e1a8a1f456bfacd08519df44d6101feaa5e8da"
+   },
+   "stdout_byte_identical": true,
+   "stdout_identical_after_normalisation": true,
+   "exit_code_identical": true,
+   "ucc_log_identical_after_normalisation": true,
+   "ucc_log_diff": [],
+   "match": true
+  },
+  {
+   "run": 2,
+   "xrt": {
+    "exit_code": 0,
+    "seconds": 1.858,
+    "stdout_sha256": "8b1619e9af247ab87cc8d80e24e1a8a1f456bfacd08519df44d6101feaa5e8da",
+    "stderr": ""
+   },
+   "worker": {
+    "main": {
+     "sleeps": 1,
+     "contended_cs": 0,
+     "preemptions": 63
+    },
+    "worker": {
+     "entry": "1015a520 (Core.dll+5a520)",
+     "state": "exited",
+     "exit_via": "ExitThread",
+     "exit_code": 0,
+     "sleeps": 63,
+     "contended_cs": 0,
+     "preemptions": 0
+    },
+    "destroyed_flag_timeline": [
+     "watch 101edbe0: -559038737 -> 0, first observed by thread 0 at its call to msvcr70.dll!malloc from 1015d764 (Core.dll+5d764, in f_1015d736+2e)",
+     "watch 101edbe0: 0 -> 1, first observed by thread 0 at its call to msvcr70.dll!_vsnwprintf from 10117335 (Core.dll+17335, in f_10117320+15 ?appGetVarArgs@@YAHPAGHAAPBG@Z)",
+     "watch 101edbe0: 1 -> 2, first observed by thread 1 at its call to kernel32.dll!ExitThread from 1015a607 (Core.dll+5a607, in f_1015a520+e7)"
+    ],
+    "thread_events": [
+     "thread 1 created by thread 0: entry 1015a520 (Core.dll+5a520) param 00000000 guest stack 01220000-01420000 teb 00014000",
+     "thread 1 running: guest entry 1015a520 (Core.dll+5a520), param 00000000",
+     "watch 101edbe0: 1 -> 2, first observed by thread 1 at its call to kernel32.dll!ExitThread from 1015a607 (Core.dll+5a607, in f_1015a520+e7)",
+     "ExitThread(0) on thread 1",
+     "thread 1 exited with code 0 via ExitThread after 63 Sleep calls (0 contended critical sections, 0 preemptions)",
+     "thread 1 at process exit: already exited"
+    ]
+   },
+   "original": {
+    "exit_code": 0,
+    "seconds": 1.717,
+    "stdout_sha256": "8b1619e9af247ab87cc8d80e24e1a8a1f456bfacd08519df44d6101feaa5e8da"
+   },
+   "stdout_byte_identical": true,
+   "stdout_identical_after_normalisation": true,
+   "exit_code_identical": true,
+   "ucc_log_identical_after_normalisation": true,
+   "ucc_log_diff": [],
+   "match": true
+  }
+ ],
+ "all_match": true
+}

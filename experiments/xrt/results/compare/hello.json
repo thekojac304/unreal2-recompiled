@@ -1,0 +1,59 @@
+{
+ "case": "hello",
+ "args": [
+  "HelloWorld",
+  "a",
+  "b",
+  "c"
+ ],
+ "repeat": 1,
+ "runs": [
+  {
+   "run": 0,
+   "xrt": {
+    "exit_code": 76,
+    "seconds": 0.741,
+    "stdout_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+    "stderr": "\nXRT FATAL (exit 76): C++ exception thrown (type .PAG, message \"Can't resolve package name\"); exception dispatch is not supported by this runtime\n  guest thread 0 (tid 49036), last instruction 1015d414 (Core.dll+5d414)\n  eax=0000001a ecx=0120f200 edx=101f8bf8 ebx=00000000 esp=0120f1f4 ebp=0120f638 esi=00000000 edi=00000000\n  cf=0 pf=1 zf=0 sf=0 of=0 df=0  fcw=027f fsw=0100 top=0 fs_base=00012000\n  recent function entries (newest first):\n    1015d414 (Core.dll+5d414)\n    10117320 (Core.dll+17320 ?appGetVarArgs@@YAHPAGHAAPBG@Z)\n    1013c870 (Core.dll+3c870 ?appThrowf@@YAXPBGZZ)\n    101172f0 (Core.dll+172f0 ?appStrncpy@@YAPAGPAGPBGH@Z)\n    10109bf0 (Core.dll+9bf0 ??DFString@@QBEPBGXZ)\n    1013dcb0 (Core.dll+3dcb0 ?Remove@FArray@@QAEXHHH@Z)\n    1010bb30 (Core.dll+bb30 ??1?$TArray@G@@QAE@XZ)\n    00401ae0 (UCC.exe+1ae0)\n    1013dc00 (Core.dll+3dc00 ?Realloc@FArray@@IAEXH@Z)\n    1010c540 (Core.dll+c540 ??1FString@@QAE@XZ)\n    101173a0 (Core.dll+173a0 ?appStricmp@@YAHPBG0@Z)\n    10109e60 (Core.dll+9e60 ??8FString@@QBEHABV0@@Z)\n    101173a0 (Core.dll+173a0 ?appStricmp@@YAHPBG0@Z)\n    10109e60 (Core.dll+9e60 ??8FString@@QBEHABV0@@Z)\n    101173a0 (Core.dll+173a0 ?appStricmp@@YAHPBG0@Z)\n    10109e60 (Core.dll+9e60 ??8FString@@QBEHABV0@@Z)\n  guest stack (return addresses found scanning up from esp):\n    [esp+0000] 1013c89f (Core.dll+3c89f, in f_1013c870+2f ?appThrowf@@YAXPBGZZ)\n    [esp+0010] 1014e5e3 (Core.dll+4e5e3, in f_1014e500+e3 ?GetPackageLinker@UObject@@SAPAVULinkerLoad@@PAV1@PBGKPAVUPackageMap@@PAVFGuid@@@Z)\n    [esp+0214] 1014ca02 (Core.dll+4ca02, in f_1014c990+72 ?ResolveName@UObject@@CAHAAPAV1@AAPBGHH@Z)\n    [esp+0218] 1014cb3d (Core.dll+4cb3d, in f_1014c990+1ad ?ResolveName@UObject@@CAHAAPAV1@AAPBGHH@Z)\n    [esp+0448] 1014eafd (Core.dll+4eafd, in f_1014ea00+fd ?StaticLoadObject@UObject@@SAPAV1@PAVUClass@@PAV1@PBG2KPAVUPackageMap@@@Z)\n    [esp+0484] 1010c488 (Core.dll+c488, in f_1010c450+38 ??0FString@@QAE@ABV0@@Z)\n    [esp+04ac] 1014f1ab (Core.dll+4f1ab, in f_1014f1"
+   },
+   "worker": {
+    "main": {
+     "sleeps": 0,
+     "contended_cs": 0,
+     "preemptions": 37
+    },
+    "worker": {
+     "entry": "1015a520 (Core.dll+5a520)",
+     "state": "running",
+     "exit_via": "",
+     "exit_code": 0,
+     "sleeps": 37,
+     "contended_cs": 0,
+     "preemptions": 0
+    },
+    "destroyed_flag_timeline": [
+     "watch 101edbe0: -559038737 -> 0, first observed by thread 0 at its call to msvcr70.dll!malloc from 1015d764 (Core.dll+5d764, in f_1015d736+2e)"
+    ],
+    "thread_events": [
+     "thread 1 created by thread 0: entry 1015a520 (Core.dll+5a520) param 00000000 guest stack 01220000-01420000 teb 00014000",
+     "thread 1 running: guest entry 1015a520 (Core.dll+5a520), param 00000000"
+    ]
+   },
+   "original": {
+    "exit_code": 0,
+    "seconds": 1.735,
+    "stdout_sha256": "622d7eb96043060966ed0bf1f9a9f73f66a2537814e260bfddcb9f4a3a8b1575"
+   },
+   "stdout_byte_identical": false,
+   "stdout_identical_after_normalisation": false,
+   "exit_code_identical": false,
+   "ucc_log_identical_after_normalisation": false,
+   "ucc_log_diff": [
+    "- Log: Log file open, <timestamp>\n+ ",
+    "line count 37 vs 1"
+   ],
+   "match": false
+  }
+ ],
+ "all_match": false
+}
