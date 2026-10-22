@@ -1,0 +1,9 @@
+ScriptLog: Simple commandlet says hi.
+ScriptLog: Testing function calling.
+ScriptLog: Function call returned 666
+ScriptLog: Testing cast to int.
+ScriptLog: Temp is cast from 3.000000 to 3
+ScriptLog: Testing min()
+ScriptLog: Temp is min(32, 666): 32
+ScriptLog: 3 is a woo
+ScriptLog: otherstring: alker

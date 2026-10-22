@@ -1,0 +1,2 @@
+ScriptLog: Hello, world!
+ScriptLog: Command line parameters=a b c

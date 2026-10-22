@@ -1,0 +1,38 @@
+# Local-only material: original game files, derived dumps and machine-translated proprietary code.
+# Never commit anything that contains Legend/Epic bytes or a translation of them.
+sandbox/
+sandbox_*/
+out/
+experiments/lift/lifted_core.c
+experiments/lift/build/
+experiments/vmprobe/*.u
+experiments/uvm/build/
+experiments/uelib_test/bin/
+experiments/uelib_test/obj/
+# Translated-runtime phase (X1): generated C from original modules, build trees, traces.
+experiments/xrt/gen/
+experiments/xrt/build/
+experiments/xrt/traces/
+experiments/xrt/results/raw/
+third_party/
+.venv/
+# Original game file types and binaries (defence in depth).
+*.u
+*.un2
+*.utx
+*.usx
+*.uax
+*.upx
+*.ugx
+*.usa
+*.gem
+*.con
+*.dll
+*.exe
+*.log
+*.pdb
+*.obj
+*.ilk
+*.lib
+*.exp
+__pycache__/

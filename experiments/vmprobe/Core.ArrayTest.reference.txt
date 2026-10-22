@@ -1,0 +1,9 @@
+ScriptWarning: ArrayTest Transient.ArrayTest0 (Function Core.ArrayTest.RegularTests:0090) Accessed array 'TestArray' out of bounds (5/2)
+ScriptWarning: ArrayTest Transient.ArrayTest0 (Function Core.ArrayTest.RegularTests:00DF) Accessed array 'TestArray' out of bounds (6/6)
+ScriptWarning: ArrayTest Transient.ArrayTest0 (Function Core.ArrayTest.InsertRemoveTests:00D5) Accessed array 'TestArray' out of bounds (3/3)
+ScriptWarning: ArrayTest Transient.ArrayTest0 (Function Core.ArrayTest.InsertRemoveTests:0105) Attempt to remove elements 0 through 5 in an 5-element array
+ScriptWarning: ArrayTest Transient.ArrayTest0 (Function Core.ArrayTest.InsertRemoveTests:011C) Attempt to remove element 0 in an 0-element array
+ScriptWarning: ArrayTest Transient.ArrayTest0 (Function Core.ArrayTest.InsertRemoveTests:0152) Attempt to remove element 1 in an 0-element array
+ScriptWarning: ArrayTest Transient.ArrayTest0 (Function Core.ArrayTest.NestedTests:000F) Accessed array 'OuterArray' out of bounds (0/0)
+ScriptWarning: ArrayTest Transient.ArrayTest0 (Function Core.ArrayTest.NestedTests:000F) 0.620 Attempt to assign variable through None (line 0)
+ScriptWarning: ArrayTest Transient.ArrayTest0 (Function Core.ArrayTest.NestedTests:002B) Accessed array 'OuterArray' out of bounds (0/0)
