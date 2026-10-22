@@ -19,8 +19,12 @@ x87 register-form arithmetic is decoded from the opcode bytes (Intel SDM tables)
 disassembler mnemonic, because the DC/DE register forms of fsub/fsubr and fdiv/fdivr are the
 classic place where disassemblers disagree.
 
+Evidence instrumentation (tools/xrt/marks.json, see the comment there): a mark emits XRT_MARK() before the
+instruction at its address; a watch emits xrt_watch_store() after every instruction that stores to the watched
+global through a constant address. Both only record; they never change guest state.
+
 Usage:
-  python -I tools/xrt/xlift.py <module> --out <dir> [--chunk 250] [--only 0xVA,...]
+  python -I tools/xrt/xlift.py <module> --out <dir> [--chunk 250] [--only 0xVA,...] [--marks FILE|--no-marks]
 Outputs <dir>/<stem>_NNN.c, <stem>_protos.h, <stem>_table.c and <stem>_meta.json.
 """
 import collections
@@ -51,6 +55,10 @@ X87_CONST_BY_MODRM = {0xE8: "1.0", 0xE9: "XRT_L2T", 0xEA: "XRT_L2E", 0xEB: "XRT_
 X87_HELPER_BY_MODRM = {0xF0: "xrt_f2xm1", 0xF1: "xrt_fyl2x", 0xF2: "xrt_fptan", 0xF3: "xrt_fpatan",
                        0xFA: "xrt_fsqrt", 0xFD: "xrt_fscale", 0xFE: "xrt_fsin", 0xFF: "xrt_fcos"}
 STRING_OPS = {"movs", "stos", "cmps", "scas", "lods"}
+X87_STORES = {"fst", "fstp", "fist", "fistp", "fisttp", "fnstsw", "fstsw", "fnstcw", "fstcw", "fnstenv", "fstenv",
+              "fnsave", "fsave", "fbstp"}
+CAPTURE_REGS = {"eax": 0, "ecx": 1, "edx": 2, "ebx": 3, "esp": 4, "ebp": 5, "esi": 6, "edi": 7}
+DEFAULT_MARKS = os.path.join(os.path.dirname(os.path.abspath(__file__)), "marks.json")
 SIZE_SUFFIX = {"b": 1, "w": 2, "d": 4}
 
 
@@ -78,12 +86,37 @@ def mask_hex(bits):
 
 
 class Lifter:
-    def __init__(self, mod):
+    def __init__(self, mod, marks=(), watches=(), stem="m"):
         self.mod = mod
         self.img = mod.img
         self.md = mod.md
         self.traps = collections.Counter()
         self.trap_sites = []
+        self.stem = stem
+        self.marks = list(marks)          # [(va, name, capture_reg_index or -1)]
+        self.marks_at = collections.defaultdict(list)
+        for k, (va, _, _) in enumerate(self.marks):
+            self.marks_at[va].append(k)
+        self.marks_emitted = set()
+        self.watches = list(watches)      # [(addr, size, name)]
+        self.watch_sites = collections.defaultdict(set)   # watch index -> store sites
+
+    def watch_store_stmts(self, ins):
+        """xrt_watch_store() calls for an instruction that stores to a watched global through a constant address."""
+        out = []
+        if not self.watches:
+            return out
+        for op in ins.operands:
+            if op.type != X.X86_OP_MEM or op.mem.base or op.mem.index or op.mem.segment:
+                continue
+            if not (op.access & 2) and ins.mnemonic not in X87_STORES:
+                continue
+            a, n = op.mem.disp & 0xFFFFFFFF, max(op.size, 1)
+            for w, (wa, wn, _) in enumerate(self.watches):
+                if a < wa + wn and wa < a + n:
+                    self.watch_sites[w].add(ins.address)
+                    out.append(f"xrt_watch_store(c, &xrt_watches_{self.stem}[{w}], 0x{ins.address:x}u);")
+        return out
 
     # ------------------------------------------------------------------ operands
     def rn(self, op):
@@ -172,6 +205,8 @@ class Lifter:
     def lift_insn(self, ins, fn):
         """Return C statements for one instruction. `fn` is the discover.Function being lifted."""
         m, ops, va = ins.mnemonic, ins.operands, ins.address
+        if m.startswith("lock "):
+            m = m[5:]       # capstone spells the prefix into the mnemonic ("lock add"); ins.prefix keeps it
         nxt = va + ins.size
         o = []
         bits = ops[0].size * 8 if ops and ops[0].type != X.X86_OP_IMM else 32
@@ -617,7 +652,9 @@ class Lifter:
             m, ops = ins.mnemonic, ins.operands
             nxt = va + ins.size
             text = f"{m} {ins.op_str}".strip()
-            stmts = [f"P(0x{va:x}u); /* {text} */"]
+            stmts = [f"XRT_MARK(&xrt_marks_{self.stem}[{k}]);   /* {self.marks[k][1]} */" for k in self.marks_at.get(va, ())]
+            self.marks_emitted.update(self.marks_at.get(va, ()))
+            stmts.append(f"P(0x{va:x}u); /* {text} */")
             terminal = False
             try:
                 if m in JCC:
@@ -679,6 +716,7 @@ class Lifter:
                     terminal = True
                 else:
                     stmts.extend(self.lift_insn(ins, fn))
+                    stmts.extend(self.watch_store_stmts(ins))
             except Unsupported as exc:
                 stmts.append(self.trap(va, f"unsupported: {text}: {exc}"))
                 terminal = True
@@ -707,6 +745,40 @@ class Lifter:
         return lines
 
 
+def load_marks(path, img):
+    """Marks and watches for this module from the evidence-instrumentation file (see tools/xrt/marks.json)."""
+    if not path:
+        return [], [], None
+    with open(path, "rb") as f:
+        raw = f.read()
+    cfg = json.loads(raw).get(img.name, {})
+
+    def resolve(e, what):
+        if "export" in e:
+            if e["export"] not in img.exports:
+                sys.exit(f"{path}: {img.name} has no export {e['export']} ({what} '{e['name']}')")
+            return img.base + img.exports[e["export"]]
+        return int(e["va"], 16)
+
+    marks = []
+    for e in cfg.get("marks", []):
+        cap = e.get("capture")
+        if cap is not None and cap not in CAPTURE_REGS:
+            sys.exit(f"{path}: mark '{e['name']}': cannot capture {cap}")
+        marks.append((resolve(e, "mark"), e["name"], CAPTURE_REGS[cap] if cap else -1))
+    watches = [(resolve(e, "watch"), int(e.get("size", 4)), e["name"]) for e in cfg.get("watches", [])]
+    for _, n, name in watches:
+        if n not in (1, 2, 4):
+            sys.exit(f"{path}: watch '{name}': size must be 1, 2 or 4")
+    return marks, watches, hashlib.sha256(raw).hexdigest()
+
+
+def c_string(s):
+    if any(ch in s for ch in '"\\') or not s.isprintable() or not s.isascii():
+        raise ValueError(f"mark/watch name must be printable ASCII without quotes or backslashes: {s!r}")
+    return f'"{s}"'
+
+
 def sha256_file(path):
     h = hashlib.sha256()
     with open(path, "rb") as f:
@@ -722,10 +794,12 @@ def main():
     only = None
     if "--only" in args:
         only = {int(v, 16) for v in args[args.index("--only") + 1].split(",")}
+    marks_path = None if "--no-marks" in args else (args[args.index("--marks") + 1] if "--marks" in args else DEFAULT_MARKS)
     os.makedirs(out, exist_ok=True)
     mod = Module(path).run()
-    lifter = Lifter(mod)
     stem = re.sub(r"\W", "_", mod.img.name.rsplit(".", 1)[0])
+    marks, watches, marks_digest = load_marks(marks_path, mod.img)
+    lifter = Lifter(mod, marks, watches, stem)
     entries = sorted(e for e in mod.functions if only is None or e in only)
     conflicts = mod.conflicting()
     # regression guard (tracer finding): data recovered inside .text (jump tables and their byte
@@ -741,6 +815,8 @@ def main():
         f.write('#include "xrt.h"\n')
         f.write("\n".join(protos) + "\n")
         f.write(f"extern uint8_t xrt_hits_{stem}[];\n")
+        f.write(f"extern XrtMark xrt_marks_{stem}[];\n")
+        f.write(f"extern XrtWatchDef xrt_watches_{stem}[];\n")
     ninsns = 0
     files = []
     for k in range(0, len(entries), chunk):
@@ -763,9 +839,32 @@ def main():
             f.write(f"    {{0x{e:x}u, f_{e:x}}},\n")
         f.write("};\n")
         f.write(f"uint8_t xrt_hits_{stem}[{max(len(entries), 1)}];\n")
+        f.write(f"XrtMark xrt_marks_{stem}[{max(len(marks), 1)}] = {{\n")
+        for va, name, cap in marks:
+            f.write(f"    {{0x{va:x}u, {c_string(name)}, {cap}}},\n")
+        f.write("" if marks else "    {0},\n")
+        f.write("};\n")
+        f.write(f"XrtWatchDef xrt_watches_{stem}[{max(len(watches), 1)}] = {{\n")
+        for a, n, name in watches:
+            f.write(f"    {{0x{a:x}u, {n}u, {c_string(name)}}},\n")
+        f.write("" if watches else "    {0},\n")
+        f.write("};\n")
         f.write(f'const XrtLiftedModule xrt_mod_{stem} = {{"{mod.img.name}", 0x{mod.img.base:x}u, 0x{mod.img.size:x}u, '
-                f'"{digest}", funcs, {len(entries)}u, {len(lifter.trap_sites)}u, xrt_hits_{stem}}};\n')
+                f'"{digest}", funcs, {len(entries)}u, {len(lifter.trap_sites)}u, xrt_hits_{stem}, '
+                f'xrt_marks_{stem}, {len(marks)}u, xrt_watches_{stem}, {len(watches)}u}};\n')
+    if only is None:
+        missing = [marks[k] for k in range(len(marks)) if k not in lifter.marks_emitted]
+        if missing:
+            sys.exit("marks at addresses that are not decoded instructions of any lifted function: "
+                     + ", ".join(f"{va:#x} ({name})" for va, name, _ in missing))
+    instrumentation = {
+        "file": os.path.basename(marks_path) if marks_path else None, "sha256": marks_digest,
+        "marks": [[hex(va), name] for va, name, _ in marks],
+        "watches": [{"name": name, "addr": hex(a), "size": n,
+                     "constant_address_store_sites": sorted(hex(v) for v in lifter.watch_sites[w])}
+                    for w, (a, n, name) in enumerate(watches)]}
     meta = {"module": mod.img.name, "sha256": digest, "base": hex(mod.img.base), "functions": len(entries),
+            "evidence_instrumentation": instrumentation,
             "instructions": ninsns, "static_traps": len(lifter.trap_sites), "trap_reasons": dict(lifter.traps.most_common()),
             "decode_conflicts": len(conflicts), "text_data_ranges": [[hex(a), hex(b)] for a, b in mod.table_data],
             "files": files + [tab, hdr], "discovery": mod.summary()}

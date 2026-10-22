@@ -403,6 +403,7 @@ static void dispatch(CPU* c, uint32_t target, uint32_t site, const char* what) {
                 site_count((int)i, rd32(c->r[ESP]));
             if (nwatch)
                 watch_check(c, (int)i, site);
+            xrt_watches_check(c, stubs[i].name, site);
             if (xrt_preempt_req)          /* import calls are preemption points too (e.g. spin loops on timeGetTime) */
                 xrt_preempt(c);
             if (!stubs[i].fn) {

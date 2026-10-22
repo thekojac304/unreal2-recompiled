@@ -137,6 +137,7 @@ static DWORD WINAPI host_thread_proc(void* p) {
     t->state = 1;
     xrt_describe(d, sizeof d, t->start_va);
     xrt_log("thread %d running: guest entry %s, param %08x", t->index, d, t->param);
+    xrt_event("thread_start", "\"index\": %d, \"entry\": \"0x%08x\"", t->index, t->start_va);
     if (setjmp(t->exit_jmp) == 0) {
         uint32_t arg = t->param;
         t->exit_code = xrt_call_guest(c, t->start_va, 1, &arg, 1);   /* LPTHREAD_START_ROUTINE is __stdcall */
@@ -146,6 +147,8 @@ static DWORD WINAPI host_thread_proc(void* p) {
     xrt_log("thread %d exited with code %u via %s after %llu Sleep calls (%llu contended critical sections, %llu preemptions)",
             t->index, t->exit_code, t->exit_via == 1 ? "ExitThread" : "return from its entry point", t->sleeps, t->cs_waits,
             t->preemptions);
+    xrt_event("thread_end", "\"index\": %d, \"code\": %u, \"via\": \"%s\"", t->index, t->exit_code,
+              t->exit_via == 1 ? "ExitThread" : "return");
     xrt_baton_release();
     return 0;
 }
@@ -174,6 +177,7 @@ uint32_t xrt_thread_create(CPU* c, uint32_t stack_size, uint32_t start, uint32_t
     xrt_describe(d, sizeof d, start);
     xrt_log("thread %d created by thread %d: entry %s param %08x guest stack %08x-%08x teb %08x", t->index,
             c->thread->index, d, param, t->stack_lo, t->stack_hi, t->teb);
+    xrt_event("thread_create", "\"index\": %d, \"entry\": \"0x%08x\", \"param\": \"0x%08x\"", t->index, start, param);
     ResumeThread(h);
     return xrt_handle_new(XH_THREAD, h);
 }

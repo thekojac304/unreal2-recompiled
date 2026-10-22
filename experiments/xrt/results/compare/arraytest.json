@@ -1,157 +1,168 @@
 {
+ "runner_schema": 2,
+ "invocation_id": "20261022-180945-937f4c37",
+ "invocation_dir": "experiments/xrt/results/raw/runs/20261022-180945-937f4c37",
  "case": "arraytest",
  "args": [
   "Core.ArrayTest"
  ],
- "repeat": 3,
+ "expect": {
+  "exit_code": 0,
+  "negative": false,
+  "stdout_contains": [
+   "ucc.exe: UnrealOS execution environment",
+   "Executing Class Core.ArrayTest"
+  ],
+  "stdout_excludes": [
+   "not found"
+  ]
+ },
+ "profile": "core_commandlet",
+ "natives": [
+  "UObject::execAssert",
+  "UObject::execDynArrayLength",
+  "UObject::execDynArrayInsert",
+  "UObject::execDynArrayRemove",
+  "UObject::execNew",
+  "UObject::execEqualEqual_VectorVector"
+ ],
+ "repeat": 1,
+ "timeout_s": 120.0,
+ "trace": false,
+ "reference": "fresh-original",
+ "identity": {
+  "git": {
+   "head": "edb955c1f1fd151156ac950a7bc9709279be3e68",
+   "tracked_files_modified": true,
+   "modified": [
+    "M experiments/xrt/results/compare/arraytest.json",
+    " M experiments/xrt/results/compare/hellofull.json",
+    " M experiments/xrt/runtime/hle_kernel32.c",
+    " M experiments/xrt/runtime/hle_msvcr70.c",
+    " M experiments/xrt/runtime/xrt.h",
+    " M experiments/xrt/runtime/xrt_diag.c",
+    " M experiments/xrt/runtime/xrt_fmt.c",
+    " M experiments/xrt/runtime/xrt_internal.h",
+    " M experiments/xrt/runtime/xrt_loader.c",
+    " M experiments/xrt/runtime/xrt_main.c",
+    " M experiments/xrt/runtime/xrt_thread.c",
+    " M experiments/xrt/tracer/uctrace.c",
+    " M tools/xrt/make_sandbox.py",
+    " M tools/xrt/run_xrt.py",
+    " M tools/xrt/tests/test_xlift.py",
+    " M tools/xrt/xlift.py"
+   ]
+  },
+  "runner": {
+   "path": "tools/xrt/run_xrt.py",
+   "sha256": "11a12af6f6af9bc1ec8aad1287bb7617bed4a4cb10c91530a764ee8de77dddd4"
+  },
+  "cases_registry": {
+   "path": "tools/xrt/cases.py",
+   "sha256": "00dc0d6cfcf9b7e1ced2c7a3fc6f04fb1ae6fff035a6ef50587dda599cb26393"
+  },
+  "marks": {
+   "path": "tools/xrt/marks.json",
+   "sha256": "2f0c255169e61282d2077dbcaf5bdd38737f730f202425758d840271fef96ed0"
+  },
+  "candidate": {
+   "path": "experiments/xrt/build/xrt_ucc.exe",
+   "sha256": "92ca3541cd181b5f2edcd76c6205e04cb352a2e8a70d41450170bd9f5ac8c0aa"
+  },
+  "tracer": null,
+  "python": "3.14.5",
+  "host": "Windows-11-10.0.26300-SP0"
+ },
  "runs": [
   {
    "run": 0,
-   "xrt": {
+   "dir": "experiments/xrt/results/raw/runs/20261022-180945-937f4c37/arraytest/run0",
+   "verdict": "PASS",
+   "candidate": {
     "exit_code": 0,
-    "seconds": 1.873,
-    "stdout_sha256": "99de3c0a01952b8cc5b1dba202d77936eb05d3670f295544596c564a94342a91",
-    "stderr": ""
-   },
-   "worker": {
-    "main": {
-     "sleeps": 1,
-     "contended_cs": 0,
-     "preemptions": 71
-    },
-    "worker": {
-     "entry": "1015a520 (Core.dll+5a520)",
-     "state": "exited",
-     "exit_via": "ExitThread",
-     "exit_code": 0,
-     "sleeps": 71,
-     "contended_cs": 0,
-     "preemptions": 0
-    },
-    "destroyed_flag_timeline": [
-     "watch 101edbe0: -559038737 -> 0, first observed by thread 0 at its call to msvcr70.dll!malloc from 1015d764 (Core.dll+5d764, in f_1015d736+2e)",
-     "watch 101edbe0: 0 -> 1, first observed by thread 0 at its call to msvcr70.dll!_vsnwprintf from 10117335 (Core.dll+17335, in f_10117320+15 ?appGetVarArgs@@YAHPAGHAAPBG@Z)",
-     "watch 101edbe0: 1 -> 2, first observed by thread 1 at its call to kernel32.dll!ExitThread from 1015a607 (Core.dll+5a607, in f_1015a520+e7)"
-    ],
-    "thread_events": [
-     "thread 1 created by thread 0: entry 1015a520 (Core.dll+5a520) param 00000000 guest stack 01220000-01420000 teb 00014000",
-     "thread 1 running: guest entry 1015a520 (Core.dll+5a520), param 00000000",
-     "watch 101edbe0: 1 -> 2, first observed by thread 1 at its call to kernel32.dll!ExitThread from 1015a607 (Core.dll+5a607, in f_1015a520+e7)",
-     "ExitThread(0) on thread 1",
-     "thread 1 exited with code 0 via ExitThread after 71 Sleep calls (0 contended critical sections, 0 preemptions)",
-     "thread 1 at process exit: already exited"
-    ]
+    "seconds": 1.86,
+    "stdout_sha256": "e04090dc47f8b6e4a6a1aa64ddcabcab818cc67fcef0b4387b1d80a0d6f5775a",
+    "inputs": {
+     "UCC.exe": "84326806545670efdf1e1675d86da438751de2223a578a65f3764edb5a5fb1ab",
+     "Core.dll": "51bdad4d63b1b4fa8fb6935379f730345ca5cfb96cee9d5458eb6e681ac769cc",
+     "Core.u": "8c649483717de4d88d218d5bab129173d137950985eb8d4d61b91104869afe0f",
+     "Engine.dll": "f951becf4069f4976a76c027c04f7acaf73435578190216359c3a9936e618499",
+     "Engine.u": "bf660c827ea7f3a90e023d941fb55f553626bde5540046d8cf2c99f5d31adf03",
+     "msvcr70.dll": "f68e4cdbc879423ea47d763a6768567f5f8063924f13a74239750c13fa8d168a",
+     "VMProbe.u": "5d2c77d7a1afe4c9cff8a9303eba091578fe8d9c8fb6aa3aa266337f0e965991",
+     "VMProbe.ini": "9cee79720c913cea667c7de14a157c80050909d911ec99d76beed2b8743d26b2"
+    }
    },
    "original": {
+    "tool": "direct",
     "exit_code": 0,
-    "seconds": 1.724,
-    "stdout_sha256": "fddfad416dc564c1ce9f0964024d9c558d9a4235eed7a41412c2d341b106b043"
+    "seconds": 2.073,
+    "stdout_sha256": "cff3f54f857c3c12b4a9665eb4d900ffe3fcd2084a40c7ca50b64b5a0fc3681f"
    },
-   "stdout_byte_identical": false,
-   "stdout_identical_after_normalisation": true,
-   "exit_code_identical": true,
-   "ucc_log_identical_after_normalisation": true,
-   "ucc_log_diff": [],
-   "match": true
-  },
-  {
-   "run": 1,
-   "xrt": {
-    "exit_code": 0,
-    "seconds": 1.865,
-    "stdout_sha256": "a5749b71c126ac44457609df7ac0a9bca077057e5f2d23b5cf05a640c179ef29",
-    "stderr": ""
+   "failures": [],
+   "candidate_execution_completed": true,
+   "expected_result": true,
+   "reference": "fresh-original",
+   "output_matches_reference": true,
+   "comparison": {
+    "stdout_byte_identical": false,
+    "stdout_identical_after_normalisation": true,
+    "exit_code_identical": true,
+    "ucc_log_identical_after_normalisation": true,
+    "ucc_log_diff": [],
+    "match": true
    },
-   "worker": {
-    "main": {
-     "sleeps": 1,
-     "contended_cs": 0,
-     "preemptions": 76
+   "milestone_evidence_valid": true,
+   "evidence": [
+    {
+     "group": "engine_initialization",
+     "ok": true,
+     "checks_passed": 7,
+     "failed_checks": []
     },
-    "worker": {
-     "entry": "1015a520 (Core.dll+5a520)",
-     "state": "exited",
-     "exit_via": "ExitThread",
-     "exit_code": 0,
-     "sleeps": 75,
-     "contended_cs": 0,
-     "preemptions": 1
+    {
+     "group": "package_load_and_commandlet_construction",
+     "ok": true,
+     "checks_passed": 7,
+     "failed_checks": []
     },
-    "destroyed_flag_timeline": [
-     "watch 101edbe0: -559038737 -> 0, first observed by thread 0 at its call to msvcr70.dll!malloc from 1015d764 (Core.dll+5d764, in f_1015d736+2e)",
-     "watch 101edbe0: 0 -> 1, first observed by thread 0 at its call to msvcr70.dll!_vsnwprintf from 10117335 (Core.dll+17335, in f_10117320+15 ?appGetVarArgs@@YAHPAGHAAPBG@Z)",
-     "watch 101edbe0: 1 -> 2, first observed by thread 1 at its call to kernel32.dll!ExitThread from 1015a607 (Core.dll+5a607, in f_1015a520+e7)"
-    ],
-    "thread_events": [
-     "thread 1 created by thread 0: entry 1015a520 (Core.dll+5a520) param 00000000 guest stack 01220000-01420000 teb 00014000",
-     "thread 1 running: guest entry 1015a520 (Core.dll+5a520), param 00000000",
-     "watch 101edbe0: 1 -> 2, first observed by thread 1 at its call to kernel32.dll!ExitThread from 1015a607 (Core.dll+5a607, in f_1015a520+e7)",
-     "ExitThread(0) on thread 1",
-     "thread 1 exited with code 0 via ExitThread after 75 Sleep calls (0 contended critical sections, 1 preemptions)",
-     "thread 1 at process exit: already exited"
-    ]
-   },
-   "original": {
-    "exit_code": 0,
-    "seconds": 1.737,
-    "stdout_sha256": "5d017d72a60f1b1056b69690c8f6f2b2fa64072af299cf59480bc7ef6ad9d7a5"
-   },
-   "stdout_byte_identical": false,
-   "stdout_identical_after_normalisation": true,
-   "exit_code_identical": true,
-   "ucc_log_identical_after_normalisation": true,
-   "ucc_log_diff": [],
-   "match": true
-  },
-  {
-   "run": 2,
-   "xrt": {
-    "exit_code": 0,
-    "seconds": 1.861,
-    "stdout_sha256": "a023cc85fe46ca66b58257f60d18d3feb07d986ee0d5eced79a88686f22cf93e",
-    "stderr": ""
-   },
-   "worker": {
-    "main": {
-     "sleeps": 1,
-     "contended_cs": 0,
-     "preemptions": 72
+    {
+     "group": "commandlet_execution",
+     "ok": true,
+     "checks_passed": 18,
+     "failed_checks": []
     },
-    "worker": {
-     "entry": "1015a520 (Core.dll+5a520)",
-     "state": "exited",
-     "exit_via": "ExitThread",
-     "exit_code": 0,
-     "sleeps": 72,
-     "contended_cs": 0,
-     "preemptions": 0
+    {
+     "group": "worker_creation_and_execution",
+     "ok": true,
+     "checks_passed": 5,
+     "failed_checks": []
     },
-    "destroyed_flag_timeline": [
-     "watch 101edbe0: -559038737 -> 0, first observed by thread 0 at its call to msvcr70.dll!malloc from 1015d764 (Core.dll+5d764, in f_1015d736+2e)",
-     "watch 101edbe0: 0 -> 1, first observed by thread 0 at its call to msvcr70.dll!_vsnwprintf from 10117335 (Core.dll+17335, in f_10117320+15 ?appGetVarArgs@@YAHPAGHAAPBG@Z)",
-     "watch 101edbe0: 1 -> 2, first observed by thread 1 at its call to kernel32.dll!ExitThread from 1015a607 (Core.dll+5a607, in f_1015a520+e7)"
-    ],
-    "thread_events": [
-     "thread 1 created by thread 0: entry 1015a520 (Core.dll+5a520) param 00000000 guest stack 01220000-01420000 teb 00014000",
-     "thread 1 running: guest entry 1015a520 (Core.dll+5a520), param 00000000",
-     "watch 101edbe0: 1 -> 2, first observed by thread 1 at its call to kernel32.dll!ExitThread from 1015a607 (Core.dll+5a607, in f_1015a520+e7)",
-     "ExitThread(0) on thread 1",
-     "thread 1 exited with code 0 via ExitThread after 72 Sleep calls (0 contended critical sections, 0 preemptions)",
-     "thread 1 at process exit: already exited"
-    ]
-   },
-   "original": {
-    "exit_code": 0,
-    "seconds": 1.738,
-    "stdout_sha256": "5bb85df332d57c3171b24eed1133c3d90da489d37de06697978aecfe5c05c306"
-   },
-   "stdout_byte_identical": false,
-   "stdout_identical_after_normalisation": true,
-   "exit_code_identical": true,
-   "ucc_log_identical_after_normalisation": true,
-   "ucc_log_diff": [],
-   "match": true
+    {
+     "group": "shutdown_flag_transition",
+     "ok": true,
+     "checks_passed": 7,
+     "failed_checks": []
+    },
+    {
+     "group": "worker_termination_and_wait_completion",
+     "ok": true,
+     "checks_passed": 8,
+     "failed_checks": []
+    },
+    {
+     "group": "engine_cleanup_and_exit",
+     "ok": true,
+     "checks_passed": 14,
+     "failed_checks": []
+    }
+   ]
   }
  ],
- "all_match": true
+ "counts": {
+  "PASS": 1,
+  "FAIL": 0,
+  "UNVERIFIED": 0
+ },
+ "verdict": "PASS"
 }

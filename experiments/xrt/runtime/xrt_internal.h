@@ -51,6 +51,14 @@ XRT_NORETURN void xrt_fatal(CPU* c, int code, const char* fmt, ...);
 void xrt_describe(char* out, size_t n, uint32_t va);         /* module+rva [export] */
 extern volatile long xrt_dying;
 
+/* ---------------------------------------------------------------- evidence timeline (xrt_events.c) */
+void xrt_events_init(void);
+void xrt_event(const char* kind, const char* fmt, ...);     /* fmt: further JSON members, may be NULL */
+const char* xrt_jstr(char* out, size_t n, const char* s);   /* quoted, escaped JSON string in out */
+void xrt_watches_arm(void);                                  /* after the modules are mapped */
+void xrt_watches_check(CPU* c, const char* import, uint32_t site);
+void xrt_events_report(FILE* f);
+
 /* ---------------------------------------------------------------- threads (xrt_thread.c) */
 struct XrtThread {
     CPU cpu;

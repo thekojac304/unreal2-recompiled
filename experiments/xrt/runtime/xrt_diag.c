@@ -108,6 +108,10 @@ XRT_NORETURN void xrt_fatal(CPU* c, int code, const char* fmt, ...) {
         dump_cpu(c);
     fflush(stderr);
     xrt_log("FATAL %d: %s", code, msg);
+    {
+        char j[1200];
+        xrt_event("fatal", "\"code\": %d, \"message\": %s", code, xrt_jstr(j, sizeof j, msg));
+    }
     if (log_file)
         fflush(log_file);
     xrt_report_write((uint32_t)code, msg);

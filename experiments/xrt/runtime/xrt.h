@@ -143,6 +143,28 @@ void xrt_preempt(CPU* c);
                                  if (c->rv != (nxt)) xrt_badret(c, (site), (nxt)); } while (0)
 #define RET(n) do { c->rv = pop32(c); c->r[ESP] += (n); return; } while (0)
 
+/* ---------------------------------------------------------------- evidence instrumentation (tools/xrt/marks.json)
+ * Marks and watches only record events (xrt_events.c); they never change guest state. */
+#define XRT_MARK_CALLERS 32
+typedef struct XrtMark {
+    uint32_t va;
+    const char* name;
+    int capture;                   /* guest register recorded with each event, or -1 */
+    volatile long count;           /* executions (runtime) */
+    uint32_t callers[XRT_MARK_CALLERS];   /* distinct [esp] values seen (return address at a function entry) */
+    int ncallers;
+} XrtMark;
+typedef struct XrtWatchDef {
+    uint32_t addr, size;
+    const char* name;
+    uint32_t last;                 /* value after the last recorded store or initial value (runtime) */
+    int armed;
+    uint64_t stores;
+} XrtWatchDef;
+void xrt_mark(CPU* c, XrtMark* m);
+void xrt_watch_store(CPU* c, XrtWatchDef* w, uint32_t site);
+#define XRT_MARK(m) xrt_mark(c, (m))
+
 /* ---------------------------------------------------------------- generated module descriptors */
 typedef struct XrtFuncEntry { uint32_t va; XrtFn fn; } XrtFuncEntry;
 typedef struct XrtLiftedModule {
@@ -154,6 +176,10 @@ typedef struct XrtLiftedModule {
     uint32_t nfuncs;
     uint32_t ntraps;               /* static traps emitted (unsupported code, reached => fatal) */
     uint8_t* hits;                 /* hits[k] != 0 once funcs[k] has been entered (evidence) */
+    XrtMark* marks;                /* evidence marks and watches compiled into this module's code */
+    uint32_t nmarks;
+    XrtWatchDef* watches;
+    uint32_t nwatches;
 } XrtLiftedModule;
 
 #endif

@@ -11,6 +11,9 @@
  * The debuggee's stdout/stderr go to files. Output: one JSON document.
  *
  * Usage: uctrace <entries-dir> <out.json> <stdout-file> <exe> [args...]   (cwd = the exe's directory)
+ * UCTRACE_RUN_ID=<id> is echoed into the JSON ("run_id") so a harness can prove the trace is from its own run.
+ * Exit status: 0 trace complete (the debuggee's exit code is in the JSON, whatever it is); 1/2/5 setup errors;
+ * 3 the JSON could not be written; 4 the debug loop ended without the debuggee's EXIT_PROCESS event.
  * Optional: UCTRACE_SITES=name1,name2 (substrings of "DLL!function") additionally records, for those
  * imports, a histogram of return addresses ("import_sites") for site-by-site comparison with the
  * translated runtime (xrt_ucc --count-sites).
@@ -194,7 +197,11 @@ static void note_cw(HANDLE th, const char* where) {
 
 static void json_str(FILE* f, const char* s) {
     fputc('"', f);
-    for (; *s; s++) { if (*s == '"' || *s == '\\') fputc('\\', f); fputc(*s, f); }
+    for (; *s; s++) {
+        if ((unsigned char)*s < 0x20) { fprintf(f, "\\u%04x", (unsigned char)*s); continue; }
+        if (*s == '"' || *s == '\\') fputc('\\', f);
+        fputc(*s, f);
+    }
     fputc('"', f);
 }
 
@@ -346,8 +353,16 @@ int main(int argc, char** argv) {
         ContinueDebugEvent(ev.dwProcessId, ev.dwThreadId, cont);
     }
     CloseHandle(hout);
+    /* the debuggee's files (UCC.exe, DLLs, logs) stay locked until its process object is gone */
+    if (WaitForSingleObject(pi.hProcess, 30000) != WAIT_OBJECT_0)
+        fprintf(stderr, "uctrace: debuggee process did not terminate after EXIT_PROCESS\n");
+    CloseHandle(pi.hThread);
+    CloseHandle(pi.hProcess);
     jout = fopen(argv[2], "w");
-    fprintf(jout, "{\n \"command\": "); json_str(jout, cmd);
+    if (!jout) { fprintf(stderr, "uctrace: cannot write %s\n", argv[2]); return 3; }
+    fprintf(jout, "{\n \"run_id\": "); json_str(jout, getenv("UCTRACE_RUN_ID") ? getenv("UCTRACE_RUN_ID") : "");
+    fprintf(jout, ",\n \"complete\": %s", done ? "true" : "false");
+    fprintf(jout, ",\n \"command\": "); json_str(jout, cmd);
     fprintf(jout, ",\n \"exit_code\": %lu,\n \"threads\": %d,\n \"modules\": [\n", exit_code, nthreads);
     for (int i = 0; i < nmods; i++) {
         Mod* m = &mods[i];
@@ -376,16 +391,21 @@ int main(int argc, char** argv) {
         fprintf(jout, ", \"return_address\": \"0x%08lx\", \"extra\": \"0x%08lx\", \"count\": %d}", sites[i].ret, sites[i].ret2, sites[i].count);
     }
     fprintf(jout, "\n ],\n \"exceptions\": [");
-    for (int i = 0; i < nexs; i++)
-        fprintf(jout, "%s\n  {\"code\": \"0x%08lx\", \"addr\": \"0x%08lx\", \"caller\": \"0x%08lx\", \"module\": \"%s\"}", i ? "," : "",
+    for (int i = 0; i < nexs; i++) {
+        fprintf(jout, "%s\n  {\"code\": \"0x%08lx\", \"addr\": \"0x%08lx\", \"caller\": \"0x%08lx\", \"module\": \"%s\", \"type\": ", i ? "," : "",
                 exs[i].code, exs[i].addr, exs[i].ret, exs[i].mod >= 0 ? mods[exs[i].mod].name : "?");
+        json_str(jout, exs[i].type);
+        fprintf(jout, ", \"text\": ");
+        json_str(jout, exs[i].text);
+        fprintf(jout, "}");
+    }
     fprintf(jout, "\n ],\n \"controlfp_calls\": [");
     for (int i = 0; i < ncfs; i++)
         fprintf(jout, "%s{\"new\": \"0x%08lx\", \"mask\": \"0x%08lx\", \"caller\": \"0x%08lx\"}", i ? ", " : "", cfs[i].newv, cfs[i].mask, cfs[i].caller);
     fprintf(jout, "],\n \"x87_control_words_seen\": [");
     for (int i = 0; i < ncws; i++) { fprintf(jout, "%s{\"cw\": \"0x%04x\", \"first_seen_at\": ", i ? ", " : "", cws[i]); json_str(jout, cw_where[i]); fprintf(jout, "}"); }
     fprintf(jout, "]\n}\n");
-    fclose(jout);
+    if (fclose(jout) != 0) { fprintf(stderr, "uctrace: error writing %s\n", argv[2]); return 3; }
     printf("uctrace: exit=%lu modules=%d imports_used=%d exceptions=%d\n", exit_code, nmods, nimps, nexs);
-    return 0;
+    return done ? 0 : 4;   /* 4: the debug loop ended before the debuggee's EXIT_PROCESS event */
 }

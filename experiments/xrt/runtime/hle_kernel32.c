@@ -71,6 +71,25 @@ static void require_sandbox(CPU* c, const uint16_t* path, const char* op) {
 static void set_err_from_host(CPU* c) { xrt_set_last_error(c, GetLastError()); }
 
 /* ---------------------------------------------------------------- files */
+/* file_open events for the report: the first MAX_OPEN_EVENTS opens, with the path as the guest passed it and as
+ * resolved against the current directory ("<sandbox>\..." when inside the run's sandbox) */
+#define MAX_OPEN_EVENTS 512
+static long open_events;
+static void file_open_event(const char* path, uint32_t access, uint32_t disp, int ok) {
+    char full[600], rel[620], j[700], k[700];
+    size_t n = strlen(xrt_sandbox_root);
+    if (InterlockedIncrement(&open_events) > MAX_OPEN_EVENTS)
+        return;
+    if (!GetFullPathNameA(path, sizeof full, full, NULL))
+        snprintf(full, sizeof full, "%s", path);
+    if (n && !_strnicmp(full, xrt_sandbox_root, n) && full[n] == '\\')
+        snprintf(rel, sizeof rel, "<sandbox>%s", full + n);
+    else
+        snprintf(rel, sizeof rel, "%s", full);
+    xrt_event("file_open", "\"path\": %s, \"resolved\": %s, \"access\": \"0x%08x\", \"disposition\": %u, \"ok\": %s",
+              xrt_jstr(j, sizeof j, path), xrt_jstr(k, sizeof k, rel), access, disp, ok ? "true" : "false");
+}
+
 static uint32_t create_file(CPU* c, const uint16_t* name, uint32_t access, uint32_t share, uint32_t sa, uint32_t disp,
                             uint32_t flags, uint32_t tmpl) {
     HANDLE h;
@@ -84,6 +103,7 @@ static uint32_t create_file(CPU* c, const uint16_t* name, uint32_t access, uint3
         require_sandbox(c, name, "file creation/write");
     h = CreateFileW((LPCWSTR)name, access, share, NULL, disp, flags, NULL);
     WideCharToMultiByte(CP_ACP, 0, (LPCWSTR)name, -1, a, sizeof a, NULL, NULL);
+    file_open_event(a, access, disp, h != INVALID_HANDLE_VALUE);
     if (h == INVALID_HANDLE_VALUE) {
         set_err_from_host(c);
         xrt_log("CreateFile(\"%s\", %08x, disp %u) -> failed, error %u", a, access, disp, xrt_get_last_error(c));
@@ -544,6 +564,7 @@ static void hle_CreateThread(CPU* c) {
 
 static void hle_ExitThread(CPU* c) {
     xrt_log("ExitThread(%u) on thread %d", ARG(0), c->thread->index);
+    xrt_event("exit_thread", "\"code\": %u", ARG(0));
     xrt_thread_exit(c, ARG(0));
 }
 

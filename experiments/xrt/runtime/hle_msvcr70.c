@@ -3,9 +3,10 @@
  * Semantics follow msvcr70 in the "C" locale (neither module calls setlocale), not the host UCRT:
  * string functions fold only A-Z, wcscmp returns -1/0/1, rand() is the msvcr70 per-thread LCG,
  * _vsnwprintf returns -1 on truncation and omits the terminator when the output fills the buffer exactly,
- * wide stdout output stops at the first character the "C" locale cannot convert (> 0xFF), and stdout is a
- * text-mode stream ('\n' -> "\r\n"). Exception dispatch (_CxxThrowException and the frame handlers) is
- * not supported: reaching it is fatal with a description of the thrown object. */
+ * wide stdout output skips characters the "C" locale cannot convert (> 0xFF) and wprintf then counts as
+ * _woutput does (xrt_fmt.c), and stdout is a text-mode stream ('\n' -> "\r\n"). Exception dispatch
+ * (_CxxThrowException and the frame handlers) is not supported: reaching it is fatal with a description
+ * of the thrown object. */
 #define WIN32_LEAN_AND_MEAN
 #include <windows.h>
 #include <fcntl.h>
@@ -33,12 +34,13 @@ static void out_byte(uint8_t b) {
     outbuf[outlen++] = b;
 }
 
-/* returns the number of characters written, or -1 if a character is not representable (stops there) */
+/* returns the number of characters written, or -1 at the first character that is not representable
+ * (the rest is not written) */
 static long stdout_write(const uint16_t* s, size_t n) {
     size_t i;
     for (i = 0; i < n; i++) {
         if (s[i] > 0xFF) {
-            xrt_log("wide stdout: character U+%04X is not convertible in the C locale; output stopped (as msvcr70)", s[i]);
+            xrt_log("wide stdout: character U+%04X is not convertible in the C locale; not written (as msvcr70)", s[i]);
             return -1;
         }
         if (s[i] == '\n')
@@ -131,6 +133,7 @@ static void run_exe_onexit(CPU* c) {
 static void hle_exit(CPU* c) {
     uint32_t code = ARG(0);
     xrt_log("exit(%u): running %d onexit handlers", code, n_exe_onexit);
+    xrt_event("crt_exit", "\"code\": %u, \"onexit_handlers\": %d", code, n_exe_onexit);
     run_exe_onexit(c);
     xrt_stdout_flush();
     xrt_process_exit(c, code);
@@ -291,13 +294,17 @@ static void hle_controlfp(CPU* c) {
 }
 
 /* ---------------------------------------------------------------- stdio */
-static void hle_wprintf(CPU* c) {
-    size_t len;
-    uint16_t* s = xrt_wformat(ARG(0), c->r[ESP] + 8, &len);
-    long n = stdout_write(s, len);
-    free(s);
-    RET_C(n < 0 ? 0xFFFFFFFFu : (uint32_t)len);
+/* msvcr70 _woutput over a character sink (xrt_fmt.c). Declared here because only these adapters use it. */
+int32_t xrt_woutput(uint32_t fmt, uint32_t va, int (*put)(void* ctx, uint16_t ch), void* ctx);
+
+/* stdout is a text-mode FILE: fputwc converts with wctomb, which fails for characters above 0xFF in the
+ * "C" locale; the formatter then counts -1 (see xrt_fmt.c for how the count recovers) */
+static int stdout_put(void* ctx, uint16_t ch) {
+    (void)ctx;
+    return stdout_write(&ch, 1) == 1;
 }
+
+static void hle_wprintf(CPU* c) { RET_C((uint32_t)xrt_woutput(ARG(0), c->r[ESP] + 8, stdout_put, NULL)); }
 
 static void hle_fflush(CPU* c) {
     uint32_t f = ARG(0);
@@ -307,16 +314,35 @@ static void hle_fflush(CPU* c) {
     RET_C(0);
 }
 
+/* _vsnwprintf's string FILE: _cnt = count*2 bytes (32-bit, wraps); each wide character takes 2 bytes and
+ * is stored only while the decremented count is still non-negative as a signed value. U+FFFF is stored but
+ * reported as a failure: fputwc returns the character, which then equals WEOF. */
+typedef struct StrSink { uint32_t ptr, cnt; } StrSink;
+static int str_put(void* ctx, uint16_t ch) {
+    StrSink* s = (StrSink*)ctx;
+    s->cnt -= 2;
+    if (s->cnt & 0x80000000u)
+        return 0;
+    wr16(s->ptr, ch);
+    s->ptr += 2;
+    return ch != 0xFFFF;
+}
+
+/* returns the character count, or -1 when a character did not fit; the terminator is written as two
+ * single bytes, each only if it still fits (so none when the output fills the buffer exactly) */
 static void hle_vsnwprintf(CPU* c) {
-    uint32_t buf = ARG(0), count = ARG(1);
-    size_t len, n;
-    uint16_t* s = xrt_wformat(ARG(2), ARG(3), &len);
-    n = len < count ? len : count;
-    memcpy(G2H(buf), s, n * 2);
-    free(s);
-    if (len < count)
-        wr16(buf + 2u * (uint32_t)len, 0);
-    RET_C(len <= count ? (uint32_t)len : 0xFFFFFFFFu);
+    StrSink s;
+    int32_t n;
+    int k;
+    s.ptr = ARG(0);
+    s.cnt = ARG(1) * 2u;
+    n = xrt_woutput(ARG(2), ARG(3), str_put, &s);
+    for (k = 0; k < 2; k++) {
+        s.cnt -= 1;
+        if (!(s.cnt & 0x80000000u))
+            wr8(s.ptr++, 0);
+    }
+    RET_C((uint32_t)n);
 }
 
 /* ---------------------------------------------------------------- time */
@@ -485,35 +511,47 @@ static void hle_wcsupr(CPU* c) {
             wr16(s, (uint16_t)(rd16(s) - 32));
     RET_C(ARG(0));
 }
-/* msvcr70 _wtol: the first 19 characters are converted to the ANSI code page, then atol (no overflow check) */
+/* iswspace in the "C" locale: msvcr70's table below U+0100, the system's CT_CTYPE1 classification above
+ * (U+FFFF is WEOF: not a space) */
+static int wc_isspace(uint16_t ch) {
+    WORD type;
+    if (ch < 0x100)
+        return (ch >= 0x09 && ch <= 0x0D) || ch == 0x20 || ch == 0xA0;
+    if (ch == 0xFFFF)
+        return 0;
+    return GetStringTypeW(CT_CTYPE1, (LPCWSTR)&ch, 1, &type) && (type & C1_SPACE);
+}
+/* _wchartodigit: ASCII and fullwidth digits and the decimal digit blocks msvcr70 knows; -1 otherwise */
+static int wc_digit(uint16_t ch) {
+    static const uint16_t zeros[] = {0x0660, 0x06F0, 0x0966, 0x09E6, 0x0A66, 0x0AE6, 0x0B66, 0x0C66, 0x0CE6,
+                                     0x0D66, 0x0E50, 0x0ED0, 0x0F20, 0x1040, 0x17E0, 0x1810, 0xFF10};
+    size_t i;
+    if (ch >= '0' && ch <= '9')
+        return ch - '0';
+    for (i = 0; i < sizeof zeros / sizeof zeros[0]; i++)
+        if (ch >= zeros[i] && ch < zeros[i] + 10)
+            return ch - zeros[i];
+    return -1;
+}
+/* msvcr70 _wtol (also _wtoi): skip iswspace, optional sign, accumulate digits (32-bit wrap, no overflow check) */
 static void hle_wtoi(CPU* c) {
-    char a[20];
-    const char* p = a;
-    int32_t total = 0;
-    int neg = 0, i;
-    uint32_t s = ARG(0);
-    for (i = 0; i < 19; i++) {
-        uint16_t ch = rd16(s + 2u * (uint32_t)i);
-        if (!ch)
-            break;
-        if (ch > 0x7F) {
-            WCHAR w = ch;
-            char mb[8];
-            BOOL used = FALSE;
-            int n = WideCharToMultiByte(CP_ACP, 0, &w, 1, mb, sizeof mb, NULL, &used);
-            a[i] = n == 1 ? mb[0] : '?';
-        } else {
-            a[i] = (char)ch;
-        }
+    uint32_t s = ARG(0), total = 0;
+    uint16_t ch, sign;
+    int d;
+    while (wc_isspace(rd16(s)))
+        s += 2;
+    ch = sign = rd16(s);
+    s += 2;
+    if (ch == '-' || ch == '+') {
+        ch = rd16(s);
+        s += 2;
     }
-    a[i] = 0;
-    while (*p == ' ' || (*p >= 9 && *p <= 13))
-        p++;
-    if (*p == '-' || *p == '+')
-        neg = *p++ == '-';
-    while (*p >= '0' && *p <= '9')
-        total = (int32_t)((uint32_t)total * 10u + (uint32_t)(*p++ - '0'));
-    RET_C((uint32_t)(neg ? -total : total));
+    while ((d = wc_digit(ch)) != -1) {
+        total = total * 10u + (uint32_t)d;
+        ch = rd16(s);
+        s += 2;
+    }
+    RET_C(sign == '-' ? 0u - total : total);
 }
 
 /* ---------------------------------------------------------------- unsupported paths with diagnostics */

@@ -1,0 +1,61 @@
+{
+ "comment": [
+  "Evidence instrumentation for the translated runtime, applied by tools/xrt/xlift.py at lift time.",
+  "A mark records an ordered event (global sequence number, guest thread, optional register value) each time",
+  "execution reaches that instruction; the first occurrences go into the runtime report's event timeline and every",
+  "occurrence is counted. A watch records every store the translated code makes to a fixed global through a",
+  "constant address (value before/after, thread, site); the runtime also checks the value at every import call",
+  "and reports a change that no instrumented store explains.",
+  "Marks and watches only observe: they never change guest state. Entries are chosen from the original modules'",
+  "exports and from disassembly of the measured paths (addresses are for the SHA-256-checked originals)."
+ ],
+ "UCC.exe": {
+  "marks": [
+   {"name": "UCC main", "va": "0x4070a0", "note": "called by mainCRTStartup at 0x407cc3 with argc/argv/envp"},
+   {"name": "UCC main returned", "va": "0x407cc8", "capture": "eax",
+    "note": "instruction after the call to main in mainCRTStartup; eax = main's return value, passed to exit()"}
+  ]
+ },
+ "Core.dll": {
+  "marks": [
+   {"name": "appInit", "export": "?appInit@@YAXPBG0PAVFMalloc@@PAVFOutputDevice@@PAVFOutputDeviceError@@PAVFFeedbackContext@@PAVFFileManager@@P6APAVFConfigCache@@XZH@Z"},
+   {"name": "UObject::StaticInit", "export": "?StaticInit@UObject@@SAXXZ"},
+   {"name": "FFileStream::Init", "export": "?Init@FFileStream@@SAPAV1@H@Z"},
+   {"name": "FFileStream worker thread entry", "va": "0x1015a520",
+    "note": "thread procedure passed to CreateThread by FFileStream::Init; polls FFileStream::Destroyed"},
+   {"name": "UObject::StaticLoadClass", "export": "?StaticLoadClass@UObject@@SAPAVUClass@@PAV2@PAV1@PBG2KPAVUPackageMap@@@Z"},
+   {"name": "UObject::StaticLoadObject", "export": "?StaticLoadObject@UObject@@SAPAV1@PAVUClass@@PAV1@PBG2KPAVUPackageMap@@@Z"},
+   {"name": "UObject::GetPackageLinker", "export": "?GetPackageLinker@UObject@@SAPAVULinkerLoad@@PAV1@PBGKPAVUPackageMap@@PAVFGuid@@@Z"},
+   {"name": "UObject::StaticConstructObject", "export": "?StaticConstructObject@UObject@@SAPAV1@PAVUClass@@PAV1@VFName@@K1PAVFOutputDevice@@H@Z"},
+   {"name": "UCommandlet::Main", "export": "?Main@UCommandlet@@UAEHPBG@Z"},
+   {"name": "UCommandlet::eventMain", "export": "?eventMain@UCommandlet@@QAEHABVFString@@@Z"},
+   {"name": "UObject::FindFunctionChecked", "export": "?FindFunctionChecked@UObject@@QAEPAVUFunction@@VFName@@H@Z"},
+   {"name": "UObject::ProcessEvent", "export": "?ProcessEvent@UObject@@UAEXPAVUFunction@@PAX1@Z"},
+   {"name": "UObject::ProcessInternal", "export": "?ProcessInternal@UObject@@QAEXAAUFFrame@@QAX@Z"},
+   {"name": "UObject::execLog", "export": "?execLog@UObject@@QAEXAAUFFrame@@QAX@Z"},
+   {"name": "UObject::execConcat_StringString", "export": "?execConcat_StringString@UObject@@QAEXAAUFFrame@@QAX@Z"},
+   {"name": "UObject::execNotEqual_StringString", "export": "?execNotEqual_StringString@UObject@@QAEXAAUFFrame@@QAX@Z"},
+   {"name": "UObject::execIntToString", "export": "?execIntToString@UObject@@QAEXAAUFFrame@@QAX@Z"},
+   {"name": "UObject::execFloatToString", "export": "?execFloatToString@UObject@@QAEXAAUFFrame@@QAX@Z"},
+   {"name": "UObject::execLeft", "export": "?execLeft@UObject@@QAEXAAUFFrame@@QAX@Z"},
+   {"name": "UObject::execMid", "export": "?execMid@UObject@@QAEXAAUFFrame@@QAX@Z"},
+   {"name": "UObject::execInStr", "export": "?execInStr@UObject@@QAEXAAUFFrame@@QAX@Z"},
+   {"name": "UObject::execAssert", "export": "?execAssert@UObject@@QAEXAAUFFrame@@QAX@Z"},
+   {"name": "UObject::execDynArrayLength", "export": "?execDynArrayLength@UObject@@QAEXAAUFFrame@@QAX@Z"},
+   {"name": "UObject::execDynArrayInsert", "export": "?execDynArrayInsert@UObject@@QAEXAAUFFrame@@QAX@Z"},
+   {"name": "UObject::execDynArrayRemove", "export": "?execDynArrayRemove@UObject@@QAEXAAUFFrame@@QAX@Z"},
+   {"name": "UObject::execNew", "export": "?execNew@UObject@@QAEXAAUFFrame@@QAX@Z"},
+   {"name": "UObject::execEqualEqual_VectorVector", "export": "?execEqualEqual_VectorVector@UObject@@QAEXAAUFFrame@@QAX@Z"},
+   {"name": "appPreExit", "export": "?appPreExit@@YAXXZ"},
+   {"name": "UObject::StaticExit", "export": "?StaticExit@UObject@@SAXXZ"},
+   {"name": "appExit", "export": "?appExit@@YAXXZ"},
+   {"name": "FFileStream::Destroy", "export": "?Destroy@FFileStream@@SAXXZ",
+    "note": "sets Destroyed=1, then 'while (Destroyed == 1) appSleep(1.0)' until the worker acknowledges with 2"},
+   {"name": "FFileStream::Destroy: shutdown wait finished", "va": "0x1013db08",
+    "note": "first instruction after the wait loop (reached from 0x1013daf0 or by leaving the loop at 0x1013db06)"}
+  ],
+  "watches": [
+   {"name": "FFileStream::Destroyed", "export": "?Destroyed@FFileStream@@2HA", "size": 4}
+  ]
+ }
+}

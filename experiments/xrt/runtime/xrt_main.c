@@ -1,6 +1,10 @@
 /* xrt_main.c - host program for the translated UCC.exe + Core.dll (Windows x64 first milestone).
  *
- *   xrt_ucc.exe --guest <sandbox>\System\UCC.exe [--log FILE] [--report FILE] [--timeout-ms N] -- <guest args>
+ *   xrt_ucc.exe --guest <sandbox>\System\UCC.exe [--log FILE] [--report FILE] [--run-id ID] [--timeout-ms N] -- <guest args>
+ *
+ * The report (JSON, schema 2) is written once, atomically (temporary file + rename), when the process exits, a
+ * fatal diagnostic stops it, or the watchdog fires; "outcome" says which. --run-id is echoed into the report and
+ * the first line of the log so a harness can prove both belong to the invocation it started.
  *
  * Process model reproduced: map UCC.exe and Core.dll (original files from the sandbox, as data), bind
  * imports, run Core.dll's entry point (DLL_PROCESS_ATTACH) and then UCC.exe's entry point (the original,
@@ -19,6 +23,8 @@ void hle_msvcr70_init(void);
 char xrt_sandbox_root[520];
 uint32_t xrt_cmdline_a;
 const char* xrt_report_path;
+static const char* run_id = "";
+static volatile long report_written;
 static char guest_cmdline[4096];
 static volatile long process_exiting;
 static uint32_t timeout_ms;
@@ -42,9 +48,15 @@ void xrt_report_write(uint32_t exit_code, const char* outcome) {
     int i;
     uint64_t a, fr, live;
     uint32_t hw;
-    if (!xrt_report_path || !(f = fopen(xrt_report_path, "w")))
+    char tmp[1100];
+    if (!xrt_report_path || InterlockedExchange(&report_written, 1))
         return;
-    fprintf(f, "{\n \"exit_code\": %u,\n \"outcome\": ", exit_code);
+    snprintf(tmp, sizeof tmp, "%s.partial", xrt_report_path);
+    if (!(f = fopen(tmp, "w")))
+        return;
+    fprintf(f, "{\n \"schema\": 2,\n \"run_id\": ");
+    json_str(f, run_id);
+    fprintf(f, ",\n \"exit_code\": %u,\n \"outcome\": ", exit_code);
     json_str(f, outcome);
     fprintf(f, ",\n \"guest_command_line\": ");
     json_str(f, guest_cmdline);
@@ -80,10 +92,13 @@ void xrt_report_write(uint32_t exit_code, const char* outcome) {
                 t->exit_via == 1 ? "ExitThread" : t->exit_via == 2 ? "return" : "", t->sleeps, t->cs_waits, t->preemptions,
                 t->cpu.hpos, t->cpu.fcw);
     }
+    fputs("\n ]", f);
+    xrt_events_report(f);
     xrt_heap_stats(&a, &fr, &live, &hw);
-    fprintf(f, "\n ],\n \"guest_heap\": {\"allocs\": %llu, \"frees\": %llu, \"live_bytes\": %llu, \"high_water\": %u}\n}\n",
+    fprintf(f, ",\n \"guest_heap\": {\"allocs\": %llu, \"frees\": %llu, \"live_bytes\": %llu, \"high_water\": %u}\n}\n",
             a, fr, live, hw);
-    fclose(f);
+    if (fclose(f) == 0)
+        MoveFileExA(tmp, xrt_report_path, MOVEFILE_REPLACE_EXISTING | MOVEFILE_WRITE_THROUGH);
 }
 
 XRT_NORETURN void xrt_process_exit(CPU* c, uint32_t code) {
@@ -92,23 +107,30 @@ XRT_NORETURN void xrt_process_exit(CPU* c, uint32_t code) {
         xrt_fatal(c, XRT_EXIT_UNSUPPORTED, "process exit re-entered during termination");
     xrt_exiting = 1;
     xrt_log("ExitProcess(%u) on thread %d", code, c->thread->index);
+    xrt_event("process_exit", "\"code\": %u", code);
     for (i = 0; i < xrt_thread_count(); i++) {
         XrtThread* t = xrt_thread_get(i);
-        if (t != c->thread)
+        if (t != c->thread) {
             xrt_log("  thread %d at process exit: %s", t->index,
                     t->state == 2 ? "already exited" : "still alive (terminated by ExitProcess, as on Windows)");
+            xrt_event("thread_at_exit", "\"index\": %d, \"state\": \"%s\"", t->index, t->state == 2 ? "exited" : "alive");
+        }
     }
     for (i = xrt_module_count() - 1; i >= 0; i--) {
         XrtModule* m = xrt_module_get(i);
         if (m->is_dll && m->attached && m->entry) {
             uint32_t args[3] = {m->base, 0 /* DLL_PROCESS_DETACH */, 1 /* process is terminating */};
+            uint32_t rc;
             xrt_log("DllMain(%s, DLL_PROCESS_DETACH)", m->name);
-            xrt_call_guest(c, m->entry, 3, args, 1);
+            xrt_event("dll_detach", "\"module\": \"%s\"", m->name);
+            rc = xrt_call_guest(c, m->entry, 3, args, 1);
+            xrt_event("dll_detach_returned", "\"module\": \"%s\", \"result\": %u", m->name, rc);
             m->attached = 0;
         }
     }
     xrt_stdout_flush();
     xrt_log("process exit complete, exit code %u", code);
+    xrt_event("process_exit_complete", "\"code\": %u", code);
     xrt_report_write(code, "exited");
     fflush(NULL);
     ExitProcess(code);
@@ -135,6 +157,7 @@ static DWORD WINAPI watchdog(void* unused) {
         }
     }
     fflush(stderr);
+    xrt_event("timeout", "\"after_ms\": %u", timeout_ms);
     xrt_report_write(78, "timeout");
     TerminateProcess(GetCurrentProcess(), 78);
     return 0;
@@ -164,7 +187,7 @@ static const wchar_t* args_after_dashdash(const wchar_t* cmd) {
 }
 
 static int usage(void) {
-    fprintf(stderr, "usage: xrt_ucc.exe --guest <sandbox>\\System\\UCC.exe [--log FILE] [--report FILE] [--timeout-ms N] [--count-sites NAMES] [--quote-exe] -- <args>\n");
+    fprintf(stderr, "usage: xrt_ucc.exe --guest <sandbox>\\System\\UCC.exe [--log FILE] [--report FILE] [--run-id ID] [--timeout-ms N] [--count-sites NAMES] [--quote-exe] -- <args>\n");
     return XRT_EXIT_SETUP;
 }
 
@@ -188,6 +211,8 @@ int main(int argc, char** argv) {
             log_path = argv[++i];
         else if (!strcmp(argv[i], "--report") && i + 1 < argc)
             xrt_report_path = argv[++i];
+        else if (!strcmp(argv[i], "--run-id") && i + 1 < argc)
+            run_id = argv[++i];
         else if (!strcmp(argv[i], "--count-sites") && i + 1 < argc)
             xrt_sites_enable(argv[++i]);
         else if (!strcmp(argv[i], "--watch") && i + 1 < argc)
@@ -228,10 +253,12 @@ int main(int argc, char** argv) {
             snprintf(guest_cmdline, sizeof guest_cmdline, "%s%s%s", exe, rest_a[0] ? " " : "", rest_a);
     }
     SetCurrentDirectoryA(dir);
+    xrt_events_init();
     xrt_mem_init();
     xrt_diag_init(log_path);
     if (timeout_ms)
         CloseHandle(CreateThread(NULL, 0, watchdog, NULL, 0, NULL));
+    xrt_log("run id: %s", run_id);
     xrt_log("guest command line: %s", guest_cmdline);
     xrt_log("sandbox root: %s", xrt_sandbox_root);
     {
@@ -242,6 +269,7 @@ int main(int argc, char** argv) {
     core = xrt_module_load(core_path, &xrt_mod_Core);
     xrt_module_bind_imports(core);
     xrt_module_bind_imports(ucc);
+    xrt_watches_arm();
     xrt_cmdline_a = xrt_guest_strdup_a(guest_cmdline);
     hle_msvcr70_init();
     t = xrt_thread_main(xrt_default_stack_reserve);
@@ -251,12 +279,16 @@ int main(int argc, char** argv) {
     args[1] = 1;                                  /* DLL_PROCESS_ATTACH */
     args[2] = 1;                                  /* non-NULL: static load, as for an import-time DLL */
     xrt_log("DllMain(%s, DLL_PROCESS_ATTACH)", core->name);
+    xrt_event("dll_attach", "\"module\": \"%s\"", core->name);
     rc = xrt_call_guest(c, core->entry, 3, args, 1);
+    xrt_event("dll_attach_returned", "\"module\": \"%s\", \"result\": %u", core->name, rc);
     if (!rc)
         xrt_fatal(c, XRT_EXIT_SETUP, "Core.dll DllMain(DLL_PROCESS_ATTACH) returned FALSE");
     core->attached = 1;
     xrt_log("entering %s entry point %08x", ucc->name, ucc->entry);
+    xrt_event("exe_entry", "\"module\": \"%s\"", ucc->name);
     rc = xrt_call_guest(c, ucc->entry, 0, NULL, 1);
     xrt_log("UCC.exe entry point returned %u", rc);
+    xrt_event("exe_entry_returned", "\"result\": %u", rc);
     xrt_process_exit(c, rc);
 }

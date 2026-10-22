@@ -122,6 +122,17 @@ class IntegerSemantics(unittest.TestCase):
     def test_idiv_checks_divide_error(self):
         self.assertIn("xrt_div0", " ".join(lift_bytes(b"\xf7\xf9")))           # idiv ecx
 
+    def test_lock_prefixed_rmw_lifts_like_the_plain_instruction(self):
+        """insn_diff finding: capstone spells the prefix into the mnemonic ("lock add"), so every
+        lock-prefixed read-modify-write instruction became a trap instead of the intended plain RMW."""
+        self.assertEqual(lift_bytes(b"\xf0\x01\x43\x10"), lift_bytes(b"\x01\x43\x10"))    # lock add [ebx+0x10], eax
+        self.assertEqual(lift_bytes(b"\xf0\xff\x4b\x10"), lift_bytes(b"\xff\x4b\x10"))    # lock dec dword [ebx+0x10]
+        self.assertEqual(lift_bytes(b"\xf0\x19\x43\x10"), lift_bytes(b"\x19\x43\x10"))    # lock sbb [ebx+0x10], eax
+        with self.assertRaises(Unsupported):
+            lift_bytes(b"\xf0\x0f\xc1\x43\x10")      # lock xadd: not implemented, stays a trap
+        with self.assertRaises(Unsupported):
+            lift_bytes(b"\xf0\x0f\xab\x43\x10")      # lock bts: not on the lifter's lock list
+
     def test_push_esp_relative_reads_before_decrement(self):
         s = " ".join(lift_bytes(b"\xff\x74\x24\x08"))                         # push dword ptr [esp+8]
         self.assertLess(s.index("rd32"), s.index("push32"))
