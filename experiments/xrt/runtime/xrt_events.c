@@ -25,24 +25,35 @@ static char (*events)[EVENT_LEN];
 static volatile LONG64 event_seq;
 static volatile long watches_armed;
 
+/* s is an ANSI (CP_ACP) string, as the guest and the host adapters use them; the JSON text stays pure ASCII:
+ * every character outside printable ASCII becomes a \uXXXX escape of its UTF-16 value. Truncated to fit n. */
 const char* xrt_jstr(char* out, size_t n, const char* s) {
-    size_t k = 0;
-    if (n < 3)
+    size_t k = 0, bytes = strlen(s) + 1;
+    int i, len;
+    WCHAR* w;
+    if (n < 3 || !(w = (WCHAR*)malloc(bytes * sizeof(WCHAR))))
         return "\"\"";
+    len = MultiByteToWideChar(CP_ACP, 0, s, -1, w, (int)bytes);
+    if (len <= 0) {                       /* unconvertible: keep the bytes, as Latin-1 */
+        for (len = 0; s[len]; len++)
+            w[len] = (unsigned char)s[len];
+        w[len++] = 0;
+    }
     out[k++] = '"';
-    for (; *s && k + 8 < n; s++) {
-        unsigned char ch = (unsigned char)*s;
+    for (i = 0; i < len - 1 && k + 8 < n; i++) {
+        WCHAR ch = w[i];
         if (ch == '"' || ch == '\\') {
             out[k++] = '\\';
             out[k++] = (char)ch;
         } else if (ch < 0x20 || ch >= 0x7F) {
-            k += (size_t)snprintf(out + k, n - k, "\\u%04x", ch);
+            k += (size_t)snprintf(out + k, n - k, "\\u%04x", (unsigned)ch);
         } else {
             out[k++] = (char)ch;
         }
     }
     out[k++] = '"';
     out[k] = 0;
+    free(w);
     return out;
 }
 
@@ -54,26 +65,37 @@ void xrt_events_init(void) {
     }
 }
 
+/* The event is formatted in a large buffer first; one that does not fit its slot is stored as a valid,
+ * explicitly truncated record (its kind and order are kept, its details are not). */
 void xrt_event(const char* kind, const char* fmt, ...) {
     LONG64 seq = InterlockedIncrement64(&event_seq);
-    char* e;
-    int n;
+    char buf[4096];
+    int n, m = 0;
     va_list ap;
+    int thread = xrt_cur ? xrt_cur->index : -1;
     if (!events || seq > MAX_EVENTS)
         return;                           /* counted (events_dropped in the report), not stored */
-    e = events[seq - 1];
-    n = snprintf(e, EVENT_LEN, "{\"seq\": %lld, \"thread\": %d, \"kind\": \"%s\"", seq, xrt_cur ? xrt_cur->index : -1, kind);
-    if (fmt && *fmt && n > 0 && n < EVENT_LEN - 4) {
-        e[n++] = ',';
-        e[n++] = ' ';
+    n = snprintf(buf, sizeof buf, "{\"seq\": %lld, \"thread\": %d, \"kind\": \"%s\"", seq, thread, kind);
+    if (fmt && *fmt && n > 0) {
         va_start(ap, fmt);
-        n += vsnprintf(e + n, EVENT_LEN - (size_t)n - 2, fmt, ap);
+        m = vsnprintf(buf + n + 2, sizeof buf - (size_t)n - 4, fmt, ap);
         va_end(ap);
+        if (m >= 0 && (size_t)(n + 2 + m) < sizeof buf - 2) {
+            buf[n] = ',';
+            buf[n + 1] = ' ';
+            n += 2 + m;
+        } else {
+            m = -1;
+        }
     }
-    if (n < 0 || n > EVENT_LEN - 2)
-        n = EVENT_LEN - 2;
-    e[n] = '}';
-    e[n + 1] = 0;
+    if (n > 0 && m >= 0 && n + 2 <= EVENT_LEN) {
+        buf[n] = '}';
+        buf[n + 1] = 0;
+        memcpy(events[seq - 1], buf, (size_t)n + 2);
+    } else {
+        snprintf(events[seq - 1], EVENT_LEN, "{\"seq\": %lld, \"thread\": %d, \"kind\": \"%s\", \"truncated\": true}", seq,
+                 thread, kind);
+    }
 }
 
 /* Kept in the timeline: the first XRT_MARK_KEEP occurrences, and the first occurrence for each distinct value at

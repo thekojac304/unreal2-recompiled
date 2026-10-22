@@ -30,17 +30,15 @@ static volatile long process_exiting;
 static uint32_t timeout_ms;
 static int quote_exe;               /* --quote-exe: quote the guest exe path as uctrace does */
 
-static void json_str(FILE* f, const char* s) {
-    fputc('"', f);
-    for (; *s; s++) {
-        if (*s == '"' || *s == '\\')
-            fputc('\\', f);
-        if ((unsigned char)*s < 0x20)
-            fprintf(f, "\\u%04x", (unsigned char)*s);
-        else
-            fputc(*s, f);
+static void json_str(FILE* f, const char* s) {   /* ANSI string -> ASCII-only JSON string (xrt_jstr) */
+    size_t n = 6 * strlen(s) + 3;
+    char* buf = (char*)malloc(n);
+    if (!buf) {
+        fputs("\"<out of memory>\"", f);
+        return;
     }
-    fputc('"', f);
+    fputs(xrt_jstr(buf, n, s), f);
+    free(buf);
 }
 
 void xrt_report_write(uint32_t exit_code, const char* outcome) {
@@ -67,9 +65,9 @@ void xrt_report_write(uint32_t exit_code, const char* outcome) {
         uint32_t k, n = 0;
         for (k = 0; k < l->nfuncs; k++)
             n += l->hits[k] != 0;
-        fprintf(f, "%s\n  {\"name\": \"%s\", \"base\": \"0x%08x\", \"sha256\": \"%s\", \"lifted_functions\": %u, "
-                   "\"static_traps\": %u, \"functions_executed\": %u, \"hit_rvas\": [",
-                i ? "," : "", m->name, m->base, l->sha256, l->nfuncs, l->ntraps, n);
+        fprintf(f, "%s\n  {\"name\": \"%s\", \"base\": \"0x%08x\", \"sha256\": \"%s\", \"marks_sha256\": \"%s\", "
+                   "\"lifted_functions\": %u, \"static_traps\": %u, \"functions_executed\": %u, \"hit_rvas\": [",
+                i ? "," : "", m->name, m->base, l->sha256, l->marks_sha256 ? l->marks_sha256 : "", l->nfuncs, l->ntraps, n);
         for (k = 0, n = 0; k < l->nfuncs; k++)
             if (l->hits[k])
                 fprintf(f, "%s\"%x\"", n++ ? ", " : "", l->funcs[k].va - m->base);

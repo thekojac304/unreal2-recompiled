@@ -851,7 +851,7 @@ def main():
         f.write("};\n")
         f.write(f'const XrtLiftedModule xrt_mod_{stem} = {{"{mod.img.name}", 0x{mod.img.base:x}u, 0x{mod.img.size:x}u, '
                 f'"{digest}", funcs, {len(entries)}u, {len(lifter.trap_sites)}u, xrt_hits_{stem}, '
-                f'xrt_marks_{stem}, {len(marks)}u, xrt_watches_{stem}, {len(watches)}u}};\n')
+                f'xrt_marks_{stem}, {len(marks)}u, xrt_watches_{stem}, {len(watches)}u, "{marks_digest or ""}"}};\n')
     if only is None:
         missing = [marks[k] for k in range(len(marks)) if k not in lifter.marks_emitted]
         if missing:

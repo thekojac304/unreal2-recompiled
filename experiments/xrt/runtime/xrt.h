@@ -180,6 +180,7 @@ typedef struct XrtLiftedModule {
     uint32_t nmarks;
     XrtWatchDef* watches;
     uint32_t nwatches;
+    const char* marks_sha256;      /* SHA-256 of the marks file the code was lifted with ("" if none) */
 } XrtLiftedModule;
 
 #endif

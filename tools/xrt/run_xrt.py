@@ -3,24 +3,29 @@ on a registered case (tools/xrt/cases.py) and decide, separately for every run:
 
   candidate_execution_completed  the translated process ran to its own exit: report written by this run (run id),
                                  outcome "exited", report and process exit codes agree, no fatal diagnostic/timeout
-  output_matches_reference       stdout, exit code and UCC.log equal a FRESH original run made by this invocation
-                                 (null when there is no reference: equivalence is never claimed without one)
+  output_matches_reference       stdout, exit code, UCC.log and every other file the run wrote in its sandbox
+                                 equal a FRESH original run made by this invocation with the same guest command
+                                 line (null when there is no reference: equivalence is never claimed without one)
   expected_result                the case's own expectation (exit code, required/forbidden stdout lines) holds for
                                  the translated run - and for the reference, which is otherwise not a valid one
   milestone_evidence_valid       the case's evidence profile holds on the translated run's event timeline (runtime
-                                 report "events", recorded by the marks/watches of tools/xrt/marks.json)
+                                 report "events", recorded by the marks/watches of tools/xrt/marks.json, which the
+                                 build must have been lifted with: names, addresses and the file's SHA-256 are checked)
 
 A run PASSes only if all four hold. Without a reference (--no-original) a run is at best UNVERIFIED: execution,
-expected result and evidence can be confirmed, equivalence cannot.
+expected result and evidence can be confirmed, equivalence cannot. A failure of the harness itself (sandbox,
+tool, unexpected exception) is recorded as a FAIL with "harness error" and gives exit status 4.
 
 Isolation and freshness: both executables run in the SAME guest-visible sandbox path, sandbox_cmp/<case>/System,
 recreated from the read-only install before every single execution (the engine hashes paths into its config maps,
-so equal paths are needed for comparable internal behaviour). Results go to a directory created exclusively by
-this invocation, experiments/xrt/results/raw/runs/<invocation-id>/<case>/run<k>/{original,xrt}/ (git-ignored);
-nothing is read from any other location. The runtime report and log and the tracer's JSON must carry the run id
-this invocation gave them; UCC.log must be absent from the fresh sandbox before a run and present after it.
+so equal paths are needed for comparable internal behaviour) while holding an exclusive per-case lock. Results go
+to a directory created exclusively by this invocation, experiments/xrt/results/raw/runs/<invocation-id>/<case>/
+run<k>/{original,xrt}/ (git-ignored); nothing is read from any other location. The runtime report and log and the
+tracer's JSON must carry the run id this invocation gave them; UCC.log must be absent from the fresh sandbox before
+a run and present after it. Every file a run creates or changes in its sandbox is copied to <run dir>/written/.
 
-Comparison rules (documented presentation/measurement differences; everything else must be byte-identical):
+Comparison rules (documented presentation/measurement differences; everything else must be byte-identical,
+line endings included):
   stdout       identical after normalising only the elapsed-seconds field the VM prints in script warnings
                ("...:000F) 0.666 Attempt to assign variable through None": wall-clock seconds since start, it
                varies between runs of the original too); the raw byte comparison is reported as well
@@ -29,16 +34,20 @@ Comparison rules (documented presentation/measurement differences; everything el
                "<n>ms Purging garbage", the same script-warning seconds, and "CPU Features:" only when the
                arguments do not contain -NOMMX -NOSSE (the translated runtime's CPU policy hides MMX/SSE; with
                those switches the original takes the same scalar paths and the line must match exactly)
+  other files  the set of files written in the sandbox and their contents identical (no normalisation)
 
 Usage:
   python -I tools/xrt/run_xrt.py <case> [<case> ...] [--repeat N] [--timeout S] [--trace] [--no-original]
                                  [-- <commandlet args: must equal the case's registered arguments>]
   python -I tools/xrt/run_xrt.py --list
   python -I tools/xrt/run_xrt.py --reevaluate experiments/xrt/results/raw/runs/<invocation-id>
-      (re-judge preserved raw artifacts with the current evaluation code; executes nothing)
+      Re-judges the preserved raw artifacts of that invocation with the current evaluation code (nothing is
+      executed); verdicts are labelled REEVALUATED_* and never count as a fresh PASS.
 Writes <invocation dir>/summary.json, <invocation dir>/<case>.summary.json (full evidence) and
-experiments/xrt/results/compare/<case>.json (latest summary of the case, with its invocation id).
-Exit status: 0 every run PASS; 1 any run FAIL; 2 usage error; 3 no failure, but some run UNVERIFIED.
+experiments/xrt/results/compare/<case>.json (latest summary of the case, with its invocation id; the directory can
+be redirected with XRT_COMPARE_DIR, e.g. by the runner's own tests).
+Exit status: 0 every run PASS; 1 any run FAIL; 2 usage error; 3 no failure, but some run UNVERIFIED;
+4 harness error; 5 re-evaluation without failures (not a fresh result).
 """
 import argparse
 import hashlib
@@ -51,6 +60,7 @@ import shutil
 import subprocess
 import sys
 import time
+import traceback
 import uuid
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
@@ -62,17 +72,24 @@ XRT = os.path.join(WS, "experiments", "xrt", "build", "xrt_ucc.exe")
 TRACER = os.path.join(WS, "experiments", "xrt", "build", "tracer", "uctrace.exe")
 ENTRIES = os.path.join(WS, "experiments", "xrt", "traces", "entries")
 RUNS_ROOT = os.path.join(WS, "experiments", "xrt", "results", "raw", "runs")
-COMPARE_DIR = os.path.join(WS, "experiments", "xrt", "results", "compare")
+COMPARE_DIR = os.environ.get("XRT_COMPARE_DIR") or os.path.join(WS, "experiments", "xrt", "results", "compare")
 SANDBOX_ROOT = os.path.join(WS, "sandbox_cmp")
 MARKS = os.path.join(WS, "tools", "xrt", "marks.json")
 MAX_REPEAT = 100
-MAX_TIMEOUT = 3600.0
+MIN_TIMEOUT, MAX_TIMEOUT = 1.0, 3600.0
+TRACE_SLOWDOWN = 15          # the debugger-traced original runs ~10x slower than a direct run
 UCC_BASE, UCC_SIZE = 0x400000, 0xF000
+CORE_BASE = 0x10100000
 WORKER_ENTRY = "0x1015a520"
 EXIT_STATUS = {"PASS": 0, "FAIL": 1, "UNVERIFIED": 3}
+EXIT_HARNESS, EXIT_REEVALUATED = 4, 5
 
 
 class UsageError(Exception):
+    pass
+
+
+class HarnessError(Exception):
     pass
 
 
@@ -85,15 +102,19 @@ def normalise_stdout(data):
 
 
 def normalise_log(text, policy_line_differs):
+    """Line-by-line normalisation; each line keeps its own terminator ('\\r' before the split point), so a
+    difference in line endings is never normalised away."""
     out = []
-    for line in text.replace("\r\n", "\n").split("\n"):
-        line = ELAPSED_IN_WARNING.sub(r"\1 <elapsed> \2", line)
-        line = re.sub(r"^(Log: Log file open, |Uninitialized: Log file closed, ).*$", r"\1<timestamp>", line)
-        line = re.sub(r"^Init: CPU Speed=.*$", "Init: CPU Speed=<measured>", line)
-        line = re.sub(r"^Log: [0-9.]+ms Purging garbage$", "Log: <elapsed>ms Purging garbage", line)
+    for line in text.split("\n"):
+        end = "\r" if line.endswith("\r") else ""
+        body = line[:-1] if end else line
+        body = ELAPSED_IN_WARNING.sub(r"\1 <elapsed> \2", body)
+        body = re.sub(r"^(Log: Log file open, |Uninitialized: Log file closed, ).*$", r"\1<timestamp>", body)
+        body = re.sub(r"^Init: CPU Speed=.*$", "Init: CPU Speed=<measured>", body)
+        body = re.sub(r"^Log: [0-9.]+ms Purging garbage$", "Log: <elapsed>ms Purging garbage", body)
         if policy_line_differs:
-            line = re.sub(r"^Init: CPU Features:.*$", "Init: CPU Features: <policy>", line)
-        out.append(line)
+            body = re.sub(r"^Init: CPU Features:.*$", "Init: CPU Features: <policy>", body)
+        out.append(body + end)
     return "\n".join(out)
 
 
@@ -102,6 +123,10 @@ def policy_line_differs(args):
 
 
 # ------------------------------------------------------------------------------------------------ helpers
+def sha256_bytes(data):
+    return hashlib.sha256(data).hexdigest()
+
+
 def sha256_file(path):
     h = hashlib.sha256()
     with open(path, "rb") as f:
@@ -111,8 +136,11 @@ def sha256_file(path):
 
 
 def inside(path, root):
-    path, root = os.path.normcase(os.path.abspath(path)), os.path.normcase(os.path.abspath(root))
-    return path != root and os.path.commonpath([path, root]) == root
+    try:
+        path, root = os.path.normcase(os.path.abspath(path)), os.path.normcase(os.path.abspath(root))
+        return path != root and os.path.commonpath([path, root]) == root
+    except ValueError:              # different drives
+        return False
 
 
 def rel(path):
@@ -160,6 +188,32 @@ def tree_digest(root, patterns=(".c", ".h", ".py", ".json", ".cmd")):
 
 
 # ------------------------------------------------------------------------------------------------ sandbox
+class CaseLock:
+    """Exclusive lock on sandbox_cmp/<case> for one execution (another invocation of the same case fails fast
+    instead of deleting a running sandbox). Released by the OS if the process dies."""
+
+    def __init__(self, case_name):
+        import msvcrt
+        self.msvcrt = msvcrt
+        os.makedirs(SANDBOX_ROOT, exist_ok=True)
+        self.path = os.path.join(SANDBOX_ROOT, f"{case_name}.lock")
+
+    def __enter__(self):
+        self.f = open(self.path, "a+b")
+        try:
+            self.f.seek(0)
+            self.msvcrt.locking(self.f.fileno(), self.msvcrt.LK_NBLCK, 1)
+        except OSError as exc:
+            self.f.close()
+            raise HarnessError(f"sandbox {self.path} is locked by another invocation") from exc
+        return self
+
+    def __exit__(self, *exc):
+        self.f.seek(0)
+        self.msvcrt.locking(self.f.fileno(), self.msvcrt.LK_UNLCK, 1)
+        self.f.close()
+
+
 def fresh_sandbox(case_name):
     """Recreate sandbox_cmp/<case>/System from the install; returns (system dir, {file: sha256})."""
     if not CASE_ID.match(case_name):
@@ -170,12 +224,36 @@ def fresh_sandbox(case_name):
     p = subprocess.run([PY, "-I", os.path.join(WS, "tools", "xrt", "make_sandbox.py"), sb, "--probe"],
                        capture_output=True, text=True, timeout=600)
     if p.returncode != 0:
-        raise RuntimeError(f"make_sandbox failed ({p.returncode}): {p.stderr.strip()[:500]}")
+        raise HarnessError(f"make_sandbox failed ({p.returncode}): {p.stderr.strip()[-500:]}")
     hashes = dict(line.split() for line in p.stdout.splitlines() if line.strip())
     sysdir = os.path.join(sb, "System")
     if os.path.exists(os.path.join(sysdir, "UCC.log")):
-        raise RuntimeError("fresh sandbox already contains UCC.log (the install is expected not to have one)")
+        raise HarnessError("fresh sandbox already contains UCC.log (the install is expected not to have one)")
     return sysdir, hashes
+
+
+def snapshot(sysdir):
+    out = {}
+    for dirpath, _, files in os.walk(sysdir):
+        for f in files:
+            p = os.path.join(dirpath, f)
+            st = os.stat(p)
+            out[os.path.relpath(p, sysdir).replace("\\", "/")] = (st.st_size, st.st_mtime_ns)
+    return out
+
+
+def capture_writes(sysdir, before, outdir):
+    """Copy every file the run created or changed in the sandbox to outdir/written/; {rel: sha256}, [deleted]."""
+    after = snapshot(sysdir)
+    written = {}
+    for relp, st in sorted(after.items()):
+        if before.get(relp) != st:
+            src = os.path.join(sysdir, relp)
+            dst = os.path.join(outdir, "written", relp)
+            os.makedirs(os.path.dirname(dst), exist_ok=True)
+            shutil.copy2(src, dst)
+            written[relp] = sha256_file(dst)
+    return written, sorted(set(before) - set(after))
 
 
 # ------------------------------------------------------------------------------------------------ executions
@@ -184,37 +262,48 @@ def write_meta(outdir, meta):
         json.dump(meta, f, indent=1)
 
 
+def tracer_env(run_id):
+    env = {k: v for k, v in os.environ.items() if not k.upper().startswith("UCTRACE_")}
+    env["UCTRACE_RUN_ID"] = run_id
+    return env
+
+
 def execute_original(case, outdir, timeout, trace):
     """Run the original UCC.exe in the fresh sandbox; artifacts go to outdir (created here: must not exist)."""
     os.makedirs(outdir)
-    sysdir, hashes = fresh_sandbox(case.name)
-    run_id = uuid.uuid4().hex
-    exe = os.path.join(sysdir, "UCC.exe")
-    stdout_path = os.path.join(outdir, "stdout.bin")
-    meta = {"run_id": run_id, "sandbox": rel(sysdir), "inputs": hashes, "trace": trace}
-    t0 = time.time()
-    if trace:
-        cmd = [TRACER, ENTRIES, os.path.join(outdir, "trace.json"), stdout_path, exe] + list(case.args)
-        meta["command"] = cmd
-        try:
-            p = subprocess.run(cmd, cwd=sysdir, capture_output=True, timeout=timeout,
-                               env=dict(os.environ, UCTRACE_RUN_ID=run_id))
-            meta["tracer_exit_code"] = p.returncode
-            meta["tracer_output"] = (p.stdout + p.stderr).decode("utf-8", "replace")[-2000:]
-        except subprocess.TimeoutExpired:
-            meta["timed_out"] = True
-    else:
-        cmd = [exe] + list(case.args)
-        meta["command"] = cmd
-        try:
-            with open(stdout_path, "wb") as f:
-                p = subprocess.run(cmd, cwd=sysdir, stdout=f, stderr=subprocess.STDOUT, timeout=timeout)
-            meta["process_exit_code"] = p.returncode
-        except subprocess.TimeoutExpired:
-            meta["timed_out"] = True
-    meta["seconds"] = round(time.time() - t0, 3)
-    if os.path.exists(os.path.join(sysdir, "UCC.log")):
-        shutil.copy2(os.path.join(sysdir, "UCC.log"), os.path.join(outdir, "UCC.log"))
+    with CaseLock(case.name):
+        sysdir, hashes = fresh_sandbox(case.name)
+        before = snapshot(sysdir)
+        run_id = uuid.uuid4().hex
+        exe = os.path.join(sysdir, "UCC.exe")
+        stdout_path = os.path.join(outdir, "stdout.bin")
+        meta = {"run_id": run_id, "sandbox": rel(sysdir), "inputs": hashes, "trace": trace}
+        t0 = time.time()
+        if trace:
+            cmd = [TRACER, ENTRIES, os.path.join(outdir, "trace.json"), stdout_path, exe] + list(case.args)
+            meta["command"] = cmd
+            meta["timeout_s"] = timeout * TRACE_SLOWDOWN
+            try:
+                p = subprocess.run(cmd, cwd=sysdir, capture_output=True, timeout=meta["timeout_s"], env=tracer_env(run_id))
+                meta["tracer_exit_code"] = p.returncode
+                meta["tracer_output"] = (p.stdout + p.stderr).decode("utf-8", "replace")[-2000:]
+            except subprocess.TimeoutExpired:
+                meta["timed_out"] = True
+        else:
+            cmd = [exe] + list(case.args)
+            meta["command"] = cmd
+            meta["command_line"] = subprocess.list2cmdline(cmd)
+            meta["timeout_s"] = timeout
+            try:
+                with open(stdout_path, "wb") as f:
+                    p = subprocess.run(cmd, cwd=sysdir, stdout=f, stderr=subprocess.STDOUT, timeout=timeout)
+                meta["process_exit_code"] = p.returncode
+            except subprocess.TimeoutExpired:
+                meta["timed_out"] = True
+        meta["seconds"] = round(time.time() - t0, 3)
+        if os.path.exists(os.path.join(sysdir, "UCC.log")):
+            shutil.copy2(os.path.join(sysdir, "UCC.log"), os.path.join(outdir, "UCC.log"))
+        meta["written"], meta["deleted"] = capture_writes(sysdir, before, outdir)
     write_meta(outdir, meta)
     return outdir
 
@@ -222,43 +311,69 @@ def execute_original(case, outdir, timeout, trace):
 def execute_candidate(case, outdir, timeout, command_prefix=None):
     """Run the translated UCC (or, only for the runner's self-tests, a substitute command) in the fresh sandbox."""
     os.makedirs(outdir)
-    sysdir, hashes = fresh_sandbox(case.name)
-    run_id = uuid.uuid4().hex
-    cmd = list(command_prefix or [XRT]) + [
-        "--guest", os.path.join(sysdir, "UCC.exe"), "--log", os.path.join(outdir, "xrt.log"),
-        "--report", os.path.join(outdir, "report.json"), "--run-id", run_id,
-        "--timeout-ms", str(int(timeout * 1000)), "--"] + list(case.args)
-    meta = {"run_id": run_id, "sandbox": rel(sysdir), "inputs": hashes, "command": cmd,
-            "substitute_candidate": command_prefix is not None}
-    t0 = time.time()
-    try:
-        with open(os.path.join(outdir, "stdout.bin"), "wb") as fo, open(os.path.join(outdir, "stderr.txt"), "wb") as fe:
-            p = subprocess.run(cmd, cwd=sysdir, stdout=fo, stderr=fe, timeout=timeout + 30)
-        meta["process_exit_code"] = p.returncode
-    except subprocess.TimeoutExpired:
-        meta["timed_out"] = True
-    meta["seconds"] = round(time.time() - t0, 3)
-    if os.path.exists(os.path.join(sysdir, "UCC.log")):
-        shutil.copy2(os.path.join(sysdir, "UCC.log"), os.path.join(outdir, "UCC.log"))
+    with CaseLock(case.name):
+        sysdir, hashes = fresh_sandbox(case.name)
+        before = snapshot(sysdir)
+        run_id = uuid.uuid4().hex
+        cmd = list(command_prefix or [XRT]) + [
+            "--guest", os.path.join(sysdir, "UCC.exe"), "--log", os.path.join(outdir, "xrt.log"),
+            "--report", os.path.join(outdir, "report.json"), "--run-id", run_id,
+            "--timeout-ms", str(int(math.ceil(timeout * 1000))), "--"] + list(case.args)
+        meta = {"run_id": run_id, "sandbox": rel(sysdir), "inputs": hashes, "command": cmd,
+                "substitute_candidate": command_prefix is not None, "timeout_s": timeout + 30}
+        t0 = time.time()
+        try:
+            with open(os.path.join(outdir, "stdout.bin"), "wb") as fo, open(os.path.join(outdir, "stderr.txt"), "wb") as fe:
+                p = subprocess.run(cmd, cwd=sysdir, stdout=fo, stderr=fe, timeout=timeout + 30)
+            meta["process_exit_code"] = p.returncode
+        except subprocess.TimeoutExpired:
+            meta["timed_out"] = True
+        meta["seconds"] = round(time.time() - t0, 3)
+        if os.path.exists(os.path.join(sysdir, "UCC.log")):
+            shutil.copy2(os.path.join(sysdir, "UCC.log"), os.path.join(outdir, "UCC.log"))
+        meta["written"], meta["deleted"] = capture_writes(sysdir, before, outdir)
     write_meta(outdir, meta)
     return outdir
 
 
 # ------------------------------------------------------------------------------------------------ collection
-META_KEYS = ("run_id", "command", "seconds", "trace", "inputs", "process_exit_code", "tracer_exit_code", "timed_out",
-             "substitute_candidate")
+META_KEYS = ("run_id", "command", "command_line", "seconds", "trace", "inputs", "sandbox", "process_exit_code",
+             "tracer_exit_code", "timed_out", "substitute_candidate", "written", "deleted", "timeout_s")
 
 
 def _meta(outdir, r):
     try:
         meta = load_json(os.path.join(outdir, "meta.json"))
-        if not isinstance(meta, dict) or not meta.get("run_id"):
+        if not isinstance(meta, dict) or not isinstance(meta.get("run_id"), str) or not meta["run_id"]:
             raise ValueError("no run id")
     except (OSError, ValueError) as exc:
         r["errors"].append(f"meta.json missing or malformed: {exc}")
         return None
     r["meta"] = {k: meta.get(k) for k in META_KEYS if k in meta}
     return meta
+
+
+def _written_files(outdir, meta, r):
+    """{rel: bytes} of the files this run wrote (from outdir/written, verified against meta's hashes)."""
+    out = {}
+    written = meta.get("written")
+    if not isinstance(written, dict):
+        r["errors"].append("no record of the files written in the sandbox")
+        return out
+    for relp, digest in written.items():
+        p = os.path.join(outdir, "written", relp)
+        if not inside(p, os.path.join(outdir, "written")):
+            r["errors"].append(f"written-file path escapes the run directory: {relp}")
+            continue
+        try:
+            data = read_bytes(p)
+        except OSError:
+            r["errors"].append(f"written file {relp} missing from the run directory")
+            continue
+        if sha256_bytes(data) != digest:
+            r["errors"].append(f"written file {relp} does not match its recorded hash")
+        out[relp] = data
+    return out
 
 
 def collect_original(outdir):
@@ -269,34 +384,41 @@ def collect_original(outdir):
     if meta is None:
         r["ok"] = False
         return r
-    if meta.get("timed_out"):
-        err("original run timed out")
     if meta.get("trace"):
         r["tool"] = "uctrace"
-        if meta.get("tracer_exit_code") != 0:
-            err(f"tracer failure: uctrace exit status {meta.get('tracer_exit_code')}: "
-                f"{(meta.get('tracer_output') or '').strip()[-300:]}")
-        try:
-            tr = load_json(os.path.join(outdir, "trace.json"))
-            if not isinstance(tr, dict):
-                raise ValueError("not an object")
-        except (OSError, ValueError) as exc:
-            err(f"tracer failure: trace.json missing or malformed: {exc}")
-            tr = None
-        if tr is not None:
-            if tr.get("run_id") != meta["run_id"]:
-                err(f"tracer failure: stale or foreign trace (run id {tr.get('run_id')!r}, expected {meta['run_id']!r})")
-            elif tr.get("complete") is not True:
-                err("tracer failure: trace incomplete (no EXIT_PROCESS event)")
-            elif not isinstance(tr.get("exit_code"), int):
-                err("tracer failure: trace has no guest exit code")
-            else:
-                r["exit_code"] = tr["exit_code"]    # the GUEST's exit code, whatever it is (not a tool failure)
-                r["trace"] = tr
+        if meta.get("timed_out"):
+            err(f"original timed out under the tracer (limit {meta.get('timeout_s')} s)")
+        else:
+            if meta.get("tracer_exit_code") != 0:
+                err(f"tracer failure: uctrace exit status {meta.get('tracer_exit_code')}: "
+                    f"{(meta.get('tracer_output') or '').strip()[-300:]}")
+            try:
+                tr = load_json(os.path.join(outdir, "trace.json"))
+                if not isinstance(tr, dict):
+                    raise ValueError("not an object")
+            except (OSError, ValueError) as exc:
+                err(f"tracer failure: trace.json missing or malformed: {exc}")
+                tr = None
+            if tr is not None:
+                if tr.get("run_id") != meta["run_id"]:
+                    err(f"tracer failure: stale or foreign trace (run id {tr.get('run_id')!r}, expected {meta['run_id']!r})")
+                elif tr.get("complete") is not True:
+                    err("tracer failure: trace incomplete (no EXIT_PROCESS event, or the debuggee did not terminate)")
+                elif not isinstance(tr.get("exit_code"), int) or isinstance(tr.get("exit_code"), bool):
+                    err("tracer failure: trace has no guest exit code")
+                elif not isinstance(tr.get("command"), str):
+                    err("tracer failure: trace has no debuggee command line")
+                else:
+                    r["exit_code"] = tr["exit_code"]    # the GUEST's exit code, whatever it is (not a tool failure)
+                    r["command_line"] = tr["command"]
+                    r["trace"] = tr
     else:
         r["tool"] = "direct"
-        if isinstance(meta.get("process_exit_code"), int):
+        if meta.get("timed_out"):
+            err(f"original timed out (limit {meta.get('timeout_s')} s)")
+        elif isinstance(meta.get("process_exit_code"), int):
             r["exit_code"] = meta["process_exit_code"]
+            r["command_line"] = meta.get("command_line")
     if "exit_code" not in r and not r["errors"]:
         err("no guest exit code recorded")
     try:
@@ -307,8 +429,54 @@ def collect_original(outdir):
         r["log"] = read_bytes(os.path.join(outdir, "UCC.log")).decode("latin-1")
     except OSError:
         err("UCC.log missing (the original did not write one in the fresh sandbox)")
+    r["written"] = _written_files(outdir, meta, r)
     r["ok"] = not r["errors"]
     return r
+
+
+def _is_int(v):
+    return isinstance(v, int) and not isinstance(v, bool)
+
+
+def validate_report(rep):
+    """Schema problems of a runtime report (schema 2), [] when well formed."""
+    p = []
+    for key, typ in (("events", list), ("threads", list), ("modules", list), ("marks", list), ("watches", list)):
+        if not isinstance(rep.get(key), typ) or not all(isinstance(x, dict) for x in rep.get(key) or []):
+            p.append(f"'{key}' is not a list of objects")
+    for key in ("exit_code", "events_recorded", "events_dropped", "watch_unattributed_changes"):
+        if not _is_int(rep.get(key)):
+            p.append(f"'{key}' is not an integer")
+    if not isinstance(rep.get("outcome"), str) or not isinstance(rep.get("guest_command_line"), str):
+        p.append("'outcome' or 'guest_command_line' is not a string")
+    if p:
+        return p
+    last = 0
+    for e in rep["events"]:
+        if not _is_int(e.get("seq")) or not _is_int(e.get("thread")) or not isinstance(e.get("kind"), str):
+            p.append(f"malformed event {str(e)[:120]}")
+            break
+        if e["seq"] <= last:
+            p.append(f"event sequence not strictly increasing at seq {e['seq']}")
+            break
+        last = e["seq"]
+        if e["kind"] == "incomplete" or e.get("truncated"):
+            p.append(f"incomplete or truncated event at seq {e['seq']}")
+            break
+        for k, v in e.items():
+            if k in ("name", "module", "where", "path", "resolved", "va", "stack_top", "entry", "via", "state", "addr") \
+                    and not isinstance(v, str):
+                p.append(f"event seq {e['seq']}: field '{k}' is not a string")
+                break
+    if rep["events_recorded"] != len(rep["events"]) + rep["events_dropped"]:
+        p.append("events_recorded does not equal stored + dropped events")
+    for m in rep["modules"]:
+        if not isinstance(m.get("name"), str) or not isinstance(m.get("sha256"), str):
+            p.append("module entry without name/sha256")
+    for t in rep["threads"]:
+        if not _is_int(t.get("index")) or not isinstance(t.get("state"), str):
+            p.append("thread entry without index/state")
+    return p
 
 
 def collect_candidate(outdir):
@@ -320,10 +488,10 @@ def collect_candidate(outdir):
         r["ok"] = False
         return r
     if meta.get("timed_out"):
-        err("translated process did not exit (harness timeout)")
-    if isinstance(meta.get("process_exit_code"), int):
+        err(f"translated process did not exit (harness limit {meta.get('timeout_s')} s)")
+    elif _is_int(meta.get("process_exit_code")):
         r["exit_code"] = meta["process_exit_code"]
-    elif not meta.get("timed_out"):
+    else:
         err("no process exit code recorded")
     try:
         r["stdout"] = read_bytes(os.path.join(outdir, "stdout.bin"))
@@ -349,10 +517,13 @@ def collect_candidate(outdir):
             err(f"stale or foreign runtime report (run id {rep.get('run_id')!r}, expected {meta['run_id']!r})")
         elif rep.get("schema") != 2:
             err(f"runtime report schema {rep.get('schema')!r}, expected 2")
-        elif not isinstance(rep.get("events"), list) or not isinstance(rep.get("threads"), list):
-            err("runtime report lacks the event timeline or the thread list")
         else:
-            r["report"] = rep
+            problems = validate_report(rep)
+            if problems:
+                err("malformed runtime report: " + "; ".join(problems[:5]))
+            else:
+                r["report"] = rep
+                r["command_line"] = rep["guest_command_line"]
     try:
         with open(os.path.join(outdir, "xrt.log"), encoding="utf-8", errors="replace") as f:
             first = f.readline()
@@ -360,6 +531,7 @@ def collect_candidate(outdir):
             err("runtime log does not carry this run's id")
     except OSError:
         err("runtime log missing")
+    r["written"] = _written_files(outdir, meta, r)
     r["ok"] = not r["errors"]
     return r
 
@@ -373,10 +545,10 @@ def in_ucc(addr_text):
 
 
 class Timeline:
-    """Query helpers over the runtime report's ordered event list."""
+    """Query helpers over the runtime report's ordered event list (validated by validate_report)."""
 
     def __init__(self, report):
-        self.ev = [e for e in report.get("events") or [] if isinstance(e, dict)]
+        self.ev = report["events"]
         self.report = report
 
     def find(self, kind, **kw):
@@ -389,12 +561,15 @@ class Timeline:
     def mark(self, name, **kw):
         return self.first("mark", name=name, **kw)
 
+    def marks(self, name):
+        return self.find("mark", name=name)
+
     def mark_from_ucc(self, name):
         """first occurrence of an entry mark whose return address ([esp] at entry) is in UCC.exe, on thread 0"""
         return next((e for e in self.find("mark", name=name, thread=0) if in_ucc(e.get("stack_top"))), None)
 
     def mark_count(self, name):
-        return next((m.get("count") for m in self.report.get("marks") or [] if m.get("name") == name), None)
+        return next((m.get("count") for m in self.report["marks"] if m.get("name") == name), None)
 
 
 class Checks:
@@ -419,6 +594,51 @@ class Checks:
         return {"group": self.group, "ok": bool(self.items) and all(i["ok"] for i in self.items), "checks": self.items}
 
 
+def expected_instrumentation(sysdir):
+    """{(module, name): va} for every mark, {(module, name): addr} for every watch, as marks.json resolves against
+    the input modules, and the SHA-256 of marks.json."""
+    cfg_raw = read_bytes(MARKS)
+    cfg = json.loads(cfg_raw)
+    marks, watches = {}, {}
+    for module, base in (("UCC.exe", UCC_BASE), ("Core.dll", CORE_BASE)):
+        exports = export_rvas(os.path.join(sysdir, module))
+        for e in cfg.get(module, {}).get("marks", []):
+            marks[(module, e["name"])] = base + exports[e["export"]] if "export" in e else int(e["va"], 16)
+        for e in cfg.get(module, {}).get("watches", []):
+            watches[(module, e["name"])] = base + exports[e["export"]] if "export" in e else int(e["va"], 16)
+    return marks, watches, sha256_bytes(cfg_raw)
+
+
+def ev_instrumentation(t, expected):
+    """The build was lifted with the current marks.json and every mark/watch sits where marks.json says."""
+    c = Checks("instrumentation_binding")
+    marks, watches, digest = expected
+    for m in t.report["modules"]:
+        c.check(f"{m['name']} was lifted with the current tools/xrt/marks.json", m.get("marks_sha256") == digest,
+                f"{m.get('marks_sha256')} vs {digest}")
+    got = {}
+    for m in t.report["marks"]:
+        try:
+            got[(m.get("module"), m.get("name"))] = int(m.get("va"), 16)
+        except (TypeError, ValueError):
+            got[(m.get("module"), m.get("name"))] = None
+    c.check("report marks are exactly the marks.json marks at the resolved addresses", got == marks,
+            f"{len(got)} reported, {len(marks)} expected; differing: "
+            f"{sorted(str(k) for k in set(got) ^ set(marks) | {k for k in got if k in marks and got[k] != marks[k]})[:5]}")
+    bad = [e["seq"] for e in t.find("mark") if marks.get((e.get("module"), e.get("name"))) != _hex(e.get("va"))]
+    c.check("every mark event carries its resolved address", not bad, f"seq {bad[:5]}")
+    gotw = {(w.get("module"), w.get("name")): _hex(w.get("addr")) for w in t.report["watches"]}
+    c.check("report watches are exactly the marks.json watches at the resolved addresses", gotw == watches, str(gotw))
+    return c.result()
+
+
+def _hex(v):
+    try:
+        return int(v, 16)
+    except (TypeError, ValueError):
+        return None
+
+
 def ev_init(t):
     c = Checks("engine_initialization")
     att = c.require("Core.dll DllMain(DLL_PROCESS_ATTACH) ran and returned TRUE",
@@ -441,7 +661,7 @@ def ev_load(t):
     pl = c.require("UObject::GetPackageLinker entered (thread 0)", t.mark("UObject::GetPackageLinker", thread=0))
     core_u = c.require("Core.u opened from the sandbox (CreateFile succeeded)",
                        next((e for e in t.find("file_open", ok=True, thread=0)
-                             if str(e.get("resolved", "")).lower() == "<sandbox>\\system\\core.u"), None))
+                             if e.get("resolved", "").lower() == "<sandbox>\\system\\core.u"), None))
     cons = c.require("commandlet object constructed: UObject::StaticConstructObject called from UCC.exe",
                      t.mark_from_ucc("UObject::StaticConstructObject"), lambda e: f"caller {e.get('stack_top')}")
     c.order("order: StaticInit < StaticLoadClass < StaticLoadObject < GetPackageLinker < Core.u opened",
@@ -500,7 +720,7 @@ def ev_flag(t):
     un = t.find("watch_unattributed", name="FFileStream::Destroyed")
     c.check("no change of FFileStream::Destroyed that no recorded store explains",
             not un and t.report.get("watch_unattributed_changes") == 0, f"{len(un)} unattributed change events")
-    w = next((w for w in t.report.get("watches") or [] if w.get("name") == "FFileStream::Destroyed"), None)
+    w = next((w for w in t.report["watches"] if w.get("name") == "FFileStream::Destroyed"), None)
     c.check("watch armed; final value 2", w is not None and w.get("armed") == 1 and w.get("final") == 2, str(w))
     return c.result()
 
@@ -516,7 +736,7 @@ def ev_termination(t):
     c.order("order: store 2 (worker) < wait loop left (main)", s2, wf)
     ae = c.require("thread 1 had exited when the process exited", t.first("thread_at_exit", index=1, state="exited"))
     c.order("order: thread end < process exit", te, ae)
-    th = next((x for x in t.report.get("threads") or [] if x.get("index") == 1), None)
+    th = next((x for x in t.report["threads"] if x.get("index") == 1), None)
     c.check("report: thread 1 exited via ExitThread with code 0",
             th is not None and th.get("state") == "exited" and th.get("exit_via") == "ExitThread" and th.get("exit_code") == 0,
             str(th))
@@ -564,38 +784,38 @@ def profile_core_error(case, report):
 
 PROFILES = {"core_commandlet": profile_core_commandlet, "core_error": profile_core_error}
 # function-entry marks each profile relies on; with --trace each must also have executed in the ORIGINAL
+COMMON_ENTRY_MARKS = (("UCC.exe", "UCC main"), ("Core.dll", "appInit"), ("Core.dll", "UObject::StaticInit"),
+                      ("Core.dll", "FFileStream::Init"), ("Core.dll", "FFileStream worker thread entry"),
+                      ("Core.dll", "UObject::StaticLoadClass"), ("Core.dll", "appPreExit"), ("Core.dll", "UObject::StaticExit"),
+                      ("Core.dll", "appExit"), ("Core.dll", "FFileStream::Destroy"))
 PROFILE_ENTRY_MARKS = {
-    "core_commandlet": ("appInit", "UObject::StaticInit", "FFileStream::Init", "UObject::StaticLoadClass",
-                        "UObject::StaticLoadObject", "UObject::GetPackageLinker", "UObject::StaticConstructObject",
-                        "UCommandlet::Main", "UCommandlet::eventMain", "UObject::FindFunctionChecked", "UObject::ProcessEvent",
-                        "UObject::ProcessInternal", "appPreExit", "UObject::StaticExit", "appExit", "FFileStream::Destroy"),
-    "core_error": ("appInit", "UObject::StaticInit", "FFileStream::Init", "UObject::StaticLoadClass", "appPreExit",
-                   "UObject::StaticExit", "appExit", "FFileStream::Destroy"),
+    "core_commandlet": COMMON_ENTRY_MARKS + (
+        ("Core.dll", "UObject::StaticLoadObject"), ("Core.dll", "UObject::GetPackageLinker"),
+        ("Core.dll", "UObject::StaticConstructObject"), ("Core.dll", "UCommandlet::Main"),
+        ("Core.dll", "UCommandlet::eventMain"), ("Core.dll", "UObject::FindFunctionChecked"),
+        ("Core.dll", "UObject::ProcessEvent"), ("Core.dll", "UObject::ProcessInternal")),
+    "core_error": COMMON_ENTRY_MARKS,
 }
 
 
-def export_rvas(path):
-    """{export name: rva}, parsed from an in-memory copy (a memory-mapped file would keep the sandbox locked)."""
-    import pefile
-    pe = pefile.PE(data=read_bytes(path), fast_load=True)
-    pe.parse_data_directories(directories=[pefile.DIRECTORY_ENTRY["IMAGE_DIRECTORY_ENTRY_EXPORT"]])
-    out = {e.name.decode(): e.address for e in pe.DIRECTORY_ENTRY_EXPORT.symbols if e.name}
-    pe.close()
-    return out
-
-
-def original_cross_check(case, trace, core_exports):
+def original_cross_check(case, trace, expected):
     """--trace: the original must also have executed every function-entry mark the evidence relies on."""
-    cfg = load_json(MARKS)["Core.dll"]["marks"]
-    by_name = {e["name"]: e for e in cfg}
-    hits = next(({int(x, 16) for x in m.get("hit_rvas", [])} for m in trace.get("modules", [])
-                 if m.get("instrumented") and str(m.get("name", "")).lower() == "core.dll"), set())
+    marks = expected[0]
+    hits = {}
+    for m in trace.get("modules", []):
+        if isinstance(m, dict) and m.get("instrumented"):
+            try:
+                hits[str(m.get("name", "")).lower()] = {int(x, 16) for x in m.get("hit_rvas", [])}
+            except (TypeError, ValueError):
+                hits[str(m.get("name", "")).lower()] = set()
     out = []
-    for n in PROFILE_ENTRY_MARKS.get(case.profile, ()) + tuple(case.natives):
-        e = by_name.get(n)
-        rva = core_exports.get(e["export"]) if e and "export" in e else (int(e["va"], 16) - 0x10100000 if e else None)
-        out.append({"check": f"original executed {n}", "ok": rva is not None and rva in hits,
-                    "detail": f"rva {rva:#x}" if rva is not None else "unknown mark"})
+    names = PROFILE_ENTRY_MARKS.get(case.profile, ()) + tuple(("Core.dll", n) for n in case.natives)
+    for module, n in names:
+        va = marks.get((module, n))
+        base = UCC_BASE if module == "UCC.exe" else CORE_BASE
+        ok = va is not None and (va - base) in hits.get(module.lower(), set())
+        out.append({"check": f"original executed {module} {n}", "ok": ok,
+                    "detail": f"rva {va - base:#x}" if va is not None else "unknown mark"})
     return out
 
 
@@ -617,23 +837,31 @@ def compare(case, ref, cand):
            "exit_code_identical": ref.get("exit_code") == cand.get("exit_code")}
     la = normalise_log(ref["log"], policy_line_differs(case.args)).split("\n")
     lb = normalise_log(cand["log"], policy_line_differs(case.args)).split("\n")
-    diff = [f"line {i + 1}: - {x} | + {y}" for i, (x, y) in enumerate(zip(la, lb)) if x != y]
+    diff = [f"line {i + 1}: - {x!r} | + {y!r}" for i, (x, y) in enumerate(zip(la, lb)) if x != y]
     if len(la) != len(lb):
         diff.append(f"line count {len(la)} vs {len(lb)}")
     out["ucc_log_identical_after_normalisation"] = not diff
     out["ucc_log_diff"] = diff[:20]
     if not out["stdout_identical_after_normalisation"]:
-        sa, sb = normalise_stdout(a).splitlines(), normalise_stdout(b).splitlines()
-        sd = [f"line {i + 1}: - {x} | + {y}" for i, (x, y) in enumerate(zip(sa, sb)) if x != y]
+        sa, sb = normalise_stdout(a).split("\n"), normalise_stdout(b).split("\n")
+        sd = [f"line {i + 1}: - {x!r} | + {y!r}" for i, (x, y) in enumerate(zip(sa, sb)) if x != y]
         if len(sa) != len(sb):
             sd.append(f"line count {len(sa)} vs {len(sb)}")
         out["stdout_diff"] = sd[:20]
-    out["match"] = out["stdout_identical_after_normalisation"] and out["exit_code_identical"] and not diff
+    wa = {k: v for k, v in ref["written"].items() if k != "UCC.log"}
+    wb = {k: v for k, v in cand["written"].items() if k != "UCC.log"}
+    out["written_files"] = sorted(set(wa) | set(wb))
+    out["written_files_identical"] = wa == wb
+    if wa != wb:
+        out["written_files_diff"] = sorted(k for k in set(wa) | set(wb) if wa.get(k) != wb.get(k))[:20]
+    out["match"] = (out["stdout_identical_after_normalisation"] and out["exit_code_identical"] and not diff
+                    and out["written_files_identical"])
     return out
 
 
-def evaluate(case, ref, cand, core_exports=None):
-    """Verdict for one run from collected artifacts (ref is None when there is no reference)."""
+def evaluate(case, ref, cand, expected=None):
+    """Verdict for one run from collected artifacts (ref is None when there is no reference). `expected` is
+    expected_instrumentation() for the case's sandbox inputs; without it the instrumentation binding fails."""
     v = {"failures": []}
     fail = v["failures"].append
     # 1. candidate execution
@@ -671,14 +899,14 @@ def evaluate(case, ref, cand, core_exports=None):
             fail(f"reference does not produce the case's expected result: {p}")
         v["output_matches_reference"] = False
         if ref["ok"] and not ref_problems:
-            if "stdout" in cand and "log" in cand:
+            if cand.get("ok") or ("stdout" in cand and "log" in cand):
                 cmp = compare(case, ref, cand)
                 v["comparison"] = cmp
                 v["output_matches_reference"] = cmp["match"]
                 if not cmp["match"]:
                     fail("output differs from the reference: " + ", ".join(
                         k for k in ("stdout_identical_after_normalisation", "exit_code_identical",
-                                    "ucc_log_identical_after_normalisation") if not cmp[k]))
+                                    "ucc_log_identical_after_normalisation", "written_files_identical") if not cmp[k]))
             else:
                 fail("no comparable translated output (stdout or UCC.log missing)")
     # 4. milestone evidence
@@ -687,22 +915,36 @@ def evaluate(case, ref, cand, core_exports=None):
         v["milestone_evidence_valid"] = False
         fail("milestone evidence: no valid runtime report from this run")
     else:
-        groups = PROFILES[case.profile](case, rep)
-        if ref is not None and ref.get("trace") is not None:
-            cc = original_cross_check(case, ref["trace"], core_exports or {})
-            groups.append({"group": "original_trace_cross_check", "ok": all(i["ok"] for i in cc), "checks": cc})
+        try:
+            groups = [ev_instrumentation(Timeline(rep), expected)] if expected else \
+                [{"group": "instrumentation_binding", "ok": False,
+                  "checks": [{"check": "expected instrumentation resolved", "ok": False, "detail": "not available"}]}]
+            groups += PROFILES[case.profile](case, rep)
+            if ref is not None and ref.get("trace") is not None:
+                cc = original_cross_check(case, ref["trace"], expected) if expected else []
+                groups.append({"group": "original_trace_cross_check", "ok": bool(cc) and all(i["ok"] for i in cc),
+                               "checks": cc})
+        except Exception as exc:  # noqa: BLE001 - an unexpected report shape is a failed run, never a crash
+            groups = [{"group": "evidence_evaluation", "ok": False,
+                       "checks": [{"check": "evaluate the evidence profile", "ok": False, "detail": repr(exc)[:300]}]}]
         v["evidence"] = groups
         v["milestone_evidence_valid"] = all(g["ok"] for g in groups)
         for g in groups:
             for i in g["checks"]:
                 if not i["ok"]:
                     fail(f"milestone evidence [{g['group']}]: {i['check']} ({i['detail']})")
-    # 5. identical inputs for both runs; translated code lifted from exactly these inputs
+    # 5. identical inputs and guest command line for both runs; translated code lifted from exactly these inputs
     cin = (cand.get("meta") or {}).get("inputs")
-    if ref is not None and (ref.get("meta") or {}).get("inputs") != cin:
-        fail("the original and translated runs used different input files")
+    if ref is not None and ref["ok"]:
+        if (ref.get("meta") or {}).get("inputs") != cin:
+            fail("the original and translated runs used different input files")
+        if (ref.get("meta") or {}).get("sandbox") != (cand.get("meta") or {}).get("sandbox"):
+            fail("the original and translated runs used different sandbox paths")
+        if ref.get("command_line") != cand.get("command_line"):
+            fail(f"different guest command lines: original {ref.get('command_line')!r}, "
+                 f"translated {cand.get('command_line')!r}")
     if rep is not None:
-        mods = {m.get("name"): m.get("sha256") for m in rep.get("modules", [])}
+        mods = {m.get("name"): m.get("sha256") for m in rep["modules"]}
         for f in ("UCC.exe", "Core.dll"):
             if not cin or mods.get(f) != cin.get(f):
                 fail(f"translated {f} was not lifted from the sandbox input {f}")
@@ -749,8 +991,8 @@ def parse_args(argv):
         a.timeout = float(a.timeout)
     except ValueError as exc:
         raise UsageError(f"--timeout must be a number of seconds, got {a.timeout!r}") from exc
-    if not math.isfinite(a.timeout) or not 0 < a.timeout <= MAX_TIMEOUT:
-        raise UsageError(f"--timeout must be finite, positive and at most {MAX_TIMEOUT:g} s, got {a.timeout}")
+    if not math.isfinite(a.timeout) or not MIN_TIMEOUT <= a.timeout <= MAX_TIMEOUT:
+        raise UsageError(f"--timeout must be finite and between {MIN_TIMEOUT:g} and {MAX_TIMEOUT:g} s, got {a.timeout}")
     if a.trace and a.no_original:
         raise UsageError("--trace traces the original; it cannot be combined with --no-original")
     if extra is not None:
@@ -762,16 +1004,38 @@ def parse_args(argv):
     return a
 
 
-def new_invocation_dir(root=RUNS_ROOT):
+def new_invocation_dir(root=None):
     inv = time.strftime("%Y%m%d-%H%M%S", time.gmtime()) + "-" + uuid.uuid4().hex[:8]
-    d = os.path.join(root, inv)
+    d = os.path.join(root or RUNS_ROOT, inv)
     os.makedirs(d)          # exclusive: a result location is never reused
     return inv, d
 
 
+def run_one(case, rundir, timeout, trace, no_original, candidate_prefix, expected_cache):
+    """Execute and judge one run; a harness failure becomes a FAIL verdict with the reason."""
+    ref = cand = None
+    try:
+        if not no_original:
+            ref = collect_original(execute_original(case, os.path.join(rundir, "original"), timeout, trace))
+        cand = collect_candidate(execute_candidate(case, os.path.join(rundir, "xrt"), timeout, candidate_prefix))
+        if "expected" not in expected_cache:
+            expected_cache["expected"] = expected_instrumentation(os.path.join(SANDBOX_ROOT, case.name, "System"))
+        v = evaluate(case, ref, cand, expected_cache["expected"])
+        v["harness_error"] = None
+    except Exception as exc:  # noqa: BLE001 - recorded as a failed run
+        v = {"verdict": "FAIL", "harness_error": f"{type(exc).__name__}: {exc}",
+             "failures": [f"harness error: {type(exc).__name__}: {exc}"], "traceback": traceback.format_exc()[-3000:],
+             "candidate_execution_completed": False, "output_matches_reference": None if no_original else False,
+             "expected_result": False, "milestone_evidence_valid": False, "evidence": []}
+    return ref, cand, v
+
+
 def run_invocation(case_names, repeat, timeout, trace=False, no_original=False, candidate_prefix=None, echo=print):
-    if not case_names or not 1 <= repeat <= MAX_REPEAT or not (math.isfinite(timeout) and 0 < timeout <= MAX_TIMEOUT):
+    if not case_names or not 1 <= repeat <= MAX_REPEAT or not (math.isfinite(timeout) and MIN_TIMEOUT <= timeout <= MAX_TIMEOUT):
         raise UsageError("invalid case list, repeat count or timeout")
+    for n in case_names:
+        if n not in CASES:
+            raise UsageError(f"unknown case {n!r}")
     inv, invdir = new_invocation_dir()
     identity = {
         "git": git_identity(),
@@ -783,13 +1047,14 @@ def run_invocation(case_names, repeat, timeout, trace=False, no_original=False, 
         "generated_code": tree_digest(os.path.join(WS, "experiments", "xrt", "gen")),
         "candidate": file_identity(XRT) if candidate_prefix is None else {"substitute": list(candidate_prefix)},
         "tracer": file_identity(TRACER) if trace else None,
+        "tracer_source": file_identity(os.path.join(WS, "experiments", "xrt", "tracer", "uctrace.c")) if trace else None,
         "python": sys.version.split()[0], "host": platform.platform(),
     }
-    core_exports = {}       # Core.dll export RVAs for the --trace cross-check (read from the first fresh sandbox)
     summaries = {}
+    expected_cache = {}
     for name in case_names:
         case = CASES[name]
-        s = {"runner_schema": 2, "invocation_id": inv, "invocation_dir": rel(invdir), "case": name, "args": list(case.args),
+        s = {"runner_schema": 3, "invocation_id": inv, "invocation_dir": rel(invdir), "case": name, "args": list(case.args),
              "expect": {"exit_code": case.expect.exit_code, "negative": case.expect.negative,
                         "stdout_contains": list(case.expect.stdout_contains),
                         "stdout_excludes": list(case.expect.stdout_excludes)},
@@ -797,26 +1062,24 @@ def run_invocation(case_names, repeat, timeout, trace=False, no_original=False, 
              "trace": trace, "reference": "none" if no_original else "fresh-original", "identity": identity, "runs": []}
         for k in range(repeat):
             rundir = os.path.join(invdir, name, f"run{k}")
-            ref = None
-            if not no_original:
-                ref = collect_original(execute_original(case, os.path.join(rundir, "original"), timeout, trace))
-                if trace and not core_exports:
-                    core_exports = export_rvas(os.path.join(SANDBOX_ROOT, name, "System", "Core.dll"))
-            cand = collect_candidate(execute_candidate(case, os.path.join(rundir, "xrt"), timeout, candidate_prefix))
-            v = evaluate(case, ref, cand, core_exports)
-            entry = {"run": k, "dir": rel(rundir), "verdict": v["verdict"],
-                     "candidate": {"exit_code": cand.get("exit_code"), "seconds": (cand.get("meta") or {}).get("seconds"),
-                                   "stdout_sha256": hashlib.sha256(cand["stdout"]).hexdigest() if "stdout" in cand else None,
-                                   "inputs": (cand.get("meta") or {}).get("inputs")}}
+            ref, cand, v = run_one(case, rundir, timeout, trace, no_original, candidate_prefix, expected_cache)
+            entry = {"run": k, "dir": rel(rundir), "verdict": v["verdict"]}
+            if cand is not None:
+                entry["candidate"] = {"exit_code": cand.get("exit_code"), "seconds": (cand.get("meta") or {}).get("seconds"),
+                                      "stdout_sha256": sha256_bytes(cand["stdout"]) if "stdout" in cand else None,
+                                      "command_line": cand.get("command_line"), "inputs": (cand.get("meta") or {}).get("inputs"),
+                                      "written": sorted((cand.get("meta") or {}).get("written") or {})}
             if ref is not None:
                 entry["original"] = {"tool": ref.get("tool"), "exit_code": ref.get("exit_code"),
                                      "seconds": (ref.get("meta") or {}).get("seconds"),
-                                     "stdout_sha256": hashlib.sha256(ref["stdout"]).hexdigest() if "stdout" in ref else None}
+                                     "stdout_sha256": sha256_bytes(ref["stdout"]) if "stdout" in ref else None,
+                                     "command_line": ref.get("command_line"),
+                                     "written": sorted((ref.get("meta") or {}).get("written") or {})}
             entry.update(v)
             s["runs"].append(entry)
             echo(f"[{name} run {k}] {v['verdict']}: executed={v['candidate_execution_completed']} "
                  f"matches_reference={v['output_matches_reference']} expected_result={v['expected_result']} "
-                 f"evidence={v['milestone_evidence_valid']} (translated exit {cand.get('exit_code')}"
+                 f"evidence={v['milestone_evidence_valid']} (translated exit {cand.get('exit_code') if cand else None}"
                  + (f", original exit {ref.get('exit_code')} via {ref.get('tool')})" if ref is not None else ", no reference)"))
             for f in v["failures"][:8]:
                 echo(f"    - {f}")
@@ -824,12 +1087,14 @@ def run_invocation(case_names, repeat, timeout, trace=False, no_original=False, 
                 echo(f"    ... {len(v['failures']) - 8} more (see the summary)")
         counts = {x: sum(1 for r in s["runs"] if r["verdict"] == x) for x in ("PASS", "FAIL", "UNVERIFIED")}
         s["counts"] = counts
-        s["verdict"] = "FAIL" if counts["FAIL"] else "UNVERIFIED" if counts["UNVERIFIED"] else "PASS"
+        s["harness_errors"] = sum(1 for r in s["runs"] if r.get("harness_error"))
+        s["verdict"] = "FAIL" if counts["FAIL"] or not s["runs"] else "UNVERIFIED" if counts["UNVERIFIED"] else "PASS"
         summaries[name] = s
         with open(os.path.join(invdir, f"{name}.summary.json"), "w", newline="\n") as f:
             json.dump(s, f, indent=1)
     verdicts = [s["verdict"] for s in summaries.values()]
     overall = {"invocation_id": inv, "verdict": "FAIL" if "FAIL" in verdicts else "UNVERIFIED" if "UNVERIFIED" in verdicts else "PASS",
+               "harness_errors": sum(s["harness_errors"] for s in summaries.values()), "repeat": repeat,
                "cases": {n: {"verdict": s["verdict"], "counts": s["counts"]} for n, s in summaries.items()}}
     with open(os.path.join(invdir, "summary.json"), "w", newline="\n") as f:
         json.dump(overall, f, indent=1)
@@ -837,33 +1102,53 @@ def run_invocation(case_names, repeat, timeout, trace=False, no_original=False, 
 
 
 def reevaluate(invdir, echo=print):
-    """Re-judge the raw artifacts of an earlier invocation with the current evaluation code (nothing is executed;
-    each run is still judged only on its own artifacts). Writes <invdir>/<case>.reevaluated.json."""
+    """Re-judge the raw artifacts of an earlier invocation with the current evaluation code. Nothing is executed;
+    every run is judged only on its own artifacts, the reference is labelled 'preserved-original' and the verdicts
+    REEVALUATED_* (never a fresh PASS). Writes <invdir>/<case>.reevaluated.json."""
+    overall = load_json(os.path.join(invdir, "summary.json"))
+    names = sorted(overall.get("cases") or {})
+    files = sorted(f[:-len(".summary.json")] for f in os.listdir(invdir) if f.endswith(".summary.json"))
+    if not names or names != files:
+        raise UsageError(f"{invdir}: case summaries {files} do not match the invocation's cases {names}")
     out = {}
-    for sp in sorted(f for f in os.listdir(invdir) if f.endswith(".summary.json")):
-        s = load_json(os.path.join(invdir, sp))
-        case = CASES[s["case"]]
-        if list(case.args) != s["args"]:
-            raise UsageError(f"{sp}: registered arguments changed since that invocation")
-        core_exports = {}
-        runs = []
-        for r in s["runs"]:
-            rundir = os.path.join(WS, r["dir"])
-            ref = None if s["reference"] == "none" else collect_original(os.path.join(rundir, "original"))
-            if ref is not None and ref.get("trace") is not None and not core_exports:
-                core_exports = export_rvas(os.path.join(SANDBOX_ROOT, case.name, "System", "Core.dll"))
-            v = evaluate(case, ref, collect_candidate(os.path.join(rundir, "xrt")), core_exports)
-            runs.append({"run": r["run"], "dir": r["dir"], "original_verdict": r["verdict"]} | v)
-            echo(f"[{case.name} run {r['run']}] {r['verdict']} -> {v['verdict']}")
+    for name in names:
+        s = load_json(os.path.join(invdir, f"{name}.summary.json"))
+        if name not in CASES or s.get("case") != name:
+            raise UsageError(f"{name}: not a registered case or a mismatched summary")
+        case = CASES[name]
+        if list(case.args) != s.get("args"):
+            raise UsageError(f"{name}: registered arguments changed since that invocation")
+        if (s.get("identity") or {}).get("candidate", {}).get("substitute"):
+            raise UsageError(f"{name}: that invocation used a substitute candidate (runner self-test)")
+        runs = s.get("runs") or []
+        if not _is_int(s.get("repeat")) or s["repeat"] < 1 or len(runs) != s["repeat"]:
+            raise UsageError(f"{name}: {len(runs)} runs recorded, {s.get('repeat')} requested")
+        expected = None
+        results = []
+        for k, r in enumerate(runs):
+            rundir = os.path.join(invdir, name, f"run{k}")
+            if r.get("dir") != rel(rundir):
+                raise UsageError(f"{name} run {k}: recorded directory {r.get('dir')!r} is not {rel(rundir)!r}")
+            if expected is None:
+                expected = expected_instrumentation(os.path.join(SANDBOX_ROOT, name, "System")) \
+                    if os.path.isdir(os.path.join(SANDBOX_ROOT, name, "System")) else None
+            ref = None if s.get("reference") == "none" else collect_original(os.path.join(rundir, "original"))
+            v = evaluate(case, ref, collect_candidate(os.path.join(rundir, "xrt")), expected)
+            if ref is not None:
+                v["reference"] = "preserved-original"
+            v["verdict"] = "REEVALUATED_" + v["verdict"]
+            results.append({"run": k, "dir": r["dir"], "original_verdict": r.get("verdict")} | v)
+            echo(f"[{name} run {k}] {r.get('verdict')} -> {v['verdict']}")
             for f in v["failures"][:8]:
                 echo(f"    - {f}")
-        counts = {x: sum(1 for r in runs if r["verdict"] == x) for x in ("PASS", "FAIL", "UNVERIFIED")}
-        res = {"reevaluated_invocation": s["invocation_id"], "case": case.name, "runner": file_identity(os.path.abspath(__file__)),
-               "counts": counts, "verdict": "FAIL" if counts["FAIL"] else "UNVERIFIED" if counts["UNVERIFIED"] else "PASS",
-               "runs": runs}
-        with open(os.path.join(invdir, f"{case.name}.reevaluated.json"), "w", newline="\n") as f:
+        counts = {x: sum(1 for r in results if r["verdict"] == "REEVALUATED_" + x) for x in ("PASS", "FAIL", "UNVERIFIED")}
+        res = {"reevaluated_invocation": s.get("invocation_id"), "case": name, "runner": file_identity(os.path.abspath(__file__)),
+               "counts": counts, "verdict": "REEVALUATED_" + ("FAIL" if counts["FAIL"] or not results
+                                                             else "UNVERIFIED" if counts["UNVERIFIED"] else "PASS"),
+               "runs": results}
+        with open(os.path.join(invdir, f"{name}.reevaluated.json"), "w", newline="\n") as f:
             json.dump(res, f, indent=1)
-        out[case.name] = res
+        out[name] = res
     return out
 
 
@@ -872,7 +1157,7 @@ def public_summary(s):
     out = dict(s)
     out["runs"] = []
     for r in s["runs"]:
-        r2 = {k: v for k, v in r.items() if k != "evidence"}
+        r2 = {k: v for k, v in r.items() if k not in ("evidence", "traceback")}
         r2["evidence"] = [{"group": g["group"], "ok": g["ok"], "checks_passed": sum(1 for i in g["checks"] if i["ok"]),
                            "failed_checks": [i for i in g["checks"] if not i["ok"]]} for g in r.get("evidence", [])]
         out["runs"].append(r2)
@@ -886,11 +1171,15 @@ def main(argv=None):
         if not d or not inside(d, RUNS_ROOT) or not os.path.isdir(d):
             print(f"run_xrt.py: --reevaluate needs one invocation directory below {rel(RUNS_ROOT)}", file=sys.stderr)
             return 2
-        res = reevaluate(d)
-        verdicts = [r["verdict"] for r in res.values()]
-        overall = "FAIL" if "FAIL" in verdicts or not verdicts else "UNVERIFIED" if "UNVERIFIED" in verdicts else "PASS"
-        print(f"re-evaluated {rel(d)}: {overall}; " + "; ".join(f"{n} {r['verdict']} {r['counts']}" for n, r in res.items()))
-        return EXIT_STATUS[overall]
+        try:
+            res = reevaluate(d)
+        except (UsageError, OSError, ValueError, KeyError) as exc:
+            print(f"run_xrt.py: cannot re-evaluate {rel(d)}: {exc}", file=sys.stderr)
+            return 2
+        failed = any(r["verdict"] != "REEVALUATED_PASS" for r in res.values())
+        print(f"re-evaluated {rel(d)} (preserved artifacts, not a fresh result): "
+              + "; ".join(f"{n} {r['verdict']} {r['counts']}" for n, r in res.items()))
+        return 1 if failed else EXIT_REEVALUATED
     try:
         a = parse_args(argv)
     except UsageError as exc:
@@ -911,8 +1200,21 @@ def main(argv=None):
             json.dump(public_summary(s), f, indent=1)
     print(f"invocation {inv}: {overall['verdict']}; "
           + "; ".join(f"{n} {c['verdict']} {c['counts']}" for n, c in overall["cases"].items()))
+    if overall["harness_errors"]:
+        print(f"harness errors: {overall['harness_errors']} (see the summaries)")
     print(f"raw evidence: {rel(invdir)}")
-    return EXIT_STATUS[overall["verdict"]]
+    return EXIT_HARNESS if overall["harness_errors"] else EXIT_STATUS[overall["verdict"]]
+
+
+def export_rvas(path):
+    """{export name: rva}, parsed from an in-memory copy (a memory-mapped file would keep the sandbox locked)."""
+    import pefile
+    pe = pefile.PE(data=read_bytes(path), fast_load=True)
+    pe.parse_data_directories(directories=[pefile.DIRECTORY_ENTRY["IMAGE_DIRECTORY_ENTRY_EXPORT"]])
+    exp = getattr(pe, "DIRECTORY_ENTRY_EXPORT", None)
+    out = {e.name.decode(): e.address for e in exp.symbols if e.name} if exp else {}
+    pe.close()
+    return out
 
 
 if __name__ == "__main__":

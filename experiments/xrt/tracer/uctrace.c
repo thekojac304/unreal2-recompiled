@@ -12,6 +12,10 @@
  *
  * Usage: uctrace <entries-dir> <out.json> <stdout-file> <exe> [args...]   (cwd = the exe's directory)
  * UCTRACE_RUN_ID=<id> is echoed into the JSON ("run_id") so a harness can prove the trace is from its own run.
+ * UCTRACE_EVENTS=<file>: event points, one per line "<module file name> <rva hex> <label>". Every execution of
+ * an event point (persistent breakpoint) is recorded in order in "events" together with the C++ exceptions,
+ * which share the same sequence numbers: thread, label, address, esp, [esp] (the return address at a function
+ * entry), eax, ebp. Capped at MAX_EVENTS (the JSON says how many were dropped).
  * Exit status: 0 trace complete (the debuggee's exit code is in the JSON, whatever it is); 1/2/5 setup errors;
  * 3 the JSON could not be written; 4 the debug loop ended without the debuggee's EXIT_PROCESS event.
  * Optional: UCTRACE_SITES=name1,name2 (substrings of "DLL!function") additionally records, for those
@@ -36,7 +40,7 @@ typedef struct {
     DWORD* hit_order; int nhit;        /* RVAs in first-hit order */
 } Mod;
 
-typedef struct { DWORD addr; BYTE orig; int kind; int mod; int imp; } BP;   /* kind: 1 func, 2 import, 3 module entry */
+typedef struct { DWORD addr; BYTE orig; int kind; int mod; int imp; int ev; } BP;   /* kind: 1 func, 2 import, 3 module entry, 4 event only; ev: event point or -1 */
 typedef struct { char name[160]; DWORD addr; int count[MAX_MODS]; int capped; int total; } Imp;
 
 static Mod mods[MAX_MODS]; static int nmods;
@@ -48,6 +52,12 @@ static FILE* jout;
 static char entries_dir[MAX_PATH];
 static unsigned cws[64]; static char cw_where[64][160]; static int ncws;
 static int order_counter;
+/* event points (UCTRACE_EVENTS) and the ordered event log */
+#define MAX_EVENTS 200000
+typedef struct { char mod[64]; DWORD rva; char label[96]; } EvPoint;
+static EvPoint* evp; static int nevp;
+typedef struct { int seq; int thread; int point; DWORD esp, top, eax, ebp; int exc; } EvRec;   /* exc: index into exs or -1 */
+static EvRec* evlog; static int nevlog, evdropped, ev_seq;
 #define MAX_SITES 65536
 static char site_names[8][64]; static int nsite_names;
 static struct { int imp; DWORD ret, ret2; int count; } sites[MAX_SITES]; static int nsites;
@@ -92,7 +102,7 @@ static int bp_add(DWORD a, int kind, int mod, int imp) {
     if (nbps >= MAX_BP) { fprintf(stderr, "uctrace: too many breakpoints\n"); exit(5); }
     BYTE orig, cc = 0xCC;
     if (!rd(a, &orig, 1) || !wr(a, &cc, 1)) return -1;
-    BP* b = &bps[nbps]; b->addr = a; b->orig = orig; b->kind = kind; b->mod = mod; b->imp = imp;
+    BP* b = &bps[nbps]; b->addr = a; b->orig = orig; b->kind = kind; b->mod = mod; b->imp = imp; b->ev = -1;
     unsigned h = (a * 2654435761u) & (bpmap_size - 1);
     while (bpmap[h] >= 0) h = (h + 1) & (bpmap_size - 1);
     bpmap[h] = nbps;
@@ -142,6 +152,43 @@ static void add_module(DWORD base, const char* path, int dynamic) {
         for (int i = 0; i < m->nentries; i++) bp_add(base + m->entries[i], 1, idx, -1);
         if (m->entry && bp_find(m->entry) < 0) bp_add(m->entry, 3, idx, -1);
     }
+    for (int i = 0; i < nevp; i++) {
+        if (_stricmp(evp[i].mod, m->name)) continue;
+        int bi = bp_find(base + evp[i].rva);
+        if (bi < 0) bi = bp_add(base + evp[i].rva, 4, idx, -1);
+        if (bi >= 0) bps[bi].ev = i;
+        else fprintf(stderr, "uctrace: cannot set event point %s+%lx\n", m->name, evp[i].rva);
+    }
+}
+
+static void load_event_points(const char* path) {
+    FILE* f = fopen(path, "r");
+    char line[256];
+    if (!f) { fprintf(stderr, "uctrace: cannot read %s\n", path); exit(2); }
+    evp = malloc(4096 * sizeof(EvPoint));
+    while (fgets(line, sizeof line, f) && nevp < 4096) {
+        EvPoint* e = &evp[nevp];
+        unsigned rva;
+        int used = 0;
+        if (line[0] == '#' || sscanf(line, "%63s %x %n", e->mod, &rva, &used) < 2) continue;
+        e->rva = rva;
+        strncpy(e->label, line + used, 95);
+        e->label[95] = 0;
+        e->label[strcspn(e->label, "\r\n")] = 0;
+        nevp++;
+    }
+    fclose(f);
+    evlog = malloc(MAX_EVENTS * sizeof(EvRec));
+}
+
+static void log_event(int point, int exc, int thread, const CONTEXT* ctx) {
+    int seq = ++ev_seq;
+    if (!evlog) return;
+    if (nevlog >= MAX_EVENTS) { evdropped++; return; }
+    EvRec* r = &evlog[nevlog++];
+    r->seq = seq; r->thread = thread; r->point = point; r->exc = exc;
+    r->esp = ctx->Esp; r->eax = ctx->Eax; r->ebp = ctx->Ebp; r->top = 0;
+    rd(ctx->Esp, &r->top, 4);
 }
 
 /* Resolve the bound IAT of an instrumented module and set persistent breakpoints on its targets. */
@@ -195,14 +242,34 @@ static void note_cw(HANDLE th, const char* where) {
     if (ncws < 64) { cws[ncws] = cw; strncpy(cw_where[ncws], where, 159); ncws++; }
 }
 
-static void json_str(FILE* f, const char* s) {
+/* ANSI (CP_ACP) string -> ASCII-only JSON string: non-ASCII characters become \uXXXX of their UTF-16 value */
+static void json_wstr(FILE* f, const WCHAR* w) {
     fputc('"', f);
-    for (; *s; s++) {
-        if ((unsigned char)*s < 0x20) { fprintf(f, "\\u%04x", (unsigned char)*s); continue; }
-        if (*s == '"' || *s == '\\') fputc('\\', f);
-        fputc(*s, f);
+    for (; *w; w++) {
+        if (*w < 0x20 || *w >= 0x7F) { fprintf(f, "\\u%04x", (unsigned)*w); continue; }
+        if (*w == '"' || *w == '\\') fputc('\\', f);
+        fputc((char)*w, f);
     }
     fputc('"', f);
+}
+static void json_str(FILE* f, const char* s) {
+    int n = MultiByteToWideChar(CP_ACP, 0, s, -1, NULL, 0);
+    WCHAR* w = n > 0 ? malloc(n * sizeof(WCHAR)) : NULL;
+    if (!w || !MultiByteToWideChar(CP_ACP, 0, s, -1, w, n)) { fputs("\"<unconvertible>\"", f); free(w); return; }
+    json_wstr(f, w);
+    free(w);
+}
+
+/* the raw remainder of the command line after `skip` arguments (same tokenizer as xrt_main.c's: whitespace
+ * separated, double quotes toggle), so the debuggee sees exactly the argument text the harness passed */
+static const WCHAR* raw_args_after(const WCHAR* p, int skip) {
+    int inq = 0;
+    while (skip-- > 0) {
+        while (*p == L' ' || *p == L'\t') p++;
+        while (*p && (inq || (*p != L' ' && *p != L'\t'))) { if (*p == L'"') inq = !inq; p++; }
+    }
+    while (*p == L' ' || *p == L'\t') p++;
+    return p;
 }
 
 typedef struct { DWORD code, addr, ret; int mod; char type[64]; char text[201]; } ExRec;
@@ -213,6 +280,7 @@ static CfRec cfs[256]; static int ncfs;
 int main(int argc, char** argv) {
     if (argc < 5) { fprintf(stderr, "usage: uctrace <entries-dir> <out.json> <stdout-file> <exe> [args...]\n"); return 2; }
     strncpy(entries_dir, argv[1], MAX_PATH - 1);
+    if (getenv("UCTRACE_EVENTS")) load_event_points(getenv("UCTRACE_EVENTS"));
     {
         const char* env = getenv("UCTRACE_SITES");
         if (getenv("UCTRACE_SITE_EXTRA")) site_extra_off = atoi(getenv("UCTRACE_SITE_EXTRA"));
@@ -227,16 +295,24 @@ int main(int argc, char** argv) {
     bps = malloc(MAX_BP * sizeof(BP));
     bpmap = malloc(bpmap_size * sizeof(int));
     memset(bpmap, 0xFF, bpmap_size * sizeof(int));
-    char cmd[4096];
-    snprintf(cmd, sizeof cmd, "\"%s\"", argv[4]);
-    for (int i = 5; i < argc; i++) { strcat(cmd, " "); strcat(cmd, argv[i]); }
+    /* debuggee command line: the exe (quoted only when it contains blanks, as subprocess.list2cmdline and
+     * xrt_ucc.exe do) followed by the raw argument text after <exe> on our own command line */
+    WCHAR wexe[MAX_PATH], wcmd[8192];
+    char cmd[8192];
+    const WCHAR* rest = raw_args_after(GetCommandLineW(), 5);
+    MultiByteToWideChar(CP_ACP, 0, argv[4], -1, wexe, MAX_PATH);
+    _snwprintf(wcmd, 8191, wcschr(wexe, L' ') || wcschr(wexe, L'\t') ? L"\"%s\"%s%s" : L"%s%s%s", wexe, *rest ? L" " : L"", rest);
+    wcmd[8191] = 0;
+    WideCharToMultiByte(CP_ACP, 0, wcmd, -1, cmd, sizeof cmd, NULL, NULL);
     char dir[MAX_PATH]; strncpy(dir, argv[4], MAX_PATH - 1);
     char* sl = strrchr(dir, '\\'); if (sl) *sl = 0;
+    WCHAR wdir[MAX_PATH];
+    MultiByteToWideChar(CP_ACP, 0, dir, -1, wdir, MAX_PATH);
     SECURITY_ATTRIBUTES sa = {sizeof sa, NULL, TRUE};
     HANDLE hout = CreateFileA(argv[3], GENERIC_WRITE, FILE_SHARE_READ, &sa, CREATE_ALWAYS, 0, NULL);
-    STARTUPINFOA si = {sizeof si}; PROCESS_INFORMATION pi;
+    STARTUPINFOW si = {sizeof si}; PROCESS_INFORMATION pi;
     si.dwFlags = STARTF_USESTDHANDLES; si.hStdOutput = hout; si.hStdError = hout; si.hStdInput = GetStdHandle(STD_INPUT_HANDLE);
-    if (!CreateProcessA(NULL, cmd, NULL, NULL, TRUE, DEBUG_ONLY_THIS_PROCESS, NULL, dir, &si, &pi)) {
+    if (!CreateProcessW(NULL, wcmd, NULL, NULL, TRUE, DEBUG_ONLY_THIS_PROCESS, NULL, wdir, &si, &pi)) {
         fprintf(stderr, "CreateProcess failed %lu\n", GetLastError()); return 1;
     }
     DWORD exit_code = 0; int done = 0;
@@ -275,11 +351,19 @@ int main(int argc, char** argv) {
                 GetThreadContext(th, &ctx);
                 ctx.Eip = addr;
                 wr(addr, &b->orig, 1);
-                if (b->kind == 1 || b->kind == 3) {
+                if (b->ev >= 0) {
+                    int ti = thread_index(ev.dwThreadId);
+                    log_event(b->ev, -1, ti, &ctx);
+                    if (ti >= 0) { ctx.EFlags |= 0x100; threads[ti].rearm = addr; }   /* persistent: re-arm after one step */
+                }
+                if (b->kind == 4) {
+                    /* event point only */
+                } else if (b->kind == 1 || b->kind == 3) {
                     if (b->mod >= 0 && b->kind == 1) { Mod* m = &mods[b->mod]; m->hit_order[m->nhit++] = addr - m->base; }
                     order_counter++;
                     if (b->kind == 3 || (b->mod >= 0 && addr == mods[b->mod].entry)) hook_imports(b->mod);
-                    b->kind = 0;   /* one-shot */
+                    if (b->ev < 0) b->kind = 0;   /* one-shot (an event point keeps it armed) */
+                    else b->kind = 4;
                 } else if (b->kind == 2) {
                     DWORD ret = 0; rd(ctx.Esp, &ret, 4);
                     int cm = mod_of(ret);
@@ -340,7 +424,9 @@ int main(int argc, char** argv) {
                             for (char* q = exs[nexs].text; *q; q++) if (*q == '"' || *q == 0x5C || (unsigned char)*q < 32) *q = '_';
                         }
                     }
-                    exs[nexs].code = er->ExceptionCode; exs[nexs].addr = addr; exs[nexs].ret = ret; exs[nexs].mod = mod_of(ret ? ret : addr); nexs++;
+                    exs[nexs].code = er->ExceptionCode; exs[nexs].addr = addr; exs[nexs].ret = ret; exs[nexs].mod = mod_of(ret ? ret : addr);
+                    if (evlog) log_event(-1, nexs, thread_index(ev.dwThreadId), &ctx);
+                    nexs++;
                 }
                 cont = DBG_EXCEPTION_NOT_HANDLED;
             }
@@ -354,15 +440,19 @@ int main(int argc, char** argv) {
     }
     CloseHandle(hout);
     /* the debuggee's files (UCC.exe, DLLs, logs) stay locked until its process object is gone */
-    if (WaitForSingleObject(pi.hProcess, 30000) != WAIT_OBJECT_0)
+    int terminated = WaitForSingleObject(pi.hProcess, 30000) == WAIT_OBJECT_0;
+    if (!terminated) {
         fprintf(stderr, "uctrace: debuggee process did not terminate after EXIT_PROCESS\n");
+        done = 0;                         /* report the trace as incomplete (exit status 4) */
+    }
     CloseHandle(pi.hThread);
     CloseHandle(pi.hProcess);
     jout = fopen(argv[2], "w");
     if (!jout) { fprintf(stderr, "uctrace: cannot write %s\n", argv[2]); return 3; }
     fprintf(jout, "{\n \"run_id\": "); json_str(jout, getenv("UCTRACE_RUN_ID") ? getenv("UCTRACE_RUN_ID") : "");
     fprintf(jout, ",\n \"complete\": %s", done ? "true" : "false");
-    fprintf(jout, ",\n \"command\": "); json_str(jout, cmd);
+    fprintf(jout, ",\n \"debuggee_terminated\": %s", terminated ? "true" : "false");
+    fprintf(jout, ",\n \"command\": "); json_wstr(jout, wcmd);
     fprintf(jout, ",\n \"exit_code\": %lu,\n \"threads\": %d,\n \"modules\": [\n", exit_code, nthreads);
     for (int i = 0; i < nmods; i++) {
         Mod* m = &mods[i];
@@ -402,7 +492,22 @@ int main(int argc, char** argv) {
     fprintf(jout, "\n ],\n \"controlfp_calls\": [");
     for (int i = 0; i < ncfs; i++)
         fprintf(jout, "%s{\"new\": \"0x%08lx\", \"mask\": \"0x%08lx\", \"caller\": \"0x%08lx\"}", i ? ", " : "", cfs[i].newv, cfs[i].mask, cfs[i].caller);
-    fprintf(jout, "],\n \"x87_control_words_seen\": [");
+    fprintf(jout, "],\n \"event_points\": %d,\n \"events_dropped\": %d,\n \"events\": [", nevp, evdropped);
+    for (int i = 0; i < nevlog; i++) {
+        EvRec* r = &evlog[i];
+        fprintf(jout, "%s\n  {\"seq\": %d, \"thread\": %d, ", i ? "," : "", r->seq, r->thread);
+        if (r->point >= 0) {
+            fprintf(jout, "\"kind\": \"point\", \"label\": "); json_str(jout, evp[r->point].label);
+            fprintf(jout, ", \"module\": "); json_str(jout, evp[r->point].mod);
+            fprintf(jout, ", \"rva\": \"0x%lx\"", evp[r->point].rva);
+        } else {
+            fprintf(jout, "\"kind\": \"exception\", \"index\": %d, \"code\": \"0x%08lx\", \"caller\": \"0x%08lx\"",
+                    r->exc, exs[r->exc].code, exs[r->exc].ret);
+        }
+        fprintf(jout, ", \"esp\": \"0x%08lx\", \"stack_top\": \"0x%08lx\", \"eax\": \"0x%08lx\", \"ebp\": \"0x%08lx\"}",
+                r->esp, r->top, r->eax, r->ebp);
+    }
+    fprintf(jout, "\n ],\n \"x87_control_words_seen\": [");
     for (int i = 0; i < ncws; i++) { fprintf(jout, "%s{\"cw\": \"0x%04x\", \"first_seen_at\": ", i ? ", " : "", cws[i]); json_str(jout, cw_where[i]); fprintf(jout, "}"); }
     fprintf(jout, "]\n}\n");
     if (fclose(jout) != 0) { fprintf(stderr, "uctrace: error writing %s\n", argv[2]); return 3; }

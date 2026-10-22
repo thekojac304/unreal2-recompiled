@@ -24,6 +24,7 @@ typedef struct Stub {
     char name[600];                /* "kernel32.dll!Sleep" */
     XrtFn fn;                      /* NULL: unbound import, fatal when called */
     uint64_t calls[MAX_MODULES + 1];
+    int no_preempt;                /* thread/process termination: never a preemption point (see dispatch) */
 } Stub;
 static Stub stubs[(XRT_STUB_END - XRT_STUB_BASE) / XRT_STUB_SIZE - 1];
 static int nstubs;
@@ -231,6 +232,8 @@ static uint32_t stub_for(const char* key, XrtFn fn) {
         xrt_fatal(NULL, XRT_EXIT_SETUP, "out of import stubs");
     snprintf(stubs[nstubs].name, sizeof stubs[nstubs].name, "%s", key);
     stubs[nstubs].fn = fn;
+    stubs[nstubs].no_preempt = !strcmp(key, "kernel32.dll!ExitThread") || !strcmp(key, "kernel32.dll!ExitProcess") ||
+                               !strcmp(key, "msvcr70.dll!exit") || !strcmp(key, "msvcr70.dll!_exit");
     return XRT_STUB_BASE + XRT_STUB_SIZE * (uint32_t)nstubs++;
 }
 
@@ -404,7 +407,10 @@ static void dispatch(CPU* c, uint32_t target, uint32_t site, const char* what) {
             if (nwatch)
                 watch_check(c, (int)i, site);
             xrt_watches_check(c, stubs[i].name, site);
-            if (xrt_preempt_req)          /* import calls are preemption points too (e.g. spin loops on timeGetTime) */
+            /* import calls are preemption points too (e.g. spin loops on timeGetTime) - except the calls that end the
+             * calling thread or the process: handing the baton away between a thread's last store and its ExitThread
+             * would be a scheduling artefact of this runtime, not a guest behaviour */
+            if (xrt_preempt_req && !stubs[i].no_preempt)
                 xrt_preempt(c);
             if (!stubs[i].fn) {
                 char d[512];
