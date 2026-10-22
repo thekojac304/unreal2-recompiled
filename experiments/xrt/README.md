@@ -1,9 +1,11 @@
-# X1 translated runtime (`xrt`): UCC.exe + Core.dll as translated code on Windows x64
+# X1 translated runtime (`xrt`): UCC.exe, Core.dll, Engine.dll and GlmLib.dll as translated code on Windows x64
 
-The original 32-bit `UCC.exe` and `Core.dll` are statically translated to C by `tools/xrt/xlift.py` (whole modules,
-every discovered function), compiled for x64, and run by a small host runtime (`runtime/`). The original PE files
-are read from the sandbox only as data (sections, constant tables); none of their code is executed. Execution goes
-through translated functions and explicit host adapters only.
+The original 32-bit `UCC.exe`, `Core.dll`, `Engine.dll` and `GlmLib.dll` are statically translated to C by
+`tools/xrt/xlift.py` (whole modules, every discovered function), compiled for x64, and run by a small host runtime
+(`runtime/`). UCC.exe and Core.dll are mapped at start; Engine.dll and its static import GlmLib.dll when the guest
+loads Engine.dll (LoadLibraryW), as the Windows loader does. The original PE files are read from the sandbox only as
+data (sections, constant tables); none of their code is executed. Execution goes through translated functions and
+explicit host adapters only; one msvcr70 routine (the SSE2 path of `_CIpow`) is translated as well.
 
 ## Layout
 
@@ -13,6 +15,8 @@ through translated functions and explicit host adapters only.
 | `tools/xrt/xlift.py` | x86-32 to C translator, writes `gen/<module>/` (git-ignored: machine translation of proprietary code) |
 | `tools/xrt/marks.json` | evidence instrumentation compiled into the translated code (marks, watched globals) |
 | `tools/xrt/eh_points.py` | static C++ EH metadata (FuncInfo, try blocks, unwind maps) and uctrace event points |
+| `tools/xrt/lift_sse2.py` | translates one SSE2 function of msvcr70.dll to C with SSE2 intrinsics (`_CIpow`'s core -> `gen/msvcr70/`, git-ignored) |
+| `runtime/xrt_msvcr70img.c` | msvcr70.dll image loaded as data (SHA-256 checked) for the translated `_CIpow` core and its error-handler rules |
 | `runtime/xrt.h` | guest CPU state, guest memory accessors, flags, x87 model, control-transfer and landing-pad macros |
 | `runtime/xrt_mem.c` | 4 GB guest address-space reservation, runtime data region, guest heap |
 | `runtime/xrt_loader.c` | module mapping (SHA-256 checked), import binding, exports, dispatcher, call-site histograms, watches |
@@ -31,7 +35,16 @@ through translated functions and explicit host adapters only.
 
 - **Addresses.** Guest address `a` is host `xrt_g + a` inside one 4 GB reservation; host pointers are never narrowed.
   Guest handles are table indices, never host `HANDLE` values. Layout: null guard below 64 KB, runtime data,
-  uncommitted import-stub region, `UCC.exe` at 0x400000, guest stacks, `Core.dll` at 0x10100000, heap 0x20000000-0x7FF00000.
+  uncommitted import-stub region, `UCC.exe` at 0x400000, guest stacks (skipping every linked module's range),
+  `GlmLib.dll` at 0x02df0000 (rebased, see below), `Core.dll` at 0x10100000, `Engine.dll` at 0x10300000, heap
+  0x20000000-0x7FF00000.
+- **Modules and the loader.** Each translated module is lifted for one base. GlmLib.dll's preferred base 0x10000000
+  is taken, so the original loader rebases it (0x02df0000 and 0x02dd0000 were observed); it is lifted with
+  `--base 0x02df0000` and the runtime applies the same base relocations to the mapped image. `LoadLibraryW` of a
+  linked translated module maps it and, depth first, its translated static imports from the application directory,
+  binds imports, then runs `DllMain(DLL_PROCESS_ATTACH)` in dependency order (GlmLib before Engine) under a loader
+  lock. Guest threads get `DLL_THREAD_ATTACH`/`DETACH` for every initialised DLL (none of the modules calls
+  `DisableThreadLibraryCalls`); process exit detaches in reverse initialisation order.
 - **Functions.** Each discovered function is `void f_<va>(CPU*)`. Calls push the guest return address; every call
   site checks the address the callee's `ret` popped (`xrt_badret` on mismatch). Indirect calls/jumps and all import
   calls go through the dispatcher; an unknown target is fatal with a diagnostic.
@@ -43,8 +56,8 @@ through translated functions and explicit host adapters only.
   their unwind funclets, local unwind to tryLow, catch funclet below the throw site under a CatchGuard node), rethrow
   (leaves the innermost catch block and continues the suspended search), resumption (fs:[0], EBP, ESP = [node-4],
   then a host landing record: the translated function's pad registered at `mov fs:[0], esp`, or the active catch
-  block when the continuation lies inside it). Every catch funclet, unwind action and continuation of UCC.exe and
-  Core.dll is verified to be a translated function entry at lift time.
+  block when the continuation lies inside it). Every catch funclet, unwind action and continuation of every lifted
+  module is verified to be a translated function entry at lift time.
 - **Threads.** Real host threads, one guest stack + TEB + CPU each. Translated code runs under a FIFO execution baton
   handed over at blocking imports and by 1 ms time slicing at translated function entries and import calls (never at
   ExitThread/ExitProcess/exit).
@@ -89,10 +102,21 @@ None of this is a proof for other inputs; "exact" is only claimed for the IEEE b
 - CRT: empty guest environment (`envp`); no wildcard expansion in `__getmainargs` (and no MBCS lead-byte handling,
   which only matters under a DBCS ANSI code page); only stdout/stderr `FILE`s; wide stdout stops at characters the
   "C" locale cannot convert (as msvcr70 does); `SetConsoleCtrlHandler` is recorded but console events are not forwarded.
+  errno is not modelled (`_errno` is unbound). `qsort`, `atof` (`__strgtold12`/`_ld12tod`) and narrow `sprintf`
+  (`_output`) are ports of the DLL's own code; `_CIpow` runs the DLL's SSE2 code translated and is fatal if the guest
+  control word would select msvcr70's x87 path; `_CIfmod` follows the DLL's measured special-operand rules (not C99).
+  Measured against the real msvcr70: `tools/xrt/tests/crt_gatef` (0 mismatches, incl. VMProbe's recorded inputs) and
+  the parallel session's `experiments/xrt/tests/crt_diff` (narrow and wide printf).
+- Loader: unloading a translated module (FreeLibrary to a zero count) is fatal; LoadLibrary of a DLL that is not a
+  linked translated module is fatal (a missing file fails as on Windows); a blocking call inside DllMain is fatal;
+  loader notifications of threads the original process gets from the system are not modelled (only guest threads);
+  GlmLib.dll always sits at 0x02df0000 while the original's choice varies between runs. `FreeConsole` is recorded only:
+  correct while the guest's stdout is a file (as in every measured run), not for a console.
 - Win32: `GlobalMemoryStatus`/`GetSystemInfo` return WOW64-style 32-bit values; file writes, directory changes and
   attribute changes outside the run's sandbox are refused (fatal); dynamic loading of DLLs other than the translated
   modules is fatal unless the file does not exist (then NULL, as on Windows).
-- Imports not on the measured paths are unbound and fatal when called (USER32, SHELL32, ole32, vorbisfile, ...).
+- Imports not on the measured paths are unbound and fatal when called (USER32, GDI32, SHELL32, ole32, d3d8, DINPUT,
+  WS2_32, dbghelp, vorbisfile, ...); Engine.dll and GlmLib.dll keep them as genuine imports, nothing is substituted.
 
 ## Build and run
 

@@ -92,13 +92,22 @@ def synth_report(case, run_id="c1", exit_code=0):
     mark("FFileStream::Init")
     add("thread_create", index=1, entry=R.WORKER_ENTRY, param="0x00000000")
     add("thread_start", 1, index=1, entry=R.WORKER_ENTRY)
+    add("dll_thread_attach", 1, module="Core.dll")
     mark("FFileStream worker thread entry", 1, top="0x0033fff0")
     mark("UObject::StaticLoadClass", top=UCC)
-    if case.profile == "core_commandlet":
+    engine = case.profile == "engine_commandlet"
+    if case.profile in ("core_commandlet", "engine_commandlet"):
         mark("UObject::StaticLoadObject")
         mark("UObject::GetPackageLinker")
         add("file_open", path="..\\System\\Core.u", resolved="<sandbox>\\System\\Core.u", access="0x80000000",
             disposition=3, ok=True)
+        if engine:
+            add("dll_mapped", module="Engine.dll", base="0x10300000", preferred_base="0x10300000")
+            add("dll_mapped", module="GlmLib.dll", base="0x02df0000", preferred_base="0x10000000")
+            for mod in ("GlmLib.dll", "Engine.dll"):
+                add("dll_attach", module=mod)
+                add("dll_attach_returned", module=mod, result=1)
+            add("load_library", name="Engine.dll", result="0x10300000", site="0x10158b95")
         mark("UObject::StaticConstructObject", top=UCC)
         mark("UCommandlet::Main", top=UCC)
         mark("UCommandlet::eventMain")
@@ -116,22 +125,31 @@ def synth_report(case, run_id="c1", exit_code=0):
     add("watch_store", 1, name="FFileStream::Destroyed", addr="0x101edbe0", old=1, new=2, site="0x1015a5fd",
         where="1015a5fd (Core.dll+5a5fd, in f_1015a520+dd)")
     add("exit_thread", 1, code=0)
+    for mod in (("Engine.dll", "GlmLib.dll") if engine else ()) + ("Core.dll",):
+        add("dll_thread_detach", 1, module=mod)
     add("thread_end", 1, index=1, code=0, via="ExitThread")
     mark("FFileStream::Destroy: shutdown wait finished")
     mark("UCC main returned", module="UCC.exe", top="0x00000005", captured=exit_code)
     add("crt_exit", code=exit_code, onexit_handlers=2)
     add("process_exit", code=exit_code)
     add("thread_at_exit", index=1, state="exited")
-    add("dll_detach", module="Core.dll")
-    add("dll_detach_returned", module="Core.dll", result=1)
+    for mod in (("Engine.dll", "GlmLib.dll") if engine else ()) + ("Core.dll",):
+        add("dll_detach", module=mod)
+        add("dll_detach_returned", module=mod, result=1)
     add("process_exit_complete", code=exit_code)
     counts = {}
     for e in ev:
         if e["kind"] == "mark":
             counts[(e["module"], e["name"])] = counts.get((e["module"], e["name"]), 0) + 1
+    modules = [{"name": "UCC.exe", "sha256": "a", "marks_sha256": SYN_DIGEST},
+               {"name": "Core.dll", "sha256": "b", "marks_sha256": SYN_DIGEST}]
+    if engine:
+        modules += [{"name": "Engine.dll", "sha256": "c", "marks_sha256": SYN_DIGEST, "functions_executed": 2,
+                     "hit_rvas": ["1000", "2000"]},
+                    {"name": "GlmLib.dll", "sha256": "d", "marks_sha256": SYN_DIGEST, "functions_executed": 1,
+                     "hit_rvas": ["3000"]}]
     return {"schema": 2, "run_id": run_id, "exit_code": exit_code, "outcome": "exited", "guest_command_line": CMDLINE,
-            "modules": [{"name": "UCC.exe", "sha256": "a", "marks_sha256": SYN_DIGEST},
-                        {"name": "Core.dll", "sha256": "b", "marks_sha256": SYN_DIGEST}],
+            "modules": modules,
             "threads": [{"index": 0, "state": "running", "exit_via": "", "exit_code": 0},
                         {"index": 1, "state": "exited", "exit_via": "ExitThread", "exit_code": 0}],
             "marks": [{"module": m, "va": f"0x{va:08x}", "name": n, "count": counts.get((m, n), 0)}
@@ -560,6 +578,112 @@ class Synthetic(unittest.TestCase):
         self.assertFalse(v["output_matches_reference"])
 
 
+ENGINE_INPUTS = {"inputs": {"UCC.exe": "a", "Core.dll": "b", "Engine.dll": "c", "GlmLib.dll": "d"}}
+
+
+class EngineEvidence(unittest.TestCase):
+    """engine_module_loading, the DLL notification order and the Engine/GlmLib function-set cross-check."""
+
+    def setUp(self):
+        self.tmp = mkdtemp()
+        self.addCleanup(shutil.rmtree, self.tmp, True)
+        h = CASES["hellofull"]
+        self.case = Case("synth_engine", h.args, h.expect, "engine_commandlet", h.natives)
+
+    def judge(self, rep=None, trace=None, cand_meta=ENGINE_INPUTS):
+        o = original_dir(os.path.join(self.tmp, "o"), trace=trace, extra_meta=ENGINE_INPUTS)
+        c = candidate_dir(os.path.join(self.tmp, "c"), self.case, report=rep or synth_report(self.case),
+                          extra_meta=cand_meta)
+        return R.evaluate(self.case, R.collect_original(o), R.collect_candidate(c), SYN_EXPECTED)
+
+    def failed(self, v):
+        return {g["group"] for g in v["evidence"] if not g["ok"]}
+
+    def mutated(self, fn):
+        rep = synth_report(self.case)
+        fn(rep)
+        rep["events_recorded"] = len(rep["events"]) + rep["events_dropped"]   # a well-formed report: the evidence decides
+        return self.judge(rep)
+
+    def test_valid_engine_run_passes(self):
+        v = self.judge()
+        self.assertEqual(v["verdict"], "PASS", v["failures"])
+        self.assertIn("engine_module_loading", {g["group"] for g in v["evidence"]})
+
+    def test_each_loading_requirement(self):
+        def drop(kind, **kw):
+            return lambda rep: rep["events"].remove(next(e for e in rep["events"] if e["kind"] == kind
+                                                         and all(e.get(k) == x for k, x in kw.items())))
+
+        def setf(kind, field, value, **kw):
+            def f(rep):
+                next(e for e in rep["events"] if e["kind"] == kind and all(e.get(k) == x for k, x in kw.items()))[field] = value
+            return f
+
+        def swap_attach(rep):              # Engine initialised before its import GlmLib
+            ev = rep["events"]
+            i = next(k for k, e in enumerate(ev) if e["kind"] == "dll_attach" and e["module"] == "GlmLib.dll")
+            ev[i:i + 4] = ev[i + 2:i + 4] + ev[i:i + 2]
+            for k, e in enumerate(ev):
+                e["seq"] = k + 1
+
+        def extra_map(rep):
+            e = dict(next(e for e in rep["events"] if e["kind"] == "dll_mapped"), module="Other.dll")
+            rep["events"].append(dict(e, seq=len(rep["events"]) + 1))
+            rep["events_recorded"] += 1
+
+        cases = {
+            "no LoadLibraryW of Engine.dll": drop("load_library", name="Engine.dll"),
+            "LoadLibraryW not called from Core.dll": setf("load_library", "site", "0x00401000", name="Engine.dll"),
+            "Engine.dll not at its preferred base": setf("dll_mapped", "base", "0x20000000", module="Engine.dll"),
+            "GlmLib.dll not rebased": setf("dll_mapped", "base", "0x10000000", module="GlmLib.dll"),
+            "GlmLib.dll never initialised": drop("dll_attach_returned", module="GlmLib.dll"),
+            "GlmLib.dll DllMain FALSE": setf("dll_attach_returned", "result", 0, module="GlmLib.dll"),
+            "Engine initialised before GlmLib": swap_attach,
+            "another module mapped": extra_map,
+            "Engine.dll executed nothing": lambda rep: rep["modules"][2].update(functions_executed=0),
+        }
+        for name, fn in cases.items():
+            v = self.mutated(fn)
+            self.assertEqual(v["verdict"], "FAIL", name)
+            self.assertTrue(self.failed(v) & {"engine_module_loading", "engine_cleanup_and_exit",
+                                              "worker_termination_and_wait_completion"}, (name, v["failures"]))
+
+    def test_notification_order(self):
+        def detach_order(rep):              # process detach in initialisation order (Core first) instead of reverse
+            ev = [e for e in rep["events"] if e["kind"] in ("dll_detach", "dll_detach_returned")]
+            for e, m in zip(ev, ["Core.dll", "Core.dll", "GlmLib.dll", "GlmLib.dll", "Engine.dll", "Engine.dll"]):
+                e["module"] = m
+        v = self.mutated(detach_order)
+        self.assertIn("engine_cleanup_and_exit", self.failed(v), v["failures"])
+        v = self.mutated(lambda rep: rep["events"].remove(next(e for e in rep["events"] if e["kind"] == "dll_thread_detach"
+                                                                and e["module"] == "GlmLib.dll")))
+        self.assertIn("worker_termination_and_wait_completion", self.failed(v), v["failures"])
+        v = self.mutated(lambda rep: [e.update(module="Engine.dll") for e in rep["events"] if e["kind"] == "dll_thread_attach"])
+        self.assertIn("worker_creation_and_execution", self.failed(v), v["failures"])
+
+    def test_module_must_be_lifted_from_the_sandbox_input(self):
+        v = self.judge(cand_meta={"inputs": {"UCC.exe": "a", "Core.dll": "b", "Engine.dll": "c", "GlmLib.dll": "other"}})
+        self.assertEqual(v["verdict"], "FAIL")
+        self.assertTrue(any("GlmLib.dll was not lifted" in f for f in v["failures"]), v["failures"])
+
+    def test_function_sets_against_the_traced_original(self):
+        def trace(engine, glmlib, unloaded_first=True):
+            t = good_trace()
+            mods = [{"name": "Engine.dll", "instrumented": 1, "hit_rvas": engine}]
+            if unloaded_first:              # the original loader's first, discarded mapping of GlmLib.dll
+                mods.append({"name": "GlmLib.dll", "instrumented": 1, "unloaded": 1, "hit_rvas": []})
+            mods.append({"name": "GlmLib.dll", "instrumented": 1, "unloaded": 0, "hit_rvas": glmlib})
+            t["modules"] += mods
+            return t
+        v = self.judge(trace=trace(["1000", "2000"], ["3000"]))
+        self.assertEqual(v["verdict"], "PASS", v["failures"])
+        for bad in (trace(["1000"], ["3000"]), trace(["1000", "2000"], ["3000", "4000"]),
+                    trace(["1000", "2000"], [], unloaded_first=False)):
+            v = self.judge(trace=bad)
+            self.assertIn("original_trace_cross_check", self.failed(v), v["failures"])
+
+
 class ExceptionEvidence(unittest.TestCase):
     """cxx_exception_path (report only) and cxx_exception_path_matches_original (vs the traced original)."""
 
@@ -717,7 +841,7 @@ def newest_real_run(case, trace):
     """run dir of the newest PASSing real run of `case` (runner schema >= 3, real candidate, given trace mode)."""
     for s in sorted(glob.glob(os.path.join(R.RUNS_ROOT, "*", f"{case}.summary.json")), reverse=True):
         d = load(s)
-        if d.get("runner_schema", 0) < 3 or d.get("trace") != trace or (d.get("identity") or {}).get("candidate", {}).get("substitute"):
+        if d.get("runner_schema", 0) < 4 or d.get("trace") != trace or (d.get("identity") or {}).get("candidate", {}).get("substitute"):
             continue
         if ((d.get("identity") or {}).get("marks") or {}).get("sha256") != R.sha256_file(R.MARKS):
             continue

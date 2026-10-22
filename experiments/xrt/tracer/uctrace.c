@@ -1,7 +1,8 @@
 /* uctrace - records what the ORIGINAL 32-bit UCC.exe actually executes (dependency map for X1).
  *
  * A minimal Win32 debugger (build as x86). It launches the target from the sandbox and records:
- *   - every module mapped (static and dynamic loads, in order, with base and size);
+ *   - every module mapped (static and dynamic loads, in order, with base and size) and unloaded; a module mapped
+ *     again (also at the same base) is a new record with its own breakpoints and hits;
  *   - the first execution of every statically discovered function entry in instrumented modules
  *     (one-shot int3 breakpoints at entries listed in <entries-dir>/<module>.txt, RVAs in hex);
  *   - every imported function called FROM an instrumented module (persistent breakpoints on the
@@ -35,7 +36,7 @@ typedef struct {
     char name[64];
     char path[MAX_PATH];
     DWORD base, size, entry;
-    int instrumented, dynamic, iat_done;
+    int instrumented, dynamic, iat_done, unloaded;
     DWORD* entries; int nentries;
     DWORD* hit_order; int nhit;        /* RVAs in first-hit order */
 } Mod;
@@ -97,16 +98,29 @@ static int bp_find(DWORD a) {
     while (bpmap[h] >= 0) { if (bps[bpmap[h]].addr == a) return bpmap[h]; h = (h + 1) & (bpmap_size - 1); }
     return -1;
 }
+static void bp_map_insert(int i) {
+    unsigned h = (bps[i].addr * 2654435761u) & (bpmap_size - 1);
+    while (bpmap[h] >= 0) h = (h + 1) & (bpmap_size - 1);
+    bpmap[h] = i;
+}
 static int bp_add(DWORD a, int kind, int mod, int imp) {
     if (bp_find(a) >= 0) return -1;
     if (nbps >= MAX_BP) { fprintf(stderr, "uctrace: too many breakpoints\n"); exit(5); }
     BYTE orig, cc = 0xCC;
     if (!rd(a, &orig, 1) || !wr(a, &cc, 1)) return -1;
     BP* b = &bps[nbps]; b->addr = a; b->orig = orig; b->kind = kind; b->mod = mod; b->imp = imp; b->ev = -1;
-    unsigned h = (a * 2654435761u) & (bpmap_size - 1);
-    while (bpmap[h] >= 0) h = (h + 1) & (bpmap_size - 1);
-    bpmap[h] = nbps;
+    bp_map_insert(nbps);
     return nbps++;
+}
+/* A module was unmapped: its breakpoints (and import breakpoints on targets inside it) die with it, so a later
+ * mapping at the same addresses gets fresh ones. */
+static void bp_forget_range(DWORD lo, DWORD hi) {
+    int i;
+    for (i = 0; i < nbps; i++)
+        if (bps[i].addr >= lo && bps[i].addr < hi) bps[i].addr = 0;
+    memset(bpmap, 0xFF, bpmap_size * sizeof(int));
+    for (i = 0; i < nbps; i++)
+        if (bps[i].addr) bp_map_insert(i);
 }
 
 static void lower(char* s) { for (; *s; s++) if (*s >= 'A' && *s <= 'Z') *s += 32; }
@@ -129,7 +143,7 @@ static void load_entries(Mod* m) {
 }
 
 static int mod_of(DWORD a) {
-    for (int i = 0; i < nmods; i++) if (a >= mods[i].base && a < mods[i].base + mods[i].size) return i;
+    for (int i = 0; i < nmods; i++) if (!mods[i].unloaded && a >= mods[i].base && a < mods[i].base + mods[i].size) return i;
     return -1;
 }
 
@@ -339,6 +353,15 @@ int main(int argc, char** argv) {
             add_module((DWORD)(ULONG_PTR)ev.u.LoadDll.lpBaseOfDll, path, loader_done);
             break;
         }
+        case UNLOAD_DLL_DEBUG_EVENT: {
+            DWORD base = (DWORD)(ULONG_PTR)ev.u.UnloadDll.lpBaseOfDll;
+            int mi = mod_of(base);
+            if (mi >= 0 && mods[mi].base == base) {
+                bp_forget_range(mods[mi].base, mods[mi].base + mods[mi].size);
+                mods[mi].unloaded = 1;
+            }
+            break;
+        }
         case EXCEPTION_DEBUG_EVENT: {
             EXCEPTION_RECORD* er = &ev.u.Exception.ExceptionRecord;
             DWORD addr = (DWORD)(ULONG_PTR)er->ExceptionAddress;
@@ -458,8 +481,8 @@ int main(int argc, char** argv) {
         Mod* m = &mods[i];
         fprintf(jout, "  {\"name\": "); json_str(jout, m->name);
         fprintf(jout, ", \"path\": "); json_str(jout, m->path);
-        fprintf(jout, ", \"base\": \"0x%08lx\", \"size\": %lu, \"instrumented\": %d, \"entries\": %d, \"hit\": %d, \"hit_rvas\": [",
-                m->base, m->size, m->instrumented, m->nentries, m->nhit);
+        fprintf(jout, ", \"base\": \"0x%08lx\", \"size\": %lu, \"unloaded\": %d, \"instrumented\": %d, \"entries\": %d, \"hit\": %d, \"hit_rvas\": [",
+                m->base, m->size, m->unloaded, m->instrumented, m->nentries, m->nhit);
         for (int k = 0; k < m->nhit; k++) fprintf(jout, "%s\"%lx\"", k ? "," : "", m->hit_order[k]);
         fprintf(jout, "]}%s\n", i + 1 < nmods ? "," : "");
     }

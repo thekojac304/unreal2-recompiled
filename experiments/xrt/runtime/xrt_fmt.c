@@ -1,5 +1,5 @@
 /* xrt_fmt.c - msvcr70 _woutput (the wide printf engine behind wprintf and _vsnwprintf), reading the format
- * and the arguments from guest memory.
+ * and the arguments from guest memory; and its narrow build _output (sprintf), see xrt_output below.
  *
  * Mirrors the old CRT rather than C99/UCRT behaviour, including its quirks:
  *   - parsing is the CRT's character-class state machine: a character that is not valid in the current
@@ -229,6 +229,15 @@ static void multtenpow12(Ld12* x, int pw) {
             ld_setdw(&y, 1, ld_dw(&y, 1) - 1);
         ld12mul(x, &y);
     }
+}
+
+/* __multtenpow12(x, pw, 1) on a 12-byte long double given as six 16-bit words, for the atof port in
+ * hle_msvcr70.c (the same tables and multiplication as the DLL's __strgtold12 uses); |pw| < 512 */
+void xrt_ld12_multtenpow12(uint16_t w[6], int pw) {
+    Ld12 x;
+    memcpy(x.w, w, sizeof x.w);
+    multtenpow12(&x, pw);
+    memcpy(w, x.w, sizeof x.w);
 }
 
 /* ---------------------------------------------------------------- double -> digits (_fltout2) */
@@ -559,10 +568,43 @@ static const uint8_t next_state[9][8] = {
 static const uint8_t null_narrow[] = "(null)";
 static const uint8_t null_wide[] = {'(', 0, 'n', 0, 'u', 0, 'l', 0, 'l', 0, ')', 0, 0, 0};
 
+/* Narrow output (msvcr70's _output, the engine behind sprintf): the same state machine over a narrow format,
+ * with the narrow build's defaults - %s/%c are narrow and %S/%C (or l/w) wide - and wide text converted by
+ * wctomb in the "C" locale (a character above 0xFF ends that text; a wide %c above 0xFF prints nothing).
+ * Narrow text is written as is (a %c of NUL writes a NUL). Characters reach put() as byte values. */
+static void out_narrow_bytes(Out* o, const uint8_t* s, int32_t k) {
+    for (; k > 0; k--) {
+        out_char(o, *s++);
+        if (o->n == -1)
+            break;
+    }
+}
+static void out_wide_wctomb(Out* o, const uint8_t* s, int32_t k) {
+    for (; k > 0; k--, s += 2) {
+        uint16_t ch;
+        memcpy(&ch, s, 2);
+        if (ch > 0xFF)
+            break;
+        out_char(o, ch);
+    }
+}
+
+static int32_t output(uint32_t fmt, uint32_t va, int narrow, int (*put)(void* ctx, uint16_t ch), void* ctx);
+
 /* Formats guest wide string `fmt` with the guest argument list at `va`, handing each character to
  * put(ctx, ch) (which returns 0 when it cannot be written). Returns the CRT's charsout. */
 int32_t xrt_woutput(uint32_t fmt, uint32_t va, int (*put)(void* ctx, uint16_t ch), void* ctx) {
+    return output(fmt, va, 0, put, ctx);
+}
+
+/* The same for a guest narrow format string (_output) */
+int32_t xrt_output(uint32_t fmt, uint32_t va, int (*put)(void* ctx, uint16_t ch), void* ctx) {
+    return output(fmt, va, 1, put, ctx);
+}
+
+static int32_t output(uint32_t fmt, uint32_t va, int narrow, int (*put)(void* ctx, uint16_t ch), void* ctx) {
     Out o;
+    const uint32_t step = narrow ? 1u : 2u;   /* format character size */
     /* models the CRT's local conversion buffer (a 1024-byte char[512] / wchar_t[512] union): integers end at
      * byte 511, floating-point text starts at byte 0, %c stores at bytes 0..1; %B re-reads whatever `text`
      * was. Larger here because the CRT converts floats with precision > 163 into a heap buffer instead
@@ -578,10 +620,10 @@ int32_t xrt_woutput(uint32_t fmt, uint32_t va, int (*put)(void* ctx, uint16_t ch
     o.n = 0;
     buf[0] = 0;
     for (;;) {
-        uint16_t ch = rd16(p);
+        uint16_t ch = narrow ? rd8(p) : rd16(p);
         if (!ch)
             break;
-        p += 2;
+        p += step;
         if (o.n < 0)
             break;
         state = next_state[char_class(ch)][state];
@@ -634,12 +676,12 @@ int32_t xrt_woutput(uint32_t fmt, uint32_t va, int (*put)(void* ctx, uint16_t ch
             } else if (ch == 'w') {
                 flags |= FL_WIDECHAR;
             } else if (ch == 'I') {
-                uint16_t a = rd16(p);
-                if (a == '6' && rd16(p + 2) == '4') {
-                    p += 4;
+                uint16_t a = narrow ? rd8(p) : rd16(p), b = narrow ? rd8(p + 1) : rd16(p + 2);
+                if (a == '6' && b == '4') {
+                    p += 2 * step;
                     flags |= FL_I64;
-                } else if (a == '3' && rd16(p + 2) == '2') {
-                    p += 4;
+                } else if (a == '3' && b == '2') {
+                    p += 2 * step;
                     flags &= ~FL_I64;
                 } else if (!(a == 'd' || a == 'i' || a == 'o' || a == 'u' || a == 'x' || a == 'X')) {
                     state = ST_NORMAL;        /* not a size after all: print the 'I' */
@@ -652,11 +694,22 @@ int32_t xrt_woutput(uint32_t fmt, uint32_t va, int (*put)(void* ctx, uint16_t ch
             switch (ch) {
             case 'C':
                 if (!(flags & (FL_SHORT | FL_LONG | FL_WIDECHAR)))
-                    flags |= FL_SHORT;
+                    flags |= narrow ? FL_WIDECHAR : FL_SHORT;
                 /* fall through */
             case 'c': {
                 uint16_t wc = (uint16_t)rd32(va);
                 va += 4;
+                if (narrow) {
+                    bufferiswide = 0;
+                    text = buf;
+                    textlen = 1;
+                    buf[0] = (uint8_t)wc;
+                    if ((flags & (FL_LONG | FL_WIDECHAR)) && wc > 0xFF) {
+                        textlen = -1;         /* wctomb fails in the "C" locale */
+                        no_output = 1;
+                    }
+                    break;
+                }
                 bufferiswide = 1;
                 if (flags & FL_SHORT)
                     wc &= 0xFF;               /* mbtowc of one byte in the "C" locale (NUL gives NUL) */
@@ -668,15 +721,19 @@ int32_t xrt_woutput(uint32_t fmt, uint32_t va, int (*put)(void* ctx, uint16_t ch
             }
             case 'S':
                 if (!(flags & (FL_SHORT | FL_LONG | FL_WIDECHAR)))
-                    flags |= FL_SHORT;
+                    flags |= narrow ? FL_WIDECHAR : FL_SHORT;
                 /* fall through */
             case 's': {
                 uint32_t sp = rd32(va), i = prec == -1 ? 0x7FFFFFFFu : (uint32_t)prec;
                 va += 4;
-                if (flags & FL_SHORT) {
+                if (narrow ? !(flags & (FL_LONG | FL_WIDECHAR)) : (flags & FL_SHORT)) {
                     text = sp ? (const uint8_t*)G2H(sp) : null_narrow;
-                    for (textlen = 0; textlen < (int32_t)i && text[textlen]; textlen++)
-                        ;
+                    if (narrow)                   /* "while (i-- && *p)": a negative precision is unlimited */
+                        for (textlen = 0; i-- && text[textlen]; textlen++)
+                            ;
+                    else
+                        for (textlen = 0; textlen < (int32_t)i && text[textlen]; textlen++)
+                            ;
                 } else {
                     const uint8_t* q;
                     text = sp ? (const uint8_t*)G2H(sp) : null_wide;
@@ -836,7 +893,11 @@ int32_t xrt_woutput(uint32_t fmt, uint32_t va, int (*put)(void* ctx, uint16_t ch
                 out_wide(&o, prefix, prefixlen);
                 if ((flags & FL_LEADZERO) && !(flags & FL_LEFT))
                     out_multi(&o, '0', padding);
-                if (bufferiswide)
+                if (narrow && bufferiswide)
+                    out_wide_wctomb(&o, text, textlen);
+                else if (narrow)
+                    out_narrow_bytes(&o, text, textlen);
+                else if (bufferiswide)
                     out_wide(&o, text, textlen);
                 else
                     out_narrow(&o, text, textlen);

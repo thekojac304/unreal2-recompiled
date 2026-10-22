@@ -79,7 +79,10 @@ MAX_REPEAT = 100
 MIN_TIMEOUT, MAX_TIMEOUT = 1.0, 3600.0
 TRACE_SLOWDOWN = 15          # the debugger-traced original runs ~10x slower than a direct run
 UCC_BASE, UCC_SIZE = 0x400000, 0xF000
-CORE_BASE = 0x10100000
+CORE_BASE, CORE_SIZE = 0x10100000, 0x191000
+ENGINE_BASE = 0x10300000
+GLMLIB_BASE = 0x02DF0000      # lifted for an address the original loader rebased it to (preferred 0x10000000; the
+                              # original's choice varies between runs: 0x02df0000 and 0x02dd0000 were observed)
 WORKER_ENTRY = "0x1015a520"
 EXIT_STATUS = {"PASS": 0, "FAIL": 1, "UNVERIFIED": 3}
 EXIT_HARNESS, EXIT_REEVALUATED = 4, 5
@@ -733,7 +736,22 @@ def ev_worker(t):
     c.order("order: FFileStream::Init < thread created < thread started < worker entry", fs, cr, st, we)
     other = [e for e in t.find("thread_create") if e.get("index") != 1]
     c.check("no other guest threads created", not other, f"{len(other)} other thread_create events")
+    # loader notification (none of the modules calls DisableThreadLibraryCalls): DLL_THREAD_ATTACH on the new thread
+    # for every DLL initialised when it starts, in initialisation order, before its start routine
+    want = [e.get("module") for e in initialised_dlls(t, st)]
+    ta = t.find("dll_thread_attach", thread=1)
+    c.check("DLL_THREAD_ATTACH on thread 1 for each DLL initialised before it started, in initialisation order",
+            [e.get("module") for e in ta] == want, f"{[e.get('module') for e in ta]} vs {want}")
+    if ta:
+        c.order("order: thread started < DLL_THREAD_ATTACH notifications < worker entry", st, *ta, we)
     return c.result()
+
+
+def initialised_dlls(t, before):
+    """DLL_PROCESS_ATTACH completions (TRUE) before event `before`, in order"""
+    if before is None:
+        return []
+    return [e for e in t.find("dll_attach_returned") if e.get("result") == 1 and e["seq"] < before["seq"]]
 
 
 def ev_flag(t):
@@ -768,6 +786,12 @@ def ev_termination(t):
     xt = c.require("worker called ExitThread(0)", t.first("exit_thread", thread=1, code=0))
     te = c.require("thread 1 ended via ExitThread with code 0", t.first("thread_end", thread=1, index=1, code=0, via="ExitThread"))
     c.order("order: store 2 < ExitThread < thread end", s2, xt, te)
+    want = [e.get("module") for e in reversed(initialised_dlls(t, te))]
+    td = t.find("dll_thread_detach", thread=1)
+    c.check("DLL_THREAD_DETACH on thread 1 for each DLL initialised before it ended, in reverse initialisation order",
+            [e.get("module") for e in td] == want, f"{[e.get('module') for e in td]} vs {want}")
+    if td:
+        c.order("order: ExitThread < DLL_THREAD_DETACH notifications < thread end", xt, *td, te)
     wf = c.require("mark 'FFileStream::Destroy: shutdown wait finished' on thread 0: main left the wait loop",
                    t.mark("FFileStream::Destroy: shutdown wait finished", thread=0))
     c.order("order: store 2 (worker) < wait loop left (main)", s2, wf)
@@ -796,6 +820,11 @@ def ev_exit(t, expected_exit, before):
     pc = c.require("process exit completed", t.first("process_exit_complete", code=expected_exit))
     c.order("order: [preceding milestone] < appPreExit < StaticExit < appExit < Destroy < wait left < main returned "
             "< exit() < ExitProcess < DLL detach < exit complete", before, pre, se, ax, de, wf, mr, ce, pe, dd, pc)
+    want = [e.get("module") for e in reversed(initialised_dlls(t, pe))]
+    got = [e.get("module") for e in t.find("dll_detach_returned") if pe is not None and pc is not None
+           and pe["seq"] < e["seq"] < pc["seq"]]
+    c.check("DLL_PROCESS_DETACH for every initialised DLL, in reverse initialisation order", got == want,
+            f"{got} vs {want}")
     rep = t.report
     c.check(f"report outcome 'exited' with exit code {expected_exit}",
             rep.get("outcome") == "exited" and rep.get("exit_code") == expected_exit, f"{rep.get('outcome')} {rep.get('exit_code')}")
@@ -900,11 +929,75 @@ def ev_cxx_original(report, ref):
     return c.result()
 
 
+def in_core(addr_text):
+    try:
+        return CORE_BASE <= int(addr_text, 16) < CORE_BASE + CORE_SIZE
+    except (TypeError, ValueError):
+        return False
+
+
+def ev_engine(t):
+    """Engine.dll is a genuine requirement of the case: Core loads it dynamically, and its static import GlmLib.dll
+    is mapped (rebased, as in the original) and initialised before it; both execute translated code."""
+    c = Checks("engine_module_loading")
+    ll = c.require("Core.dll loads Engine.dll dynamically: LoadLibraryW, called from Core.dll, returned 0x10300000",
+                   next((e for e in t.find("load_library", name="Engine.dll")
+                         if e.get("result") == f"0x{ENGINE_BASE:08x}" and in_core(e.get("site"))), None),
+                   lambda e: f"site {e.get('site')}")
+    me = c.require("Engine.dll mapped at its preferred base",
+                   t.first("dll_mapped", module="Engine.dll", base=f"0x{ENGINE_BASE:08x}", preferred_base=f"0x{ENGINE_BASE:08x}"))
+    mg = c.require("GlmLib.dll (a static import of Engine.dll) mapped, rebased from its preferred base 0x10000000",
+                   t.first("dll_mapped", module="GlmLib.dll", base=f"0x{GLMLIB_BASE:08x}", preferred_base="0x10000000"))
+    ag = c.require("GlmLib.dll DllMain(DLL_PROCESS_ATTACH) returned TRUE", t.first("dll_attach_returned", module="GlmLib.dll", result=1))
+    ae = c.require("Engine.dll DllMain(DLL_PROCESS_ATTACH) returned TRUE", t.first("dll_attach_returned", module="Engine.dll", result=1))
+    c.order("order: Engine mapped < GlmLib mapped < GlmLib initialised < Engine initialised < LoadLibraryW returned",
+            me, mg, ag, ae, ll)
+    c.order("order: appInit < Engine.dll loaded < UCommandlet::Main", t.mark_from_ucc("appInit"), ll,
+            t.mark_from_ucc("UCommandlet::Main"))
+    mapped = [e.get("module") for e in t.find("dll_mapped")]
+    c.check("exactly Engine.dll and GlmLib.dll mapped after startup, once each", sorted(mapped) == ["Engine.dll", "GlmLib.dll"],
+            str(mapped))
+    loaded = sorted({e.get("name") for e in t.find("load_library") if e.get("result") != "0x00000000"})
+    c.check("LoadLibraryW succeeded only for translated modules (Core.dll, Engine.dll)",
+            set(loaded) <= {"Core.dll", "Engine.dll"}, str(loaded))
+    for name in ("Engine.dll", "GlmLib.dll"):
+        m = next((m for m in t.report["modules"] if m.get("name") == name), None)
+        n = (m or {}).get("functions_executed") or 0
+        c.check(f"{name}: translated functions executed", n > 0, f"{n} functions")
+    return c.result()
+
+
+def engine_cross_check(trace, report):
+    """--trace: the translated Engine.dll and GlmLib.dll executed exactly the functions the original executed"""
+    orig = {}
+    for m in trace.get("modules", []):
+        if isinstance(m, dict) and m.get("instrumented") and not m.get("unloaded"):
+            try:
+                orig[str(m.get("name", "")).lower()] = {int(x, 16) for x in m.get("hit_rvas", [])}
+            except (TypeError, ValueError):
+                orig[str(m.get("name", "")).lower()] = None
+    out = []
+    for name in ("Engine.dll", "GlmLib.dll"):
+        rm = next((m for m in report["modules"] if m.get("name") == name), None)
+        xs = {int(x, 16) for x in (rm or {}).get("hit_rvas", [])}
+        os_ = orig.get(name.lower())
+        ok = rm is not None and os_ is not None and bool(xs) and xs == os_
+        detail = (f"translated {len(xs)}, original {len(os_) if os_ is not None else 'not traced'}; only translated "
+                  f"{sorted(hex(x) for x in xs - (os_ or set()))[:5]}, only original {sorted(hex(x) for x in (os_ or set()) - xs)[:5]}")
+        out.append({"check": f"{name}: the translated run executed exactly the functions the original executed",
+                    "ok": ok, "detail": detail})
+    return out
+
+
 def profile_core_commandlet(case, report):
     t = Timeline(report)
     return [ev_init(t), ev_load(t), ev_commandlet(t, case), ev_worker(t), ev_flag(t), ev_termination(t),
             ev_exit(t, case.expect.exit_code, t.mark("UObject::ProcessInternal", thread=0))] + \
         ([ev_cxx(t)] if case.cxx_exceptions else [])
+
+
+def profile_engine_commandlet(case, report):
+    return profile_core_commandlet(case, report) + [ev_engine(Timeline(report))]
 
 
 def profile_core_error(case, report):
@@ -917,7 +1010,8 @@ def profile_core_error(case, report):
         ([ev_cxx(t)] if case.cxx_exceptions else [])
 
 
-PROFILES = {"core_commandlet": profile_core_commandlet, "core_error": profile_core_error}
+PROFILES = {"core_commandlet": profile_core_commandlet, "core_error": profile_core_error,
+            "engine_commandlet": profile_engine_commandlet}
 # function-entry marks each profile relies on; with --trace each must also have executed in the ORIGINAL
 COMMON_ENTRY_MARKS = (("UCC.exe", "UCC main"), ("Core.dll", "appInit"), ("Core.dll", "UObject::StaticInit"),
                       ("Core.dll", "FFileStream::Init"), ("Core.dll", "FFileStream worker thread entry"),
@@ -931,6 +1025,7 @@ PROFILE_ENTRY_MARKS = {
         ("Core.dll", "UObject::ProcessEvent"), ("Core.dll", "UObject::ProcessInternal")),
     "core_error": COMMON_ENTRY_MARKS,
 }
+PROFILE_ENTRY_MARKS["engine_commandlet"] = PROFILE_ENTRY_MARKS["core_commandlet"]
 
 
 def original_cross_check(case, trace, expected):
@@ -1057,6 +1152,8 @@ def evaluate(case, ref, cand, expected=None):
             groups += PROFILES[case.profile](case, rep)
             if ref is not None and ref.get("trace") is not None:
                 cc = original_cross_check(case, ref["trace"], expected) if expected else []
+                if case.profile == "engine_commandlet":
+                    cc += engine_cross_check(ref["trace"], rep)
                 groups.append({"group": "original_trace_cross_check", "ok": bool(cc) and all(i["ok"] for i in cc),
                                "checks": cc})
             if case.cxx_exceptions and ref is not None:
@@ -1087,7 +1184,7 @@ def evaluate(case, ref, cand, expected=None):
                  f"translated {cand.get('command_line')!r}")
     if rep is not None:
         mods = {m.get("name"): m.get("sha256") for m in rep["modules"]}
-        for f in ("UCC.exe", "Core.dll"):
+        for f in sorted(set(mods) | {"UCC.exe", "Core.dll"}):   # every module the run mapped (Engine, GlmLib, ...)
             if not cin or mods.get(f) != cin.get(f):
                 fail(f"translated {f} was not lifted from the sandbox input {f}")
     ok = not v["failures"] and completed and v["expected_result"] and v["milestone_evidence_valid"]
@@ -1200,7 +1297,7 @@ def run_invocation(case_names, repeat, timeout, trace=False, no_original=False, 
         case_trace = bool(trace or case.cxx_exceptions) and not no_original
         if case_trace and candidate_prefix is None and not os.path.isfile(TRACER):
             raise UsageError(f"{name} needs the traced original (exception evidence); {rel(TRACER)} is not built")
-        s = {"runner_schema": 3, "invocation_id": inv, "invocation_dir": rel(invdir), "case": name, "args": list(case.args),
+        s = {"runner_schema": 4, "invocation_id": inv, "invocation_dir": rel(invdir), "case": name, "args": list(case.args),
              "expect": {"exit_code": case.expect.exit_code, "negative": case.expect.negative,
                         "stdout_contains": list(case.expect.stdout_contains),
                         "stdout_excludes": list(case.expect.stdout_excludes)},

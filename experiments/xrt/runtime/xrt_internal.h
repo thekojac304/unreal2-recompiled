@@ -6,14 +6,18 @@
 #include <stdio.h>
 #include "xrt.h"
 
+struct XrtModule;
+
 /* ---------------------------------------------------------------- guest address-space layout
  * 0x00000000-0x0000FFFF  never mapped (guest null-pointer accesses fault and are diagnosed)
  * 0x00010000-0x002FFFFF  runtime data: TEBs, PEB, command line, argv, CRT data objects
  * 0x00300000-0x0033FFFF  import stubs: guest addresses that dispatch to host adapters; reserved but never
  *                        committed, so reading data through a function import faults visibly
  * 0x00400000-...         UCC.exe image (preferred base)
- * 0x01000000-0x0FFFFFFF  guest thread stacks (each with an uncommitted guard region below it)
- * 0x10100000-...         Core.dll image (preferred base)
+ * 0x01000000-0x0FFFFFFF  guest thread stacks (each with an uncommitted guard region below it); stacks skip the
+ *                        range of every linked translated module, mapped yet or not (GlmLib.dll is lifted for
+ *                        0x02df0000, where the original loader rebased it)
+ * 0x10100000-...         Core.dll image (preferred base); Engine.dll at its preferred base 0x10300000
  * 0x20000000-0x7FEFFFFF  guest heap (malloc/realloc/free); stays below 2 GB like the original
  *                        (non large-address-aware) process */
 #define XRT_RT_BASE 0x00010000u
@@ -35,6 +39,7 @@ enum { XRT_EXIT_TRAP = 71, XRT_EXIT_BADRET = 72, XRT_EXIT_DIV0 = 73, XRT_EXIT_FA
 void xrt_mem_init(void);
 void xrt_commit(uint32_t a, uint32_t size);
 int xrt_is_committed(uint32_t a, uint32_t size);
+int xrt_range_is_free(uint32_t a, uint32_t size);           /* no page of the range committed */
 uint32_t xrt_rt_alloc(uint32_t size, uint32_t align);       /* runtime region, zeroed, never freed */
 uint32_t xrt_heap_alloc(uint32_t size);                      /* 0 on exhaustion */
 void xrt_heap_free(CPU* c, uint32_t p);
@@ -56,6 +61,7 @@ void xrt_events_init(void);
 void xrt_event(const char* kind, const char* fmt, ...);     /* fmt: further JSON members, may be NULL */
 const char* xrt_jstr(char* out, size_t n, const char* s);   /* quoted, escaped JSON string in out */
 void xrt_watches_arm(void);                                  /* after the modules are mapped */
+void xrt_watches_arm_module(struct XrtModule* m);            /* a module mapped later (LoadLibrary) */
 void xrt_watches_check(CPU* c, const char* import, uint32_t site);
 void xrt_events_report(FILE* f);
 
@@ -77,6 +83,7 @@ struct XrtThread {
     XrtEhPad* eh_pads;             /* landing stack of the C++ exception dispatcher (innermost first) */
     struct XrtEhCatch* eh_catches; /* catch blocks currently executing (innermost first) */
     int eh_unwinding;              /* > 0 while the dispatcher runs unwind actions (a throw then is terminate()) */
+    int loader_lock;               /* > 0 while this thread runs DllMain notifications (no baton hand-over) */
 };
 extern __declspec(thread) XrtThread* xrt_cur;
 extern volatile long xrt_exiting;          /* set when ExitProcess starts: no more baton hand-overs */
@@ -94,7 +101,9 @@ typedef struct XrtModule {
     char name[64];
     char path[520];                /* host path of the original file (also what GetModuleFileName reports) */
     uint32_t base, size, entry;
+    uint32_t preferred_base;       /* ImageBase in the file; differs from base for a rebased lift */
     int is_dll, attached;
+    int load_count;                /* LoadLibrary references; -1: loaded with the process (never unloaded) */
     const XrtLiftedModule* lifted;
     uint32_t export_dir, export_dir_size;
 } XrtModule;
@@ -125,6 +134,13 @@ void xrt_sites_enable(const char* names);   /* comma-separated substrings of "dl
 void xrt_sites_report(FILE* f);
 void xrt_watch_add(uint32_t guest_addr);
 const char* xrt_stub_name(uint32_t va);
+
+/* process model: translated modules linked into this host and the Windows loader's behaviour (xrt_main.c) */
+const XrtLiftedModule* xrt_lifted_find(const char* name);  /* by file name, case-insensitive, ".dll" optional */
+int xrt_lifted_overlap(uint32_t a, uint32_t size, uint32_t* end);   /* range meets a linked module's image range */
+XrtModule* xrt_load_library(CPU* c, const char* host_path); /* LoadLibrary of a translated DLL; NULL if not translated */
+int xrt_free_library(CPU* c, XrtModule* m);                 /* FreeLibrary of a mapped module */
+void xrt_dll_thread_notify(CPU* c, uint32_t reason);        /* DLL_THREAD_ATTACH / DLL_THREAD_DETACH on this thread */
 
 /* ---------------------------------------------------------------- host adapters (hle_*.c) */
 #define ARG(i) rd32(c->r[ESP] + 4u + 4u * (i))
@@ -159,4 +175,9 @@ void xrt_eh_report(FILE* f);               /* statistics for the runtime report 
 /* formatter (xrt_fmt.c): msvcr70-compatible wide printf over guest varargs */
 uint16_t* xrt_wformat(uint32_t fmt, uint32_t va, size_t* len);   /* malloc'ed, not terminated */
 int32_t xrt_woutput(uint32_t fmt, uint32_t va, int (*put)(void* ctx, uint16_t ch), void* ctx);   /* msvcr70 _woutput over a sink */
+int32_t xrt_output(uint32_t fmt, uint32_t va, int (*put)(void* ctx, uint16_t ch), void* ctx);    /* msvcr70 _output (narrow) */
+void xrt_ld12_multtenpow12(uint16_t w[6], int pw);   /* msvcr70 __multtenpow12(x, pw, 1), |pw| < 512 */
+
+/* msvcr70 code run translated (xrt_msvcr70img.c, gen/msvcr70/) */
+double xrt_msvcr70_pow(CPU* c, double x, double y, uint32_t* error_type);   /* _CIpow's SSE2 path */
 #endif

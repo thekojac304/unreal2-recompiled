@@ -1,0 +1,44 @@
+{
+ "seed": 20261022,
+ "scale": 1,
+ "inputs": true,
+ "summary": {
+  "pow": {
+   "cases": 15108,
+   "mismatches": 0
+  },
+  "fmod": {
+   "cases": 6499,
+   "mismatches": 0
+  },
+  "isnan": {
+   "cases": 6103,
+   "mismatches": 0
+  },
+  "atof": {
+   "cases": 20304,
+   "mismatches": 0
+  },
+  "toupper": {
+   "cases": 607,
+   "mismatches": 0
+  },
+  "strchr": {
+   "cases": 3000,
+   "mismatches": 0
+  },
+  "stricmp": {
+   "cases": 3000,
+   "mismatches": 0
+  },
+  "atoi": {
+   "cases": 2018,
+   "mismatches": 0
+  },
+  "qsort": {
+   "cases": 1068,
+   "mismatches": 0
+  }
+ },
+ "mismatches_first_200": []
+}

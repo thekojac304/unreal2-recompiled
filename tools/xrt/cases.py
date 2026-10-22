@@ -82,6 +82,17 @@ CASES = {c.name: c for c in [
          Expect(0, HELLO_BANNER + ("Commandlet NoSuchCommandletXYZ not found",), ("Executing Class",)), "core_error",
          note="lookup failure through the C++ exception path; the original reports it and exits with code 0",
          cxx_exceptions=True),
+    # VMProbe.u (compiled in phase 0 by the original compiler, copied into every sandbox): 54 script tests over the
+    # VM. Loading it makes Core load Engine.dll, whose static import GlmLib.dll is mapped first (rebased) and
+    # initialised before it, as in the original; both run translated.
+    Case("vmprobe", ("VMProbe.VMProbe",),
+         Expect(0, HELLO_BANNER + ("Executing Class VMProbe.VMProbe", "T35=7 2187", "T54=done"), ("not found",)),
+         "engine_commandlet",
+         ("UObject::execLog", "UObject::execConcat_StringString", "UObject::execIntToString",
+          "UObject::execFloatToString", "UObject::execLeft", "UObject::execMid", "UObject::execInStr",
+          "UObject::execDynArrayLength", "UObject::execDynArrayInsert", "UObject::execDynArrayRemove",
+          "UObject::execEqualEqual_VectorVector"),
+         "Engine.dll and GlmLib.dll execute translated; the original runs Engine/GlmLib code (1429 and 981 functions)"),
 ]}
 
 CORE_CASES = ("hellofull", "hello_noargs", "hellonew", "hellofull_nosse", "simple", "arraytest")

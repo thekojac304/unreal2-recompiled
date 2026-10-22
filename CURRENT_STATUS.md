@@ -1,4 +1,4 @@
-# Current status: X1 translated runtime (UCC.exe + Core.dll on Windows x64)
+# Current status: X1 translated runtime (UCC.exe, Core.dll, Engine.dll, GlmLib.dll on Windows x64)
 
 Updated 2026-10-22, phase 2 (acceptance gates). Details and limitations:
 [experiments/xrt/README.md](experiments/xrt/README.md). Component differential tests:
@@ -7,10 +7,15 @@ Updated 2026-10-22, phase 2 (acceptance gates). Details and limitations:
 ## Working commands (from the workspace root)
 
 ```bat
-rem 1. lift (generated C is git-ignored: machine translation of proprietary code); marks.json is applied
-.venv\Scripts\python -I tools\xrt\xlift.py sandbox_ref\hellofull\System\UCC.exe --out experiments\xrt\gen\ucc
-.venv\Scripts\python -I tools\xrt\xlift.py sandbox_ref\hellofull\System\Core.dll --out experiments\xrt\gen\core
-rem 2. build (about 60 s; "runtime" rebuilds only the host runtime); the tracer of the original
+rem 1. lift (generated C is git-ignored: machine translation of proprietary code); marks.json is applied.
+rem    Any fresh sandbox copy works as the source (the runtime checks every file's SHA-256 against the lift).
+.venv\Scripts\python -I tools\xrt\make_sandbox.py sandbox_cmp\lift --probe
+.venv\Scripts\python -I tools\xrt\xlift.py sandbox_cmp\lift\System\UCC.exe --out experiments\xrt\gen\ucc
+.venv\Scripts\python -I tools\xrt\xlift.py sandbox_cmp\lift\System\Core.dll --out experiments\xrt\gen\core
+.venv\Scripts\python -I tools\xrt\xlift.py sandbox_cmp\lift\System\Engine.dll --out experiments\xrt\gen\engine
+.venv\Scripts\python -I tools\xrt\xlift.py sandbox_cmp\lift\System\GlmLib.dll --out experiments\xrt\gen\glmlib --base 0x02df0000
+.venv\Scripts\python -I tools\xrt\lift_sse2.py sandbox_cmp\lift\System\msvcr70.dll 0x7c00ae08 xrt_msvcr70_pow_sse2 --error-handler 0x7c036052 --out experiments\xrt\gen\msvcr70\pow_sse2.c
+rem 2. build (about 10 min with Engine/GlmLib; "runtime" rebuilds only the host runtime); the tracer of the original
 experiments\xrt\build_xrt.cmd
 experiments\xrt\tracer\build.cmd
 rem 3. acceptance: registered cases (tools\xrt\cases.py), fresh original reference per run, same sandbox path;
@@ -18,6 +23,9 @@ rem    hello and badclass (C++ exception cases) always run the original under uc
 .venv\Scripts\python -I tools\xrt\run_xrt.py hellofull hello_noargs hellonew hellofull_nosse simple arraytest hello badclass --repeat 3
 rem    the same with the original run under uctrace (function-entry cross-check of the evidence)
 .venv\Scripts\python -I tools\xrt\run_xrt.py hellofull hello_noargs hellonew hellofull_nosse simple arraytest --trace
+rem    gate F: VMProbe through the translated Engine.dll and GlmLib.dll (traced: Engine/GlmLib function sets compared)
+.venv\Scripts\python -I tools\xrt\run_xrt.py vmprobe --repeat 3
+.venv\Scripts\python -I tools\xrt\run_xrt.py vmprobe --trace
 rem 4. tests: lifter, runner (logic layer always; XRT_E2E=1 adds end-to-end tamper tests, XRT_FULL=1 fails on a
 rem    missing real-data layer)
 .venv\Scripts\python -I -m unittest discover -s tools\xrt\tests -v
@@ -26,9 +34,11 @@ rem 5. C++ exception probe (native msvcr70 vs translated) and FGlobalMath sine t
 tools\xrt\tests\ehprobe\build_and_run.cmd
 tools\xrt\tests\x87_sintab\build_and_run.cmd aae4923
 .venv\Scripts\python -I tools\xrt\tests\x87_sintab\check_sintab.py
-rem 6. gate F (in progress): Engine.dll at its preferred base, GlmLib.dll rebased where the original loader put it
-.venv\Scripts\python -I tools\xrt\xlift.py sandbox\System\Engine.dll --out experiments\xrt\gen\engine
-.venv\Scripts\python -I tools\xrt\xlift.py sandbox\System\GlmLib.dll --out experiments\xrt\gen\glmlib --base 0x02df0000
+rem 6. gate-F CRT adapters vs the real msvcr70 (qsort, atof, _CIpow, _CIfmod, _isnan, toupper, strchr, _stricmp,
+rem    atoi); --inputs replays operands recorded from a real run (set XRT_MATH_LOG=<file> for xrt_ucc.exe)
+tools\xrt\tests\crt_gatef\build.cmd
+.venv\Scripts\python -I tools\xrt\tests\crt_gatef\compare.py --json tools\xrt\tests\crt_gatef\results.json
+.venv\Scripts\python -I tools\xrt\tests\crt_gatef\compare.py --seed 7 --scale 3
 ```
 
 Runner exit status: 0 all PASS, 1 any FAIL, 2 usage error, 3 UNVERIFIED (no reference), 4 harness error,
@@ -39,11 +49,11 @@ Runner exit status: 0 all PASS, 1 any FAIL, 2 usage error, 3 UNVERIFIED (no refe
 | Gate | Status | Evidence |
 |---|---|---|
 | A. reliable comparison runner | done | `tools/xrt/run_xrt.py` rewritten; adversarial review (4 lenses, 32 findings, 29 confirmed) fixed in `805e2fe` |
-| B. milestone evidence as assertions | done | runtime event timeline + marks/watch from `tools/xrt/marks.json`; 7 evidence groups per Core case; 61 runner tests (+14 lifter tests) |
+| B. milestone evidence as assertions | done | runtime event timeline + marks/watch from `tools/xrt/marks.json`; 7 evidence groups per Core case (+ engine_module_loading for vmprobe); 66 runner tests (+14 lifter tests) |
 | C. fresh reconfirmation of M0-M5 | done, 18/18 PASS | invocation `20261022-183909-adefc8f0` (3 x 6 cases) and traced cross-check `20261022-184054-53367051` (6/6) |
 | D. targeted differential tests | done | x87 trig model replaced (pi66 reduction); instruction, CRT and x87 suites at 0 unexplained differences; claims scoped |
 | E. measured C++ exception path | done | `hello`, `badclass` PASS with the original's throw/catch/resume sequence; probe 6/6 identical, 2/2 negatives fatal; 24/24 + 6/6 traced |
-| F. Engine.dll / VMProbe | in progress | Engine.dll and GlmLib.dll lifted; first failure below |
+| F. Engine.dll / VMProbe | done, `vmprobe` 3/3 + traced 1/1 PASS | VMProbe runs through the translated Engine.dll and GlmLib.dll: stdout identical, Engine/GlmLib executed exactly the original's function sets (1429/981); requirements asserted as evidence |
 
 ### A. Runner (what changed and what it now refuses)
 
@@ -89,7 +99,7 @@ the original executed every function-entry milestone the evidence relies on. The
 groups 1 and 4-7, `StaticLoadClass` called from UCC.exe, and that `UCommandlet::Main` is never entered; cases marked
 `cxx_exceptions` (`hello`, `badclass`) also assert the C++ exception sequence against the traced original.
 
-Runner tests (`tools/xrt/tests/test_run_xrt.py`, 61 tests; `test_xlift.py` adds 14): synthetic schema-2 timelines
+Runner tests (`tools/xrt/tests/test_run_xrt.py`, 66 tests; `test_xlift.py` adds 14): synthetic schema-2 timelines
 run through the real profiles (each removed event, misattributed or patched flag store, wrong caller, extra thread,
 wrong exit value, malformed report, binding mismatch, written-file difference, command-line/input/sandbox mismatch,
 tracer failures, C++ exception sequence altered/missing/extra); mutations of the newest real PASS runs (removed
@@ -164,13 +174,51 @@ entry. The original's choreography is observable through `tools/xrt/eh_points.py
 Not claimed: general SEH (`__try`), FuncInfo other than VC7, catch objects needing copy constructors or virtual-base
 adjustment, a throw during unwinding, resumption across a host adapter that called guest code - all fatal.
 
+### F. VMProbe through the translated Engine.dll and GlmLib.dll
+
+`VMProbe.VMProbe` (a probe package compiled in phase 0 by the original compiler: 54 script tests over the VM) makes
+Core load Engine.dll from `appGetDllHandle`. Engine.dll imports GlmLib.dll (82 imports), whose preferred base is
+taken, so the original loader rebases it.
+
+What the runtime gained (all fatal outside what is described):
+- **Loader:** lifted modules mapped on demand from `LoadLibraryW` with their translated static imports (application
+  directory), base relocations for a rebased lift (`xlift.py --base`, HIGHLOW only), `DllMain` attach in dependency
+  order under a loader lock, `DLL_THREAD_ATTACH/DETACH` for guest threads, process detach in reverse initialisation
+  order, stacks kept out of module ranges, FreeLibrary reference counts (unloading to zero is fatal).
+- **CRT adapters** found by running and by a fresh trace: `qsort` (ported from the DLL: median of three, its
+  equal-key skipping), `atof` (`__strgtold12`/`_ld12tod` ported: 25 kept digits with the DLL's 24th-digit rounding
+  quirk, ties truncate), narrow `sprintf` (the `_output` build of the printf port), `strchr`, `_stricmp`, `atoi`,
+  `toupper`, `_isnan`, `_msize`, `_CIfmod` (measured special-operand rules), `_CIpow` (the DLL's SSE2 core translated
+  by `tools/xrt/lift_sse2.py`, tables read from the SHA-checked sandbox msvcr70.dll: host `pow` was 1 ulp off on 2 of
+  VMProbe's 3073 real inputs), and `FreeConsole`, `GetSystemTimeAsFileTime`, `GetCurrentProcessId/ThreadId`,
+  `QueryPerformanceCounter/Frequency`, `InterlockedIncrement/Decrement`.
+- **Tracer:** uctrace handles `UNLOAD_DLL` (the original loader maps GlmLib.dll once without running it and maps it
+  again; the old trace had set breakpoints only on the discarded mapping and reported 0 GlmLib functions).
+
+| Check | Result |
+|---|---|
+| `vmprobe` 3 runs | PASS 3/3, invocation `20261022-203549-1128fedb`: stdout and UCC.log identical to a fresh original each run |
+| `vmprobe` traced | PASS, invocation `20261022-203619-cf8b1ee3`: Engine.dll executed exactly the original's 1429 functions, GlmLib.dll exactly its 981 |
+| evidence `engine_module_loading` | LoadLibraryW(Engine.dll) called from Core.dll returned 0x10300000; Engine mapped at its preferred base, GlmLib rebased 0x10000000 -> 0x02df0000; GlmLib `DllMain` TRUE before Engine `DllMain` TRUE; appInit < Engine loaded < `UCommandlet::Main`; no other module mapped; only translated modules loaded |
+| evidence (all profiles) | worker: `DLL_THREAD_ATTACH` Core; at its exit `DLL_THREAD_DETACH` Engine, GlmLib, Core; process exit detaches Engine, GlmLib, Core |
+| CRT adapters vs real msvcr70 (`tools/xrt/tests/crt_gatef`) | 57,707 cases incl. VMProbe's recorded `_CIpow`/`_isnan`/`_CIfmod`/`atof` operands: 0 mismatches; seed 7 x3: 146,583 cases, 0 |
+| narrow `sprintf` vs real msvcr70 (parallel session, `experiments/xrt/tests/crt_diff`) | 31,175 narrow cases (17 mismatches found - negative precision on narrow strings - fixed), now 0; wide unchanged at 0 |
+| inputs | UCC.exe `84326806...b1ab`, Core.dll `51bdad4d...69cc`, Engine.dll `f951becf...8499`, GlmLib.dll `85399770...bdf3`, msvcr70.dll `f68e4cdb...168a`, VMProbe.u `5d2c77d7...5991`; binary `e21eaf00...73fc`, runtime sources `5fcc4c9c...fa42` |
+
+Known differences in executed functions, all explained (same in the Core-only cases): 6 Core/UCC "functions" the
+original passes through are catch continuation addresses that the translation enters only when an exception resumes
+there, and 2 are Core's MMX memcpy path, which the original also skips under `-NOMMX -NOSSE` (CPU policy).
+
+Not claimed: Engine paths other than VMProbe's (rendering, audio, input, networking imports stay unbound and fatal),
+loader notifications of system threads, a GlmLib.dll base other than 0x02df0000 (the original's varies), errno.
+
 ### Latest acceptance
 
-On commit `0120005` (only this file modified): **24/24 PASS**, invocation `20261022-193849-832a4aa5` (3 x the 8
-cases; hello and badclass with the traced original's EH sequence), and **traced 6/6 PASS**, invocation
-`20261022-194149-1d1f0230`. Identity: xrt_ucc.exe `b3a98102...3c7b`, runtime sources `b808865e...b883` (14 files),
-generated code `42805624...6e75` (147 files; includes the Engine/GlmLib lifts, which this binary does not link),
-marks.json `2f0c2551...6ed0`, uctrace `06aa8b80...08e1`; the same UCC.exe/Core.dll/Core.u inputs as in C.
+After gate F, on the working tree with binary `e21eaf00...73fc` (runtime sources `5fcc4c9c...fa42`, generated code
+`dcb0bb01...70ba` with all four modules and the msvcr70 pow core): Core-only **24/24 PASS**, invocation
+`20261022-203729-b7c9f142`, and **traced 6/6**, invocation `20261022-204059-dea58fe2`; `vmprobe` 3/3 + traced 1/1 as above. The
+earlier result on commit `0120005` (24/24 + 6/6, before the loader notifications existed) is superseded, not
+invalidated.
 
 ## Milestones
 
@@ -182,39 +230,36 @@ marks.json `2f0c2551...6ed0`, uctrace `06aa8b80...08e1`; the same UCC.exe/Core.d
 | M3 commandlet executes, correct output | done | group 3 + output comparison |
 | M4 worker shutdown, cleanup, exit status | done | groups 4-7 |
 | M5 repeated, multiple argument strings | done for Core-only cases, incl. the exception paths | 24/24 strict + 6/6 traced |
+| F VMProbe through translated Engine.dll + GlmLib.dll | done | `vmprobe` 3/3 + traced (function sets identical) |
 
-Highest gate passed: E. Engine.dll has not executed yet.
+Highest gate passed: F.
 
 ## First reproducible failure
 
-`VMProbe.VMProbe` in a fresh `make_sandbox.py --probe` sandbox:
+Any commandlet whose class lives in a module that is not translated. The nearest one, the script compiler:
 
 ```bat
-.venv\Scripts\python -I tools\xrt\make_sandbox.py sandbox_cmp\vmprobe_try --probe
-cd sandbox_cmp\vmprobe_try\System
-..\..\..\experiments\xrt\build\xrt_ucc.exe --guest E:\Unreal2-Port-Investigation\sandbox_cmp\vmprobe_try\System\UCC.exe --log ..\xrt.log --report ..\report.json -- VMProbe.VMProbe
+.venv\Scripts\python -I tools\xrt\make_sandbox.py sandbox_cmp\next_try --probe
+cd sandbox_cmp\next_try\System
+..\..\..\experiments\xrt\build\xrt_ucc.exe --guest E:\Unreal2-Port-Investigation\sandbox_cmp\next_try\System\UCC.exe --log ..\xrt.log --report ..\report.json -- make
 ```
 
-exits 75: `LoadLibraryW(...\System\Engine.dll): the DLL exists but is not part of this translated runtime`, from
-`appGetDllHandle` while `UPackage`'s constructor binds package Engine (`BindPackage`). Expected, since gate F has not
-added Engine.dll to the runtime yet.
+exits 75: `LoadLibraryW(...\System\Editor.dll): the DLL exists but is not part of this translated runtime` (from
+Core's `appGetDllHandle`). Adding Editor.dll is "another module" (lift, register in `xrt_main.c`'s module list,
+then follow its imports), outside this phase's gates.
 
-## Gate F: what the original does (traced, `experiments/xrt/traces/vmprobe.json`)
+## Lift statistics
 
-Engine.dll (preferred base 0x10300000) executes 1429 functions. GlmLib.dll is a static import of Engine.dll (82
-imports). Its preferred base 0x10000000 is taken (by vorbisfile in the original, by Core.dll's range in this layout),
-so the original loader put it at 0x02df0000. It runs CRT initialisation and calls `malloc` (6853), `qsort` (232,
-guest comparator), `toupper` (33), `GetModuleHandleA` (50), `GetTickCount`. msvcr70 imports the runtime does not yet
-implement: `qsort`, `toupper` (GlmLib), `_CIpow` (3073 calls), `_isnan` (Core 3072), `_CIfmod` and `atof` (Core).
-That trace (an older uctrace) attributes 3072 `_CIpow` calls to Engine.dll, but only GlmLib.dll and Core.dll import
-`_CIpow`; the attribution is to be rechecked with the current tracer. Lifted: Engine.dll 16,449 functions (3521 static traps, 2326 EH frames), GlmLib.dll 11,592 functions
-(1556 static traps, 1137 EH frames); all EH funclets/continuations are translated entries.
+Engine.dll: 16,449 functions, 3521 static traps, 2326 EH frames; GlmLib.dll (`--base 0x02df0000`): 11,592
+functions, 1556 static traps, 1137 EH frames, 31,885 relocation fixups at load; all EH funclets/continuations are
+translated entries. msvcr70 `_CIpow` SSE2 core: 644 instructions translated.
 
 ## Next concrete task
 
-Gate F: map lifted modules on demand from `LoadLibraryW` (static imports first, DllMain in dependency order: GlmLib,
-then Engine), apply base relocations for a rebased lift, keep guest stacks out of module ranges, add the six CRT
-adapters with differential tests against msvcr70, register a `vmprobe` case, then follow the concrete failures.
+Decide the next module (Editor.dll for `ucc make`, or the Engine paths of another headless commandlet) and repeat
+the gate-F procedure: fresh trace of the original (uctrace now handles unloads), lift, register, follow the concrete
+failures with adapters ported from the DLL and measured against it. Open items: F2 (DBCS `__getmainargs`), the x87
+tag word, GlmLib's fixed base.
 
 ## Deliberate limitations
 

@@ -17,7 +17,7 @@ import time
 
 INSTALL = r"E:\Launchbox\Games\PC Games\Unreal 2 - The Awakening\singleplayer\System"
 WS = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", ".."))
-IDENTITY_FILES = ("UCC.exe", "Core.dll", "Core.u", "Engine.dll", "Engine.u", "msvcr70.dll")
+IDENTITY_FILES = ("UCC.exe", "Core.dll", "Core.u", "Engine.dll", "Engine.u", "GlmLib.dll", "msvcr70.dll")
 
 
 def sha(p):

@@ -17,8 +17,17 @@
 #include <stdlib.h>
 #include "xrt_internal.h"
 
-extern const XrtLiftedModule xrt_mod_UCC, xrt_mod_Core;
+extern const XrtLiftedModule xrt_mod_UCC, xrt_mod_Core, xrt_mod_Engine, xrt_mod_GlmLib;
 void hle_msvcr70_init(void);
+
+/* Every translated module linked into this host. UCC.exe and Core.dll are mapped at start (Core is UCC's static
+ * import); the others only when the guest loads them (LoadLibrary), together with their translated static
+ * imports, as the Windows loader does. A DLL that exists but is not in this list cannot be loaded (fatal). */
+static const XrtLiftedModule* const lifted_all[] = {&xrt_mod_UCC, &xrt_mod_Core, &xrt_mod_Engine, &xrt_mod_GlmLib};
+#define NLIFTED ((int)(sizeof lifted_all / sizeof lifted_all[0]))
+static XrtModule* init_order[16];   /* DLLs whose DLL_PROCESS_ATTACH completed, in that order */
+static int ninit;
+static char app_dir[520];           /* directory of the guest EXE: where the loader looks for DLLs first */
 
 char xrt_sandbox_root[520];
 uint32_t xrt_cmdline_a;
@@ -100,6 +109,152 @@ void xrt_report_write(uint32_t exit_code, const char* outcome) {
         MoveFileExA(tmp, xrt_report_path, MOVEFILE_REPLACE_EXISTING | MOVEFILE_WRITE_THROUGH);
 }
 
+/* ---------------------------------------------------------------- loader */
+static const char* file_part(const char* p) {
+    const char* b = p;
+    for (; *p; p++)
+        if (*p == '\\' || *p == '/' || *p == ':')
+            b = p + 1;
+    return b;
+}
+
+const XrtLiftedModule* xrt_lifted_find(const char* name) {
+    char want[128];
+    int i;
+    snprintf(want, sizeof want, "%s", file_part(name));
+    if (!strchr(want, '.') && strlen(want) + 4 < sizeof want)
+        strcat(want, ".dll");
+    for (i = 0; i < NLIFTED; i++)
+        if (!_stricmp(lifted_all[i]->name, want))
+            return lifted_all[i];
+    return NULL;
+}
+
+int xrt_lifted_overlap(uint32_t a, uint32_t size, uint32_t* end) {
+    int i;
+    for (i = 0; i < NLIFTED; i++) {
+        uint64_t lo = lifted_all[i]->base, hi = lo + lifted_all[i]->size;
+        if (a < hi && lo < (uint64_t)a + size) {
+            *end = (uint32_t)hi;
+            return 1;
+        }
+    }
+    return 0;
+}
+
+/* DllMain(DLL_PROCESS_ATTACH) under the loader lock; reserved is non-NULL for a load at process start, NULL for
+ * LoadLibrary. A failed initialisation (FALSE) is not modelled: fatal. */
+static void dll_attach(CPU* c, XrtModule* m, uint32_t reserved) {
+    uint32_t args[3], rc = 1;
+    if (m->entry) {
+        args[0] = m->base;
+        args[1] = 1;                              /* DLL_PROCESS_ATTACH */
+        args[2] = reserved;
+        xrt_log("DllMain(%s, DLL_PROCESS_ATTACH)", m->name);
+        xrt_event("dll_attach", "\"module\": \"%s\"", m->name);
+        c->thread->loader_lock++;
+        rc = xrt_call_guest(c, m->entry, 3, args, 1);
+        c->thread->loader_lock--;
+        xrt_event("dll_attach_returned", "\"module\": \"%s\", \"result\": %u", m->name, rc);
+    }
+    if (!rc)
+        xrt_fatal(c, XRT_EXIT_SETUP, "%s DllMain(DLL_PROCESS_ATTACH) returned FALSE", m->name);
+    m->attached = 1;
+    if (ninit == (int)(sizeof init_order / sizeof init_order[0]))
+        xrt_fatal(c, XRT_EXIT_SETUP, "too many initialised DLLs");
+    init_order[ninit++] = m;
+}
+
+/* Map a translated module and, depth first, the translated DLLs it imports that are not mapped yet (found in the
+ * application directory, as the loader's search order finds them there first). Newly mapped modules are appended
+ * to list in completion order: dependencies before the modules that import them. */
+static void map_tree(CPU* c, const char* host_path, const XrtLiftedModule* l, XrtModule** list, int* n) {
+    XrtModule* m = xrt_module_load(host_path, l);
+    uint8_t* hdr = (uint8_t*)G2H(m->base);
+    uint32_t pe = *(uint32_t*)(hdr + 0x3C), dir = *(uint32_t*)(hdr + pe + 24 + 104), d;
+    xrt_event("dll_mapped", "\"module\": \"%s\", \"base\": \"0x%08x\", \"preferred_base\": \"0x%08x\"", m->name, m->base,
+              m->preferred_base);
+    for (d = dir ? m->base + dir : 0; d && rd32(d + 12); d += 20) {
+        const char* dll = (const char*)G2H(m->base + rd32(d + 12));
+        XrtModule* have = xrt_module_by_name(dll);
+        const XrtLiftedModule* dl;
+        char path[600];
+        if (have) {
+            if (have->load_count >= 0)
+                have->load_count++;
+            continue;
+        }
+        if (!(dl = xrt_lifted_find(dll)))
+            continue;                             /* a system DLL: its imports bind to host adapters */
+        snprintf(path, sizeof path, "%s\\%s", app_dir, dl->name);
+        if (GetFileAttributesA(path) == INVALID_FILE_ATTRIBUTES)
+            xrt_fatal(c, XRT_EXIT_IMPORT, "%s imports %s, which is not in %s", m->name, dll, app_dir);
+        map_tree(c, path, dl, list, n);
+    }
+    if (*n == 8)
+        xrt_fatal(c, XRT_EXIT_SETUP, "too many modules in one load");
+    list[(*n)++] = m;
+    m->load_count = 1;
+}
+
+XrtModule* xrt_load_library(CPU* c, const char* host_path) {
+    XrtModule* m = xrt_module_by_name(host_path);
+    XrtModule* list[8];
+    const XrtLiftedModule* l;
+    int n = 0, i;
+    if (m) {
+        if (m->load_count >= 0)
+            m->load_count++;
+        return m;
+    }
+    if (!(l = xrt_lifted_find(host_path)))
+        return NULL;
+    xrt_log("LoadLibrary: loading translated %s", host_path);
+    c->thread->loader_lock++;
+    map_tree(c, host_path, l, list, &n);
+    for (i = 0; i < n; i++)
+        xrt_module_bind_imports(list[i]);
+    for (i = 0; i < n; i++)
+        xrt_watches_arm_module(list[i]);
+    for (i = 0; i < n; i++)
+        dll_attach(c, list[i], 0);
+    c->thread->loader_lock--;
+    return list[n - 1];
+}
+
+int xrt_free_library(CPU* c, XrtModule* m) {
+    if (m->load_count < 0)
+        return 1;                                 /* loaded with the process: stays mapped */
+    if (m->load_count > 1) {
+        m->load_count--;
+        return 1;
+    }
+    xrt_fatal(c, XRT_EXIT_UNSUPPORTED, "FreeLibrary(%s) would unload a translated module: DLL_PROCESS_DETACH on "
+              "unload and unmapping are not modelled", m->name);
+}
+
+/* DLL_THREAD_ATTACH (initialisation order) when a guest thread starts, DLL_THREAD_DETACH (reverse order) when it
+ * ends, for every initialised DLL - none of these modules calls DisableThreadLibraryCalls. Threads the original
+ * process got from the system (not created by guest code) are not modelled. */
+void xrt_dll_thread_notify(CPU* c, uint32_t reason) {
+    XrtModule* order[16];
+    int n = ninit, k;
+    memcpy(order, init_order, sizeof order);
+    c->thread->loader_lock++;
+    for (k = 0; k < n; k++) {
+        XrtModule* m = reason == 2 ? order[k] : order[n - 1 - k];
+        uint32_t args[3];
+        if (!m->attached || !m->entry)
+            continue;
+        args[0] = m->base;
+        args[1] = reason;
+        args[2] = 0;
+        xrt_event(reason == 2 ? "dll_thread_attach" : "dll_thread_detach", "\"module\": \"%s\"", m->name);
+        xrt_call_guest(c, m->entry, 3, args, 1);
+    }
+    c->thread->loader_lock--;
+}
+
 XRT_NORETURN void xrt_process_exit(CPU* c, uint32_t code) {
     int i;
     if (InterlockedExchange(&process_exiting, 1))
@@ -115,8 +270,8 @@ XRT_NORETURN void xrt_process_exit(CPU* c, uint32_t code) {
             xrt_event("thread_at_exit", "\"index\": %d, \"state\": \"%s\"", t->index, t->state == 2 ? "exited" : "alive");
         }
     }
-    for (i = xrt_module_count() - 1; i >= 0; i--) {
-        XrtModule* m = xrt_module_get(i);
+    for (i = ninit - 1; i >= 0; i--) {            /* reverse initialisation order */
+        XrtModule* m = init_order[i];
         if (m->is_dll && m->attached && m->entry) {
             uint32_t args[3] = {m->base, 0 /* DLL_PROCESS_DETACH */, 1 /* process is terminating */};
             uint32_t rc;
@@ -200,7 +355,7 @@ int main(int argc, char** argv) {
     XrtModule *ucc, *core;
     XrtThread* t;
     CPU* c;
-    uint32_t args[3], rc;
+    uint32_t rc;
     for (i = 1; i < argc; i++) {
         if (!strcmp(argv[i], "--"))
             break;
@@ -236,6 +391,7 @@ int main(int argc, char** argv) {
     slash = strrchr(dir, '\\');
     *slash = 0;                                   /* dir = ...\System */
     snprintf(core_path, sizeof core_path, "%s\\Core.dll", dir);
+    snprintf(app_dir, sizeof app_dir, "%s", dir);
     snprintf(xrt_sandbox_root, sizeof xrt_sandbox_root, "%s", dir);
     slash = strrchr(xrt_sandbox_root, '\\');
     if (slash)
@@ -274,16 +430,7 @@ int main(int argc, char** argv) {
     t = xrt_thread_main(xrt_default_stack_reserve);
     xrt_baton_acquire();
     c = &t->cpu;
-    args[0] = core->base;
-    args[1] = 1;                                  /* DLL_PROCESS_ATTACH */
-    args[2] = 1;                                  /* non-NULL: static load, as for an import-time DLL */
-    xrt_log("DllMain(%s, DLL_PROCESS_ATTACH)", core->name);
-    xrt_event("dll_attach", "\"module\": \"%s\"", core->name);
-    rc = xrt_call_guest(c, core->entry, 3, args, 1);
-    xrt_event("dll_attach_returned", "\"module\": \"%s\", \"result\": %u", core->name, rc);
-    if (!rc)
-        xrt_fatal(c, XRT_EXIT_SETUP, "Core.dll DllMain(DLL_PROCESS_ATTACH) returned FALSE");
-    core->attached = 1;
+    dll_attach(c, core, 1);                       /* reserved non-NULL: static load, as for an import-time DLL */
     xrt_log("entering %s entry point %08x", ucc->name, ucc->entry);
     xrt_event("exe_entry", "\"module\": \"%s\"", ucc->name);
     rc = xrt_call_guest(c, ucc->entry, 0, NULL, 1);

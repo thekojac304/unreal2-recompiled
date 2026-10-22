@@ -89,6 +89,8 @@ static int cmp_exname(const void* a, const void* b) {
     return x < y ? -1 : x > y;
 }
 
+static void relocate(XrtModule* m, uint32_t dir, uint32_t size);
+
 XrtModule* xrt_module_load(const char* host_path, const XrtLiftedModule* lifted) {
     FILE* f = fopen(host_path, "rb");
     uint8_t* file;
@@ -119,10 +121,18 @@ XrtModule* xrt_module_load(const char* host_path, const XrtLiftedModule* lifted)
     pe = *(uint32_t*)(file + 0x3C);
     nsec = *(uint16_t*)(file + pe + 6);
     opt = pe + 24;
-    if (*(uint32_t*)(file + opt + 28) != lifted->base || *(uint32_t*)(file + opt + 56) != lifted->size)
-        xrt_fatal(NULL, XRT_EXIT_SETUP, "%s: image base/size differ from the lifted image", host_path);
+    if (*(uint32_t*)(file + opt + 56) != lifted->size)
+        xrt_fatal(NULL, XRT_EXIT_SETUP, "%s: image size differs from the lifted image", host_path);
+    m->preferred_base = *(uint32_t*)(file + opt + 28);
+    if (m->preferred_base != lifted->base && !*(uint32_t*)(file + opt + 140))   /* no base relocation directory */
+        xrt_fatal(NULL, XRT_EXIT_SETUP, "%s was lifted for %08x but has no relocations to move it from %08x", host_path,
+                  lifted->base, m->preferred_base);
+    if (!xrt_range_is_free(lifted->base, lifted->size))
+        xrt_fatal(NULL, XRT_EXIT_SETUP, "%s: guest range %08x-%08x is already in use", host_path, lifted->base,
+                  lifted->base + lifted->size);
     m->base = lifted->base;
     m->size = lifted->size;
+    m->load_count = -1;
     m->entry = *(uint32_t*)(file + opt + 16) ? m->base + *(uint32_t*)(file + opt + 16) : 0;
     m->is_dll = (*(uint16_t*)(file + pe + 22) & 0x2000) != 0;
     if (!m->is_dll)
@@ -130,7 +140,7 @@ XrtModule* xrt_module_load(const char* host_path, const XrtLiftedModule* lifted)
     m->export_dir = *(uint32_t*)(file + opt + 96);
     m->export_dir_size = *(uint32_t*)(file + opt + 100);
     hdrsize = *(uint32_t*)(file + opt + 60);
-    /* map at the preferred base: the lifted code contains absolute addresses for exactly this base */
+    /* map at the base the code was lifted for: the lifted code contains absolute addresses for exactly this base */
     xrt_commit(m->base, m->size);
     memcpy(G2H(m->base), file, hdrsize);
     for (i = 0; i < nsec; i++) {
@@ -142,6 +152,10 @@ XrtModule* xrt_module_load(const char* host_path, const XrtLiftedModule* lifted)
             memcpy(G2H(m->base + rva), file + ptr, n);
     }
     free(file);
+    if (m->base != m->preferred_base) {
+        relocate(m, rd32(m->base + opt + 136), rd32(m->base + opt + 140));
+        wr32(m->base + opt + 28, m->base);   /* the mapped header names the actual base, as on Windows */
+    }
     nmods++;
     /* export names (diagnostics) */
     if (m->export_dir) {
@@ -155,9 +169,33 @@ XrtModule* xrt_module_load(const char* host_path, const XrtLiftedModule* lifted)
         }
         qsort(exnames, nexnames, sizeof *exnames, cmp_exname);
     }
-    xrt_log("mapped %s at %08x size %x entry %08x sha256 %s (%u lifted functions, %u static traps)", m->name, m->base,
-            m->size, m->entry, digest, lifted->nfuncs, lifted->ntraps);
+    xrt_log("mapped %s at %08x%s size %x entry %08x sha256 %s (%u lifted functions, %u static traps)", m->name, m->base,
+            m->base != m->preferred_base ? " (rebased)" : "", m->size, m->entry, digest, lifted->nfuncs, lifted->ntraps);
     return m;
+}
+
+/* Base relocations, as the Windows loader applies them when the preferred base is taken; the lifter applied the
+ * same ones to the image it translated (tools/xrt/xlift.py --base). Only HIGHLOW (and ABSOLUTE padding) occur in
+ * these 32-bit images; anything else is refused. */
+static void relocate(XrtModule* m, uint32_t dir, uint32_t size) {
+    uint32_t delta = m->base - m->preferred_base, p = m->base + dir, end = p + size, n = 0;
+    while (p + 8 <= end) {
+        uint32_t page = rd32(p), block = rd32(p + 4), k;
+        if (block < 8 || p + block > end)
+            xrt_fatal(NULL, XRT_EXIT_SETUP, "%s: malformed relocation block at %08x", m->name, p);
+        for (k = 8; k + 2 <= block; k += 2) {
+            uint16_t e = rd16(p + k);
+            uint32_t a = m->base + page + (e & 0xFFFu);
+            if (e >> 12 == 0)
+                continue;
+            if (e >> 12 != 3 || a - m->base > m->size - 4)
+                xrt_fatal(NULL, XRT_EXIT_SETUP, "%s: unsupported relocation %04x in block %08x", m->name, e, page);
+            wr32(a, rd32(a) + delta);
+            n++;
+        }
+        p += block;
+    }
+    xrt_log("relocated %s from %08x to %08x: %u fixups", m->name, m->preferred_base, m->base, n);
 }
 
 const char* xrt_export_name_at(uint32_t va) {

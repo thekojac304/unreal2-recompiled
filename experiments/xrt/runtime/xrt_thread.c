@@ -34,6 +34,8 @@ static int baton_waiters(void) {
 }
 
 void xrt_preempt(CPU* c) {
+    if (c->thread->loader_lock)
+        return;                       /* DllMain notifications run under the loader lock: yield after them */
     xrt_preempt_req = 0;
     if (xrt_exiting || baton_waiters() <= 0)
         return;
@@ -69,6 +71,9 @@ void xrt_baton_acquire(void) {
 }
 
 void xrt_baton_release(void) {
+    if (xrt_cur && xrt_cur->loader_lock && xrt_cur->state == 1)
+        xrt_fatal(&xrt_cur->cpu, XRT_EXIT_UNSUPPORTED, "blocking call while thread %d holds the loader lock (inside "
+                  "DllMain or LoadLibrary): not modelled", xrt_cur->index);
     AcquireSRWLockExclusive(&baton_lock);
     if (baton_owner != GetCurrentThreadId())
         xrt_fatal(NULL, XRT_EXIT_SETUP, "baton released by a thread that does not hold it");
@@ -90,8 +95,14 @@ static XrtThread* new_thread(uint32_t reserve) {
     if (!t || nthreads == (int)(sizeof threads / sizeof threads[0]))
         xrt_fatal(NULL, XRT_EXIT_SETUP, "cannot create guest thread record");
     reserve = (reserve + 0xFFFFu) & ~0xFFFFu;
-    if ((uint64_t)stack_next + guard + reserve > XRT_STACK_END)
-        xrt_fatal(NULL, XRT_EXIT_SETUP, "guest stack region exhausted");
+    for (;;) {                          /* keep stacks out of every translated module's image range */
+        uint32_t end;
+        if ((uint64_t)stack_next + guard + reserve > XRT_STACK_END)
+            xrt_fatal(NULL, XRT_EXIT_SETUP, "guest stack region exhausted");
+        if (!xrt_lifted_overlap(stack_next, guard + reserve, &end))
+            break;
+        stack_next = (end + 0xFFFFu) & ~0xFFFFu;
+    }
     t->stack_lo = stack_next + guard;   /* the guard region below stays uncommitted: overflow faults */
     t->stack_hi = t->stack_lo + reserve;
     stack_next = t->stack_hi;
@@ -138,11 +149,14 @@ static DWORD WINAPI host_thread_proc(void* p) {
     xrt_describe(d, sizeof d, t->start_va);
     xrt_log("thread %d running: guest entry %s, param %08x", t->index, d, t->param);
     xrt_event("thread_start", "\"index\": %d, \"entry\": \"0x%08x\"", t->index, t->start_va);
+    xrt_dll_thread_notify(c, 2);                                      /* DLL_THREAD_ATTACH */
     if (setjmp(t->exit_jmp) == 0) {
         uint32_t arg = t->param;
         t->exit_code = xrt_call_guest(c, t->start_va, 1, &arg, 1);   /* LPTHREAD_START_ROUTINE is __stdcall */
         t->exit_via = 2;
     }
+    if (!xrt_exiting)
+        xrt_dll_thread_notify(c, 3);                                  /* DLL_THREAD_DETACH, on this thread */
     t->state = 2;
     xrt_log("thread %d exited with code %u via %s after %llu Sleep calls (%llu contended critical sections, %llu preemptions)",
             t->index, t->exit_code, t->exit_via == 1 ? "ExitThread" : "return from its entry point", t->sleeps, t->cs_waits,

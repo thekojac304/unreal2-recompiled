@@ -361,16 +361,27 @@ static void hle_GetModuleFileNameA(CPU* c) {
     RET_STD(3, len);
 }
 
-/* LoadLibrary: a translated module is "already loaded" and returns its base. A file that does not exist
- * fails exactly as on Windows (NULL, ERROR_MOD_NOT_FOUND) - the engine probes a DLL for every package,
- * e.g. "Transient", and expects that failure. An existing DLL that is not translated cannot be emulated
- * and is fatal. Windows appends ".dll" to a name without an extension. */
+/* LoadLibrary: a mapped translated module returns its base (one more reference). An existing DLL that is a
+ * translated module linked into this host is mapped with its translated static imports and initialised
+ * (xrt_load_library). A file that does not exist fails exactly as on Windows (NULL, ERROR_MOD_NOT_FOUND) - the
+ * engine probes a DLL for every package, e.g. "Transient", and expects that failure. Any other existing DLL cannot
+ * be emulated and is fatal. Windows appends ".dll" to a name without an extension. */
 static uint64_t loadlib_missing;
+static void loadlib_event(const char* path, uint32_t result, uint32_t site) {   /* evidence: file name, result, caller */
+    const char *b = path, *p;
+    char q[300];
+    for (p = path; *p; p++)
+        if (*p == '\\' || *p == '/' || *p == ':')
+            b = p + 1;
+    xrt_event("load_library", "\"name\": %s, \"result\": \"0x%08x\", \"site\": \"0x%08x\"", xrt_jstr(q, sizeof q, b), result,
+              site);
+}
 static void hle_LoadLibraryW(CPU* c) {
     WCHAR w[MAX_PATH * 2], sys[MAX_PATH];
     char a[600];
     XrtModule* m;
     const WCHAR *base, *q;
+    uint32_t site = rd32(c->r[ESP]);
     lstrcpynW(w, (LPCWSTR)G2H(ARG(0)), MAX_PATH);
     for (base = q = w; *q; q++)
         if (*q == L'\\' || *q == L'/' || *q == L':')
@@ -380,12 +391,21 @@ static void hle_LoadLibraryW(CPU* c) {
     WideCharToMultiByte(CP_ACP, 0, w, -1, a, sizeof a, NULL, NULL);
     m = xrt_module_by_name(a);
     if (m) {
+        xrt_load_library(c, m->path);
         xrt_log("LoadLibraryW(\"%s\") -> translated %s at %08x", a, m->name, m->base);
+        loadlib_event(a, m->base, site);
         RET_STD(1, m->base);
         return;
     }
-    if (GetFileAttributesW(w) != INVALID_FILE_ATTRIBUTES)
-        xrt_fatal(c, XRT_EXIT_IMPORT, "LoadLibraryW(\"%s\"): the DLL exists but is not part of this translated runtime", a);
+    if (GetFileAttributesW(w) != INVALID_FILE_ATTRIBUTES) {
+        char full[600];
+        if (!GetFullPathNameA(a, sizeof full, full, NULL) || !(m = xrt_load_library(c, full)))
+            xrt_fatal(c, XRT_EXIT_IMPORT, "LoadLibraryW(\"%s\"): the DLL exists but is not part of this translated runtime", a);
+        xrt_log("LoadLibraryW(\"%s\") -> loaded translated %s at %08x", a, m->name, m->base);
+        loadlib_event(a, m->base, site);
+        RET_STD(1, m->base);
+        return;
+    }
     GetSystemDirectoryW(sys, MAX_PATH);
     if (base == w) {
         WCHAR s2[MAX_PATH * 2];
@@ -395,12 +415,14 @@ static void hle_LoadLibraryW(CPU* c) {
     }
     loadlib_missing++;
     xrt_log("LoadLibraryW(\"%s\") -> NULL (no such file, ERROR_MOD_NOT_FOUND as on Windows)", a);
+    loadlib_event(a, 0, site);
     xrt_set_last_error(c, ERROR_MOD_NOT_FOUND);
     RET_STD(1, 0);
 }
 
 static void hle_FreeLibrary(CPU* c) {
-    RET_STD(1, module_of_handle(ARG(0)) ? 1 : 0);
+    XrtModule* m = module_of_handle(ARG(0));
+    RET_STD(1, m ? xrt_free_library(c, m) : 0);
 }
 
 static uint64_t gpa_calls, gpa_misses;
@@ -416,6 +438,15 @@ static void hle_GetProcAddress(CPU* c) {
         xrt_set_last_error(c, ERROR_PROC_NOT_FOUND);
     }
     RET_STD(2, r);
+}
+
+/* FreeConsole (GlmLib.dll's initialisation calls it once). The console is not modelled: in the measured runs the
+ * guest's stdout is a file (redirected by the harness), whose later output FreeConsole does not affect; the host
+ * keeps its console. With stdout on a console the original would lose its later output: not modelled. */
+static void hle_FreeConsole(CPU* c) {
+    xrt_log("FreeConsole: recorded; the console is not modelled (the host keeps its console)");
+    xrt_event("free_console", NULL);
+    RET_STD(0, 1);
 }
 
 static void hle_SetConsoleCtrlHandler(CPU* c) {
@@ -530,6 +561,44 @@ static void hle_WideCharToMultiByte(CPU* c) {
 }
 
 static void hle_GetTickCount(CPU* c) { RET_STD(0, GetTickCount()); }
+
+/* time and identity sources (GlmLib.dll's CRT startup derives its /GS cookie from these; the values are host
+ * values, as nondeterministic as in the original) */
+static void hle_GetSystemTimeAsFileTime(CPU* c) {
+    FILETIME ft;
+    GetSystemTimeAsFileTime(&ft);
+    wr32(ARG(0), ft.dwLowDateTime);
+    wr32(ARG(0) + 4, ft.dwHighDateTime);
+    RET_STD(1, 0);
+}
+static void hle_GetCurrentProcessId(CPU* c) { RET_STD(0, rd32(c->fs_base + 0x20)); }
+static void hle_GetCurrentThreadId(CPU* c) { RET_STD(0, c->thread->guest_tid); }
+static void hle_QueryPerformanceCounter(CPU* c) {
+    LARGE_INTEGER v;
+    QueryPerformanceCounter(&v);
+    wr32(ARG(0), v.LowPart);
+    wr32(ARG(0) + 4, (uint32_t)v.HighPart);
+    RET_STD(1, 1);
+}
+static void hle_QueryPerformanceFrequency(CPU* c) {
+    LARGE_INTEGER v;
+    QueryPerformanceFrequency(&v);
+    wr32(ARG(0), v.LowPart);
+    wr32(ARG(0) + 4, (uint32_t)v.HighPart);
+    RET_STD(1, 1);
+}
+
+/* Interlocked*: guest threads run one at a time (execution baton), so a plain read-modify-write is atomic */
+static void hle_InterlockedIncrement(CPU* c) {
+    uint32_t v = rd32(ARG(0)) + 1;
+    wr32(ARG(0), v);
+    RET_STD(1, v);
+}
+static void hle_InterlockedDecrement(CPU* c) {
+    uint32_t v = rd32(ARG(0)) - 1;
+    wr32(ARG(0), v);
+    RET_STD(1, v);
+}
 
 static void hle_ExitProcess(CPU* c) {
     xrt_stdout_flush();
@@ -654,6 +723,7 @@ const XrtHle xrt_hle_kernel32[] = {
     {"kernel32.dll", "FreeLibrary", hle_FreeLibrary},
     {"kernel32.dll", "GetProcAddress", hle_GetProcAddress},
     {"kernel32.dll", "SetConsoleCtrlHandler", hle_SetConsoleCtrlHandler},
+    {"kernel32.dll", "FreeConsole", hle_FreeConsole},
     {"kernel32.dll", "GetProcessWorkingSetSize", hle_GetProcessWorkingSetSize},
     {"kernel32.dll", "GetSystemInfo", hle_GetSystemInfo},
     {"kernel32.dll", "GlobalMemoryStatus", hle_GlobalMemoryStatus},
@@ -662,6 +732,13 @@ const XrtHle xrt_hle_kernel32[] = {
     {"kernel32.dll", "MultiByteToWideChar", hle_MultiByteToWideChar},
     {"kernel32.dll", "WideCharToMultiByte", hle_WideCharToMultiByte},
     {"kernel32.dll", "GetTickCount", hle_GetTickCount},
+    {"kernel32.dll", "GetSystemTimeAsFileTime", hle_GetSystemTimeAsFileTime},
+    {"kernel32.dll", "GetCurrentProcessId", hle_GetCurrentProcessId},
+    {"kernel32.dll", "GetCurrentThreadId", hle_GetCurrentThreadId},
+    {"kernel32.dll", "QueryPerformanceCounter", hle_QueryPerformanceCounter},
+    {"kernel32.dll", "QueryPerformanceFrequency", hle_QueryPerformanceFrequency},
+    {"kernel32.dll", "InterlockedIncrement", hle_InterlockedIncrement},
+    {"kernel32.dll", "InterlockedDecrement", hle_InterlockedDecrement},
     {"kernel32.dll", "ExitProcess", hle_ExitProcess},
     {"kernel32.dll", "Sleep", hle_Sleep},
     {"kernel32.dll", "CreateThread", hle_CreateThread},

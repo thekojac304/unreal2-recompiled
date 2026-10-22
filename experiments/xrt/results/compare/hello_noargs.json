@@ -1,7 +1,7 @@
 {
- "runner_schema": 3,
- "invocation_id": "20261022-193849-832a4aa5",
- "invocation_dir": "experiments/xrt/results/raw/runs/20261022-193849-832a4aa5",
+ "runner_schema": 4,
+ "invocation_id": "20261022-203729-b7c9f142",
+ "invocation_dir": "experiments/xrt/results/raw/runs/20261022-203729-b7c9f142",
  "case": "hello_noargs",
  "args": [
   "Core.HelloWorldCommandlet"
@@ -30,19 +30,33 @@
  "reference": "fresh-original",
  "identity": {
   "git": {
-   "head": "012000536db2b5d8754b5ab29bd826b7f394db70",
+   "head": "ad0d60082a50525586334bba9ce09e8b65a3fdde",
    "tracked_files_modified": true,
    "modified": [
-    "M CURRENT_STATUS.md"
+    "M experiments/xrt/build_xrt.cmd",
+    " M experiments/xrt/runtime/hle_kernel32.c",
+    " M experiments/xrt/runtime/hle_msvcr70.c",
+    " M experiments/xrt/runtime/xrt_events.c",
+    " M experiments/xrt/runtime/xrt_fmt.c",
+    " M experiments/xrt/runtime/xrt_internal.h",
+    " M experiments/xrt/runtime/xrt_loader.c",
+    " M experiments/xrt/runtime/xrt_main.c",
+    " M experiments/xrt/runtime/xrt_mem.c",
+    " M experiments/xrt/runtime/xrt_thread.c",
+    " M experiments/xrt/tracer/uctrace.c",
+    " M tools/xrt/cases.py",
+    " M tools/xrt/make_sandbox.py",
+    " M tools/xrt/run_xrt.py",
+    " M tools/xrt/tests/test_run_xrt.py"
    ]
   },
   "runner": {
    "path": "tools/xrt/run_xrt.py",
-   "sha256": "f01877624422881106351cfeb158139bf1c15bed5fac0b3a5efb3cb3e252e986"
+   "sha256": "09e60bbbed9b6d1f6aeb7f06b379aac7c3d449b2c66b7afa154e111636f221ee"
   },
   "cases_registry": {
    "path": "tools/xrt/cases.py",
-   "sha256": "ac3658b02748bfe18b12112ad4cce7db3fbffe0ea1c6546f29d6a7f659a19c9f"
+   "sha256": "960c7f86022618324ea0844d45015fae01f1d771d1d16b51a5c3aa584e24c25e"
   },
   "marks": {
    "path": "tools/xrt/marks.json",
@@ -54,25 +68,25 @@
   },
   "runtime_sources": {
    "path": "experiments/xrt/runtime",
-   "files": 14,
-   "sha256": "b808865ebdd767cb5768929e0213ec6e275b59939f29adc6cc392273b2aab883"
+   "files": 15,
+   "sha256": "5fcc4c9c1906c6bfe7d2acbcd64c5f059f0f1c4f5077868d62dc03ae83ddfa42"
   },
   "generated_code": {
    "path": "experiments/xrt/gen",
-   "files": 147,
-   "sha256": "42805624e120dfe04ea6974b07bf4e113b535f45b6edd94c2c6967afa9cf6e75"
+   "files": 148,
+   "sha256": "dcb0bb01c589d96d31ed94268951f4f20cdef90e2d8b437d3a990297b21270ba"
   },
   "candidate": {
    "path": "experiments/xrt/build/xrt_ucc.exe",
-   "sha256": "b3a981021a2eb0aa8402639c07827bc29d55e348b75c74765bf5fe3750963c7b"
+   "sha256": "e21eaf00f7b89104c8fc248af363462dc8228b4b6935954348d4053ab70273fc"
   },
   "tracer": {
    "path": "experiments/xrt/build/tracer/uctrace.exe",
-   "sha256": "06aa8b804ceacb9bcba0bbe1a451fdbf928da45ba02a3716c65d8716c1ea08e1"
+   "sha256": "3106b6ce73baeb04caa741eccd3694a907c522cd02e1a610be56b83239c444af"
   },
   "tracer_source": {
    "path": "experiments/xrt/tracer/uctrace.c",
-   "sha256": "37f5daad8f182540aba7ee26e640d8cd93fc223c6ff0f61d5f5ddabe1aaea813"
+   "sha256": "f76db4a0212fd77b469b3b22150a739ad47b8a7234494b446ef97f8a55a5278b"
   },
   "eh_points_tool": {
    "path": "tools/xrt/eh_points.py",
@@ -84,11 +98,11 @@
  "runs": [
   {
    "run": 0,
-   "dir": "experiments/xrt/results/raw/runs/20261022-193849-832a4aa5/hello_noargs/run0",
+   "dir": "experiments/xrt/results/raw/runs/20261022-203729-b7c9f142/hello_noargs/run0",
    "verdict": "PASS",
    "candidate": {
     "exit_code": 0,
-    "seconds": 1.734,
+    "seconds": 1.733,
     "stdout_sha256": "c6e224c334947155ec2ca77439a9d7207b5fb33dd9ffa089a56bf3198844ba08",
     "command_line": "E:\\Unreal2-Port-Investigation\\sandbox_cmp\\hello_noargs\\System\\UCC.exe Core.HelloWorldCommandlet",
     "inputs": {
@@ -97,6 +111,7 @@
      "Core.u": "8c649483717de4d88d218d5bab129173d137950985eb8d4d61b91104869afe0f",
      "Engine.dll": "f951becf4069f4976a76c027c04f7acaf73435578190216359c3a9936e618499",
      "Engine.u": "bf660c827ea7f3a90e023d941fb55f553626bde5540046d8cf2c99f5d31adf03",
+     "GlmLib.dll": "85399770648383236ae3e9cc84b9bd94ae0261bd2ca4691dbc1fc4b314a4bdf3",
      "msvcr70.dll": "f68e4cdbc879423ea47d763a6768567f5f8063924f13a74239750c13fa8d168a",
      "VMProbe.u": "5d2c77d7a1afe4c9cff8a9303eba091578fe8d9c8fb6aa3aa266337f0e965991",
      "VMProbe.ini": "9cee79720c913cea667c7de14a157c80050909d911ec99d76beed2b8743d26b2"
@@ -108,7 +123,7 @@
    "original": {
     "tool": "direct",
     "exit_code": 0,
-    "seconds": 1.725,
+    "seconds": 1.75,
     "stdout_sha256": "c6e224c334947155ec2ca77439a9d7207b5fb33dd9ffa089a56bf3198844ba08",
     "command_line": "E:\\Unreal2-Port-Investigation\\sandbox_cmp\\hello_noargs\\System\\UCC.exe Core.HelloWorldCommandlet",
     "written": [
@@ -160,7 +175,7 @@
     {
      "group": "worker_creation_and_execution",
      "ok": true,
-     "checks_passed": 5,
+     "checks_passed": 7,
      "failed_checks": []
     },
     {
@@ -172,24 +187,24 @@
     {
      "group": "worker_termination_and_wait_completion",
      "ok": true,
-     "checks_passed": 8,
+     "checks_passed": 10,
      "failed_checks": []
     },
     {
      "group": "engine_cleanup_and_exit",
      "ok": true,
-     "checks_passed": 14,
+     "checks_passed": 15,
      "failed_checks": []
     }
    ]
   },
   {
    "run": 1,
-   "dir": "experiments/xrt/results/raw/runs/20261022-193849-832a4aa5/hello_noargs/run1",
+   "dir": "experiments/xrt/results/raw/runs/20261022-203729-b7c9f142/hello_noargs/run1",
    "verdict": "PASS",
    "candidate": {
     "exit_code": 0,
-    "seconds": 1.738,
+    "seconds": 1.739,
     "stdout_sha256": "c6e224c334947155ec2ca77439a9d7207b5fb33dd9ffa089a56bf3198844ba08",
     "command_line": "E:\\Unreal2-Port-Investigation\\sandbox_cmp\\hello_noargs\\System\\UCC.exe Core.HelloWorldCommandlet",
     "inputs": {
@@ -198,6 +213,7 @@
      "Core.u": "8c649483717de4d88d218d5bab129173d137950985eb8d4d61b91104869afe0f",
      "Engine.dll": "f951becf4069f4976a76c027c04f7acaf73435578190216359c3a9936e618499",
      "Engine.u": "bf660c827ea7f3a90e023d941fb55f553626bde5540046d8cf2c99f5d31adf03",
+     "GlmLib.dll": "85399770648383236ae3e9cc84b9bd94ae0261bd2ca4691dbc1fc4b314a4bdf3",
      "msvcr70.dll": "f68e4cdbc879423ea47d763a6768567f5f8063924f13a74239750c13fa8d168a",
      "VMProbe.u": "5d2c77d7a1afe4c9cff8a9303eba091578fe8d9c8fb6aa3aa266337f0e965991",
      "VMProbe.ini": "9cee79720c913cea667c7de14a157c80050909d911ec99d76beed2b8743d26b2"
@@ -209,7 +225,7 @@
    "original": {
     "tool": "direct",
     "exit_code": 0,
-    "seconds": 1.726,
+    "seconds": 1.728,
     "stdout_sha256": "c6e224c334947155ec2ca77439a9d7207b5fb33dd9ffa089a56bf3198844ba08",
     "command_line": "E:\\Unreal2-Port-Investigation\\sandbox_cmp\\hello_noargs\\System\\UCC.exe Core.HelloWorldCommandlet",
     "written": [
@@ -261,7 +277,7 @@
     {
      "group": "worker_creation_and_execution",
      "ok": true,
-     "checks_passed": 5,
+     "checks_passed": 7,
      "failed_checks": []
     },
     {
@@ -273,24 +289,24 @@
     {
      "group": "worker_termination_and_wait_completion",
      "ok": true,
-     "checks_passed": 8,
+     "checks_passed": 10,
      "failed_checks": []
     },
     {
      "group": "engine_cleanup_and_exit",
      "ok": true,
-     "checks_passed": 14,
+     "checks_passed": 15,
      "failed_checks": []
     }
    ]
   },
   {
    "run": 2,
-   "dir": "experiments/xrt/results/raw/runs/20261022-193849-832a4aa5/hello_noargs/run2",
+   "dir": "experiments/xrt/results/raw/runs/20261022-203729-b7c9f142/hello_noargs/run2",
    "verdict": "PASS",
    "candidate": {
     "exit_code": 0,
-    "seconds": 1.734,
+    "seconds": 1.77,
     "stdout_sha256": "c6e224c334947155ec2ca77439a9d7207b5fb33dd9ffa089a56bf3198844ba08",
     "command_line": "E:\\Unreal2-Port-Investigation\\sandbox_cmp\\hello_noargs\\System\\UCC.exe Core.HelloWorldCommandlet",
     "inputs": {
@@ -299,6 +315,7 @@
      "Core.u": "8c649483717de4d88d218d5bab129173d137950985eb8d4d61b91104869afe0f",
      "Engine.dll": "f951becf4069f4976a76c027c04f7acaf73435578190216359c3a9936e618499",
      "Engine.u": "bf660c827ea7f3a90e023d941fb55f553626bde5540046d8cf2c99f5d31adf03",
+     "GlmLib.dll": "85399770648383236ae3e9cc84b9bd94ae0261bd2ca4691dbc1fc4b314a4bdf3",
      "msvcr70.dll": "f68e4cdbc879423ea47d763a6768567f5f8063924f13a74239750c13fa8d168a",
      "VMProbe.u": "5d2c77d7a1afe4c9cff8a9303eba091578fe8d9c8fb6aa3aa266337f0e965991",
      "VMProbe.ini": "9cee79720c913cea667c7de14a157c80050909d911ec99d76beed2b8743d26b2"
@@ -310,7 +327,7 @@
    "original": {
     "tool": "direct",
     "exit_code": 0,
-    "seconds": 1.735,
+    "seconds": 1.719,
     "stdout_sha256": "c6e224c334947155ec2ca77439a9d7207b5fb33dd9ffa089a56bf3198844ba08",
     "command_line": "E:\\Unreal2-Port-Investigation\\sandbox_cmp\\hello_noargs\\System\\UCC.exe Core.HelloWorldCommandlet",
     "written": [
@@ -362,7 +379,7 @@
     {
      "group": "worker_creation_and_execution",
      "ok": true,
-     "checks_passed": 5,
+     "checks_passed": 7,
      "failed_checks": []
     },
     {
@@ -374,13 +391,13 @@
     {
      "group": "worker_termination_and_wait_completion",
      "ok": true,
-     "checks_passed": 8,
+     "checks_passed": 10,
      "failed_checks": []
     },
     {
      "group": "engine_cleanup_and_exit",
      "ok": true,
-     "checks_passed": 14,
+     "checks_passed": 15,
      "failed_checks": []
     }
    ]

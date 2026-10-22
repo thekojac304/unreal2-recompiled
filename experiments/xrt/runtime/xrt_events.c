@@ -143,20 +143,22 @@ void xrt_watch_store(CPU* c, XrtWatchDef* w, uint32_t site) {
     w->last = v;
 }
 
-void xrt_watches_arm(void) {
-    int i;
+void xrt_watches_arm_module(XrtModule* m) {
     uint32_t k;
     char nm[160];
-    for (i = 0; i < xrt_module_count(); i++) {
-        XrtModule* m = xrt_module_get(i);
-        for (k = 0; k < m->lifted->nwatches; k++) {
-            XrtWatchDef* w = &m->lifted->watches[k];
-            w->last = watch_read(w);
-            w->armed = 1;
-            xrt_event("watch_initial", "\"name\": %s, \"addr\": \"0x%08x\", \"value\": %d", xrt_jstr(nm, sizeof nm, w->name),
-                      w->addr, (int32_t)w->last);
-        }
+    for (k = 0; k < m->lifted->nwatches; k++) {
+        XrtWatchDef* w = &m->lifted->watches[k];
+        w->last = watch_read(w);
+        w->armed = 1;
+        xrt_event("watch_initial", "\"name\": %s, \"addr\": \"0x%08x\", \"value\": %d", xrt_jstr(nm, sizeof nm, w->name),
+                  w->addr, (int32_t)w->last);
     }
+}
+
+void xrt_watches_arm(void) {
+    int i;
+    for (i = 0; i < xrt_module_count(); i++)
+        xrt_watches_arm_module(xrt_module_get(i));
     InterlockedExchange(&watches_armed, 1);
 }
 
@@ -170,7 +172,10 @@ void xrt_watches_check(CPU* c, const char* import, uint32_t site) {
         XrtModule* m = xrt_module_get(i);
         for (k = 0; k < m->lifted->nwatches; k++) {
             XrtWatchDef* w = &m->lifted->watches[k];
-            uint32_t v = watch_read(w);
+            uint32_t v;
+            if (!w->armed)
+                continue;
+            v = watch_read(w);
             if (v != w->last) {
                 char nm[160], d[512], where[600], imp[300];
                 xrt_describe(d, sizeof d, site);

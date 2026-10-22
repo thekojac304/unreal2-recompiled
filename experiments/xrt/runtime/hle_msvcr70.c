@@ -1,16 +1,17 @@
-/* hle_msvcr70.c - host adapters for the MSVCR70.dll imports of UCC.exe and Core.dll (cdecl).
+/* hle_msvcr70.c - host adapters for the MSVCR70.dll imports of the translated modules (cdecl).
  *
- * Semantics follow msvcr70 in the "C" locale (neither module calls setlocale), not the host UCRT:
- * string functions fold only A-Z, wcscmp returns -1/0/1, rand() is the msvcr70 per-thread LCG,
+ * Semantics follow msvcr70 in the "C" locale (no translated module calls setlocale: it is unbound), not the
+ * host UCRT: string functions fold only A-Z, wcscmp returns -1/0/1, rand() is the msvcr70 per-thread LCG,
  * _vsnwprintf returns -1 on truncation and omits the terminator when the output fills the buffer exactly,
  * wide stdout output skips characters the "C" locale cannot convert (> 0xFF) and wprintf then counts as
- * _woutput does (xrt_fmt.c), and stdout is a text-mode stream ('\n' -> "\r\n"). Exception dispatch
- * (_CxxThrowException and the frame handlers) is not supported: reaching it is fatal with a description
- * of the thrown object. */
+ * _woutput does (xrt_fmt.c), and stdout is a text-mode stream ('\n' -> "\r\n"). qsort and atof are ports of
+ * the DLL's own code (read from the binary). errno is not modelled (_errno is unbound). C++ exception
+ * dispatch (_CxxThrowException) is in xrt_eh.c. */
 #define WIN32_LEAN_AND_MEAN
 #include <windows.h>
 #include <fcntl.h>
 #include <io.h>
+#include <math.h>
 #include <stdlib.h>
 #include <time.h>
 #include "xrt_internal.h"
@@ -70,8 +71,29 @@ void hle_msvcr70_init(void) {
     _setmode(_fileno(stdout), _O_BINARY);   /* text-mode translation is done above, exactly once */
 }
 
+/* XRT_MATH_LOG=<file>: records the operands and results of _CIpow, _CIfmod, _isnan and atof (one line per call, bit
+ * patterns in hex), so the inputs of a real run can be replayed against msvcr70 (tools/xrt/tests/crt_gatef). */
+static FILE* math_log;
+static int math_log_tried;
+static FILE* mlog(void) {
+    if (!math_log_tried) {
+        const char* p = getenv("XRT_MATH_LOG");
+        math_log_tried = 1;
+        if (p && *p)
+            math_log = fopen(p, "w");
+    }
+    return math_log;
+}
+static uint64_t dbits(double x) {
+    uint64_t b;
+    memcpy(&b, &x, 8);
+    return b;
+}
+
 /* ---------------------------------------------------------------- heap */
-static void hle_malloc(CPU* c) { RET_C(xrt_heap_alloc(ARG(0))); }
+/* msvcr70 on Windows NT 5+ uses the system heap: malloc(0) allocates 1 byte, _msize is HeapSize (the requested size) */
+static void hle_malloc(CPU* c) { RET_C(xrt_heap_alloc(ARG(0) ? ARG(0) : 1u)); }
+static void hle_msize(CPU* c) { RET_C(xrt_heap_msize(c, ARG(0))); }
 static void hle_free(CPU* c) { xrt_heap_free(c, ARG(0)); RET_C_VOID(); }
 static void hle_realloc(CPU* c) { RET_C(xrt_heap_realloc(c, ARG(0), ARG(1))); }
 
@@ -552,6 +574,596 @@ static void hle_wtoi(CPU* c) {
     RET_C(sign == '-' ? 0u - total : total);
 }
 
+/* ---------------------------------------------------------------- narrow characters and strings ("C" locale) */
+static void hle_toupper(CPU* c) {
+    int32_t ch = (int32_t)ARG(0);
+    RET_C((uint32_t)(ch >= 'a' && ch <= 'z' ? ch - ('a' - 'A') : ch));
+}
+
+static void hle_strchr(CPU* c) {
+    uint32_t s = ARG(0);
+    uint8_t ch = (uint8_t)ARG(1);
+    for (;; s++) {
+        uint8_t v = rd8(s);
+        if (v == ch) {
+            RET_C(s);
+            return;
+        }
+        if (!v) {
+            RET_C(0);
+            return;
+        }
+    }
+}
+
+static uint8_t afold(uint8_t ch) { return (uint8_t)((uint8_t)(ch - 'A') < 26u ? ch + 0x20 : ch); }
+static void hle_stricmp(CPU* c) {          /* __ascii_stricmp: A-Z folded to lower case, unsigned, -1/0/1 */
+    uint32_t a = ARG(0), b = ARG(1);
+    for (;; a++, b++) {
+        uint8_t x = rd8(a), y = rd8(b);
+        if (x == y) {
+            if (!x) {
+                RET_C(0);
+                return;
+            }
+            continue;
+        }
+        x = afold(x);
+        y = afold(y);
+        if (x != y) {
+            RET_C(x < y ? 0xFFFFFFFFu : 1u);
+            return;
+        }
+    }
+}
+
+static void hle_atoi(CPU* c) {             /* atol: isspace, one sign, decimal digits, wrap-around */
+    uint32_t s = ARG(0), total = 0;
+    uint8_t ch, sign;
+    while ((ch = rd8(s)) == ' ' || (ch >= 0x09 && ch <= 0x0D))
+        s++;
+    ch = sign = rd8(s++);
+    if (ch == '-' || ch == '+')
+        ch = rd8(s++);
+    while (ch >= '0' && ch <= '9') {
+        total = total * 10u + (uint32_t)(ch - '0');
+        ch = rd8(s++);
+    }
+    RET_C(sign == '-' ? 0u - total : total);
+}
+
+/* sprintf: _output into an unbounded string stream (it never fails), then the terminator */
+typedef struct StrOut { uint32_t dst, n; } StrOut;
+static int strout_put(void* ctx, uint16_t ch) {
+    StrOut* s = (StrOut*)ctx;
+    wr8(s->dst + s->n++, (uint8_t)ch);
+    return 1;
+}
+static void hle_sprintf(CPU* c) {
+    StrOut s;
+    int32_t r;
+    s.dst = ARG(0);
+    s.n = 0;
+    r = xrt_output(ARG(1), c->r[ESP] + 12, strout_put, &s);
+    wr8(s.dst + s.n, 0);
+    RET_C((uint32_t)r);
+}
+
+/* ---------------------------------------------------------------- qsort
+ * msvcr70's algorithm as read from the DLL: median of three (lo, mid, hi), a partition that skips elements
+ * equal to the pivot and follows the pivot when it is swapped, the smaller part sorted first with the larger
+ * one on a 30-entry stack, and a max-selection sort for 8 elements or fewer. The comparator is guest code
+ * (cdecl) and sees the DLL's sequence of calls, so the order of equal keys is the DLL's too. */
+static int qs_cmp(CPU* c, uint32_t comp, uint32_t a, uint32_t b) {
+    uint32_t args[2];
+    args[0] = a;
+    args[1] = b;
+    return (int32_t)xrt_call_guest(c, comp, 2, args, 0);
+}
+
+static void qs_swap(uint32_t a, uint32_t b, uint32_t width) {
+    if (a != b)
+        for (; width; width--, a++, b++) {
+            uint8_t t = rd8(a);
+            wr8(a, rd8(b));
+            wr8(b, t);
+        }
+}
+
+static void hle_qsort(CPU* c) {
+    uint32_t base = ARG(0), num = ARG(1), width = ARG(2), comp = ARG(3);
+    uint32_t lo, hi, mid, loguy, higuy, size, lostk[30], histk[30];
+    int stkptr = 0;
+    if (num < 2 || width == 0) {
+        RET_C_VOID();
+        return;
+    }
+    lo = base;
+    hi = base + width * (num - 1);
+recurse:
+    size = (hi - lo) / width + 1;
+    if (size <= 8) {
+        while (hi > lo) {                   /* shortsort */
+            uint32_t max = lo, p;
+            for (p = lo + width; p <= hi; p += width)
+                if (qs_cmp(c, comp, p, max) > 0)
+                    max = p;
+            qs_swap(max, hi, width);
+            hi -= width;
+        }
+    } else {
+        mid = lo + (size / 2) * width;
+        if (qs_cmp(c, comp, lo, mid) > 0)
+            qs_swap(lo, mid, width);
+        if (qs_cmp(c, comp, lo, hi) > 0)
+            qs_swap(lo, hi, width);
+        if (qs_cmp(c, comp, mid, hi) > 0)
+            qs_swap(mid, hi, width);
+        loguy = lo;
+        higuy = hi;
+        for (;;) {
+            if (mid > loguy)
+                do
+                    loguy += width;
+                while (loguy < mid && qs_cmp(c, comp, loguy, mid) <= 0);
+            if (mid <= loguy)
+                do
+                    loguy += width;
+                while (loguy <= hi && qs_cmp(c, comp, loguy, mid) <= 0);
+            do
+                higuy -= width;
+            while (higuy > mid && qs_cmp(c, comp, higuy, mid) > 0);
+            if (higuy < loguy)
+                break;
+            qs_swap(loguy, higuy, width);
+            if (mid == higuy)
+                mid = loguy;
+        }
+        higuy += width;
+        if (mid < higuy)
+            do
+                higuy -= width;
+            while (higuy > mid && qs_cmp(c, comp, higuy, mid) == 0);
+        if (mid >= higuy)
+            do
+                higuy -= width;
+            while (higuy > lo && qs_cmp(c, comp, higuy, mid) == 0);
+        if ((int32_t)(higuy - lo) >= (int32_t)(hi - loguy)) {
+            if (lo < higuy) {
+                lostk[stkptr] = lo;
+                histk[stkptr++] = higuy;
+            }
+            if (loguy < hi) {
+                lo = loguy;
+                goto recurse;
+            }
+        } else {
+            if (loguy < hi) {
+                lostk[stkptr] = loguy;
+                histk[stkptr++] = hi;
+            }
+            if (lo < higuy) {
+                hi = higuy;
+                goto recurse;
+            }
+        }
+    }
+    if (--stkptr >= 0) {
+        lo = lostk[stkptr];
+        hi = histk[stkptr];
+        goto recurse;
+    }
+    RET_C_VOID();
+}
+
+/* ---------------------------------------------------------------- floating point
+ * _CIpow/_CIfmod take x in st(1) and y in st(0) and leave the result in st(0). Domain errors set errno in the DLL;
+ * errno is not modelled. Special operands follow the DLL as measured (tools/xrt/tests/crt_gatef), not C99.
+ *
+ * _CIpow: with every x87 and SSE exception masked (the engine's control word 0x027F) and SSE2 present, msvcr70
+ * takes its SSE2 pow, whose result is a double. That code runs translated (xrt_msvcr70img.c): host pow() is not
+ * the same algorithm (one ulp apart on about 0.1% of finite operands, two of them among VMProbe's inputs).
+ * _CIfmod: msvcr70's x87 dispatcher, then an fprem loop (exact, as fmod() is). Special operands as the DLL: a NaN
+ * operand propagates as the x87 does (quieted; of two, the larger significand), a zero or infinite divisor or an
+ * infinite dividend gives the indefinite NaN, and a zero dividend gives +0 whatever its sign. */
+#define NAN_INDEFINITE 0xFFF8000000000000ull
+
+static double from_bits(uint64_t b) {
+    double x;
+    memcpy(&x, &b, 8);
+    return x;
+}
+
+static double x87_nan_result(double x, double y) {   /* x87 propagation for an operation with a NaN operand */
+    uint64_t a = dbits(x), b = dbits(y), qa = a | 1ull << 51, qb = b | 1ull << 51;
+    int na = isnan(x), nb = isnan(y);
+    if (na && nb)
+        return from_bits((qa & 0x7FFFFFFFFFFFFFFFull) >= (qb & 0x7FFFFFFFFFFFFFFFull) ? qa : qb);
+    return from_bits(na ? qa : qb);
+}
+
+static void hle_CIpow(CPU* c) {
+    double y = *ST(c, 0), x = *ST(c, 1), r;
+    uint32_t err;
+    fpop(c);
+    r = xrt_msvcr70_pow(c, x, y, &err);   /* err: the DLL's math error type (errno is not modelled) */
+    *ST(c, 0) = r;
+    if (mlog())
+        fprintf(math_log, "pow %016llx %016llx %016llx %u\n", dbits(x), dbits(y), dbits(r), err);
+    RET_C_VOID();
+}
+
+static void hle_CIfmod(CPU* c) {
+    double y = *ST(c, 0), x = *ST(c, 1), r;
+    fpop(c);
+    if (isnan(x) || isnan(y))
+        r = x87_nan_result(x, y);
+    else if (isinf(x) || y == 0.0 || isinf(y))
+        r = from_bits(NAN_INDEFINITE);
+    else if (x == 0.0)
+        r = 0.0;
+    else
+        r = fmod(x, y);
+    *ST(c, 0) = r;
+    if (mlog())
+        fprintf(math_log, "fmod %016llx %016llx %016llx\n", dbits(x), dbits(y), dbits(r));
+    RET_C_VOID();
+}
+
+static void hle_isnan(CPU* c) {           /* the DLL's test of the high word: QNaN or SNaN (not infinity) */
+    uint32_t lo = ARG(0), hi = ARG(1), e = (hi >> 16) & 0x7FF8u;
+    uint32_t r = (e == 0x7FF0u && ((hi & 0x7FFFFu) || lo)) || e == 0x7FF8u ? 1u : 0u;
+    if (mlog())
+        fprintf(math_log, "isnan %08x%08x %u\n", hi, lo, r);
+    RET_C(r);
+}
+
+/* atof: _fltin2 -> __strgtold12 -> _ld12tod, ported from the DLL ("C" locale, decimal point '.').
+ * Up to 25 mantissa digits are kept; with more than 24 the DLL keeps 24 and increments the 24th digit if it is
+ * >= 5 (its own rounding quirk; the digit may become 10). The digits become an 80-bit integer (__mtold12), are
+ * scaled by the printf engine's powers of ten (__multtenpow12 with its extension word cleared), and _ld12cvt
+ * rounds to 53 bits: up when the bits below the rounding bit are nonzero, a tie truncates. 'D'/'d' are exponent
+ * markers too; no digits gives +0.0; no inf/nan words. */
+static int a_isdigit(uint8_t ch) { return ch >= '0' && ch <= '9'; }
+
+static void m96_shl(uint32_t d[3]) {
+    d[2] = d[2] << 1 | d[1] >> 31;
+    d[1] = d[1] << 1 | d[0] >> 31;
+    d[0] <<= 1;
+}
+
+static void m96_add(uint32_t d[3], const uint32_t t[3]) {
+    uint32_t s = d[0] + t[0];
+    if (s < d[0]) {
+        if (++d[1] == 0)
+            d[2]++;
+    }
+    d[0] = s;
+    s = d[1] + t[1];
+    if (s < d[1])
+        d[2]++;
+    d[1] = s;
+    d[2] += t[2];
+}
+
+static void mtold12(const uint8_t* man, int n, uint16_t w[6]) {
+    uint32_t d[3] = {0, 0, 0}, t[3];
+    uint16_t expn = 0x404E;
+    for (; n > 0; n--, man++) {
+        memcpy(t, d, sizeof t);
+        m96_shl(d);
+        m96_shl(d);
+        m96_add(d, t);
+        m96_shl(d);
+        t[0] = *man;
+        t[1] = t[2] = 0;
+        m96_add(d, t);
+    }
+    while (!d[2]) {
+        d[2] = d[1] >> 16;
+        d[1] = d[1] << 16 | d[0] >> 16;
+        d[0] <<= 16;
+        expn = (uint16_t)(expn - 16);
+    }
+    while (!(d[2] & 0x8000u)) {
+        m96_shl(d);
+        expn--;
+    }
+    w[0] = (uint16_t)d[0];
+    w[1] = (uint16_t)(d[0] >> 16);
+    w[2] = (uint16_t)d[1];
+    w[3] = (uint16_t)(d[1] >> 16);
+    w[4] = (uint16_t)d[2];
+    w[5] = expn;
+}
+
+/* _ld12cvt helpers on a 96-bit mantissa, m[0] most significant, bit positions counted from its MSB */
+static int man_zerotail(const uint32_t m[3], int nbit) {    /* all bits after position nbit zero */
+    int nl = nbit / 32, k;
+    if (m[nl] & ~(0xFFFFFFFFu << (31 - nbit % 32)))
+        return 0;
+    for (k = nl + 1; k < 3; k++)
+        if (m[k])
+            return 0;
+    return 1;
+}
+
+static uint32_t man_inc(uint32_t m[3], int nbit) {          /* add 1 at position nbit; carry out of m[0] */
+    int nl = nbit / 32;
+    uint32_t old = m[nl], carry;
+    m[nl] += 1u << (31 - nbit % 32);
+    carry = m[nl] < old;
+    for (nl--; nl >= 0 && carry; nl--)
+        carry = ++m[nl] == 0;
+    return carry;
+}
+
+static uint32_t man_round(uint32_t m[3], int precision) {  /* _RoundMan */
+    int pos = precision % 32, nl = precision / 32, k;
+    uint32_t r = 0;
+    if ((m[nl] & 1u << (31 - pos)) && !man_zerotail(m, precision))
+        r = man_inc(m, precision - 1);
+    m[nl] &= 0xFFFFFFFFu << (31 - pos);   /* the DLL keeps the rounding bit itself; it is shifted out later */
+    for (k = nl + 1; k < 3; k++)
+        m[k] = 0;
+    return r;
+}
+
+static void man_shr(uint32_t m[3], int n) {                /* _ShrMan */
+    int nl = n / 32, nb = n % 32, k;
+    uint32_t carry = 0;
+    for (k = 0; k < 3; k++) {
+        uint32_t v = m[k];
+        m[k] = v >> nb | carry;
+        carry = nb ? v << (32 - nb) : 0;
+    }
+    for (k = 2; k >= 0; k--)
+        m[k] = k >= nl ? m[k - nl] : 0;
+}
+
+static uint64_t ld12_to_double(const uint16_t w[6]) {      /* _ld12tod (format: 53 bits, exponent -1023..1024) */
+    uint32_t man[3], saved[3], bexp = 0;
+    int exponent = (w[5] & 0x7FFF) - 0x3FFF;
+    man[0] = w[3] | (uint32_t)w[4] << 16;
+    man[1] = w[1] | (uint32_t)w[2] << 16;
+    man[2] = (uint32_t)w[0] << 16;
+    if (exponent == -0x3FFF) {
+        memset(man, 0, sizeof man);                         /* zero, or a denormal flushed to zero */
+    } else {
+        memcpy(saved, man, sizeof saved);
+        if (man_round(man, 53))
+            exponent++;
+        if (exponent < -1023 - 53) {
+            memset(man, 0, sizeof man);
+        } else if (exponent <= -1023) {                     /* denormal */
+            memcpy(man, saved, sizeof man);
+            man_shr(man, -1023 - exponent);
+            man_round(man, 53);
+            man_shr(man, 12);
+        } else if (exponent >= 1024) {                      /* overflow: infinity */
+            memset(man, 0, sizeof man);
+            man[0] = 0x80000000u;
+            man_shr(man, 11);
+            bexp = 1024 + 1023;
+        } else {
+            man[0] &= 0x7FFFFFFFu;
+            bexp = (uint32_t)(exponent + 1023);
+            man_shr(man, 11);
+        }
+    }
+    return (uint64_t)(bexp << 20 | (w[5] & 0x8000u ? 0x80000000u : 0) | man[0]) << 32 | man[1];
+}
+
+static void hle_atof(CPU* c) {
+    uint32_t p = ARG(0), savedp;
+    uint8_t man[25], ch;
+    int state = 0, manlen = 0, found_digit = 0, found_decpoint = 0, found_exponent = 0, expsign = 1, exp_adj = 0;
+    int32_t exponent = 0;
+    uint16_t sign = 0, w[6] = {0, 0, 0, 0, 0, 0};
+    uint64_t bits;
+    double r;
+    while ((ch = rd8(p)) == ' ' || (ch >= 0x09 && ch <= 0x0D))   /* atof: isspace */
+        p++;
+    savedp = p;                     /* __strgtold12 skips ' ', '\t', '\n', '\r': nothing left to skip */
+    for (;;) {
+        ch = rd8(p++);
+        switch (state) {
+        case 0:                     /* start */
+            if (ch >= '1' && ch <= '9') {
+                state = 3;
+                p--;
+            } else if (ch == '.') {
+                state = 5;
+            } else if (ch == '+' || ch == '-') {
+                sign = ch == '-' ? 0x8000 : 0;
+                state = 2;
+            } else if (ch == '0') {
+                state = 1;
+            } else {
+                p--;
+                goto end;
+            }
+            continue;
+        case 1:                     /* leading zeros */
+            found_digit = 1;
+            if (ch >= '1' && ch <= '9') {
+                state = 3;
+                p--;
+            } else if (ch == '.') {
+                state = 4;
+            } else if (ch == '+' || ch == '-') {
+                goto sign_after_mantissa;
+            } else if (ch != '0') {
+                goto exponent_marker;
+            }
+            continue;
+        case 2:                     /* after the sign */
+            if (ch >= '1' && ch <= '9') {
+                state = 3;
+                p--;
+            } else if (ch == '.') {
+                state = 5;
+            } else if (ch == '0') {
+                state = 1;
+            } else {
+                p = savedp;
+                goto end;
+            }
+            continue;
+        case 3:                     /* integer digits */
+            found_digit = 1;
+            for (; a_isdigit(ch); ch = rd8(p++)) {
+                if (manlen < 25)
+                    man[manlen++] = (uint8_t)(ch - '0');
+                else
+                    exp_adj++;
+            }
+            if (ch == '.') {
+                state = 4;
+                continue;
+            }
+            goto after_digits;
+        case 4:                     /* fraction digits */
+            found_digit = 1;
+            found_decpoint = 1;
+            if (manlen == 0)
+                for (; ch == '0'; ch = rd8(p++))
+                    exp_adj--;
+            for (; a_isdigit(ch); ch = rd8(p++))
+                if (manlen < 25) {
+                    man[manlen++] = (uint8_t)(ch - '0');
+                    exp_adj--;
+                }
+            goto after_digits;
+        case 5:                     /* a decimal point first */
+            found_decpoint = 1;
+            if (a_isdigit(ch)) {
+                state = 4;
+                p--;
+                continue;
+            }
+            p = savedp;
+            goto end;
+        case 6:                     /* after the exponent marker */
+            savedp = p - 2;
+            if (ch >= '1' && ch <= '9') {
+                state = 9;
+                p--;
+            } else if (ch == '+' || ch == '-') {
+                if (ch == '-')
+                    expsign = -1;
+                state = 7;
+            } else if (ch == '0') {
+                state = 8;
+            } else {
+                p = savedp;
+                goto end;
+            }
+            continue;
+        case 7:                     /* after the exponent sign */
+            if (ch >= '1' && ch <= '9') {
+                state = 9;
+                p--;
+            } else if (ch == '0') {
+                state = 8;
+            } else {
+                p = savedp;
+                goto end;
+            }
+            continue;
+        case 8:                     /* exponent leading zeros */
+            found_exponent = 1;
+            while (ch == '0')
+                ch = rd8(p++);
+            if (ch >= '1' && ch <= '9') {
+                state = 9;
+                p--;
+                continue;
+            }
+            p--;
+            goto end;
+        case 9:                     /* exponent digits */
+            found_exponent = 1;
+            for (; a_isdigit(ch); ch = rd8(p++)) {
+                exponent = exponent * 10 + (ch - '0');
+                if (exponent > 5200) {
+                    exponent = 5201;
+                    break;
+                }
+            }
+            while (a_isdigit(ch))
+                ch = rd8(p++);
+            p--;
+            goto end;
+        }
+    after_digits:
+        if (ch == '+' || ch == '-')
+            goto sign_after_mantissa;
+    exponent_marker:
+        if (ch == 'D' || ch == 'E' || ch == 'd' || ch == 'e') {
+            state = 6;
+            continue;
+        }
+        p--;
+        goto end;
+    sign_after_mantissa:            /* the DLL's implicit-exponent state; atof passes implicit_E = 0 */
+        p--;
+        goto end;
+    }
+end:
+    (void)found_decpoint;           /* scale and decpt are 0 for atof: no adjustment depends on these */
+    (void)found_exponent;
+    if (!found_digit) {
+        r = 0.0;                    /* SLD_NODIGITS: _fltin2 returns +0.0 */
+    } else {
+        if (manlen > 24) {
+            if (man[23] >= 5)
+                man[23]++;
+            manlen = 24;
+            exp_adj++;
+        }
+        if (manlen > 0) {
+            int32_t pw;
+            while (man[manlen - 1] == 0) {
+                manlen--;
+                exp_adj++;
+            }
+            mtold12(man, manlen, w);
+            pw = (expsign < 0 ? -exponent : exponent) + exp_adj;
+            if (pw > 5200) {
+                memset(w, 0, sizeof w);
+                w[4] = 0x8000;
+                w[5] = 0x7FFF;
+            } else if (pw < -5200) {
+                memset(w, 0, sizeof w);
+            } else if (pw) {
+                w[0] = 0;           /* __multtenpow12(..., mult12 = 0) clears the extension word */
+                if (pw >= 512) {    /* >= 10^512: _ld12tod overflows to infinity whatever the product */
+                    memset(w, 0, sizeof w);
+                    w[4] = 0x8000;
+                    w[5] = 0x7FFF;
+                } else if (pw <= -512) {   /* < 10^24 * 10^-512: below the smallest denormal, zero */
+                    memset(w, 0, sizeof w);
+                } else {
+                    xrt_ld12_multtenpow12(w, pw);
+                }
+            }
+        }
+        w[5] |= sign;
+        bits = ld12_to_double(w);
+        memcpy(&r, &bits, sizeof r);
+    }
+    if (mlog()) {
+        uint32_t s = ARG(0), k;
+        fputs("atof ", math_log);
+        for (k = 0; k < 256 && rd8(s + k); k++)
+            fprintf(math_log, "%02x", rd8(s + k));
+        fprintf(math_log, "%s %016llx\n", k ? "" : "-", dbits(r));
+    }
+    fpush(c, r);
+    RET_C_VOID();
+}
+
 /* ---------------------------------------------------------------- unsupported paths with diagnostics */
 static void hle_purecall(CPU* c) { xrt_fatal(c, XRT_EXIT_UNSUPPORTED, "_purecall: pure virtual function called"); }
 
@@ -559,6 +1171,7 @@ const XrtHle xrt_hle_msvcr70[] = {
     {"msvcr70.dll", "malloc", hle_malloc},
     {"msvcr70.dll", "free", hle_free},
     {"msvcr70.dll", "realloc", hle_realloc},
+    {"msvcr70.dll", "_msize", hle_msize},
     {"msvcr70.dll", "_initterm", hle_initterm},
     {"msvcr70.dll", "_onexit", hle_onexit},
     {"msvcr70.dll", "__dllonexit", hle_dllonexit},
@@ -594,6 +1207,16 @@ const XrtHle xrt_hle_msvcr70[] = {
     {"msvcr70.dll", "wcsstr", hle_wcsstr},
     {"msvcr70.dll", "_wcsupr", hle_wcsupr},
     {"msvcr70.dll", "_wtoi", hle_wtoi},
+    {"msvcr70.dll", "toupper", hle_toupper},
+    {"msvcr70.dll", "strchr", hle_strchr},
+    {"msvcr70.dll", "_stricmp", hle_stricmp},
+    {"msvcr70.dll", "atoi", hle_atoi},
+    {"msvcr70.dll", "sprintf", hle_sprintf},
+    {"msvcr70.dll", "qsort", hle_qsort},
+    {"msvcr70.dll", "_CIpow", hle_CIpow},
+    {"msvcr70.dll", "_CIfmod", hle_CIfmod},
+    {"msvcr70.dll", "_isnan", hle_isnan},
+    {"msvcr70.dll", "atof", hle_atof},
     {"msvcr70.dll", "_purecall", hle_purecall},
     {"msvcr70.dll", "_CxxThrowException", xrt_eh_throw},
     {"msvcr70.dll", "_iob", NULL, 20 * 32},

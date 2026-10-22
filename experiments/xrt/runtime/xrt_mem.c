@@ -39,6 +39,17 @@ int xrt_is_committed(uint32_t a, uint32_t size) {
     return 1;
 }
 
+int xrt_range_is_free(uint32_t a, uint32_t size) {   /* no page of [a, a+size) committed */
+    uint64_t p = a, end = (uint64_t)a + size;
+    while (p < end) {
+        MEMORY_BASIC_INFORMATION mbi;
+        if (!VirtualQuery(xrt_g + p, &mbi, sizeof mbi) || mbi.State == MEM_COMMIT)
+            return 0;
+        p = (uint64_t)((uint8_t*)mbi.BaseAddress - xrt_g) + mbi.RegionSize;
+    }
+    return 1;
+}
+
 uint32_t xrt_h2g(const void* p) {
     const uint8_t* q = (const uint8_t*)p;
     if (q < xrt_g || q >= xrt_g + 0x100000000ull)
