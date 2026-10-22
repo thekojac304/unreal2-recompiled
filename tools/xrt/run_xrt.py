@@ -175,8 +175,7 @@ def main():
               + f" worker sleeps={entry['worker'].get('worker', {}).get('sleeps')} -> {'MATCH' if ok else 'MISMATCH'}")
     outdir = os.path.join(WS, "experiments", "xrt", "results", "compare")
     os.makedirs(outdir, exist_ok=True)
-    with open(os.path.join(outdir, f"{case}.json"), "w", newline="
-") as f:
+    with open(os.path.join(outdir, f"{case}.json"), "w", newline="\n") as f:
         json.dump(summary, f, indent=1)
     sys.exit(0 if summary["all_match"] else 1)
 
