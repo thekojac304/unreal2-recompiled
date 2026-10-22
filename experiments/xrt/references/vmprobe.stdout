@@ -1,0 +1,60 @@
+=======================================
+ucc.exe: UnrealOS execution environment
+Copyright 2001 Epic Games Inc
+=======================================
+
+Executing Class VMProbe.VMProbe
+T1=3
+T2=-3
+T3=-2147483648
+T4=-2147483648
+T5=-4
+T6=2147483644
+T7=-6
+T8=8 14 6
+T9=10
+T10=3
+T11=5 7 7
+T12=10 -4 3
+T13=1.500000
+T14=1.500000
+T15=1024.000000
+T16=3 -3
+T17=0.333333
+T18=1.000000 12.500000 2.250000
+T19=1.414214 0.500000
+T20=True True
+T21=0.479426 0.877583 0.785398
+T22=123456792.000000 -0.000001
+T23=4
+T24=254
+T25=True False False
+T26=HELLO WORLD 11 6 -1
+T27=Hello|World|lo W|World
+T28=A97|mixed
+T29=True False True True
+T30=42 0 3.250000 -17
+T31=True False True
+T32=key|value=x
+T33=SomeName True B ?
+T34=25
+T35=7 2187
+T36=15
+T37=zero small three-four -four big
+T38=610
+T39=42
+T40=40 42
+T41=1 True
+T42=12.000000 27.000000,6.000000,-13.000000
+T43=5.000000 0.000000,0.000000,1.000000
+T44=5.000000,-3.000000,9.000000 2.000000,4.000000,6.000000 True
+T45=16384,65436,4464 32768,65336,8928
+T46=6 0 60
+T47=10,11,0,20,0,0,60,
+T48=5 4
+T49=True st 1.000000
+T50=False True 1.000000
+T51=hello hello 2.250000 Commandlet
+T52=True True False
+T53=True True VMProbe True
+T54=done

@@ -1,0 +1,57 @@
+{
+ "hello": {
+  "args": [
+   "HelloWorld",
+   "a",
+   "b",
+   "c"
+  ],
+  "exit_code": 0,
+  "stdout_sha256": "622d7eb96043060966ed0bf1f9a9f73f66a2537814e260bfddcb9f4a3a8b1575",
+  "stdout_lines": 8
+ },
+ "hellofull": {
+  "args": [
+   "Core.HelloWorldCommandlet",
+   "a",
+   "b",
+   "c"
+  ],
+  "exit_code": 0,
+  "stdout_sha256": "622d7eb96043060966ed0bf1f9a9f73f66a2537814e260bfddcb9f4a3a8b1575",
+  "stdout_lines": 8
+ },
+ "simple": {
+  "args": [
+   "Core.SimpleCommandlet"
+  ],
+  "exit_code": 0,
+  "stdout_sha256": "8b1619e9af247ab87cc8d80e24e1a8a1f456bfacd08519df44d6101feaa5e8da",
+  "stdout_lines": 15
+ },
+ "arraytest": {
+  "args": [
+   "Core.ArrayTest"
+  ],
+  "exit_code": 0,
+  "stdout_sha256": "1c5bcb79029744672efc0134b8f49378dbdc833804a55b1b412ba6acd0b6b316",
+  "stdout_lines": 15
+ },
+ "vmprobe": {
+  "args": [
+   "VMProbe.VMProbe",
+   "-ini=VMProbe.ini"
+  ],
+  "exit_code": 0,
+  "stdout_sha256": "866753d6f1246d3f2675d9a618a46f52731303ae320fc9a0d4b41cc3db7f44ba",
+  "stdout_lines": 60
+ },
+ "badclass": {
+  "args": [
+   "NoSuchCommandletXYZ"
+  ],
+  "exit_code": 0,
+  "stdout_sha256": "3a4238e5a90cf987a3b762fd0543e9baa4cbced787391e209f973efb14ecde30",
+  "stdout_lines": 6
+ }
+}

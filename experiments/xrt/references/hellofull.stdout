@@ -1,0 +1,8 @@
+=======================================
+ucc.exe: UnrealOS execution environment
+Copyright 2001 Epic Games Inc
+=======================================
+
+Executing Class Core.HelloWorldCommandlet
+Hello, world!
+Command line parameters=a b c

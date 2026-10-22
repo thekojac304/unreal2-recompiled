@@ -1,0 +1,15 @@
+=======================================
+ucc.exe: UnrealOS execution environment
+Copyright 2001 Epic Games Inc
+=======================================
+
+Executing Class Core.SimpleCommandlet
+Simple commandlet says hi.
+Testing function calling.
+Function call returned 666
+Testing cast to int.
+Temp is cast from 3.000000 to 3
+Testing min()
+Temp is min(32, 666): 32
+3 is a woo
+otherstring: alker

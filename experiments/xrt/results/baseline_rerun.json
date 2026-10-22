@@ -1,0 +1,156 @@
+{
+ "date": "2026-10-22T08:46:47",
+ "host": "Windows 11 x64 (i7-14700K); ARM64 rows run under QEMU user-mode emulation via Docker",
+ "seeds": {
+  "lift testvec.h xorshift32 g_rng": "0x12345678",
+  "N_CASES": 20000,
+  "appSRandInit seed": 12345
+ },
+ "tools": {
+  "python": "3.14.5",
+  "pefile": "2024.8.26",
+  "capstone": "5.0.7",
+  "msvc_x64": "Microsoft (R) C/C++ Optimizing Compiler Version 19.51.36260 for x64",
+  "msvc_x86": "Microsoft (R) C/C++ Optimizing Compiler Version 19.51.36260 for x86",
+  "docker": "Docker version 29.7.2, build a7dcaa6",
+  "image gcc:13": "gcc@sha256:5a5b1815dbbe981d6a8ffac613ad3360ae2d5d6aab6d2a0c0533b5a5cd983786",
+  "image alpine:3.20": "alpine@sha256:d9e853e87e55526f6b2917df91a2115c36dd7c696a35be12163d44e6e2a4b6bc"
+ },
+ "inputs_sha256": {
+  "sandbox/System/Core.dll": "51bdad4d63b1b4fa8fb6935379f730345ca5cfb96cee9d5458eb6e681ac769cc",
+  "sandbox/System/Core.u": "8c649483717de4d88d218d5bab129173d137950985eb8d4d61b91104869afe0f",
+  "sandbox/System/VMProbe.u": "5d2c77d7a1afe4c9cff8a9303eba091578fe8d9c8fb6aa3aa266337f0e965991",
+  "sandbox/System/UCC.exe": "84326806545670efdf1e1675d86da438751de2223a578a65f3764edb5a5fb1ab",
+  "experiments/vmprobe/VMProbe.reference.txt": "cf94724942e80fb8c632990054782d107d21780744ec9b3a17104129117c3b1f",
+  "experiments/vmprobe/Core.HelloWorldCommandlet.reference.txt": "4b9180264368007925234de8e796f528a55cde5579b581c26443dfc961b911b4",
+  "experiments/vmprobe/Core.SimpleCommandlet.reference.txt": "fcc2bcc74542bd70fd6b9e66a5cd97e62e17308d6a1bbda51b481bbb37f7a0e5",
+  "experiments/vmprobe/Core.ArrayTest.reference.txt": "3bd6d93ba3b6585d0b31a4cde7095981e031b1fb703af555d45a39188a0623b3",
+  "experiments/lift/lifted_core.c": "baa8779de8129de5c3e3a1f1b5992935f013f9848e525f5b632b84661883c4bc",
+  "experiments/lift/harness_lifted.c": "4683b871cc3b6dc21775257d2e0b108ae33c94def2ebd373d112d0aa241bc41e",
+  "experiments/lift/harness_original.c": "d710d8f9e2fc62a69cc5f2ee9b0a890beb41e726c4bd11b0799801f4c913d9b0",
+  "experiments/lift/testvec.h": "c089134ca4d1eec5ed406f0918193a8939ecc1c72ddc09cf2560d67097d9a7a4",
+  "experiments/lift/x86rt.h": "2dd27da788775b3910efe4919739dc018efb6140390149c9d1e08cbe2c16b9df",
+  "tools/lift/lift_x86.py": "3ef4ef620eed48d3ee15792d3ffb6de813a3efc619effaff150d207aa23820fb",
+  "experiments/uvm/src/main.cpp": "56f4f2f33c1297dfca50fed1e6a92ded5da911e5548e29fa33056ad50f2bffda",
+  "experiments/uvm/src/natives_core.cpp": "c59aff0326d0f1180656a1c910cf17a7133d25c7ab82c2559b749a6c3e72ac72",
+  "experiments/uvm/src/package.cpp": "121679fd02d3562fd0a210b18ac842ccf3df227d32c00a3f93318f86c331613f",
+  "experiments/uvm/src/uvm.h": "4b8ce069f365c001efcd1ae30cf01b2fe10e3ff6513ebec79cb94da5fc6f2cc8",
+  "experiments/uvm/src/vm.cpp": "54f58ccbadf6a1c83a5795fe913eda3c428ccdac6ba0ca4c7c4c888970b2ba29",
+  "generated:original_x86.txt": "484cd5d0c106f234d9a0ce713a395aa7421274341c4f49610ea1b3111b7d2577",
+  "generated:lifted_x64.txt": "484cd5d0c106f234d9a0ce713a395aa7421274341c4f49610ea1b3111b7d2577"
+ },
+ "runs": [
+  {
+   "name": "uvm_build_msvc_x64",
+   "command": "experiments\\uvm\\build_msvc.cmd x64",
+   "exit_code": 0,
+   "seconds": 4.55,
+   "stdout_sha256": "2846cb5fdf89e02ead1359338b893d47bbdebdd347bd6d3515fbad19ca3bec6c",
+   "stdout_tail": [
+    "package.cpp",
+    "vm.cpp",
+    "natives_core.cpp",
+    "main.cpp",
+    "Generating Code..."
+   ]
+  },
+  {
+   "name": "uvm_x64_Core.HelloWorldCommandlet",
+   "command": "E:\\Unreal2-Port-Investigation\\experiments\\uvm\\build\\x64\\uvm.exe E:\\Unreal2-Port-Investigation\\sandbox\\System Core.HelloWorldCommandlet --parms \"a b c\" --quiet --compare E:\\Unreal2-Port-Investigation\\experiments\\vmprobe\\Core.HelloWorldCommandlet.reference.txt",
+   "exit_code": 0,
+   "seconds": 0.04,
+   "stdout_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+   "stdout_tail": []
+  },
+  {
+   "name": "uvm_x64_Core.SimpleCommandlet",
+   "command": "E:\\Unreal2-Port-Investigation\\experiments\\uvm\\build\\x64\\uvm.exe E:\\Unreal2-Port-Investigation\\sandbox\\System Core.SimpleCommandlet --parms \"a b c\" --quiet --compare E:\\Unreal2-Port-Investigation\\experiments\\vmprobe\\Core.SimpleCommandlet.reference.txt",
+   "exit_code": 0,
+   "seconds": 0.01,
+   "stdout_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+   "stdout_tail": []
+  },
+  {
+   "name": "uvm_x64_Core.ArrayTest",
+   "command": "E:\\Unreal2-Port-Investigation\\experiments\\uvm\\build\\x64\\uvm.exe E:\\Unreal2-Port-Investigation\\sandbox\\System Core.ArrayTest --parms \"a b c\" --quiet --compare E:\\Unreal2-Port-Investigation\\experiments\\vmprobe\\Core.ArrayTest.reference.txt",
+   "exit_code": 0,
+   "seconds": 0.01,
+   "stdout_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+   "stdout_tail": []
+  },
+  {
+   "name": "uvm_x64_VMProbe",
+   "command": "E:\\Unreal2-Port-Investigation\\experiments\\uvm\\build\\x64\\uvm.exe E:\\Unreal2-Port-Investigation\\sandbox\\System VMProbe.VMProbe --quiet --compare E:\\Unreal2-Port-Investigation\\experiments\\vmprobe\\VMProbe.reference.txt",
+   "exit_code": 0,
+   "seconds": 0.02,
+   "stdout_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+   "stdout_tail": []
+  },
+  {
+   "name": "lift_build_and_test_win",
+   "command": "experiments\\lift\\build_and_test.cmd",
+   "exit_code": 0,
+   "seconds": 18.53,
+   "stdout_sha256": "42e5f2007380e21720ab8eacdf41e2bfe28246683d6b736288a0dc0ab662dc53",
+   "stdout_tail": [
+    "harness_original.c",
+    "harness_lifted.c",
+    "lifted_core.c",
+    "Generating Code...",
+    "IDENTICAL: original x86 vs lifted x64"
+   ]
+  },
+  {
+   "name": "uvm_linux_x64_gcc13",
+   "command": "docker run --rm -v E:/Unreal2-Port-Investigation:/work gcc:13 sh /work/experiments/uvm/run_linux_tests.sh linux-x64",
+   "exit_code": 0,
+   "seconds": 5.63,
+   "stdout_sha256": "bef3c457614cb0f9b0896a212c5bc0b558f19a3213d78e3179482c47698f7d67",
+   "stdout_tail": [
+    "arch: x86_64  compiler: g++ (GCC) 13.5.0",
+    "== Core.HelloWorldCommandlet",
+    "== Core.SimpleCommandlet",
+    "== Core.ArrayTest",
+    "== VMProbe"
+   ]
+  },
+  {
+   "name": "uvm_linux_arm64_QEMU",
+   "command": "docker run --rm --platform linux/arm64 -v E:/Unreal2-Port-Investigation:/work alpine:3.20 sh -c \"apk add --no-cache g++ >/dev/null && sh /work/experiments/uvm/run_linux_tests.sh linux-arm64\"",
+   "exit_code": 0,
+   "seconds": 59.26,
+   "stdout_sha256": "5ed2d4b4fe4fc0ff6ac5c45c97831a29e08b2157a3fbdd22b8caea2b270eeffd",
+   "stdout_tail": [
+    "arch: aarch64  compiler: g++ (Alpine 13.2.1_git20240309) 13.2.1 20240309",
+    "== Core.HelloWorldCommandlet",
+    "== Core.SimpleCommandlet",
+    "== Core.ArrayTest",
+    "== VMProbe"
+   ]
+  },
+  {
+   "name": "lift_linux_x64_gcc13",
+   "command": "docker run --rm -v E:/Unreal2-Port-Investigation:/work gcc:13 sh /work/experiments/lift/run_linux_lift.sh linux-x64",
+   "exit_code": 0,
+   "seconds": 2.09,
+   "stdout_sha256": "5bf491663352451792fcb7937f15540e0f78be3018752897f837fbd263de06b0",
+   "stdout_tail": [
+    "arch: x86_64  gcc (GCC) 13.5.0",
+    "[strict -ffp-contract=off] IDENTICAL to original x86 (102000 lines)",
+    "[contract -ffp-contract=fast] IDENTICAL to original x86 (102000 lines)"
+   ]
+  },
+  {
+   "name": "lift_linux_arm64_QEMU",
+   "command": "docker run --rm --platform linux/arm64 -v E:/Unreal2-Port-Investigation:/work alpine:3.20 sh -c \"apk add --no-cache gcc musl-dev >/dev/null && sh /work/experiments/lift/run_linux_lift.sh linux-arm64\"",
+   "exit_code": 0,
+   "seconds": 22.79,
+   "stdout_sha256": "f76e0222c191f80ffdac7896386da6749c88da73f3178d26d34c04078623f5f2",
+   "stdout_tail": [
+    "arch: aarch64  gcc (Alpine 13.2.1_git20240309) 13.2.1 20240309",
+    "[strict -ffp-contract=off] IDENTICAL to original x86 (102000 lines)",
+    "[contract -ffp-contract=fast] IDENTICAL to original x86 (102000 lines)"
+   ]
+  }
+ ]
+}
