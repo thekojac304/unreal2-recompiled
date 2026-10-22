@@ -218,7 +218,10 @@ After gate F, on the working tree with binary `e21eaf00...73fc` (runtime sources
 `dcb0bb01...70ba` with all four modules and the msvcr70 pow core): Core-only **24/24 PASS**, invocation
 `20261022-203729-b7c9f142`, and **traced 6/6**, invocation `20261022-204059-dea58fe2`; `vmprobe` 3/3 + traced 1/1 as above. The
 earlier result on commit `0120005` (24/24 + 6/6, before the loader notifications existed) is superseded, not
-invalidated.
+invalidated. These sources are commit `f268996` (built before committing; later edits touched only docs and tests).
+Tests: 80 unit tests OK; with `XRT_E2E=1 XRT_FULL=1` the 66 runner tests incl. end-to-end tampering OK. Install
+integrity after all runs: 4757 files, content identical to `experiments/xrt/results/raw/install_before.json`; the
+Save junction's names, sizes and timestamps unchanged (never opened).
 
 ## Milestones
 
