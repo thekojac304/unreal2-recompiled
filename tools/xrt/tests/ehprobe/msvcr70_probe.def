@@ -1,0 +1,6 @@
+; import library for the probe: the two EH entry points the x86 compiler references (renamed to msvcr70.dll's
+; exports by patch_probe.py after linking)
+LIBRARY msvcr70.dll
+EXPORTS
+  _CxxThrowException@8
+  __CxxFrameHandler3

@@ -318,7 +318,8 @@ class Synthetic(unittest.TestCase):
         self.assertGreaterEqual(len(v["evidence"]), 8)
 
     def test_core_error_profile(self):
-        case = CASES["badclass"]
+        # the profile itself; badclass additionally requires exception evidence (ExceptionEvidence tests)
+        case = Case("synth_error", CASES["badclass"].args, CASES["badclass"].expect, "core_error")
         out = HELLO_OUT.replace(b"Executing Class Core.HelloWorldCommandlet\r\nHello, world!\r\nCommand line parameters=a b c\r\n",
                                 b"Commandlet NoSuchCommandletXYZ not found\r\n")
         cand = candidate_dir(os.path.join(self.tmp, "c"), case, stdout=out)
@@ -557,6 +558,82 @@ class Synthetic(unittest.TestCase):
         v = self.judge(original_dir(os.path.join(self.tmp, "o"), log=None))
         self.assertEqual(v["verdict"], "FAIL")
         self.assertFalse(v["output_matches_reference"])
+
+
+class ExceptionEvidence(unittest.TestCase):
+    """cxx_exception_path (report only) and cxx_exception_path_matches_original (vs the traced original)."""
+
+    @staticmethod
+    def report_with(cxx):
+        rep = synth_report(CASES["hello"])
+        ev = rep["events"]
+        cut = next(i for i, e in enumerate(ev) if e.get("name") == "UCommandlet::Main")
+        for k, (kind, fields) in enumerate(cxx):
+            ev.insert(cut + k, dict(seq=0, thread=0, kind=kind, **fields))
+        for i, e in enumerate(ev):
+            e["seq"] = i + 1
+        rep["events_recorded"] = len(ev)
+        throws = sum(1 for k, f in cxx if k == "cxx_throw" and not f.get("rethrow"))
+        rep["cxx_exceptions"] = {"throws": throws, "catches": sum(1 for k, _ in cxx if k == "cxx_catch"),
+                                 "unwind_actions": sum(1 for k, _ in cxx if k == "cxx_unwind"),
+                                 "rethrows_leaving_catch": 0, "objects_destroyed": 0}
+        return rep
+
+    GOOD = [("cxx_throw", {"site": "0x1013c89f", "type": ".PAG", "object": "0x1", "rethrow": False}),
+            ("cxx_catch", {"node": "0x2", "funcinfo": "0x3", "try": 0, "eh_state": 1, "depth": 0, "funclet": "0x1014f209", "type": ".PAG"}),
+            ("cxx_unwind", {"node": "0x2", "eh_state": 1, "action": "0x10101000"}),
+            ("cxx_catch_end", {"node": "0x2", "funclet": "0x1014f209", "how": "completed"}),
+            ("cxx_resume", {"node": "0x2", "continuation": "0x1014f294", "in": "function"})]
+    POINTS = ["core.dll 4f209 catch 0x1014f209 .PAG frame 0x1014f140 cont 0x1014f294",
+              "core.dll 1000 unwind 0x10101000 frame 0x1014f140", "core.dll 4f294 continue 0x1014f294 frame 0x1014f140"]
+
+    def trace(self, extra_continue=False):
+        ev = [{"kind": "exception", "index": 0, "code": "0xe06d7363", "caller": "0x1013c89f"},
+              {"kind": "point", "label": "catch 0x1014f209 .PAG frame 0x1014f140 cont 0x1014f294"},
+              {"kind": "point", "label": "unwind 0x10101000 frame 0x1014f140"},
+              {"kind": "point", "label": "continue 0x1014f294 frame 0x1014f140"}]
+        if extra_continue:            # a normal-flow pass over a continuation point is not a resumption
+            ev.insert(0, {"kind": "point", "label": "continue 0x1014f294 frame 0x1014f140"})
+        return {"events": ev, "exceptions": [{"code": "0xe06d7363", "type": ".PAG"}], "event_points": 3, "events_dropped": 0}
+
+    def group(self, groups, name):
+        return next(g for g in groups if g["group"] == name)
+
+    def test_report_only_group(self):
+        g = self.group(R.PROFILES["core_commandlet"](CASES["hello"], self.report_with(self.GOOD)), "cxx_exception_path")
+        self.assertTrue(g["ok"], g)
+        for drop in ("cxx_catch", "cxx_catch_end", "cxx_resume"):
+            bad = [x for x in self.GOOD if x[0] != drop]
+            g = self.group(R.PROFILES["core_commandlet"](CASES["hello"], self.report_with(bad)), "cxx_exception_path")
+            self.assertFalse(g["ok"], drop)
+        g = self.group(R.PROFILES["core_commandlet"](CASES["hello"], self.report_with([])), "cxx_exception_path")
+        self.assertFalse(g["ok"], "the measured path throws: no exception at all is not evidence")
+
+    def test_sequence_matches_original(self):
+        rep = self.report_with(self.GOOD)
+        ref = {"trace": self.trace(extra_continue=True), "eh_points": self.POINTS}
+        self.assertTrue(R.ev_cxx_original(rep, ref)["ok"])
+        for i, field, value in ((0, "site", "0x1013c8a0"), (1, "funclet", "0x1014ed86"), (2, "action", "0x10101010"),
+                                (4, "continuation", "0x1014f295")):
+            cxx = [(k, dict(f)) for k, f in self.GOOD]
+            cxx[i][1][field] = value
+            self.assertFalse(R.ev_cxx_original(self.report_with(cxx), ref)["ok"], field)
+        cxx = [(k, dict(f)) for k, f in self.GOOD]
+        cxx[0][1]["rethrow"] = True
+        self.assertFalse(R.ev_cxx_original(self.report_with(cxx), ref)["ok"], "rethrow flag")
+        self.assertFalse(R.ev_cxx_original(rep, {"trace": self.trace(), "eh_points": None})["ok"], "no event points")
+        tr = self.trace()
+        tr["events_dropped"] = 1
+        self.assertFalse(R.ev_cxx_original(rep, {"trace": tr, "eh_points": self.POINTS})["ok"], "dropped events")
+
+    def test_exception_case_requires_traced_reference(self):
+        out = HELLO_OUT
+        v = R.evaluate(CASES["hello"], R.collect_original(original_dir(mkdtemp(), stdout=out)),
+                       R.collect_candidate(candidate_dir(mkdtemp(), CASES["hello"], report=self.report_with(self.GOOD))),
+                       SYN_EXPECTED)
+        g = self.group(v["evidence"], "cxx_exception_path_matches_original")
+        self.assertFalse(g["ok"])
+        self.assertEqual(v["verdict"], "FAIL")
 
 
 class Reevaluation(unittest.TestCase):

@@ -73,6 +73,10 @@ struct XrtThread {
     uint32_t rand_seed;            /* msvcr70 per-thread rand() state */
     uint64_t sleeps, preemptions, cs_waits;
     uint32_t exit_via;             /* 1 ExitThread, 2 returned from entry */
+    int host_calls;                /* nesting of host->guest calls (xrt_call_guest) on this thread */
+    XrtEhPad* eh_pads;             /* landing stack of the C++ exception dispatcher (innermost first) */
+    struct XrtEhCatch* eh_catches; /* catch blocks currently executing (innermost first) */
+    int eh_unwinding;              /* > 0 while the dispatcher runs unwind actions (a throw then is terminate()) */
 };
 extern __declspec(thread) XrtThread* xrt_cur;
 extern volatile long xrt_exiting;          /* set when ExitProcess starts: no more baton hand-overs */
@@ -113,6 +117,8 @@ uint32_t xrt_module_export(XrtModule* m, const char* name, uint32_t ordinal);
 XrtFn xrt_lookup(uint32_t va, const char** stub_name);
 uint32_t xrt_lookup_containing(uint32_t va);                /* lifted function entry at or below va */
 uint32_t xrt_call_guest(CPU* c, uint32_t va, int nargs, const uint32_t* args, int stdcall);
+uint32_t xrt_call_funclet(CPU* c, uint32_t va);   /* EH funclet call: no args, not a host boundary */
+uint32_t xrt_call_continuation(CPU* c, uint32_t va, uint32_t expected_return);  /* run code at va until it returns */
 uint32_t xrt_hle_data(const char* dll, const char* name);  /* guest address of an HLE data object */
 void xrt_imports_report(FILE* f);
 void xrt_sites_enable(const char* names);   /* comma-separated substrings of "dll!function" */
@@ -146,6 +152,11 @@ void xrt_stdout_write(const uint16_t* s, size_t n);
 void xrt_stdout_flush(void);
 int xrt_path_is_inside_sandbox(const uint16_t* path);
 
+/* C++ exceptions (xrt_eh.c) */
+void xrt_eh_throw(CPU* c);                 /* the _CxxThrowException adapter */
+void xrt_eh_report(FILE* f);               /* statistics for the runtime report */
+
 /* formatter (xrt_fmt.c): msvcr70-compatible wide printf over guest varargs */
 uint16_t* xrt_wformat(uint32_t fmt, uint32_t va, size_t* len);   /* malloc'ed, not terminated */
+int32_t xrt_woutput(uint32_t fmt, uint32_t va, int (*put)(void* ctx, uint16_t ch), void* ctx);   /* msvcr70 _woutput over a sink */
 #endif

@@ -143,6 +143,28 @@ void xrt_preempt(CPU* c);
                                  if (c->rv != (nxt)) xrt_badret(c, (site), (nxt)); } while (0)
 #define RET(n) do { c->rv = pop32(c); c->r[ESP] += (n); return; } while (0)
 
+/* ---------------------------------------------------------------- C++ exception landing pads (runtime/xrt_eh.c)
+ * A translated function that registers an EH node (`mov fs:[0], esp`) declares a pad. XRT_EH_REGISTER() links it,
+ * keyed by the node, into the thread's landing stack and sets the host resume point; when the exception
+ * dispatcher completes a catch of this frame it longjmps here and xrt_eh_landed() runs the translated code at the
+ * catch's continuation address (the rest of the function). XRT_EH_POP() unlinks the pad on every exit. */
+#include <setjmp.h>
+typedef struct XrtEhPad {
+    jmp_buf jb;
+    uint32_t node;                 /* guest address of the registered EH node */
+    uint32_t resume;               /* continuation address, set by the dispatcher before longjmp */
+    int active;
+    int kind;                      /* 0: function frame, 1: active catch block (dispatcher-internal) */
+    int host_calls;                /* thread's host->guest call depth when linked */
+    struct XrtEhPad* prev;
+} XrtEhPad;
+void xrt_eh_register(CPU* c, XrtEhPad* pad);
+void xrt_eh_landed(CPU* c, XrtEhPad* pad);
+void xrt_eh_pop(CPU* c, XrtEhPad* pad);
+#define XRT_EH_DECL XrtEhPad eh_; eh_.active = 0
+#define XRT_EH_REGISTER() do { xrt_eh_register(c, &eh_); if (setjmp(eh_.jb)) { xrt_eh_landed(c, &eh_); return; } } while (0)
+#define XRT_EH_POP() do { if (eh_.active) xrt_eh_pop(c, &eh_); } while (0)
+
 /* ---------------------------------------------------------------- evidence instrumentation (tools/xrt/marks.json)
  * Marks and watches only record events (xrt_events.c); they never change guest state. */
 #define XRT_MARK_CALLERS 32

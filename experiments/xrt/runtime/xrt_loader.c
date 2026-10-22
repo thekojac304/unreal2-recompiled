@@ -440,7 +440,9 @@ uint32_t xrt_call_guest(CPU* c, uint32_t va, int nargs, const uint32_t* args, in
     for (i = nargs - 1; i >= 0; i--)
         push32(c, args[i]);
     push32(c, XRT_HOST_RETURN);
+    c->thread->host_calls++;           /* a host frame between guest frames: C++ exceptions may not unwind across it */
     dispatch(c, va, XRT_HOST_RETURN, "host-to-guest call");
+    c->thread->host_calls--;
     if (c->rv != XRT_HOST_RETURN)
         xrt_badret(c, va, XRT_HOST_RETURN);
     if (!stdcall)
@@ -451,6 +453,26 @@ uint32_t xrt_call_guest(CPU* c, uint32_t va, int nargs, const uint32_t* args, in
         xrt_fatal(c, XRT_EXIT_BADRET, "stack imbalance after calling guest %s (%s): esp %08x, expected %08x", d,
                   stdcall ? "stdcall" : "cdecl", c->r[ESP], esp0);
     }
+    return c->r[EAX];
+}
+
+/* Calls made by the C++ exception dispatcher on behalf of the original CRT: catch and unwind funclets (no
+ * arguments, `ret`), and catch continuations. They are part of the guest's own control flow, so they are not
+ * host boundaries for the landing-pad check. */
+uint32_t xrt_call_funclet(CPU* c, uint32_t va) {
+    uint32_t esp0 = c->r[ESP];
+    push32(c, XRT_HOST_RETURN);
+    dispatch(c, va, XRT_HOST_RETURN, "exception-handling funclet call");
+    if (c->rv != XRT_HOST_RETURN)
+        xrt_badret(c, va, XRT_HOST_RETURN);
+    if (c->r[ESP] != esp0)
+        xrt_fatal(c, XRT_EXIT_BADRET, "stack imbalance after EH funclet %08x: esp %08x, expected %08x", va, c->r[ESP], esp0);
+    return c->r[EAX];
+}
+uint32_t xrt_call_continuation(CPU* c, uint32_t va, uint32_t expected_return) {
+    dispatch(c, va, expected_return, "catch continuation");
+    if (c->rv != expected_return)
+        xrt_badret(c, va, expected_return);
     return c->r[EAX];
 }
 

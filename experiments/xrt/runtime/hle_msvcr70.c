@@ -294,8 +294,6 @@ static void hle_controlfp(CPU* c) {
 }
 
 /* ---------------------------------------------------------------- stdio */
-/* msvcr70 _woutput over a character sink (xrt_fmt.c). Declared here because only these adapters use it. */
-int32_t xrt_woutput(uint32_t fmt, uint32_t va, int (*put)(void* ctx, uint16_t ch), void* ctx);
 
 /* stdout is a text-mode FILE: fputwc converts with wctomb, which fails for characters above 0xFF in the
  * "C" locale; the formatter then counts -1 (see xrt_fmt.c for how the count recovers) */
@@ -557,31 +555,6 @@ static void hle_wtoi(CPU* c) {
 /* ---------------------------------------------------------------- unsupported paths with diagnostics */
 static void hle_purecall(CPU* c) { xrt_fatal(c, XRT_EXIT_UNSUPPORTED, "_purecall: pure virtual function called"); }
 
-static void hle_cxxthrow(CPU* c) {
-    uint32_t obj = ARG(0), ti = ARG(1);
-    char tname[128] = "?", what[512] = "";
-    if (ti && xrt_is_committed(ti, 16)) {
-        uint32_t cta = rd32(ti + 12);
-        if (cta && xrt_is_committed(cta, 8)) {
-            uint32_t ct = rd32(cta + 4);
-            if (ct && xrt_is_committed(ct, 8)) {
-                uint32_t td = rd32(ct + 4);
-                if (td && xrt_is_committed(td + 8, 64))
-                    snprintf(tname, sizeof tname, "%s", (const char*)G2H(td + 8));
-            }
-        }
-    }
-    if (obj && xrt_is_committed(obj, 4) && (!strncmp(tname, ".PAG", 4) || !strncmp(tname, ".PBG", 4))) {
-        uint32_t s = rd32(obj);
-        int i;
-        for (i = 0; s && i < 200 && xrt_is_committed(s + 2u * (uint32_t)i, 2) && rd16(s + 2u * (uint32_t)i); i++)
-            what[i] = (char)(rd16(s + 2u * (uint32_t)i) < 128 ? rd16(s + 2u * (uint32_t)i) : '?');
-        what[i] = 0;
-    }
-    xrt_fatal(c, XRT_EXIT_UNSUPPORTED, "C++ exception thrown (type %s%s%s%s); exception dispatch is not supported by this runtime",
-              tname, what[0] ? ", message \"" : "", what, what[0] ? "\"" : "");
-}
-
 const XrtHle xrt_hle_msvcr70[] = {
     {"msvcr70.dll", "malloc", hle_malloc},
     {"msvcr70.dll", "free", hle_free},
@@ -622,7 +595,7 @@ const XrtHle xrt_hle_msvcr70[] = {
     {"msvcr70.dll", "_wcsupr", hle_wcsupr},
     {"msvcr70.dll", "_wtoi", hle_wtoi},
     {"msvcr70.dll", "_purecall", hle_purecall},
-    {"msvcr70.dll", "_CxxThrowException", hle_cxxthrow},
+    {"msvcr70.dll", "_CxxThrowException", xrt_eh_throw},
     {"msvcr70.dll", "_iob", NULL, 20 * 32},
     {"msvcr70.dll", "_adjust_fdiv", NULL, 4},
     {0},

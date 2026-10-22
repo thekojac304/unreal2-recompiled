@@ -34,6 +34,8 @@ class Case:
     profile: str
     natives: tuple = ()          # mark names (Core.dll) of script natives the case must execute
     note: str = ""
+    cxx_exceptions: bool = False  # the path throws C++ exceptions: exception evidence required; --trace compares
+                                  # the throw/catch/unwind/resume sequence with the original's
     extra: dict = field(default_factory=dict)
 
     def __post_init__(self):
@@ -44,13 +46,14 @@ class Case:
 HELLO_BANNER = ("ucc.exe: UnrealOS execution environment",)
 
 
-def _hello(name, args, params_line, note=""):
+def _hello(name, args, params_line, note="", cxx_exceptions=False):
     contains = HELLO_BANNER + ("Executing Class Core.HelloWorldCommandlet", "Hello, world!")
     natives = ("UObject::execLog", "UObject::execNotEqual_StringString")
     if params_line:
         contains += (params_line,)
         natives += ("UObject::execConcat_StringString",)
-    return Case(name, tuple(args), Expect(0, contains, ("not found",)), "core_commandlet", natives, note)
+    return Case(name, tuple(args), Expect(0, contains, ("not found",)), "core_commandlet", natives, note,
+                cxx_exceptions=cxx_exceptions)
 
 
 CASES = {c.name: c for c in [
@@ -73,11 +76,12 @@ CASES = {c.name: c for c in [
     # short-name lookup: UCC tries to load the class, which throws C++ exceptions inside Core, then finds the
     # commandlet through its .int alias (ShortName) - the original throws 14 C++ exceptions on this path
     _hello("hello", ["HelloWorld", "a", "b", "c"], "Command line parameters=a b c",
-           "short alias: the lookup path throws and catches C++ exceptions in the original"),
+           "short alias: the lookup path throws and catches C++ exceptions in the original", cxx_exceptions=True),
     # unknown class: same exception path, no alias found; UCC prints an error and still exits with 0
     Case("badclass", ("NoSuchCommandletXYZ",),
          Expect(0, HELLO_BANNER + ("Commandlet NoSuchCommandletXYZ not found",), ("Executing Class",)), "core_error",
-         note="lookup failure through the C++ exception path; the original reports it and exits with code 0"),
+         note="lookup failure through the C++ exception path; the original reports it and exits with code 0",
+         cxx_exceptions=True),
 ]}
 
 CORE_CASES = ("hellofull", "hello_noargs", "hellonew", "hellofull_nosse", "simple", "arraytest")

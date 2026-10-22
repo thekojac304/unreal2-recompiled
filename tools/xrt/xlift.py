@@ -24,7 +24,7 @@ instruction at its address; a watch emits xrt_watch_store() after every instruct
 global through a constant address. Both only record; they never change guest state.
 
 Usage:
-  python -I tools/xrt/xlift.py <module> --out <dir> [--chunk 250] [--only 0xVA,...] [--marks FILE|--no-marks]
+  python -I tools/xrt/xlift.py <module> --out <dir> [--chunk 250] [--only 0xVA,...] [--marks FILE|--no-marks] [--base 0xADDR]
 Outputs <dir>/<stem>_NNN.c, <stem>_protos.h, <stem>_table.c and <stem>_meta.json.
 """
 import collections
@@ -99,6 +99,7 @@ class Lifter:
             self.marks_at[va].append(k)
         self.marks_emitted = set()
         self.watches = list(watches)      # [(addr, size, name)]
+        self.eh_pad_functions = set()
         self.watch_sites = collections.defaultdict(set)   # watch index -> store sites
 
     def watch_store_stmts(self, ins):
@@ -604,7 +605,9 @@ class Lifter:
             if modrm == 0xE2:
                 o.append("c->fsw &= 0x7F00u;")             # fnclex
             elif modrm == 0xE3:
-                o.append("c->fcw = 0x037F; c->fsw = 0; c->top = 0;")   # fninit
+                # fninit sets the control word to 0x037F (64-bit precision), a state the double model cannot
+                # represent: through xrt_fldcw it fails visibly instead of silently keeping 53-bit rounding
+                o.append("xrt_fldcw(c, 0x037F); c->fsw = 0; c->top = 0;")   # fninit
             else:
                 raise Unsupported(f"x87 instruction {m}")
             return o
@@ -641,11 +644,26 @@ class Lifter:
         why = why.replace("\\", "\\\\").replace('"', "'")
         return f'xrt_trap(c, 0x{va:x}u, "{why}");'
 
+    def registers_eh_node(self, ins):
+        """`mov dword ptr fs:[0], esp`: the function registers an exception-handling node on the guest SEH chain."""
+        if ins.mnemonic != "mov" or len(ins.operands) != 2:
+            return False
+        dst, src = ins.operands
+        return (dst.type == X.X86_OP_MEM and dst.mem.segment and self.md.reg_name(dst.mem.segment) == "fs"
+                and not dst.mem.base and not dst.mem.index and (dst.mem.disp & 0xFFFFFFFF) == 0 and dst.size == 4
+                and src.type == X.X86_OP_REG and self.md.reg_name(src.reg) == "esp")
+
     def lift_function(self, fn, hit_index=None, stem=None):
         mod = self.mod
         order = sorted(fn.insns)
         labels = set()
         body = []
+        # A function that registers an EH node gets a host landing pad (XRT_EH_*, runtime/xrt_eh.c): the
+        # exception dispatcher resumes a catch continuation of this frame by longjmp into this host frame.
+        pad = any(self.registers_eh_node(fn.insns[v]) for v in order)
+        pop = "XRT_EH_POP(); " if pad else ""
+        if pad:
+            self.eh_pad_functions.add(fn.entry)
         # pass 1: emit, collecting goto targets
         for i, va in enumerate(order):
             ins = fn.insns[va]
@@ -679,7 +697,7 @@ class Lifter:
                     if ops[0].type == X.X86_OP_IMM:
                         t = ops[0].imm & 0xFFFFFFFF
                         if t in fn.tails or (t not in fn.insns and t in mod.functions):
-                            stmts.append(f"f_{t:x}(c); return;   /* tail call */")
+                            stmts.append(f"{pop}f_{t:x}(c); return;   /* tail call */")
                         elif t in fn.insns:
                             labels.add(t)
                             stmts.append(f"goto L_{t:x};")
@@ -694,7 +712,7 @@ class Lifter:
                     else:
                         imp = self.iat_name(ops[0])
                         note = f"   /* {imp} */" if imp else ""
-                        stmts.append(f"xrt_ijmp(c, {self.read(ops[0])}, 0x{va:x}u); return;{note}")
+                        stmts.append(f"{pop}xrt_ijmp(c, {self.read(ops[0])}, 0x{va:x}u); return;{note}")
                 elif m == "call":
                     if ops[0].type == X.X86_OP_IMM:
                         t = ops[0].imm & 0xFFFFFFFF
@@ -712,11 +730,13 @@ class Lifter:
                         terminal = True
                 elif m in ("ret", "retn"):
                     n = ops[0].imm if ops else 0
-                    stmts.append(f"RET({n}u);")
+                    stmts.append(f"{pop}RET({n}u);")
                     terminal = True
                 else:
                     stmts.extend(self.lift_insn(ins, fn))
                     stmts.extend(self.watch_store_stmts(ins))
+                    if pad and self.registers_eh_node(ins):
+                        stmts.append("XRT_EH_REGISTER();")
             except Unsupported as exc:
                 stmts.append(self.trap(va, f"unsupported: {text}: {exc}"))
                 terminal = True
@@ -728,12 +748,14 @@ class Lifter:
                     labels.add(nxt)
                     body.append((None, [f"goto L_{nxt:x};"]))
                 elif nxt in fn.fallthrough_into or nxt in mod.functions:
-                    body.append((None, [f"f_{nxt:x}(c); return;   /* falls through into the next function */"]))
+                    body.append((None, [f"{pop}f_{nxt:x}(c); return;   /* falls through into the next function */"]))
                 else:
                     body.append((None, [self.trap(nxt, "execution continued past decoded code")]))
         lines = [f"void f_{fn.entry:x}(CPU* c) {{", f"    XRT_ENTER(0x{fn.entry:x}u);"]
         if hit_index is not None:
             lines.append(f"    xrt_hits_{stem}[{hit_index}] = 1;")
+        if pad:
+            lines.append("    XRT_EH_DECL;")
         if order and order[0] != fn.entry:
             labels.add(fn.entry)
             lines.append(f"    goto L_{fn.entry:x};")
@@ -795,8 +817,11 @@ def main():
     if "--only" in args:
         only = {int(v, 16) for v in args[args.index("--only") + 1].split(",")}
     marks_path = None if "--no-marks" in args else (args[args.index("--marks") + 1] if "--marks" in args else DEFAULT_MARKS)
+    # --base: lift for a load address other than the preferred one (the image is relocated first; the runtime
+    # loader applies the same relocations when it maps the module there)
+    base = int(args[args.index("--base") + 1], 16) if "--base" in args else None
     os.makedirs(out, exist_ok=True)
-    mod = Module(path).run()
+    mod = Module(path, base).run()
     stem = re.sub(r"\W", "_", mod.img.name.rsplit(".", 1)[0])
     marks, watches, marks_digest = load_marks(marks_path, mod.img)
     lifter = Lifter(mod, marks, watches, stem)
@@ -857,6 +882,27 @@ def main():
         if missing:
             sys.exit("marks at addresses that are not decoded instructions of any lifted function: "
                      + ", ".join(f"{va:#x} ({name})" for va, name, _ in missing))
+    # C++ EH: every catch funclet, unwind action and catch continuation must be a translated function entry, because
+    # the runtime's dispatcher (runtime/xrt_eh.c) calls / resumes them through the function table
+    import eh_points
+    eh = eh_points.decode(mod)
+    eh_targets = {}
+    for fr in eh:
+        for u in fr["unwind"]:
+            if u["action"]:
+                eh_targets[u["action"]] = "unwind action"
+        for t in fr["tries"]:
+            for h in t["catches"]:
+                eh_targets[h["handler"]] = "catch funclet"
+                if h["continuation"]:
+                    eh_targets[h["continuation"]] = "catch continuation"
+    missing_eh = sorted(a for a in eh_targets if a not in set(entries)) if only is None else []
+    if missing_eh:
+        sys.exit("EH funclets/continuations that are not translated function entries: "
+                 + ", ".join(f"{a:#x} ({eh_targets[a]})" for a in missing_eh[:20]))
+    eh_meta = {"frames": len(eh), "non_vc7_frames": sum(f["magic"] != eh_points.MAGIC_VC7 for f in eh),
+               "try_blocks": sum(len(f["tries"]) for f in eh), "unwind_states": sum(len(f["unwind"]) for f in eh),
+               "funclets_and_continuations": len(eh_targets), "functions_with_landing_pads": len(lifter.eh_pad_functions)}
     instrumentation = {
         "file": os.path.basename(marks_path) if marks_path else None, "sha256": marks_digest,
         "marks": [[hex(va), name] for va, name, _ in marks],
@@ -864,14 +910,14 @@ def main():
                      "constant_address_store_sites": sorted(hex(v) for v in lifter.watch_sites[w])}
                     for w, (a, n, name) in enumerate(watches)]}
     meta = {"module": mod.img.name, "sha256": digest, "base": hex(mod.img.base), "functions": len(entries),
-            "evidence_instrumentation": instrumentation,
+            "evidence_instrumentation": instrumentation, "cxx_eh": eh_meta,
             "instructions": ninsns, "static_traps": len(lifter.trap_sites), "trap_reasons": dict(lifter.traps.most_common()),
             "decode_conflicts": len(conflicts), "text_data_ranges": [[hex(a), hex(b)] for a, b in mod.table_data],
             "files": files + [tab, hdr], "discovery": mod.summary()}
     with open(os.path.join(out, f"{stem}_meta.json"), "w") as f:
         json.dump(meta, f, indent=1)
     print(f"{mod.img.name}: {len(entries)} functions, {ninsns} instructions, {len(lifter.trap_sites)} static traps "
-          f"-> {out} ({len(files)} chunks)")
+          f"-> {out} ({len(files)} chunks); C++ EH: {eh_meta}")
     for r, n in lifter.traps.most_common(30):
         print(f"  {n:6}  {r}")
 

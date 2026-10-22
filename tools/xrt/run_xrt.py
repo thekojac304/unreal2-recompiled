@@ -268,6 +268,27 @@ def tracer_env(run_id):
     return env
 
 
+EH_POINTS_CACHE = {}
+
+
+def eh_points_file(sysdir, hashes, outdir):
+    """uctrace event points for every C++ EH funclet/continuation of UCC.exe and Core.dll (tools/xrt/eh_points.py),
+    generated from the sandbox inputs (cached per input identity) and copied into the run directory."""
+    key = (hashes.get("UCC.exe"), hashes.get("Core.dll"))
+    if key not in EH_POINTS_CACHE:
+        tmp = os.path.join(outdir, "eh_points.gen.txt")
+        p = subprocess.run([PY, "-I", os.path.join(WS, "tools", "xrt", "eh_points.py"), os.path.join(sysdir, "Core.dll"),
+                            os.path.join(sysdir, "UCC.exe"), "--out", tmp], capture_output=True, text=True, timeout=600)
+        if p.returncode != 0:
+            raise HarnessError(f"eh_points.py failed: {p.stderr.strip()[-300:]}")
+        EH_POINTS_CACHE[key] = read_bytes(tmp)
+        os.remove(tmp)
+    dst = os.path.join(outdir, "eh_points.txt")
+    with open(dst, "wb") as f:
+        f.write(EH_POINTS_CACHE[key])
+    return dst
+
+
 def execute_original(case, outdir, timeout, trace):
     """Run the original UCC.exe in the fresh sandbox; artifacts go to outdir (created here: must not exist)."""
     os.makedirs(outdir)
@@ -283,8 +304,13 @@ def execute_original(case, outdir, timeout, trace):
             cmd = [TRACER, ENTRIES, os.path.join(outdir, "trace.json"), stdout_path, exe] + list(case.args)
             meta["command"] = cmd
             meta["timeout_s"] = timeout * TRACE_SLOWDOWN
+            env = tracer_env(run_id)
+            if case.cxx_exceptions:
+                points = eh_points_file(sysdir, hashes, outdir)
+                env["UCTRACE_EVENTS"] = points
+                meta["eh_points_sha256"] = sha256_file(points)
             try:
-                p = subprocess.run(cmd, cwd=sysdir, capture_output=True, timeout=meta["timeout_s"], env=tracer_env(run_id))
+                p = subprocess.run(cmd, cwd=sysdir, capture_output=True, timeout=meta["timeout_s"], env=env)
                 meta["tracer_exit_code"] = p.returncode
                 meta["tracer_output"] = (p.stdout + p.stderr).decode("utf-8", "replace")[-2000:]
             except subprocess.TimeoutExpired:
@@ -338,7 +364,8 @@ def execute_candidate(case, outdir, timeout, command_prefix=None):
 
 # ------------------------------------------------------------------------------------------------ collection
 META_KEYS = ("run_id", "command", "command_line", "seconds", "trace", "inputs", "sandbox", "process_exit_code",
-             "tracer_exit_code", "timed_out", "substitute_candidate", "written", "deleted", "timeout_s")
+             "tracer_exit_code", "timed_out", "substitute_candidate", "written", "deleted", "timeout_s",
+             "eh_points_sha256")
 
 
 def _meta(outdir, r):
@@ -412,6 +439,14 @@ def collect_original(outdir):
                     r["exit_code"] = tr["exit_code"]    # the GUEST's exit code, whatever it is (not a tool failure)
                     r["command_line"] = tr["command"]
                     r["trace"] = tr
+            if meta.get("eh_points_sha256"):
+                try:
+                    pts = read_bytes(os.path.join(outdir, "eh_points.txt"))
+                    if sha256_bytes(pts) != meta["eh_points_sha256"]:
+                        raise ValueError("hash mismatch")
+                    r["eh_points"] = pts.decode("ascii").splitlines()
+                except (OSError, ValueError, UnicodeDecodeError) as exc:
+                    err(f"exception event points of this run missing or altered: {exc}")
     else:
         r["tool"] = "direct"
         if meta.get("timed_out"):
@@ -693,7 +728,8 @@ def ev_worker(t):
     cr = c.require("thread 1 created by thread 0 at the FFileStream worker entry (Core.dll+5a520)",
                    t.first("thread_create", thread=0, index=1, entry=WORKER_ENTRY))
     st = c.require("thread 1 started", t.first("thread_start", thread=1, index=1))
-    we = c.require("worker entry function executes on thread 1", t.mark("FFileStream worker thread entry", thread=1))
+    we = c.require("mark 'FFileStream worker thread entry' on thread 1: the worker function executes",
+                   t.mark("FFileStream worker thread entry", thread=1))
     c.order("order: FFileStream::Init < thread created < thread started < worker entry", fs, cr, st, we)
     other = [e for e in t.find("thread_create") if e.get("index") != 1]
     c.check("no other guest threads created", not other, f"{len(other)} other thread_create events")
@@ -732,7 +768,8 @@ def ev_termination(t):
     xt = c.require("worker called ExitThread(0)", t.first("exit_thread", thread=1, code=0))
     te = c.require("thread 1 ended via ExitThread with code 0", t.first("thread_end", thread=1, index=1, code=0, via="ExitThread"))
     c.order("order: store 2 < ExitThread < thread end", s2, xt, te)
-    wf = c.require("main thread left the shutdown wait loop", t.mark("FFileStream::Destroy: shutdown wait finished", thread=0))
+    wf = c.require("mark 'FFileStream::Destroy: shutdown wait finished' on thread 0: main left the wait loop",
+                   t.mark("FFileStream::Destroy: shutdown wait finished", thread=0))
     c.order("order: store 2 (worker) < wait loop left (main)", s2, wf)
     ae = c.require("thread 1 had exited when the process exited", t.first("thread_at_exit", index=1, state="exited"))
     c.order("order: thread end < process exit", te, ae)
@@ -767,10 +804,107 @@ def ev_exit(t, expected_exit, before):
     return c.result()
 
 
+def ev_cxx(t):
+    """the exception path completed inside the translated runtime: every throw was handled and execution resumed"""
+    c = Checks("cxx_exception_path")
+    ev = [e for e in t.ev if e["kind"].startswith("cxx_")]
+    throws = [e for e in ev if e["kind"] == "cxx_throw"]
+    c.check("C++ exceptions were thrown (the measured path throws)", throws, f"{len(throws)} throws")
+    unhandled = []
+    for i, e in enumerate(ev):
+        if e["kind"] == "cxx_throw" and not e.get("rethrow"):
+            nxt = next((x for x in ev[i + 1:] if x["kind"] in ("cxx_throw", "cxx_catch")), None)
+            if nxt is None or nxt["kind"] != "cxx_catch":
+                unhandled.append(e["seq"])
+    c.check("every throw selected a handler before the next throw", not unhandled, f"throws without a catch: {unhandled[:5]}")
+    catches = [e for e in ev if e["kind"] == "cxx_catch"]
+    ends = [e for e in ev if e["kind"] == "cxx_catch_end"]
+    c.check("every catch block ended (completed, abandoned or rethrown)", len(ends) == len(catches),
+            f"{len(catches)} catches, {len(ends)} ends")
+    done = [e for e in ends if e.get("how") == "completed"]
+    resumes = [e for e in ev if e["kind"] == "cxx_resume"]
+    c.check("execution resumed at a continuation after each completed catch", done and len(resumes) == len(done),
+            f"{len(done)} completed, {len(resumes)} resumes")
+    st = t.report.get("cxx_exceptions") or {}
+    c.check("report statistics agree with the event timeline",
+            st.get("throws") == sum(1 for e in throws if not e.get("rethrow")) and st.get("catches") == len(catches)
+            and st.get("unwind_actions") == sum(1 for e in ev if e["kind"] == "cxx_unwind"), str(st))
+    return c.result()
+
+
+def eh_sequence_translated(report):
+    out = []
+    for e in report["events"]:
+        k = e["kind"]
+        if k == "cxx_throw":
+            out.append(("throw", e.get("site"), bool(e.get("rethrow"))))
+        elif k == "cxx_catch":
+            out.append(("catch", e.get("funclet")))
+        elif k == "cxx_unwind":
+            out.append(("unwind", e.get("action")))
+        elif k == "cxx_resume":
+            out.append(("resume", e.get("continuation")))
+    return out
+
+
+def eh_sequence_original(trace, points):
+    """the same sequence from the traced original: C++ exceptions (caller; no ThrowInfo type = rethrow), catch and
+    unwind funclet entries, and the continuation a completed catch resumed at (the 'continue' point that follows
+    the catch funclet and equals its static continuation)"""
+    conts = {}
+    for line in points or []:
+        f = line.split()
+        if len(f) >= 7 and f[2] == "catch" and f[-2] == "cont" and f[-1] != "none":
+            conts[f[3]] = f[-1]
+    excs = trace.get("exceptions") or []
+    out, pending = [], None
+    for e in trace.get("events") or []:
+        if e.get("kind") == "exception":
+            x = excs[e["index"]] if isinstance(e.get("index"), int) and 0 <= e["index"] < len(excs) else {}
+            if e.get("code") == "0xe06d7363":
+                out.append(("throw", e.get("caller"), not x.get("type")))
+                pending = None
+        elif e.get("kind") == "point":
+            f = str(e.get("label", "")).split()
+            if f[:1] == ["catch"]:
+                out.append(("catch", f[1]))
+                pending = conts.get(f[1])
+            elif f[:1] == ["unwind"]:
+                out.append(("unwind", f[1]))
+            elif f[:1] == ["continue"] and pending and f[1] == pending:
+                out.append(("resume", f[1]))
+                pending = None
+    return out
+
+
+def ev_cxx_original(report, ref):
+    c = Checks("cxx_exception_path_matches_original")
+    tr, points = ref.get("trace") or {}, ref.get("eh_points")
+    c.check("the original was traced with the exception event points",
+            bool(points) and (tr.get("event_points") or 0) > 0 and tr.get("events_dropped") == 0,
+            f"{tr.get('event_points')} points, dropped {tr.get('events_dropped')}")
+    a, b = eh_sequence_original(tr, points), eh_sequence_translated(report)
+    first = next((i for i, (x, y) in enumerate(zip(a, b)) if x != y), None)
+    if a == b:
+        detail = f"{len(a)} events"
+    elif first is not None:
+        detail = f"first difference at {first}: original {a[first]} translated {b[first]}"
+    else:
+        detail = f"original {len(a)} / translated {len(b)} events; extra {(a[len(b):] or b[len(a):])[:2]}"
+    c.check("same sequence of throws (site, rethrow), selected catch funclets, unwind actions and resumptions",
+            a == b, detail)
+    n = sum(1 for e in tr.get("exceptions") or [] if e.get("code") == "0xe06d7363")
+    c.check("the original raised exactly the C++ exceptions in the sequence",
+            n == sum(1 for x in a if x[0] == "throw") and n == len(tr.get("exceptions") or []),
+            f"{n} C++ exceptions, {len(tr.get('exceptions') or [])} exceptions in total")
+    return c.result()
+
+
 def profile_core_commandlet(case, report):
     t = Timeline(report)
     return [ev_init(t), ev_load(t), ev_commandlet(t, case), ev_worker(t), ev_flag(t), ev_termination(t),
-            ev_exit(t, case.expect.exit_code, t.mark("UObject::ProcessInternal", thread=0))]
+            ev_exit(t, case.expect.exit_code, t.mark("UObject::ProcessInternal", thread=0))] + \
+        ([ev_cxx(t)] if case.cxx_exceptions else [])
 
 
 def profile_core_error(case, report):
@@ -779,7 +913,8 @@ def profile_core_error(case, report):
     lc = c.require("UObject::StaticLoadClass called from UCC.exe", t.mark_from_ucc("UObject::StaticLoadClass"))
     c.check("no commandlet executed (UCommandlet::Main never entered)", t.mark_count("UCommandlet::Main") == 0,
             f"count {t.mark_count('UCommandlet::Main')}")
-    return [ev_init(t), c.result(), ev_worker(t), ev_flag(t), ev_termination(t), ev_exit(t, case.expect.exit_code, lc)]
+    return [ev_init(t), c.result(), ev_worker(t), ev_flag(t), ev_termination(t), ev_exit(t, case.expect.exit_code, lc)] + \
+        ([ev_cxx(t)] if case.cxx_exceptions else [])
 
 
 PROFILES = {"core_commandlet": profile_core_commandlet, "core_error": profile_core_error}
@@ -924,6 +1059,13 @@ def evaluate(case, ref, cand, expected=None):
                 cc = original_cross_check(case, ref["trace"], expected) if expected else []
                 groups.append({"group": "original_trace_cross_check", "ok": bool(cc) and all(i["ok"] for i in cc),
                                "checks": cc})
+            if case.cxx_exceptions and ref is not None:
+                if ref.get("trace") is not None:
+                    groups.append(ev_cxx_original(rep, ref))
+                else:
+                    groups.append({"group": "cxx_exception_path_matches_original", "ok": False, "checks": [
+                        {"check": "traced original available for the exception comparison", "ok": False,
+                         "detail": "the reference was not traced"}]})
         except Exception as exc:  # noqa: BLE001 - an unexpected report shape is a failed run, never a crash
             groups = [{"group": "evidence_evaluation", "ok": False,
                        "checks": [{"check": "evaluate the evidence profile", "ok": False, "detail": repr(exc)[:300]}]}]
@@ -1046,23 +1188,28 @@ def run_invocation(case_names, repeat, timeout, trace=False, no_original=False, 
         "runtime_sources": tree_digest(os.path.join(WS, "experiments", "xrt", "runtime")),
         "generated_code": tree_digest(os.path.join(WS, "experiments", "xrt", "gen")),
         "candidate": file_identity(XRT) if candidate_prefix is None else {"substitute": list(candidate_prefix)},
-        "tracer": file_identity(TRACER) if trace else None,
-        "tracer_source": file_identity(os.path.join(WS, "experiments", "xrt", "tracer", "uctrace.c")) if trace else None,
+        "tracer": file_identity(TRACER) if os.path.isfile(TRACER) else None,
+        "tracer_source": file_identity(os.path.join(WS, "experiments", "xrt", "tracer", "uctrace.c")),
+        "eh_points_tool": file_identity(os.path.join(WS, "tools", "xrt", "eh_points.py")),
         "python": sys.version.split()[0], "host": platform.platform(),
     }
     summaries = {}
     expected_cache = {}
     for name in case_names:
         case = CASES[name]
+        case_trace = bool(trace or case.cxx_exceptions) and not no_original
+        if case_trace and candidate_prefix is None and not os.path.isfile(TRACER):
+            raise UsageError(f"{name} needs the traced original (exception evidence); {rel(TRACER)} is not built")
         s = {"runner_schema": 3, "invocation_id": inv, "invocation_dir": rel(invdir), "case": name, "args": list(case.args),
              "expect": {"exit_code": case.expect.exit_code, "negative": case.expect.negative,
                         "stdout_contains": list(case.expect.stdout_contains),
                         "stdout_excludes": list(case.expect.stdout_excludes)},
              "profile": case.profile, "natives": list(case.natives), "repeat": repeat, "timeout_s": timeout,
-             "trace": trace, "reference": "none" if no_original else "fresh-original", "identity": identity, "runs": []}
+             "trace": case_trace, "trace_forced": case_trace and not trace,
+             "reference": "none" if no_original else "fresh-original", "identity": identity, "runs": []}
         for k in range(repeat):
             rundir = os.path.join(invdir, name, f"run{k}")
-            ref, cand, v = run_one(case, rundir, timeout, trace, no_original, candidate_prefix, expected_cache)
+            ref, cand, v = run_one(case, rundir, timeout, case_trace, no_original, candidate_prefix, expected_cache)
             entry = {"run": k, "dir": rel(rundir), "verdict": v["verdict"]}
             if cand is not None:
                 entry["candidate"] = {"exit_code": cand.get("exit_code"), "seconds": (cand.get("meta") or {}).get("seconds"),
@@ -1164,6 +1311,16 @@ def public_summary(s):
     return out
 
 
+def publish(summaries, trace):
+    """compare/<case>.json (direct references) or compare/<case>.traced.json (traced references): the latest
+    summary of each mode, so a traced cross-check run never replaces the latest repeated acceptance run."""
+    os.makedirs(COMPARE_DIR, exist_ok=True)
+    for n, s in summaries.items():
+        traced_name = trace and not CASES[n].cxx_exceptions     # exception cases are always traced
+        with open(os.path.join(COMPARE_DIR, f"{n}{'.traced' if traced_name else ''}.json"), "w", newline="\n") as f:
+            json.dump(public_summary(s), f, indent=1)
+
+
 def main(argv=None):
     argv = sys.argv[1:] if argv is None else argv
     if argv[:1] == ["--reevaluate"]:
@@ -1194,10 +1351,7 @@ def main(argv=None):
             print(f"run_xrt.py: {rel(exe)} is not built", file=sys.stderr)
             return 2
     inv, invdir, summaries, overall = run_invocation(a.cases, a.repeat, a.timeout, a.trace, a.no_original)
-    os.makedirs(COMPARE_DIR, exist_ok=True)
-    for n, s in summaries.items():
-        with open(os.path.join(COMPARE_DIR, f"{n}.json"), "w", newline="\n") as f:
-            json.dump(public_summary(s), f, indent=1)
+    publish(summaries, a.trace)
     print(f"invocation {inv}: {overall['verdict']}; "
           + "; ".join(f"{n} {c['verdict']} {c['counts']}" for n, c in overall["cases"].items()))
     if overall["harness_errors"]:

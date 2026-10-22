@@ -5,7 +5,7 @@ Usage: python -I tools/xrt/eh_points.py <module> [<module> ...] [--out points.tx
 For every function that registers a C++ EH frame (push -1; push <handler>; ... where <handler> is
 `mov eax, <FuncInfo>; jmp __CxxFrameHandler`), the FuncInfo (magic 0x19930520) is decoded:
   unwind map  (toState, action)            -> event point "unwind <action> state <s> frame <fn>"
-  try blocks  (tryLow, tryHigh, catchHigh) -> for each catch clause: "catch <handler> <type> frame <fn>"
+  try blocks  (tryLow, tryHigh, catchHigh) -> for each catch clause: "catch <handler> <type> frame <fn> cont <c|none>"
   continuations: a catch funclet ends with `mov eax, <continuation>; ret` -> "continue <cont> frame <fn>"
 Event points let uctrace record, in order, which catch funclets, destructor funclets and continuations the
 original executes; the translated runtime's exception dispatcher records the same events.
@@ -33,6 +33,9 @@ def frames(mod):
                 continue
             h = b.operands[0].imm & 0xFFFFFFFF
             hi = mod.decode(h)
+            while hi is not None and hi.mnemonic == "nop":      # alignment nops the handler starts with
+                h += hi.size
+                hi = mod.decode(h)
             if hi is None or hi.mnemonic != "mov" or hi.operands[1].type != X.X86_OP_IMM:
                 continue
             nj = mod.decode(h + hi.size)
@@ -110,7 +113,8 @@ def main():
                 point(u["action"], f"unwind {u['action']:#x} frame {f['function']:#x}")
             for t in f["tries"]:
                 for c in t["catches"]:
-                    point(c["handler"], f"catch {c['handler']:#x} {c['type']} frame {f['function']:#x}")
+                    cont = f"{c['continuation']:#x}" if c["continuation"] else "none"
+                    point(c["handler"], f"catch {c['handler']:#x} {c['type']} frame {f['function']:#x} cont {cont}")
                     if c["continuation"]:
                         point(c["continuation"], f"continue {c['continuation']:#x} frame {f['function']:#x}")
         nt = sum(len(f["tries"]) for f in fr)

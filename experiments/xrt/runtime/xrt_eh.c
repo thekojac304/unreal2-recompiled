@@ -1,0 +1,486 @@
+/* xrt_eh.c - C++ exception dispatch for translated MSVC 7.0 (x86) code, run in the host.
+ *
+ * Guest code registers its EH nodes on the guest SEH chain exactly as compiled (fs:[0] -> {next, handler thunk,
+ * state}; frame EBP = node + 0xC; the frame's saved ESP at node - 4). _CxxThrowException comes here instead of
+ * RaiseException, and the dispatcher follows msvcr70's __CxxFrameHandler (frame.cpp, VC7, FuncInfo magic
+ * 0x19930520):
+ *   search    walk the chain from fs:[0]; for a C++ frame (handler thunk `mov eax, FuncInfo; jmp __CxxFrameHandler`)
+ *             scan the try blocks that contain the frame's state, in the range GetRangeOfTrysToCheck gives for
+ *             the catch depth, and the catch clauses with VC7 TypeMatch (catch(...), same TypeDescriptor or
+ *             decorated name, const/volatile/unaligned/reference rules);
+ *   catch     build the catch object, unwind every node above the catching one (or above the CatchGuard marker
+ *             for a catch nested in an active catch block) - C++ frames to state -1 through their unwind
+ *             funclets, CatchGuard nodes by finalising the abandoned catch block - then the catching frame to
+ *             tryLow; set its state to tryHigh+1 and run the catch funclet below the throw site with a CatchGuard
+ *             node {next, XRT_CATCHGUARD, frame, depth} pushed on the guest chain (CallCatchBlock);
+ *   rethrow   `throw;` uses the exception of the innermost active catch block; when the search reaches that
+ *             block's CatchGuard (after the try blocks nested in it) the block is left as by msvcr70's
+ *             ExFilterRethrow handler - frames above unwound, its frame unwound to the catch's parent state,
+ *             no continuation - and the suspended search of the original exception continues (back in the host
+ *             frame of that search, by longjmp);
+ *   resume    a catch funclet that returns gives the continuation: fs:[0] = the node the unwind stopped at,
+ *             EBP = frame, ESP = [node - 4], and the host resumes in the landing record of that frame (the
+ *             translated function's pad, or the active catch block when the continuation lies inside it), which
+ *             runs the translated code at the continuation address.
+ * Exception objects are destroyed (ThrowInfo pmfnUnwind) when their catch block completes or is abandoned, unless a
+ * rethrow is in flight or another active catch block uses the same object.
+ * Fatal by design (explicit diagnostics, never "success"): non-C++ handlers (SEH __try/__except/__finally) on the
+ * search path, FuncInfo other than VC7 0x19930520, catch objects that need a copy constructor or a virtual-base
+ * adjustment, a throw while unwind actions run (terminate), an unhandled exception (terminate), a catch whose
+ * resumption would unwind through a host adapter that called guest code, and inconsistent EH state.
+ * Every throw, catch, unwind action, rethrow, abandoned catch and resumption is an event in the runtime report. */
+#define WIN32_LEAN_AND_MEAN
+#include <windows.h>
+#include <stdlib.h>
+#include "xrt_internal.h"
+
+#define FI_MAGIC_VC7 0x19930520u
+#define XRT_CATCHGUARD (XRT_STUB_END - 2 * XRT_STUB_SIZE)  /* guest handler address marking a CatchGuard node */
+#define DISPATCH_GAP 0x400u                                   /* dispatcher's room below the throw site */
+#define LJ_RETHROW 2
+#define LJ_RESUME 3
+
+typedef struct EhExc { uint32_t object, throwinfo; } EhExc;
+
+typedef struct XrtEhCatch {        /* an active catch block (msvcr70 CallCatchBlock) */
+    struct XrtEhCatch* prev;
+    EhExc ex;
+    uint32_t node, funcinfo, funclet, guard, saved_prn_stack;
+    int depth, finalized;
+    XrtEhPad pad;                  /* kind 1: landing record for continuations inside this catch block */
+} XrtEhCatch;
+
+static volatile long n_throws, n_rethrows, n_catches, n_unwinds, n_destroyed;
+
+/* ---------------------------------------------------------------- landing stack */
+static void pad_push(CPU* c, XrtEhPad* pad, uint32_t node, int kind) {
+    XrtThread* t = c->thread;
+    if (pad->active) {                     /* registration executed again in the same activation */
+        pad->node = node;
+        return;
+    }
+    pad->node = node;
+    pad->kind = kind;
+    pad->host_calls = t->host_calls;
+    pad->prev = t->eh_pads;
+    pad->active = 1;
+    t->eh_pads = pad;
+}
+
+void xrt_eh_register(CPU* c, XrtEhPad* pad) { pad_push(c, pad, c->r[ESP], 0); }
+
+void xrt_eh_pop(CPU* c, XrtEhPad* pad) {
+    XrtThread* t = c->thread;
+    if (!pad->active)
+        return;
+    if (t->eh_pads != pad)
+        xrt_fatal(c, XRT_EXIT_UNSUPPORTED, "C++ EH: landing stack out of order (frame node %08x leaves while %08x is innermost)",
+                  pad->node, t->eh_pads ? t->eh_pads->node : 0);
+    t->eh_pads = pad->prev;
+    pad->active = 0;
+}
+
+/* in the translated function that owns the frame, after the dispatcher's longjmp: the rest of the function is
+ * the translated code at the continuation address (it ends with the function's own epilogue and ret) */
+void xrt_eh_landed(CPU* c, XrtEhPad* pad) {
+    xrt_event("cxx_resume", "\"node\": \"0x%08x\", \"continuation\": \"0x%08x\", \"in\": \"function\"", pad->node, pad->resume);
+    xrt_ijmp(c, pad->resume, pad->node);
+    xrt_eh_pop(c, pad);
+}
+
+/* ---------------------------------------------------------------- frame decoding */
+static uint32_t funcinfo_of_handler(uint32_t h) {
+    uint32_t t;
+    int hops, pad;
+    for (pad = 0; pad < 15 && xrt_is_committed(h, 1) && rd8(h) == 0x90; pad++)
+        h++;                                                  /* alignment nops the handler starts with (executed) */
+    if (!xrt_is_committed(h, 16) || rd8(h) != 0xB8)          /* mov eax, imm32 */
+        return 0;
+    t = h + 5;
+    for (hops = 0; hops < 3; hops++) {
+        if (!xrt_is_committed(t, 6))
+            return 0;
+        if (rd8(t) == 0xE9) {                                 /* jmp rel32 (to the import thunk) */
+            t = t + 5 + rd32(t + 1);
+        } else if (rd8(t) == 0xFF && rd8(t + 1) == 0x25) {    /* jmp [IAT] */
+            const char* name = xrt_stub_name(rd32(rd32(t + 2)));
+            return name && !strcmp(name, "msvcr70.dll!__CxxFrameHandler") ? rd32(h + 1) : 0;
+        } else {
+            return 0;
+        }
+    }
+    return 0;
+}
+
+static const char* td_name(uint32_t td) { return td ? (const char*)G2H(td + 8) : "..."; }
+
+static uint32_t thrown_type(EhExc ex) {                     /* TypeDescriptor of the first catchable type */
+    uint32_t cta = rd32(ex.throwinfo + 12);
+    return rd32(cta) ? rd32(rd32(cta + 4) + 4) : 0;
+}
+
+/* ", message "..."" for the engine's TCHAR* exceptions (appThrowf, guard/unguard), else "" */
+static const char* message_of(EhExc ex) {
+    static char out[300];
+    const char* tn = td_name(thrown_type(ex));
+    uint32_t s;
+    int i;
+    out[0] = 0;
+    if (!ex.object || !xrt_is_committed(ex.object, 4) || (strncmp(tn, ".PAG", 4) && strncmp(tn, ".PBG", 4)))
+        return out;
+    s = rd32(ex.object);
+    i = snprintf(out, sizeof out, ", message \"");
+    for (; s && i < (int)sizeof out - 3 && xrt_is_committed(s, 2) && rd16(s); s += 2)
+        out[i++] = (char)(rd16(s) < 128 && rd16(s) >= 32 ? rd16(s) : '?');
+    out[i++] = '"';
+    out[i] = 0;
+    return out;
+}
+
+static void check_node(CPU* c, uint32_t node) {
+    XrtThread* t = c->thread;
+    if (node < t->stack_lo || node + 12 > t->stack_hi || (node & 3))
+        xrt_fatal(c, XRT_EXIT_UNSUPPORTED, "C++ EH: SEH chain node %08x outside the thread's guest stack %08x-%08x", node,
+                  t->stack_lo, t->stack_hi);
+}
+
+static uint32_t checked_funcinfo(CPU* c, uint32_t node) {
+    uint32_t h = rd32(node + 4), fi = funcinfo_of_handler(h);
+    char d[512];
+    if (!fi) {
+        xrt_describe(d, sizeof d, h);
+        xrt_fatal(c, XRT_EXIT_UNSUPPORTED, "C++ EH: SEH node %08x has handler %s, which is not a C++ frame handler "
+                  "(SEH __try/__except/__finally on the exception path is not supported)", node, d);
+    }
+    if (rd32(fi) != FI_MAGIC_VC7)
+        xrt_fatal(c, XRT_EXIT_UNSUPPORTED, "C++ EH: FuncInfo %08x has magic %08x (only VC7 0x19930520 is supported)", fi, rd32(fi));
+    return fi;
+}
+
+/* ---------------------------------------------------------------- guest calls */
+static void call_funclet_at(CPU* c, uint32_t funclet, uint32_t node, uint32_t esp) {
+    c->r[EBP] = node + 0xC;
+    c->r[ESP] = esp;
+    xrt_call_funclet(c, funclet);
+}
+
+static void destroy_object(CPU* c, EhExc ex, uint32_t esp) {
+    uint32_t dtor = ex.throwinfo ? rd32(ex.throwinfo + 4) : 0;
+    XrtEhCatch* k;
+    if (!dtor || !ex.object)
+        return;
+    for (k = c->thread->eh_catches; k; k = k->prev)        /* _IsExceptionObjectToBeDestroyed */
+        if (!k->finalized && k->ex.object == ex.object)
+            return;
+    InterlockedIncrement(&n_destroyed);
+    xrt_event("cxx_destroy", "\"object\": \"0x%08x\", \"destructor\": \"0x%08x\"", ex.object, dtor);
+    c->r[ECX] = ex.object;                                  /* thiscall */
+    c->r[ESP] = esp;
+    c->thread->eh_unwinding++;
+    xrt_call_funclet(c, dtor);
+    c->thread->eh_unwinding--;
+}
+
+/* __FrameUnwindToState */
+static void unwind_to_state(CPU* c, uint32_t node, uint32_t fi, int target, uint32_t esp) {
+    int cur = (int)rd32(node + 8), maxst = (int)rd32(fi + 4);
+    uint32_t umap = rd32(fi + 8);
+    while (cur != target) {
+        int next;
+        uint32_t action;
+        if (cur < 0 || cur >= maxst)
+            xrt_fatal(c, XRT_EXIT_UNSUPPORTED, "C++ EH: cannot unwind frame %08x from state %d to %d (max state %d)", node,
+                      cur, target, maxst);
+        next = (int)rd32(umap + 8u * (uint32_t)cur);
+        action = rd32(umap + 8u * (uint32_t)cur + 4);
+        if (action) {
+            wr32(node + 8, (uint32_t)next);                 /* as if the action had completed */
+            InterlockedIncrement(&n_unwinds);
+            xrt_event("cxx_unwind", "\"node\": \"0x%08x\", \"eh_state\": %d, \"action\": \"0x%08x\"", node, cur, action);
+            c->thread->eh_unwinding++;
+            call_funclet_at(c, action, node, esp);
+            c->thread->eh_unwinding--;
+        }
+        cur = next;
+    }
+    wr32(node + 8, (uint32_t)cur);
+}
+
+/* ---------------------------------------------------------------- catch blocks */
+static XrtEhCatch* catch_of_guard(CPU* c, uint32_t guard) {
+    XrtEhCatch* k;
+    for (k = c->thread->eh_catches; k; k = k->prev)
+        if (k->guard == guard && !k->finalized)
+            return k;
+    xrt_fatal(c, XRT_EXIT_UNSUPPORTED, "C++ EH: CatchGuard node %08x has no active catch block", guard);
+}
+
+/* the __finally of CallCatchBlock: unlink the guard, restore the current exception and the frame's saved ESP, and
+ * destroy the exception object unless the block is left by a rethrow */
+static void finalize_catch(CPU* c, XrtEhCatch* k, int destroy, uint32_t esp, const char* how) {
+    XrtThread* t = c->thread;
+    XrtEhPad** pp;
+    if (k->finalized)
+        return;
+    k->finalized = 1;
+    if (rd32(c->fs_base) == k->guard)
+        wr32(c->fs_base, rd32(k->guard));
+    if (t->eh_catches == k)
+        t->eh_catches = k->prev;
+    else
+        xrt_fatal(c, XRT_EXIT_UNSUPPORTED, "C++ EH: catch blocks finalised out of order");
+    for (pp = &t->eh_pads; *pp; pp = &(*pp)->prev)          /* landing records above and including the block's */
+        if (*pp == &k->pad) {
+            *pp = k->pad.prev;
+            break;
+        }
+    k->pad.active = 0;
+    wr32(k->node - 4, k->saved_prn_stack);
+    xrt_event("cxx_catch_end", "\"node\": \"0x%08x\", \"funclet\": \"0x%08x\", \"how\": \"%s\"", k->node, k->funclet, how);
+    if (destroy)
+        destroy_object(c, k->ex, esp);
+}
+
+/* RtlUnwind up to (not including) `target`: C++ frames to state -1, abandoned catch blocks finalised */
+static void unwind_nested(CPU* c, uint32_t target, uint32_t esp) {
+    uint32_t node;
+    while ((node = rd32(c->fs_base)) != target) {
+        if (node == 0xFFFFFFFFu)
+            xrt_fatal(c, XRT_EXIT_UNSUPPORTED, "C++ EH: unwind target node %08x is not on the SEH chain", target);
+        check_node(c, node);
+        if (rd32(node + 4) == XRT_CATCHGUARD) {
+            finalize_catch(c, catch_of_guard(c, node), 1, esp, "abandoned");
+        } else {
+            uint32_t fi = checked_funcinfo(c, node);
+            if (rd32(fi + 4))
+                unwind_to_state(c, node, fi, -1, esp);
+            wr32(c->fs_base, rd32(node));
+        }
+    }
+}
+
+/* the landing record a continuation of `node` resumes in: the innermost one for that frame */
+static XrtEhPad* landing_for(CPU* c, uint32_t node, uint32_t cont) {
+    XrtEhPad* p;
+    char d[512];
+    for (p = c->thread->eh_pads; p; p = p->prev)
+        if (p->active && p->node == node)
+            break;
+    xrt_describe(d, sizeof d, cont);
+    if (!p)
+        xrt_fatal(c, XRT_EXIT_UNSUPPORTED, "C++ EH: no translated landing pad for frame node %08x (continuation %s)", node, d);
+    if (p->host_calls != c->thread->host_calls)
+        xrt_fatal(c, XRT_EXIT_UNSUPPORTED, "C++ EH: resuming %s would unwind through %d host adapter frame(s) that called "
+                  "guest code", d, c->thread->host_calls - p->host_calls);
+    return p;
+}
+
+static XRT_NORETURN void jump_to_continuation(CPU* c, uint32_t cont, uint32_t node, uint32_t fs_head) {
+    XrtEhPad* p = landing_for(c, node, cont);
+    XrtThread* t = c->thread;
+    wr32(c->fs_base, fs_head);
+    c->r[EBP] = node + 0xC;
+    c->r[ESP] = rd32(node - 4);
+    p->resume = cont;
+    t->eh_pads = p;                                         /* records above belong to abandoned host frames */
+    longjmp(p->jb, p->kind ? LJ_RESUME : 1);
+}
+
+static uint32_t call_catch_block(CPU* c, EhExc ex, uint32_t node, uint32_t fi, uint32_t funclet, int depth, uint32_t work) {
+    XrtEhCatch k;
+    XrtThread* t = c->thread;
+    volatile uint32_t cont = 0;
+    int how;
+    memset(&k, 0, sizeof k);
+    k.ex = ex;
+    k.node = node;
+    k.funcinfo = fi;
+    k.funclet = funclet;
+    k.depth = depth;
+    k.saved_prn_stack = rd32(node - 4);
+    k.guard = work - 16;
+    wr32(k.guard, rd32(c->fs_base));                        /* CatchGuard node */
+    wr32(k.guard + 4, XRT_CATCHGUARD);
+    wr32(k.guard + 8, node);
+    wr32(k.guard + 12, (uint32_t)depth);
+    wr32(c->fs_base, k.guard);
+    k.prev = t->eh_catches;
+    t->eh_catches = &k;
+    pad_push(c, &k.pad, node, 1);
+    how = setjmp(k.pad.jb);
+    if (how == 0) {
+        call_funclet_at(c, funclet, node, k.guard);
+        cont = c->r[EAX];
+    } else if (how == LJ_RESUME) {
+        /* a catch nested in this block completed: its continuation is code of this block, which ends with the
+         * block's own `mov eax, continuation; ret` to the sentinel pushed by call_funclet_at */
+        xrt_event("cxx_resume", "\"node\": \"0x%08x\", \"continuation\": \"0x%08x\", \"in\": \"catch block\"", node, k.pad.resume);
+        cont = xrt_call_continuation(c, k.pad.resume, XRT_HOST_RETURN);
+    } else {
+        /* LJ_RETHROW: left by a rethrow (ExFilterRethrow): unwind the frame to the parent state of this catch */
+        int cs = (int)rd32(node + 8), i, ntry = (int)rd32(fi + 12);
+        uint32_t tmap = rd32(fi + 16), umap = rd32(fi + 8);
+        for (i = 0; i < ntry; i++) {
+            int hi = (int)rd32(tmap + 20u * (uint32_t)i + 4), ch = (int)rd32(tmap + 20u * (uint32_t)i + 8);
+            if (cs > hi && cs <= ch) {
+                cs = (int)rd32(umap + 8u * (uint32_t)(hi + 1));
+                break;
+            }
+        }
+        unwind_to_state(c, node, fi, cs, work);
+        cont = 0;
+    }
+    finalize_catch(c, &k, cont != 0, work, cont ? "completed" : "rethrown");
+    return cont;
+}
+
+/* ---------------------------------------------------------------- search */
+static int type_match(uint32_t handler, uint32_t catchable, uint32_t throwinfo) {
+    uint32_t hadj = rd32(handler), htd = rd32(handler + 4), ctd = rd32(catchable + 4), cprops = rd32(catchable);
+    uint32_t tattr = rd32(throwinfo);
+    if (!htd || !rd8(htd + 8))
+        return 1;                                            /* catch(...) */
+    if (htd != ctd && strcmp(td_name(htd), td_name(ctd)))
+        return 0;
+    return (!(cprops & 2) || (hadj & 8)) && (!(tattr & 1) || (hadj & 1)) && (!(tattr & 4) || (hadj & 4)) &&
+           (!(tattr & 2) || (hadj & 2));
+}
+
+static void build_catch_object(CPU* c, EhExc ex, uint32_t node, uint32_t handler, uint32_t catchable) {
+    uint32_t hadj = rd32(handler), htd = rd32(handler + 4), disp = rd32(handler + 8);
+    uint32_t cprops = rd32(catchable), size = rd32(catchable + 20), buf;
+    int32_t mdisp = (int32_t)rd32(catchable + 8), pdisp = (int32_t)rd32(catchable + 12);
+    if (!htd || !rd8(htd + 8) || !disp)
+        return;                                              /* catch(...) or catch by type without an object */
+    if (pdisp >= 0)
+        xrt_fatal(c, XRT_EXIT_UNSUPPORTED, "C++ EH: catch of %s needs a virtual-base adjustment", td_name(htd));
+    buf = node + 0xC + disp;
+    if (hadj & 8) {
+        wr32(buf, ex.object + (uint32_t)mdisp);              /* by reference */
+    } else if (cprops & 1) {
+        memmove(G2H(buf), G2H(ex.object), size);             /* simple type, pointers included */
+        if (size == 4 && rd32(buf))
+            wr32(buf, rd32(buf) + (uint32_t)mdisp);
+    } else if (!rd32(catchable + 24)) {
+        memmove(G2H(buf), G2H(ex.object + (uint32_t)mdisp), size);
+    } else {
+        xrt_fatal(c, XRT_EXIT_UNSUPPORTED, "C++ EH: catch of class %s by value needs its copy constructor", td_name(htd));
+    }
+}
+
+static void catch_it(CPU* c, EhExc ex, uint32_t node, uint32_t fi, uint32_t handler, uint32_t catchable, uint32_t tb,
+                     int ti, int depth, uint32_t marker, uint32_t work) {
+    uint32_t lo = rd32(tb), hi = rd32(tb + 4), funclet = rd32(handler + 12), cont, head = marker ? marker : node;
+    InterlockedIncrement(&n_catches);
+    xrt_event("cxx_catch", "\"node\": \"0x%08x\", \"funcinfo\": \"0x%08x\", \"try\": %d, \"eh_state\": %d, \"depth\": %d, "
+              "\"funclet\": \"0x%08x\", \"type\": \"%s\"", node, fi, ti, (int)rd32(node + 8), depth, funclet,
+              rd32(handler + 4) ? td_name(rd32(handler + 4)) : "...");
+    build_catch_object(c, ex, node, handler, catchable);
+    unwind_nested(c, head, work);
+    unwind_to_state(c, node, fi, (int)lo, work);
+    wr32(node + 8, hi + 1);
+    cont = call_catch_block(c, ex, node, fi, funclet, depth, work);
+    if (cont)
+        jump_to_continuation(c, cont, node, head);
+    /* rethrown out of the catch block: keep searching */
+}
+
+/* GetRangeOfTrysToCheck */
+static void range_of_trys(CPU* c, uint32_t fi, int depth, int cur, int* first, int* last) {
+    int n = (int)rd32(fi + 12), start = n, end = n, end1 = n;
+    uint32_t tmap = rd32(fi + 16);
+    while (depth >= 0) {
+        start--;
+        if (start < -1)
+            xrt_fatal(c, XRT_EXIT_UNSUPPORTED, "C++ EH: catch depth %d inconsistent with FuncInfo %08x", depth, fi);
+        if (start == -1 || ((int)rd32(tmap + 20u * (uint32_t)start + 4) < cur &&
+                            cur <= (int)rd32(tmap + 20u * (uint32_t)start + 8))) {
+            depth--;
+            end = end1;
+            end1 = start;
+        }
+    }
+    *first = start + 1;
+    *last = end;
+}
+
+static void find_handler(CPU* c, EhExc ex, uint32_t node, uint32_t fi, int depth, uint32_t marker, uint32_t work) {
+    int cur = (int)rd32(node + 8), first, last, t;
+    uint32_t tmap = rd32(fi + 16), cta = rd32(ex.throwinfo + 12), ncat = rd32(cta);
+    if (cur < -1 || cur >= (int)rd32(fi + 4))
+        xrt_fatal(c, XRT_EXIT_UNSUPPORTED, "C++ EH: frame %08x has state %d outside FuncInfo %08x", node, cur, fi);
+    range_of_trys(c, fi, depth, cur, &first, &last);
+    for (t = first; t < last; t++) {
+        uint32_t tb = tmap + 20u * (uint32_t)t, nh = rd32(tb + 12), hs = rd32(tb + 16), h, k;
+        if ((int)rd32(tb) > cur || cur > (int)rd32(tb + 4))
+            continue;
+        for (h = 0; h < nh; h++) {
+            uint32_t handler = hs + 16u * h;
+            for (k = 0; k < ncat; k++) {
+                uint32_t ct = rd32(cta + 4 + 4 * k);
+                if (!type_match(handler, ct, ex.throwinfo))
+                    continue;
+                catch_it(c, ex, node, fi, handler, ct, tb, t, depth, marker, work);
+                goto next_try;                               /* back here only after a rethrow */
+            }
+        }
+    next_try:;
+    }
+}
+
+static XRT_NORETURN void dispatch(CPU* c, EhExc ex, int rethrow, uint32_t site) {
+    uint32_t work = (c->r[ESP] - DISPATCH_GAP) & ~15u, node;
+    char d[512];
+    for (node = rd32(c->fs_base); node != 0xFFFFFFFFu; node = rd32(node)) {
+        check_node(c, node);
+        if (rd32(node + 4) == XRT_CATCHGUARD) {
+            XrtEhCatch* k = catch_of_guard(c, node);
+            find_handler(c, ex, k->node, k->funcinfo, k->depth + 1, node, work);
+            if (rethrow) {
+                /* ExFilterRethrow: the innermost active catch block is left by the rethrow */
+                InterlockedIncrement(&n_rethrows);
+                xrt_event("cxx_rethrow_leaves_catch", "\"node\": \"0x%08x\", \"funclet\": \"0x%08x\"", k->node, k->funclet);
+                unwind_nested(c, node, work);
+                longjmp(k->pad.jb, LJ_RETHROW);
+            }
+            continue;
+        }
+        find_handler(c, ex, node, checked_funcinfo(c, node), 0, 0, work);
+    }
+    xrt_describe(d, sizeof d, site);
+    xrt_fatal(c, XRT_EXIT_UNSUPPORTED, "C++ exception of type %s%s thrown from %s is not caught by any handler on the guest "
+              "SEH chain (the original would terminate)", td_name(thrown_type(ex)), message_of(ex), d);
+}
+
+/* _CxxThrowException(pExceptionObject, pThrowInfo) (__stdcall; NULL, NULL rethrows the current exception) */
+void xrt_eh_throw(CPU* c) {
+    XrtThread* t = c->thread;
+    uint32_t obj = ARG(0), ti = ARG(1), site = rd32(c->r[ESP]);
+    EhExc ex;
+    int rethrow = !obj && !ti;
+    char tname[160], j[200];
+    if (t->eh_unwinding)
+        xrt_fatal(c, XRT_EXIT_UNSUPPORTED, "C++ exception thrown while unwind actions run (the original calls terminate())");
+    if (rethrow) {
+        if (!t->eh_catches)
+            xrt_fatal(c, XRT_EXIT_UNSUPPORTED, "C++ rethrow with no exception being handled (the original calls terminate())");
+        ex = t->eh_catches->ex;
+    } else {
+        ex.object = obj;
+        ex.throwinfo = ti;
+        InterlockedIncrement(&n_throws);
+    }
+    if (!ex.throwinfo || !xrt_is_committed(ex.throwinfo, 16) || !xrt_is_committed(rd32(ex.throwinfo + 12), 8) ||
+        rd32(rd32(ex.throwinfo + 12)) == 0 || rd32(rd32(ex.throwinfo + 12)) > 64)
+        xrt_fatal(c, XRT_EXIT_UNSUPPORTED, "C++ throw with an invalid ThrowInfo %08x", ex.throwinfo);
+    snprintf(tname, sizeof tname, "%s", td_name(thrown_type(ex)));
+    xrt_event("cxx_throw", "\"site\": \"0x%08x\", \"type\": %s, \"object\": \"0x%08x\", \"rethrow\": %s", site,
+              xrt_jstr(j, sizeof j, tname), ex.object, rethrow ? "true" : "false");
+    xrt_log("C++ %s of %s from %08x", rethrow ? "rethrow" : "throw", tname, site);
+    dispatch(c, ex, rethrow, site);
+}
+
+void xrt_eh_report(FILE* f) {
+    fprintf(f, ",\n \"cxx_exceptions\": {\"throws\": %ld, \"rethrows_leaving_catch\": %ld, \"catches\": %ld, "
+               "\"unwind_actions\": %ld, \"objects_destroyed\": %ld}", n_throws, n_rethrows, n_catches, n_unwinds, n_destroyed);
+}

@@ -92,6 +92,7 @@ void xrt_report_write(uint32_t exit_code, const char* outcome) {
     }
     fputs("\n ]", f);
     xrt_events_report(f);
+    xrt_eh_report(f);
     xrt_heap_stats(&a, &fr, &live, &hw);
     fprintf(f, ",\n \"guest_heap\": {\"allocs\": %llu, \"frees\": %llu, \"live_bytes\": %llu, \"high_water\": %u}\n}\n",
             a, fr, live, hw);
