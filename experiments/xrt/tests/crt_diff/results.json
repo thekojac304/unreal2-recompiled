@@ -7,7 +7,7 @@
  "corpus": {
   "seed": 20261022,
   "i10_cases": 6000,
-  "cases": 178398
+  "cases": 209573
  },
  "categories": {
   "int": {
@@ -153,9 +153,246 @@
   "rand": {
    "cases": 10,
    "mismatches": 0
+  },
+  "nint": {
+   "cases": 9504,
+   "mismatches": 0
+  },
+  "nintsweep": {
+   "cases": 2592,
+   "mismatches": 0
+  },
+  "nflt": {
+   "cases": 6460,
+   "mismatches": 0
+  },
+  "nfltsweep": {
+   "cases": 4800,
+   "mismatches": 0
+  },
+  "nfltfix": {
+   "cases": 31,
+   "mismatches": 0
+  },
+  "ni10": {
+   "cases": 2000,
+   "mismatches": 0
+  },
+  "nfltrand": {
+   "cases": 500,
+   "mismatches": 0
+  },
+  "nties": {
+   "cases": 666,
+   "mismatches": 0
+  },
+  "nnearties": {
+   "cases": 666,
+   "mismatches": 0
+  },
+  "nptr": {
+   "cases": 192,
+   "mismatches": 0
+  },
+  "nn": {
+   "cases": 26,
+   "mismatches": 0
+  },
+  "nodd": {
+   "cases": 258,
+   "mismatches": 0
+  },
+  "noddB": {
+   "cases": 20,
+   "mismatches": 2
+  },
+  "nfuzz": {
+   "cases": 1587,
+   "mismatches": 0
+  },
+  "ncstr": {
+   "cases": 104,
+   "mismatches": 0
+  },
+  "ntrunc": {
+   "cases": 47,
+   "mismatches": 0
+  },
+  "ncount": {
+   "cases": 4,
+   "mismatches": 0
+  },
+  "nstr": {
+   "cases": 768,
+   "mismatches": 0
+  },
+  "nchr": {
+   "cases": 288,
+   "mismatches": 0
+  },
+  "ntext": {
+   "cases": 62,
+   "mismatches": 15
+  },
+  "nmix": {
+   "cases": 600,
+   "mismatches": 0
   }
  },
- "total_mismatches": 0,
+ "total_mismatches": 17,
  "reference_faults": [],
- "mismatch_examples": {}
+ "mismatch_examples": {
+  "noddB": [
+   {
+    "id": "noddB.16",
+    "case": "A noddB.16 252E2A35737C252E2A35537C iFFFFFFFF w0077006900640065 iFFFFFFFF a6E6172726F77",
+    "ref": "R=3 B=777C7C00CCCCCCCCCCCCCCCC",
+    "cand": "R=2 B=7C7C00CCCCCCCCCCCCCCCC"
+   },
+   {
+    "id": "noddB.17",
+    "case": "A noddB.17 252E2A30737C252E2A30537C iFFFFFFFF w0077006900640065 iFFFFFFFF a6E6172726F77",
+    "ref": "R=3 B=777C7C00CCCCCCCCCCCCCCCC",
+    "cand": "R=2 B=7C7C00CCCCCCCCCCCCCCCC"
+   }
+  ],
+  "ntext": [
+   {
+    "id": "ntext.17",
+    "case": "A ntext.17 252E2A35737C iFFFFFFFF a6E6172726F77",
+    "ref": "R=7 B=6E6172726F777C00CCCCCCCCCCCCCCCC",
+    "cand": "R=1 B=7C00CCCCCCCCCCCCCCCC"
+   },
+   {
+    "id": "ntext.19",
+    "case": "A ntext.19 252E2A35737C iFFFFFFFF aE978FF",
+    "ref": "R=4 B=E978FF7C00CCCCCCCCCCCCCCCC",
+    "cand": "R=1 B=7C00CCCCCCCCCCCCCCCC"
+   },
+   {
+    "id": "ntext.20",
+    "case": "A ntext.20 252E2A35737C iFFFFFFFF 0",
+    "ref": "R=7 B=286E756C6C297C00CCCCCCCCCCCCCCCC",
+    "cand": "R=1 B=7C00CCCCCCCCCCCCCCCC"
+   },
+   {
+    "id": "ntext.21",
+    "case": "A ntext.21 252E2A30737C iFFFFFFFF a6E6172726F77",
+    "ref": "R=7 B=6E6172726F777C00CCCCCCCCCCCCCCCC",
+    "cand": "R=1 B=7C00CCCCCCCCCCCCCCCC"
+   },
+   {
+    "id": "ntext.23",
+    "case": "A ntext.23 252E2A30737C iFFFFFFFF aE978FF",
+    "ref": "R=4 B=E978FF7C00CCCCCCCCCCCCCCCC",
+    "cand": "R=1 B=7C00CCCCCCCCCCCCCCCC"
+   }
+  ]
+ },
+ "extended_run": {
+  "command": "compare.py --i10 60000 --seed 7",
+  "cases": 312985,
+  "total_mismatches": 17,
+  "note": "includes the narrow sprintf ('A') cases; all 17 mismatches are the open narrow negative-precision %s divergence (see README)"
+ },
+ "narrow_sprintf": {
+  "cases_default": 31175,
+  "skipped_both_sides_65536_or_more": 389,
+  "open_divergence": "narrow-string conversions (%s, %hs) with a negative precision other than -1 (e.g. %.*5s with * = -1): msvcr70's narrow _output prints the whole string (while (i-- && *p)); xrt_output prints nothing (the wide _woutput's narrow-string rule)"
+ },
+ "extended_run_wide_only": {
+  "command": "compare.py --i10 60000 --seed 7",
+  "cases": 281898,
+  "total_mismatches": 0,
+  "float_categories": {
+   "i10": {
+    "cases": 60000,
+    "mismatches": 0
+   },
+   "fltrand": {
+    "cases": 15000,
+    "mismatches": 0
+   },
+   "ties": {
+    "cases": 20000,
+    "mismatches": 0
+   },
+   "nearties": {
+    "cases": 20000,
+    "mismatches": 0
+   }
+  }
+ },
+ "before_fix": {
+  "adapters": "runtime/xrt_fmt.c and runtime/hle_msvcr70.c at commit edb955c, same corpus (seed 20261022)",
+  "excluded": "cases the original cannot survive: %Z (fatal), widths/precisions of 0x7FFFFFFF (host out of memory), float precisions 512/513/600 (stack buffer overflow in cfltcvt)",
+  "cases": 172412,
+  "mismatching_cases": 4452,
+  "categories": {
+   "int": {
+    "cases": 7329,
+    "mismatches": 492
+   },
+   "flt": {
+    "cases": 5862,
+    "mismatches": 213
+   },
+   "fltsweep": {
+    "cases": 4500,
+    "mismatches": 222
+   },
+   "i10": {
+    "cases": 6000,
+    "mismatches": 583
+   },
+   "fltrand": {
+    "cases": 1500,
+    "mismatches": 35
+   },
+   "ties": {
+    "cases": 2000,
+    "mismatches": 1998
+   },
+   "str": {
+    "cases": 1118,
+    "mismatches": 99
+   },
+   "chr": {
+    "cases": 554,
+    "mismatches": 136
+   },
+   "n": {
+    "cases": 27,
+    "mismatches": 19
+   },
+   "odd": {
+    "cases": 137,
+    "mismatches": 10
+   },
+   "oddB": {
+    "cases": 18,
+    "mismatches": 15
+   },
+   "fuzz": {
+    "cases": 4000,
+    "mismatches": 214
+   },
+   "count": {
+    "cases": 4,
+    "mismatches": 4
+   },
+   "wprintf": {
+    "cases": 181,
+    "mismatches": 9
+   },
+   "wtoi": {
+    "cases": 55,
+    "mismatches": 5
+   },
+   "wtoiall": {
+    "cases": 131070,
+    "mismatches": 398
+   }
+  }
+ }
 }

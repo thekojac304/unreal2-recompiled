@@ -4,6 +4,7 @@ Line kinds (read by crt_diff_core.h):
   P <id> <fmt> <arg>*        _vsnwprintf: unbounded, then counts 0, L-1, L, L+1 (L = full length)
   C <id> <counts> <fmt> <arg>*   _vsnwprintf with explicit counts (comma separated, decimal)
   W <id> <fmt> <arg>*        wprintf to stdout
+  A <id> <fmt bytes> <arg>*  narrow sprintf (output length probed first; SKIP when 65536 characters or more)
   S <id> <func> <arg>*       string function (w<hex> string, b<cap>,<hex> buffer, u<hex8> integer, 0 null)
   M <id> <size> <dst> <src> <n>   memmove inside one byte buffer
   R <id> <seed hex8|-> <n>   srand(seed) (unless '-') then n x rand()
@@ -96,6 +97,33 @@ class Corpus:
 
     def R(self, cat, seed, n):
         self.lines.append("R %s %s %d" % (self._id(cat), "-" if seed is None else "%08X" % (seed & 0xFFFFFFFF), n))
+
+    def A(self, cat, fmt, *args):
+        """narrow sprintf; fmt is bytes or a str of code points <= 0xFF (other formats are not narrow: dropped)"""
+        if isinstance(fmt, str):
+            if any(ord(ch) > 0xFF for ch in fmt):
+                return
+            fmt = fmt.encode("latin-1")
+        self.lines.append(" ".join(["A", self._id(cat), fmt.hex().upper() or "~"] + list(args)))
+
+
+class Narrow:
+    """Routes the printf generators' cases to narrow sprintf ('A' lines, categories prefixed with 'n'). Numeric
+    arguments mean the same in the narrow and the wide printf; string and character conversions do not (narrow
+    %s is a narrow string), so those generators' string arguments only exercise identical bytes on both sides,
+    and gen_str_narrow types them for the narrow _output."""
+
+    def __init__(self, c):
+        self.c = c
+
+    def P(self, cat, fmt, *args):
+        self.c.A("n" + cat, fmt, *args)
+
+    def C(self, cat, counts, fmt, *args):
+        self.c.A("n" + cat, fmt, *args)
+
+    def W(self, *a):
+        pass
 
 
 FLAGS = "-+ #0"
@@ -307,6 +335,77 @@ def gen_str(c, rng):
                 c.P("chr", "[" + "|".join([spec] * 4) + "]", *args)
 
 
+def gen_str_narrow(c, rng):
+    """narrow printf: %s is a narrow string unless l or w is given; %S is wide unless h is given (l/w are tested
+    before h); %c takes an int and prints its low byte; %C, %lc, %wc print a wide character through the C-locale
+    wctomb (nothing for a character above 0xFF); wide string text stops at the first such character"""
+    for flags in ALL_FLAGS:
+        for conv, size in [("s", ""), ("S", ""), ("s", "h"), ("s", "l"), ("s", "w"), ("S", "h"), ("S", "l"),
+                           ("S", "w"), ("s", "I64"), ("S", "L"), ("s", "hw"), ("s", "wh")]:
+            for _ in range(2):
+                w, wa = width_choices(rng)
+                p, pa = prec_choices(rng, big=False)
+                spec = "%" + flags + w + p + size + conv
+                wide = "l" in size or "w" in size or (conv == "S" and "h" not in size)
+                vals = rng.sample(WSTRS if wide else ASTRS, 3)
+                args = []
+                for v in vals:
+                    args += wa + pa + [NULL if v is None else (W(v) if wide else A(v))]
+                c.A("nstr", "[" + "|".join([spec] * 3) + "]", *args)
+        for conv, size in [("c", ""), ("C", ""), ("c", "h"), ("c", "l"), ("c", "w"), ("C", "h"), ("C", "l"),
+                           ("C", "w"), ("c", "I64")]:
+            w, wa = width_choices(rng)
+            p, pa = prec_choices(rng, big=False)
+            spec = "%" + flags + w + p + size + conv
+            vals = rng.sample(CHARS, 4)
+            args = []
+            for v in vals:
+                args += wa + pa + [I(v)]
+            c.A("nchr", "[" + "|".join([spec] * 4) + "]", *args)
+
+
+def gen_narrow_text(c, rng):
+    """narrow-only behaviour: high-bit format bytes, wide text through wctomb, and mixes of the common
+    conversions (GlmLib's sprintf use is plain %s/%d/%f/%x formatting)"""
+    fixed = [(b"plain", []), (b"\x80\x81\xe9\xff high", []), (b"%s|%S", [A(b"n\xe9"), W("wé")]),
+             (b"%S|", [W("abĀcd")]), (b"%-8S|", [W("abĀcd")]), (b"%8S|", [W("Ā")]),
+             (b"%.2S|", [W("éĀx")]), (b"%ls|%ws|%hs|%hS|", [W("wide"), W("w2"), A(b"nar"), A(b"n2")]),
+             (b"%C|%-3C|%lc|%wc|%hC|", [I(0x100), I(0x41), I(0xE9), I(0x20AC), I(0x141)]),
+             (b"%c%c%c", [I(0x141), I(0x80), I(0)]), (b"%S%n|", [W("aĀb"), "n0"]),
+             (b"%s %d %f %g %e %x %X %o %p %c %%",
+              [A(b"GlmLib"), I(-5), D(3.14159), D(1e-5), D(1e21), I(255), I(255), I(8), I(0x1234), I(0x41)]),
+             (b"%.3f %8.2f %-8.2f| %+.1e %#x %#o %05d %-5d| %.0f %.10g",
+              [D(2.0 / 3), D(-1234.5678), D(0.005), D(-6.02e23), I(0xBEEF), I(8), I(-42), I(7), D(2.5), D(1.0 / 3)]),
+             (b"%I64d %I64u %I64x %I64X", [Q(-1), Q(2 ** 63), Q(0x123456789ABCDEF), Q(-2)]),
+             (b"(%f, %f, %f)", [D(1.5), D(-0.0), D(1e-300)]), (b"%s=%d", [A(b"Key"), I(1)]), (b"%s", [NULL])]
+    # a '*' precision of -1 followed by digits leaves a negative precision other than -1 (-1*10+d)
+    for spec in ["%.*5s|", "%.*0s|", "%.*12s|", "%.*3hs|", "%-8.*5s|", "%.*5S|", "%.*0S|", "%.*5ls|", "%.*5ws|",
+                 "%8.*5S|"]:
+        wide = "S" in spec or "l" in spec or "w" in spec
+        for v in (["narrow", "", "éxÿ"] if not wide else ["wide", "", "éx", "aĀb"]):
+            fixed.append((spec.encode(), [I(-1), W(v) if wide else A(v.encode("latin-1"))]))
+        fixed.append((spec.encode(), [I(-1), NULL]))
+    for f, a in fixed:
+        c.A("ntext", f, *a)
+    specs = ["%d", "%i", "%u", "%x", "%X", "%08X", "%5d", "%-5d|", "%f", "%.2f", "%8.3f", "%g", "%e", "%s", "%10s",
+             "%-10s|", "%c", "%%", "%p", "%.0f", "%+d", "%03d", "%lf", "%ld", "%lu"]
+    for _ in range(600):
+        parts, args = [], []
+        for _ in range(rng.randint(1, 6)):
+            s = rng.choice(specs)
+            parts.append(rng.choice(["", " ", ", ", "=", "x", "\xe9"]) + s)
+            conv = s[-1] if s[-1] != "|" else s[-2]
+            if s == "%%":
+                continue
+            if conv in "feg":
+                args.append(rng.choice(FLOAT_VALS))
+            elif conv == "s":
+                args.append(rng.choice([A(b"name"), A(b""), A(b"caf\xe9"), NULL, A(b"x" * 60)]))
+            else:
+                args.append(I(rng.choice(INT32)))
+        c.A("nmix", "".join(parts), *args)
+
+
 def gen_ptr(c, rng):
     for flags in ALL_FLAGS:
         for size in ["", "h", "l", "I64", "I32", "w"]:
@@ -504,6 +603,7 @@ def main():
     ap.add_argument("out")
     ap.add_argument("--seed", type=int, default=20261022)
     ap.add_argument("--i10", type=int, default=6000, help="cases of 8 random doubles at %%.16e")
+    ap.add_argument("--narrow-i10", type=int, default=2000, help="the same for narrow sprintf")
     a = ap.parse_args()
     rng = random.Random(a.seed)
     c = Corpus()
@@ -518,6 +618,19 @@ def main():
     gen_trunc(c, rng)
     gen_wprintf(c, rng)
     gen_strings(c, rng)
+    # narrow sprintf, from its own random stream so that the wide corpus above stays unchanged
+    nr = random.Random(a.seed + 1)
+    n = Narrow(c)
+    gen_int(n, nr)
+    gen_float(n, nr)
+    gen_i10(n, nr, a.narrow_i10)
+    gen_ptr(n, nr)
+    gen_n(n, nr)
+    gen_odd(n, nr)
+    gen_counted(n, nr)
+    gen_trunc(n, nr)
+    gen_str_narrow(c, nr)
+    gen_narrow_text(c, nr)
     with open(a.out, "w", encoding="ascii", newline="\n") as f:
         f.write("\n".join(c.lines) + "\n")
     total = sum(c.counts.values())

@@ -14,7 +14,7 @@ if "%1"=="x86" (
 )
 if "%1"=="x64" (
     call %VCVARS% x64 >nul || exit /b 1
-    cl /nologo /O2 /fp:strict /W4 /wd4100 /wd4201 /wd4127 /wd4324 /D_CRT_SECURE_NO_WARNINGS /I..\..\runtime /Fo%OUT%\cand\ /Fe%OUT%\cand.exe cand.c ..\..\runtime\xrt_fmt.c ..\..\runtime\hle_msvcr70.c ..\..\runtime\xrt_mem.c /DSTUB_EH ..\common\xrt_test_stubs.c || exit /b 1
+    cl /nologo /O2 /fp:strict /W4 /wd4100 /wd4201 /wd4127 /wd4324 /D_CRT_SECURE_NO_WARNINGS /DSTUB_EH /I..\..\runtime /Fo%OUT%\cand\ /Fe%OUT%\cand.exe cand.c ..\..\runtime\xrt_fmt.c ..\..\runtime\hle_msvcr70.c ..\..\runtime\xrt_mem.c ..\common\xrt_test_stubs.c || exit /b 1
     exit /b 0
 )
 if not exist %OUT%\ref mkdir %OUT%\ref

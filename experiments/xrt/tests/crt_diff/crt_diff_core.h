@@ -7,6 +7,8 @@
  *   static Ptr arena_lo, arena_hi;            test arena [lo, hi) (set before run_corpus)
  *   static uint32_t call_fn(int f, const uint32_t* args, int nargs, uint32_t* exc);   cdecl call
  *   static uint32_t call_wprintf(Ptr fmt, const uint32_t* block, uint32_t* exc);      variadic call
+ *   static uint32_t call_sprintf(Ptr buf, Ptr fmt, const uint32_t* block, uint32_t* exc);   narrow sprintf
+ *   static int probe_too_long(Ptr fmt, Ptr va, uint32_t limit, uint32_t* exc);   narrow output >= limit chars?
  *   static void flush_stdout(void);
  * Both sides read the same corpus and write the same result format; compare.py diffs them. */
 #define WIN32_LEAN_AND_MEAN
@@ -29,8 +31,12 @@ static const int fn_returns_ptr[F_COUNT] = {0, 0, 1, 1, 1, 0, 0, 0, 0, 1, 1, 1, 
 #define BIG 8192         /* "unbounded" _vsnwprintf buffer, in wide characters */
 #define GUARD 8          /* sentinel characters after every output buffer */
 
+#define ABIG 65536       /* narrow sprintf: outputs of ABIG characters or more are not run (sprintf is unbounded) */
+
 static uint32_t call_fn(int f, const uint32_t* args, int nargs, uint32_t* exc);
 static uint32_t call_wprintf(Ptr fmt, const uint32_t* block, uint32_t* exc);
+static uint32_t call_sprintf(Ptr buf, Ptr fmt, const uint32_t* block, uint32_t* exc);
+static int probe_too_long(Ptr fmt, Ptr va, uint32_t limit, uint32_t* exc);
 static void flush_stdout(void);
 
 static Ptr bump;
@@ -312,6 +318,40 @@ static void run_wprintf(FILE* o, const char* id, Ptr fmt, const uint32_t* block,
     fputc('\n', o);
 }
 
+/* narrow sprintf. sprintf has no bound, so the output length is measured first (reference: the real
+ * _vsnprintf into an ABIG buffer; candidate: the runtime's narrow formatter with a sink that refuses the
+ * character after ABIG) and cases of ABIG characters or more are reported as SKIP on both sides. The buffer is
+ * pre-filled with 0xCC; the line records the return value, the bytes up to and GUARD past the terminator, and
+ * the %n targets. */
+static void run_sprintf(FILE* o, const char* id, Ptr fmt, Ptr va, const uint32_t* block, int has_n) {
+    uint32_t exc = 0, n, i;
+    Ptr buf;
+    int32_t r;
+    reset_slots();
+    if (probe_too_long(fmt, va, ABIG, &exc)) {
+        if (exc)
+            exc_line(o, "A", id, exc);
+        else
+            fprintf(o, "A %s SKIP\n", id);
+        return;
+    }
+    buf = talloc(ABIG + 1 + GUARD);
+    memset(H(buf), 0xCC, ABIG + 1 + GUARD);
+    reset_slots();
+    r = (int32_t)call_sprintf(buf, fmt, block, &exc);
+    if (exc) {
+        exc_line(o, "A", id, exc);
+        return;
+    }
+    fprintf(o, "A %s R=%d B=", id, r);
+    n = r >= 0 && (uint32_t)r <= ABIG ? (uint32_t)r + 1 + GUARD : 64;
+    for (i = 0; i < n; i++)
+        fprintf(o, "%02X", ((uint8_t*)H(buf))[i]);
+    if (has_n)
+        put_slots(o);
+    fputc('\n', o);
+}
+
 static int fn_index(const char* name) {
     int i;
     for (i = 0; i < F_COUNT; i++)
@@ -448,6 +488,13 @@ static void run_corpus(const char* corpus, const char* results) {
             } else {
                 run_wprintf(o, id, fmt, block, has_n);
             }
+        } else if (kind[0] == 'A') {
+            char* f = next_tok(&s);
+            Ptr fmt = put_astr(f), va;
+            int has_n = build_block(&s, block);
+            va = talloc(BLOCKW * 4);
+            memcpy(H(va), block, BLOCKW * 4);
+            run_sprintf(o, id, fmt, va, block, has_n);
         } else if (kind[0] == 'S') {
             run_string(o, id, s);
         } else if (kind[0] == 'M') {

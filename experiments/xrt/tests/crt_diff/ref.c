@@ -16,10 +16,13 @@ static void flush_stdout(void);
 typedef uint32_t(__cdecl* Fn4)(uint32_t, uint32_t, uint32_t, uint32_t);
 typedef struct Block { uint32_t w[BLOCKW]; } Block;
 typedef int(__cdecl* WprintfFn)(const wchar_t*, Block);
+typedef int(__cdecl* SprintfFn)(char*, const char*, Block);
 typedef int(__cdecl* FflushFn)(void*);
 
 static FARPROC fns[F_COUNT];
 static WprintfFn p_wprintf;
+static SprintfFn p_sprintf;
+static Fn4 p_vsnprintf;
 static FflushFn p_fflush;
 static uint8_t* p_iob;
 
@@ -46,6 +49,32 @@ static uint32_t call_wprintf(Ptr fmt, const uint32_t* block, uint32_t* exc) {
     return r;
 }
 
+static uint32_t call_sprintf(Ptr buf, Ptr fmt, const uint32_t* block, uint32_t* exc) {
+    Block b;
+    uint32_t r = 0;
+    memcpy(b.w, block, sizeof b.w);
+    __try {
+        r = (uint32_t)p_sprintf((char*)H(buf), (const char*)H(fmt), b);
+    } __except (EXCEPTION_EXECUTE_HANDLER) {
+        *exc = GetExceptionCode();
+    }
+    return r;
+}
+
+/* _vsnprintf returns -1 only when the string stream fills up (the narrow _output has no other failing write),
+ * and returns the count itself, without a terminator, when the output is exactly that long */
+static int probe_too_long(Ptr fmt, Ptr va, uint32_t limit, uint32_t* exc) {
+    Ptr p = talloc(limit + GUARD);
+    int32_t r = 0;
+    __try {
+        r = (int32_t)p_vsnprintf(p, limit, fmt, va);
+    } __except (EXCEPTION_EXECUTE_HANDLER) {
+        *exc = GetExceptionCode();
+        return 1;
+    }
+    return r < 0 || (uint32_t)r >= limit;
+}
+
 static void flush_stdout(void) { p_fflush(p_iob + 32); }   /* &_iob[1]: msvcr70 FILE is 32 bytes */
 
 int main(int argc, char** argv) {
@@ -69,7 +98,9 @@ int main(int argc, char** argv) {
     p_wprintf = (WprintfFn)GetProcAddress(m, "wprintf");
     p_fflush = (FflushFn)GetProcAddress(m, "fflush");
     p_iob = (uint8_t*)GetProcAddress(m, "_iob");
-    if (!p_wprintf || !p_fflush || !p_iob)
+    p_sprintf = (SprintfFn)GetProcAddress(m, "sprintf");
+    p_vsnprintf = (Fn4)GetProcAddress(m, "_vsnprintf");
+    if (!p_wprintf || !p_fflush || !p_iob || !p_sprintf || !p_vsnprintf)
         return 2;
     mem = VirtualAlloc(NULL, 64u << 20, MEM_RESERVE | MEM_COMMIT, PAGE_READWRITE);
     if (!mem)

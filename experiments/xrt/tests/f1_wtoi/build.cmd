@@ -21,5 +21,5 @@ cl /nologo /O1 /W4 /D_CRT_SECURE_NO_WARNINGS /Fo%OUT%\ref\ /Fe%OUT%\ref_wtoi.exe
 exit /b 0
 :cand
 call %VCVARS% x64 >nul || exit /b 1
-cl /nologo /O2 /fp:strict /W4 /wd4100 /wd4201 /wd4127 /wd4324 /D_CRT_SECURE_NO_WARNINGS /I..\..\runtime /Fo%OUT%\cand\ /Fe%OUT%\cand_wtoi.exe cand_wtoi.c ..\..\runtime\xrt_fmt.c ..\..\runtime\hle_msvcr70.c ..\..\runtime\xrt_mem.c /DSTUB_EVENT /DSTUB_EH ..\common\xrt_test_stubs.c || exit /b 1
+cl /nologo /O2 /fp:strict /W4 /wd4100 /wd4201 /wd4127 /wd4324 /D_CRT_SECURE_NO_WARNINGS /DSTUB_EVENT /DSTUB_EH /I..\..\runtime /Fo%OUT%\cand\ /Fe%OUT%\cand_wtoi.exe cand_wtoi.c ..\..\runtime\xrt_fmt.c ..\..\runtime\hle_msvcr70.c ..\..\runtime\xrt_mem.c ..\common\xrt_test_stubs.c || exit /b 1
 exit /b 0

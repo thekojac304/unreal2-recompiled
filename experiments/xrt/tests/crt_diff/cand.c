@@ -3,6 +3,7 @@
  *   cand.exe <corpus.txt> <results.txt>   (stdout receives the wprintf adapter's output)
  *
  * Links the runtime's xrt_fmt.c, hle_msvcr70.c and xrt_mem.c (stubs below for the rest of the runtime).
+ * Narrow sprintf cases go through the sprintf adapter (xrt_output); their length probe calls xrt_output directly.
  * Test data, format strings and argument blocks live in guest memory; adapters from xrt_hle_msvcr70[] are
  * called with a CPU whose ESP points at [return address][args...] (cdecl) and the result is read from
  * EAX. Every unbounded _vsnwprintf call is also checked against a direct xrt_wformat call. */
@@ -47,7 +48,7 @@ void hle_msvcr70_init(void);
 
 /* ---------------------------------------------------------------- adapter calls */
 static XrtThread thr;
-static XrtFn fns[F_COUNT], f_wprintf;
+static XrtFn fns[F_COUNT], f_wprintf, f_sprintf;
 static unsigned long direct_mismatches;
 
 static XrtFn lookup(const char* name) {
@@ -106,6 +107,37 @@ static uint32_t call_wprintf(Ptr fmt, const uint32_t* block, uint32_t* exc) {
     return call_adapter(f_wprintf, a, BLOCKW + 1);
 }
 
+/* sprintf through the adapter (buffer, format, then the varargs at esp+12) */
+static uint32_t call_sprintf(Ptr buf, Ptr fmt, const uint32_t* block, uint32_t* exc) {
+    uint32_t a[BLOCKW + 2];
+    (void)exc;
+    a[0] = buf;
+    a[1] = fmt;
+    memcpy(a + 2, block, BLOCKW * 4);
+    return call_adapter(f_sprintf, a, BLOCKW + 2);
+}
+
+/* length probe: the runtime's narrow formatter over a sink that refuses the character after `limit`, which
+ * the CRT's charsout rule turns into -1, as the real _vsnprintf's full string stream does */
+typedef struct Count { uint32_t n, limit; } Count;
+static int count_put(void* ctx, uint16_t ch) {
+    Count* k = (Count*)ctx;
+    (void)ch;
+    if (k->n >= k->limit)
+        return 0;
+    k->n++;
+    return 1;
+}
+static int probe_too_long(Ptr fmt, Ptr va, uint32_t limit, uint32_t* exc) {
+    Count k;
+    int32_t r;
+    (void)exc;
+    k.n = 0;
+    k.limit = limit;
+    r = xrt_output(fmt, va, count_put, &k);
+    return r < 0 || (uint32_t)r >= limit;
+}
+
 int main(int argc, char** argv) {
     int i;
     if (argc != 3) {
@@ -123,6 +155,7 @@ int main(int argc, char** argv) {
     for (i = 0; i < F_COUNT; i++)
         fns[i] = lookup(fn_names[i]);
     f_wprintf = lookup("wprintf");
+    f_sprintf = lookup("sprintf");
     run_corpus(argv[1], argv[2]);
     xrt_stdout_flush();
     fprintf(stderr, "direct xrt_wformat vs adapter mismatches: %lu\n", direct_mismatches);
