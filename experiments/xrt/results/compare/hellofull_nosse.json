@@ -1,7 +1,7 @@
 {
  "runner_schema": 3,
- "invocation_id": "20261022-192236-dfeefd69",
- "invocation_dir": "experiments/xrt/results/raw/runs/20261022-192236-dfeefd69",
+ "invocation_id": "20261022-193849-832a4aa5",
+ "invocation_dir": "experiments/xrt/results/raw/runs/20261022-193849-832a4aa5",
  "case": "hellofull_nosse",
  "args": [
   "Core.HelloWorldCommandlet",
@@ -37,27 +37,10 @@
  "reference": "fresh-original",
  "identity": {
   "git": {
-   "head": "805e2fe82c91d8116af1d894345f481e14f3a77e",
+   "head": "012000536db2b5d8754b5ab29bd826b7f394db70",
    "tracked_files_modified": true,
    "modified": [
-    "M CURRENT_STATUS.md",
-    " M experiments/xrt/results/compare/arraytest.json",
-    " M experiments/xrt/results/compare/hello.json",
-    " M experiments/xrt/results/compare/hello_noargs.json",
-    " M experiments/xrt/results/compare/hellofull.json",
-    " M experiments/xrt/results/compare/hellofull_nosse.json",
-    " M experiments/xrt/results/compare/hellonew.json",
-    " M experiments/xrt/results/compare/simple.json",
-    " M experiments/xrt/runtime/hle_msvcr70.c",
-    " M experiments/xrt/runtime/xrt.h",
-    " M experiments/xrt/runtime/xrt_cpu.c",
-    " M experiments/xrt/runtime/xrt_internal.h",
-    " M experiments/xrt/runtime/xrt_loader.c",
-    " M experiments/xrt/runtime/xrt_main.c",
-    " M tools/xrt/cases.py",
-    " M tools/xrt/eh_points.py",
-    " M tools/xrt/run_xrt.py",
-    " M tools/xrt/xlift.py"
+    "M CURRENT_STATUS.md"
    ]
   },
   "runner": {
@@ -74,7 +57,7 @@
   },
   "lifter": {
    "path": "tools/xrt/xlift.py",
-   "sha256": "eca3880ff363faf4b66d8e638bfeee09e5ce57f89d1d20ea74b0102883fba523"
+   "sha256": "eb677d2eb0ab7824ff77161ae4045d2bec9e4235f00569328d85e6527bff8131"
   },
   "runtime_sources": {
    "path": "experiments/xrt/runtime",
@@ -83,8 +66,8 @@
   },
   "generated_code": {
    "path": "experiments/xrt/gen",
-   "files": 28,
-   "sha256": "9d34382e4f2eb8ca9e1e041279ac6d082de335e173f1745707d201a5c13a4365"
+   "files": 147,
+   "sha256": "42805624e120dfe04ea6974b07bf4e113b535f45b6edd94c2c6967afa9cf6e75"
   },
   "candidate": {
    "path": "experiments/xrt/build/xrt_ucc.exe",
@@ -108,11 +91,11 @@
  "runs": [
   {
    "run": 0,
-   "dir": "experiments/xrt/results/raw/runs/20261022-192236-dfeefd69/hellofull_nosse/run0",
+   "dir": "experiments/xrt/results/raw/runs/20261022-193849-832a4aa5/hellofull_nosse/run0",
    "verdict": "PASS",
    "candidate": {
     "exit_code": 0,
-    "seconds": 1.729,
+    "seconds": 1.736,
     "stdout_sha256": "7bf01a3377bfd72b3ce256ebcc51192970335dad8af8cc4e89dadb4ad2bd2c36",
     "command_line": "E:\\Unreal2-Port-Investigation\\sandbox_cmp\\hellofull_nosse\\System\\UCC.exe Core.HelloWorldCommandlet a b c -NOMMX -NOSSE",
     "inputs": {
@@ -132,7 +115,7 @@
    "original": {
     "tool": "direct",
     "exit_code": 0,
-    "seconds": 1.732,
+    "seconds": 1.73,
     "stdout_sha256": "7bf01a3377bfd72b3ce256ebcc51192970335dad8af8cc4e89dadb4ad2bd2c36",
     "command_line": "E:\\Unreal2-Port-Investigation\\sandbox_cmp\\hellofull_nosse\\System\\UCC.exe Core.HelloWorldCommandlet a b c -NOMMX -NOSSE",
     "written": [
@@ -209,11 +192,11 @@
   },
   {
    "run": 1,
-   "dir": "experiments/xrt/results/raw/runs/20261022-192236-dfeefd69/hellofull_nosse/run1",
+   "dir": "experiments/xrt/results/raw/runs/20261022-193849-832a4aa5/hellofull_nosse/run1",
    "verdict": "PASS",
    "candidate": {
     "exit_code": 0,
-    "seconds": 1.732,
+    "seconds": 1.734,
     "stdout_sha256": "7bf01a3377bfd72b3ce256ebcc51192970335dad8af8cc4e89dadb4ad2bd2c36",
     "command_line": "E:\\Unreal2-Port-Investigation\\sandbox_cmp\\hellofull_nosse\\System\\UCC.exe Core.HelloWorldCommandlet a b c -NOMMX -NOSSE",
     "inputs": {
@@ -233,7 +216,7 @@
    "original": {
     "tool": "direct",
     "exit_code": 0,
-    "seconds": 1.719,
+    "seconds": 1.725,
     "stdout_sha256": "7bf01a3377bfd72b3ce256ebcc51192970335dad8af8cc4e89dadb4ad2bd2c36",
     "command_line": "E:\\Unreal2-Port-Investigation\\sandbox_cmp\\hellofull_nosse\\System\\UCC.exe Core.HelloWorldCommandlet a b c -NOMMX -NOSSE",
     "written": [
@@ -310,11 +293,11 @@
   },
   {
    "run": 2,
-   "dir": "experiments/xrt/results/raw/runs/20261022-192236-dfeefd69/hellofull_nosse/run2",
+   "dir": "experiments/xrt/results/raw/runs/20261022-193849-832a4aa5/hellofull_nosse/run2",
    "verdict": "PASS",
    "candidate": {
     "exit_code": 0,
-    "seconds": 1.732,
+    "seconds": 1.771,
     "stdout_sha256": "7bf01a3377bfd72b3ce256ebcc51192970335dad8af8cc4e89dadb4ad2bd2c36",
     "command_line": "E:\\Unreal2-Port-Investigation\\sandbox_cmp\\hellofull_nosse\\System\\UCC.exe Core.HelloWorldCommandlet a b c -NOMMX -NOSSE",
     "inputs": {
@@ -334,7 +317,7 @@
    "original": {
     "tool": "direct",
     "exit_code": 0,
-    "seconds": 1.727,
+    "seconds": 1.729,
     "stdout_sha256": "7bf01a3377bfd72b3ce256ebcc51192970335dad8af8cc4e89dadb4ad2bd2c36",
     "command_line": "E:\\Unreal2-Port-Investigation\\sandbox_cmp\\hellofull_nosse\\System\\UCC.exe Core.HelloWorldCommandlet a b c -NOMMX -NOSSE",
     "written": [

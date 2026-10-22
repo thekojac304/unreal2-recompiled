@@ -1,7 +1,7 @@
 {
  "runner_schema": 3,
- "invocation_id": "20261022-192236-dfeefd69",
- "invocation_dir": "experiments/xrt/results/raw/runs/20261022-192236-dfeefd69",
+ "invocation_id": "20261022-193849-832a4aa5",
+ "invocation_dir": "experiments/xrt/results/raw/runs/20261022-193849-832a4aa5",
  "case": "badclass",
  "args": [
   "NoSuchCommandletXYZ"
@@ -26,27 +26,10 @@
  "reference": "fresh-original",
  "identity": {
   "git": {
-   "head": "805e2fe82c91d8116af1d894345f481e14f3a77e",
+   "head": "012000536db2b5d8754b5ab29bd826b7f394db70",
    "tracked_files_modified": true,
    "modified": [
-    "M CURRENT_STATUS.md",
-    " M experiments/xrt/results/compare/arraytest.json",
-    " M experiments/xrt/results/compare/hello.json",
-    " M experiments/xrt/results/compare/hello_noargs.json",
-    " M experiments/xrt/results/compare/hellofull.json",
-    " M experiments/xrt/results/compare/hellofull_nosse.json",
-    " M experiments/xrt/results/compare/hellonew.json",
-    " M experiments/xrt/results/compare/simple.json",
-    " M experiments/xrt/runtime/hle_msvcr70.c",
-    " M experiments/xrt/runtime/xrt.h",
-    " M experiments/xrt/runtime/xrt_cpu.c",
-    " M experiments/xrt/runtime/xrt_internal.h",
-    " M experiments/xrt/runtime/xrt_loader.c",
-    " M experiments/xrt/runtime/xrt_main.c",
-    " M tools/xrt/cases.py",
-    " M tools/xrt/eh_points.py",
-    " M tools/xrt/run_xrt.py",
-    " M tools/xrt/xlift.py"
+    "M CURRENT_STATUS.md"
    ]
   },
   "runner": {
@@ -63,7 +46,7 @@
   },
   "lifter": {
    "path": "tools/xrt/xlift.py",
-   "sha256": "eca3880ff363faf4b66d8e638bfeee09e5ce57f89d1d20ea74b0102883fba523"
+   "sha256": "eb677d2eb0ab7824ff77161ae4045d2bec9e4235f00569328d85e6527bff8131"
   },
   "runtime_sources": {
    "path": "experiments/xrt/runtime",
@@ -72,8 +55,8 @@
   },
   "generated_code": {
    "path": "experiments/xrt/gen",
-   "files": 28,
-   "sha256": "9d34382e4f2eb8ca9e1e041279ac6d082de335e173f1745707d201a5c13a4365"
+   "files": 147,
+   "sha256": "42805624e120dfe04ea6974b07bf4e113b535f45b6edd94c2c6967afa9cf6e75"
   },
   "candidate": {
    "path": "experiments/xrt/build/xrt_ucc.exe",
@@ -97,11 +80,11 @@
  "runs": [
   {
    "run": 0,
-   "dir": "experiments/xrt/results/raw/runs/20261022-192236-dfeefd69/badclass/run0",
+   "dir": "experiments/xrt/results/raw/runs/20261022-193849-832a4aa5/badclass/run0",
    "verdict": "PASS",
    "candidate": {
     "exit_code": 0,
-    "seconds": 1.706,
+    "seconds": 1.719,
     "stdout_sha256": "3a4238e5a90cf987a3b762fd0543e9baa4cbced787391e209f973efb14ecde30",
     "command_line": "E:\\Unreal2-Port-Investigation\\sandbox_cmp\\badclass\\System\\UCC.exe NoSuchCommandletXYZ",
     "inputs": {
@@ -121,7 +104,7 @@
    "original": {
     "tool": "uctrace",
     "exit_code": 0,
-    "seconds": 10.652,
+    "seconds": 11.019,
     "stdout_sha256": "3a4238e5a90cf987a3b762fd0543e9baa4cbced787391e209f973efb14ecde30",
     "command_line": "E:\\Unreal2-Port-Investigation\\sandbox_cmp\\badclass\\System\\UCC.exe NoSuchCommandletXYZ",
     "written": [
@@ -210,11 +193,11 @@
   },
   {
    "run": 1,
-   "dir": "experiments/xrt/results/raw/runs/20261022-192236-dfeefd69/badclass/run1",
+   "dir": "experiments/xrt/results/raw/runs/20261022-193849-832a4aa5/badclass/run1",
    "verdict": "PASS",
    "candidate": {
     "exit_code": 0,
-    "seconds": 1.705,
+    "seconds": 1.708,
     "stdout_sha256": "3a4238e5a90cf987a3b762fd0543e9baa4cbced787391e209f973efb14ecde30",
     "command_line": "E:\\Unreal2-Port-Investigation\\sandbox_cmp\\badclass\\System\\UCC.exe NoSuchCommandletXYZ",
     "inputs": {
@@ -234,7 +217,7 @@
    "original": {
     "tool": "uctrace",
     "exit_code": 0,
-    "seconds": 10.867,
+    "seconds": 10.667,
     "stdout_sha256": "3a4238e5a90cf987a3b762fd0543e9baa4cbced787391e209f973efb14ecde30",
     "command_line": "E:\\Unreal2-Port-Investigation\\sandbox_cmp\\badclass\\System\\UCC.exe NoSuchCommandletXYZ",
     "written": [
@@ -323,11 +306,11 @@
   },
   {
    "run": 2,
-   "dir": "experiments/xrt/results/raw/runs/20261022-192236-dfeefd69/badclass/run2",
+   "dir": "experiments/xrt/results/raw/runs/20261022-193849-832a4aa5/badclass/run2",
    "verdict": "PASS",
    "candidate": {
     "exit_code": 0,
-    "seconds": 1.715,
+    "seconds": 1.711,
     "stdout_sha256": "3a4238e5a90cf987a3b762fd0543e9baa4cbced787391e209f973efb14ecde30",
     "command_line": "E:\\Unreal2-Port-Investigation\\sandbox_cmp\\badclass\\System\\UCC.exe NoSuchCommandletXYZ",
     "inputs": {
@@ -347,7 +330,7 @@
    "original": {
     "tool": "uctrace",
     "exit_code": 0,
-    "seconds": 10.794,
+    "seconds": 10.784,
     "stdout_sha256": "3a4238e5a90cf987a3b762fd0543e9baa4cbced787391e209f973efb14ecde30",
     "command_line": "E:\\Unreal2-Port-Investigation\\sandbox_cmp\\badclass\\System\\UCC.exe NoSuchCommandletXYZ",
     "written": [
