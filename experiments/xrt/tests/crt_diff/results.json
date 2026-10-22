@@ -1,0 +1,161 @@
+{
+ "date": "2026-10-22",
+ "reference": {
+  "dll": "sandbox_ref/hellofull/System/msvcr70.dll",
+  "sha256": "f68e4cdbc879423ea47d763a6768567f5f8063924f13a74239750c13fa8d168a"
+ },
+ "corpus": {
+  "seed": 20261022,
+  "i10_cases": 6000,
+  "cases": 178398
+ },
+ "categories": {
+  "int": {
+   "cases": 9504,
+   "mismatches": 0
+  },
+  "intsweep": {
+   "cases": 2592,
+   "mismatches": 0
+  },
+  "flt": {
+   "cases": 6460,
+   "mismatches": 0
+  },
+  "fltsweep": {
+   "cases": 4800,
+   "mismatches": 0
+  },
+  "fltfix": {
+   "cases": 31,
+   "mismatches": 0
+  },
+  "i10": {
+   "cases": 6000,
+   "mismatches": 0
+  },
+  "fltrand": {
+   "cases": 1500,
+   "mismatches": 0
+  },
+  "ties": {
+   "cases": 2000,
+   "mismatches": 0
+  },
+  "nearties": {
+   "cases": 2000,
+   "mismatches": 0
+  },
+  "str": {
+   "cases": 1152,
+   "mismatches": 0
+  },
+  "chr": {
+   "cases": 576,
+   "mismatches": 0
+  },
+  "ptr": {
+   "cases": 192,
+   "mismatches": 0
+  },
+  "n": {
+   "cases": 27,
+   "mismatches": 0
+  },
+  "odd": {
+   "cases": 268,
+   "mismatches": 0
+  },
+  "oddB": {
+   "cases": 20,
+   "mismatches": 0
+  },
+  "fuzz": {
+   "cases": 4000,
+   "mismatches": 0
+  },
+  "cstr": {
+   "cases": 104,
+   "mismatches": 0
+  },
+  "trunc": {
+   "cases": 48,
+   "mismatches": 0
+  },
+  "count": {
+   "cases": 4,
+   "mismatches": 0
+  },
+  "wprintf": {
+   "cases": 182,
+   "mismatches": 0
+  },
+  "wcslen": {
+   "cases": 31,
+   "mismatches": 0
+  },
+  "wcscpy": {
+   "cases": 31,
+   "mismatches": 0
+  },
+  "wcsupr": {
+   "cases": 34,
+   "mismatches": 0
+  },
+  "wcscat": {
+   "cases": 186,
+   "mismatches": 0
+  },
+  "wcsncpy": {
+   "cases": 1302,
+   "mismatches": 0
+  },
+  "wcscmp": {
+   "cases": 961,
+   "mismatches": 0
+  },
+  "wcsicmp": {
+   "cases": 1015,
+   "mismatches": 0
+  },
+  "wcsncmp": {
+   "cases": 961,
+   "mismatches": 0
+  },
+  "wcsnicmp": {
+   "cases": 1015,
+   "mismatches": 0
+  },
+  "wcschr": {
+   "cases": 80,
+   "mismatches": 0
+  },
+  "wcsrchr": {
+   "cases": 80,
+   "mismatches": 0
+  },
+  "wcsstr": {
+   "cases": 96,
+   "mismatches": 0
+  },
+  "wtoi": {
+   "cases": 55,
+   "mismatches": 0
+  },
+  "wtoiall": {
+   "cases": 131070,
+   "mismatches": 0
+  },
+  "memmove": {
+   "cases": 11,
+   "mismatches": 0
+  },
+  "rand": {
+   "cases": 10,
+   "mismatches": 0
+  }
+ },
+ "total_mismatches": 0,
+ "reference_faults": [],
+ "mismatch_examples": {}
+}

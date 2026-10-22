@@ -1,0 +1,7278 @@
+{
+ "summary": {
+  "snippets": 2627,
+  "cases": 432304,
+  "forms": 382,
+  "census_forms": 203,
+  "census_forms_covered": 203,
+  "census_encodings": 294,
+  "census_encodings_covered": 294,
+  "failed_cases": 20,
+  "failed_cases_census_forms": 20,
+  "failed_cases_extended_forms": 0,
+  "failed_cases_unattributed": 0,
+  "failure_categories": {
+   "status": 0,
+   "gpr": 0,
+   "eflags": 0,
+   "memory": 0,
+   "x87-top": 6,
+   "x87-cc": 20,
+   "x87-fcw": 0,
+   "x87-value": 0,
+   "oracle": 0
+  },
+  "model_categories": {
+   "x87-not-a-double": 2679,
+   "x87-transcendental": 512,
+   "x87-nan-payload": 40,
+   "x87-c1": 12130,
+   "x87-exception-flags": 33048,
+   "fnstsw-unmodelled": 1226,
+   "fatal-by-design": 791
+  },
+  "status_pairs": {
+   "ok/ok": 428871,
+   "#DE/#DE": 2642,
+   "ok/fatal": 791
+  },
+  "transcendental_ulp_histogram": {
+   "0": 8060,
+   "1": 264,
+   "2": 27,
+   ">=3": 227,
+   "inf/nan": 20
+  },
+  "families": {
+   "alu1": {
+    "cases": 23680
+   },
+   "alu2": {
+    "cases": 110112
+   },
+   "div": {
+    "cases": 5600
+   },
+   "dshift": {
+    "cases": 5280
+   },
+   "flagop": {
+    "cases": 1600
+   },
+   "move": {
+    "cases": 98992
+   },
+   "mul": {
+    "cases": 14672
+   },
+   "other": {
+    "cases": 320
+   },
+   "setcc": {
+    "cases": 16640
+   },
+   "shift": {
+    "cases": 45200
+   },
+   "stack": {
+    "cases": 8128
+   },
+   "string": {
+    "cases": 8640
+   },
+   "x87": {
+    "cases": 79360,
+    "x87-exception-flags": 31832,
+    "x87-c1": 12130,
+    "x87-not-a-double": 2679,
+    "fnstsw-unmodelled": 10,
+    "x87-nan-payload": 40,
+    "x87-transcendental": 512,
+    "x87-cc": 20,
+    "x87-top": 6,
+    "fatal-by-design": 791
+   },
+   "x87seq": {
+    "cases": 14080,
+    "fnstsw-unmodelled": 1216,
+    "x87-exception-flags": 1216
+   }
+  },
+  "seed": 20261022,
+  "scale": 1.0
+ },
+ "census": {
+  "instructions_decoded": {
+   "Core.dll": 129687,
+   "UCC.exe": 9258
+  },
+  "excluded": {
+   "call": 10609,
+   "je": 3916,
+   "ret": 3652,
+   "jmp": 3170,
+   "jne": 2189,
+   "jge": 458,
+   "jle": 368,
+   "jl": 239,
+   "jp": 134,
+   "simd": 102,
+   "jb": 82,
+   "jg": 76,
+   "jbe": 59,
+   "jae": 55,
+   "ja": 53,
+   "rdtsc": 33,
+   "jnp": 30,
+   "jns": 13,
+   "js": 11,
+   "cpuid": 1
+  },
+  "addressing_modes": {
+   "base+disp8": 12592,
+   "ebp+disp8": 10061,
+   "esp+disp8": 8698,
+   "disp32": 5980,
+   "base": 5611,
+   "fs:": 2218,
+   "base+disp32": 810,
+   "ebp+disp32": 773,
+   "base+idx*4": 633,
+   "es:+base": 570,
+   "esp": 421,
+   "base+idx*1+disp8": 300,
+   "base+idx*2": 261,
+   "base+idx*1": 214,
+   "esp+disp32": 135,
+   "ebp": 124,
+   "base+idx*8": 94,
+   "idx*4+disp32": 68,
+   "base+idx*1+disp32": 64,
+   "base+idx*4+disp8": 53,
+   "base+idx*2+disp8": 33,
+   "base+idx*8+disp8": 18,
+   "ebp+idx*4": 17,
+   "base+idx*4+disp32": 16,
+   "ebp+idx*2+disp32": 15,
+   "idx*2+disp32": 6,
+   "esp+idx*2+disp8": 6,
+   "esp+idx*1+disp8": 5,
+   "idx*4": 4,
+   "ebp+idx*4+disp32": 4,
+   "esp+idx*4+disp8": 2,
+   "idx*8": 2,
+   "ebp+idx*1+disp32": 2
+  },
+  "fnstsw_ax_consumers": {
+   "test ah, 0x44": 87,
+   "test ah, 1": 86,
+   "test ah, 0x41": 70,
+   "test ah, 5": 52,
+   "pop ebx ; test ah, 1": 1,
+   "fstp st(0) ; test ah, 0x41": 1,
+   "fstp st(0) ; test ah, 0x44": 1
+  }
+ },
+ "extended_not_implemented": [
+  {
+   "text": "fxam",
+   "bytes": "d9e5",
+   "lifter": "x87 instruction fxam"
+  },
+  {
+   "text": "fprem",
+   "bytes": "d9f8",
+   "lifter": "x87 instruction fprem"
+  },
+  {
+   "text": "fprem1",
+   "bytes": "d9f5",
+   "lifter": "x87 instruction fprem1"
+  },
+  {
+   "text": "fincstp",
+   "bytes": "d9f7",
+   "lifter": "x87 instruction fincstp"
+  },
+  {
+   "text": "fdecstp",
+   "bytes": "d9f6",
+   "lifter": "x87 instruction fdecstp"
+  },
+  {
+   "text": "ffree st(1)",
+   "bytes": "ddc1",
+   "lifter": "x87 instruction ffree"
+  },
+  {
+   "text": "fcmovb st(0), st(1)",
+   "bytes": "dac1",
+   "lifter": "x87 instruction fcmovb"
+  },
+  {
+   "text": "fucomi st(1)",
+   "bytes": "dbe9",
+   "lifter": "x87 instruction fucomi"
+  },
+  {
+   "text": "fucompi st(1)",
+   "bytes": "dfe9",
+   "lifter": "x87 instruction fucompi"
+  },
+  {
+   "text": "fbld tbyte ptr [ebx + 0x10]",
+   "bytes": "df6310",
+   "lifter": "x87 BCD or unknown memory form fbld"
+  },
+  {
+   "text": "fbstp tbyte ptr [ebx + 0x10]",
+   "bytes": "df7310",
+   "lifter": "x87 BCD or unknown memory form fbstp"
+  },
+  {
+   "text": "fld xword ptr [ebx + 0x10]",
+   "bytes": "db6b10",
+   "lifter": "x87 80-bit or unknown memory form fld"
+  },
+  {
+   "text": "fstp xword ptr [ebx + 0x10]",
+   "bytes": "db7b10",
+   "lifter": "x87 80-bit or unknown memory form fstp"
+  },
+  {
+   "text": "fldenv [ebx + 0x10]",
+   "bytes": "d96310",
+   "lifter": "x87 environment instruction fldenv"
+  },
+  {
+   "text": "fnstenv [ebx + 0x10]",
+   "bytes": "d97310",
+   "lifter": "x87 environment instruction fnstenv"
+  },
+  {
+   "text": "frstor dword ptr [ebx + 0x10]",
+   "bytes": "dd6310",
+   "lifter": "x87 instruction frstor"
+  },
+  {
+   "text": "fnsave dword ptr [ebx + 0x10]",
+   "bytes": "dd7310",
+   "lifter": "x87 instruction fnsave"
+  },
+  {
+   "text": "fxtract",
+   "bytes": "d9f4",
+   "lifter": "x87 instruction fxtract"
+  },
+  {
+   "text": "fsincos",
+   "bytes": "d9fb",
+   "lifter": "x87 instruction fsincos"
+  },
+  {
+   "text": "fyl2xp1",
+   "bytes": "d9f9",
+   "lifter": "x87 instruction fyl2xp1"
+  },
+  {
+   "text": "mul cx",
+   "bytes": "66f7e1",
+   "lifter": "mul 16-bit"
+  },
+  {
+   "text": "imul cx",
+   "bytes": "66f7e9",
+   "lifter": "one-operand imul 16-bit"
+  },
+  {
+   "text": "div cl",
+   "bytes": "f6f1",
+   "lifter": "div 8-bit"
+  },
+  {
+   "text": "div cx",
+   "bytes": "66f7f1",
+   "lifter": "div 16-bit"
+  },
+  {
+   "text": "rcl eax, 1",
+   "bytes": "d1d0",
+   "lifter": "instruction rcl"
+  },
+  {
+   "text": "rcr eax, 1",
+   "bytes": "d1d8",
+   "lifter": "instruction rcr"
+  },
+  {
+   "text": "bt eax, ecx",
+   "bytes": "0fa3c8",
+   "lifter": "instruction bt"
+  },
+  {
+   "text": "bsf eax, ecx",
+   "bytes": "0fbcc1",
+   "lifter": "instruction bsf"
+  },
+  {
+   "text": "bsr eax, ecx",
+   "bytes": "0fbdc1",
+   "lifter": "instruction bsr"
+  },
+  {
+   "text": "xadd dword ptr [ebx + 0x10], eax",
+   "bytes": "0fc14310",
+   "lifter": "instruction xadd"
+  },
+  {
+   "text": "cmpxchg dword ptr [ebx + 0x10], ecx",
+   "bytes": "0fb14b10",
+   "lifter": "instruction cmpxchg"
+  },
+  {
+   "text": "sahf",
+   "bytes": "9e",
+   "lifter": "instruction sahf"
+  },
+  {
+   "text": "lahf",
+   "bytes": "9f",
+   "lifter": "instruction lahf"
+  },
+  {
+   "text": "pushfd",
+   "bytes": "9c",
+   "lifter": "instruction pushfd"
+  },
+  {
+   "text": "popfd",
+   "bytes": "9d",
+   "lifter": "instruction popfd"
+  },
+  {
+   "text": "pushal",
+   "bytes": "60",
+   "lifter": "instruction pushal"
+  },
+  {
+   "text": "popal",
+   "bytes": "61",
+   "lifter": "instruction popal"
+  },
+  {
+   "text": "xlatb",
+   "bytes": "d7",
+   "lifter": "instruction xlatb"
+  }
+ ],
+ "forms": {
+  "mov r32,m32": {
+   "family": "move",
+   "census_count": 20297,
+   "in_census": true,
+   "encodings": 2,
+   "census_encodings": 2,
+   "snippets": 54,
+   "variants": [
+    "[base+disp8]",
+    "[base+index*scale+disp32]",
+    "[disp32]",
+    "[esp+disp8]",
+    "addr-matrix [base+disp32]",
+    "addr-matrix [base+disp8]",
+    "addr-matrix [base+index*1+disp32]",
+    "addr-matrix [base+index*1+disp8]",
+    "addr-matrix [base+index*1]",
+    "addr-matrix [base+index*2+disp32]",
+    "addr-matrix [base+index*2+disp8]",
+    "addr-matrix [base+index*2]",
+    "addr-matrix [base+index*4+disp32]",
+    "addr-matrix [base+index*4+disp8]",
+    "addr-matrix [base+index*4]",
+    "addr-matrix [base+index*8+disp32]",
+    "addr-matrix [base+index*8+disp8]",
+    "addr-matrix [base+index*8]",
+    "addr-matrix [base]",
+    "addr-matrix [disp32]",
+    "addr-matrix [ebp+0]",
+    "addr-matrix [ebp+disp32]",
+    "addr-matrix [ebp+disp8]",
+    "addr-matrix [ebp+index*1+disp32]",
+    "addr-matrix [ebp+index*2+disp32]",
+    "addr-matrix [ebp+index*4+disp32]",
+    "addr-matrix [ebp+index*8+disp32]",
+    "addr-matrix [esp+disp32]",
+    "addr-matrix [esp+disp8]",
+    "addr-matrix [esp+index*1+disp8]",
+    "addr-matrix [esp+index*2+disp8]",
+    "addr-matrix [esp+index*4+disp8]",
+    "addr-matrix [esp+index*8+disp8]",
+    "addr-matrix [esp]",
+    "addr-matrix [index*1+disp32]",
+    "addr-matrix [index*2+disp32]",
+    "addr-matrix [index*4+disp32]",
+    "addr-matrix [index*8+disp32]",
+    "fs:[0x0]",
+    "fs:[0x14]",
+    "fs:[0x18]",
+    "fs:[0x24]",
+    "fs:[0x30]",
+    "fs:[0x4]",
+    "moffs#0",
+    "moffs#1",
+    "moffs#2",
+    "reg-aliases-base"
+   ],
+   "cases": 17280,
+   "de_cases": 0,
+   "failed_cases": 0,
+   "categories": {}
+  },
+  "push r32": {
+   "family": "stack",
+   "census_count": 16600,
+   "in_census": true,
+   "encodings": 8,
+   "census_encodings": 7,
+   "snippets": 8,
+   "variants": [
+    "fixed"
+   ],
+   "cases": 2560,
+   "de_cases": 0,
+   "failed_cases": 0,
+   "categories": {}
+  },
+  "mov m32,r32": {
+   "family": "move",
+   "census_count": 10827,
+   "in_census": true,
+   "encodings": 2,
+   "census_encodings": 2,
+   "snippets": 50,
+   "variants": [
+    "[base+disp8]",
+    "[base+index*scale+disp32]",
+    "[disp32]",
+    "[esp+disp8]",
+    "addr-matrix [base+disp32]",
+    "addr-matrix [base+disp8]",
+    "addr-matrix [base+index*1+disp32]",
+    "addr-matrix [base+index*1+disp8]",
+    "addr-matrix [base+index*1]",
+    "addr-matrix [base+index*2+disp32]",
+    "addr-matrix [base+index*2+disp8]",
+    "addr-matrix [base+index*2]",
+    "addr-matrix [base+index*4+disp32]",
+    "addr-matrix [base+index*4+disp8]",
+    "addr-matrix [base+index*4]",
+    "addr-matrix [base+index*8+disp32]",
+    "addr-matrix [base+index*8+disp8]",
+    "addr-matrix [base+index*8]",
+    "addr-matrix [base]",
+    "addr-matrix [disp32]",
+    "addr-matrix [ebp+0]",
+    "addr-matrix [ebp+disp32]",
+    "addr-matrix [ebp+disp8]",
+    "addr-matrix [ebp+index*1+disp32]",
+    "addr-matrix [ebp+index*2+disp32]",
+    "addr-matrix [ebp+index*4+disp32]",
+    "addr-matrix [ebp+index*8+disp32]",
+    "addr-matrix [esp+disp32]",
+    "addr-matrix [esp+disp8]",
+    "addr-matrix [esp+index*1+disp8]",
+    "addr-matrix [esp+index*2+disp8]",
+    "addr-matrix [esp+index*4+disp8]",
+    "addr-matrix [esp+index*8+disp8]",
+    "addr-matrix [esp]",
+    "addr-matrix [index*1+disp32]",
+    "addr-matrix [index*2+disp32]",
+    "addr-matrix [index*4+disp32]",
+    "addr-matrix [index*8+disp32]",
+    "fs:[0x0]",
+    "fs:[0x0] reg=ecx",
+    "fs:[0x0] reg=edx",
+    "fs:[0x0] reg=esp",
+    "fs:[0x14]",
+    "fs:[0x14] reg=ecx",
+    "fs:[0x14] reg=edx",
+    "fs:[0x14] reg=esp",
+    "moffs#0",
+    "moffs#1",
+    "moffs#2",
+    "reg-aliases-base"
+   ],
+   "cases": 16000,
+   "de_cases": 0,
+   "failed_cases": 0,
+   "categories": {}
+  },
+  "push imm": {
+   "family": "stack",
+   "census_count": 10735,
+   "in_census": true,
+   "encodings": 2,
+   "census_encodings": 2,
+   "snippets": 16,
+   "variants": [
+    "fixed"
+   ],
+   "cases": 768,
+   "de_cases": 0,
+   "failed_cases": 0,
+   "categories": {}
+  },
+  "mov r32,r32": {
+   "family": "move",
+   "census_count": 6942,
+   "in_census": true,
+   "encodings": 1,
+   "census_encodings": 1,
+   "snippets": 4,
+   "variants": [
+    "esp-operand(reg)",
+    "esp-operand(rm)",
+    "regs",
+    "same-reg"
+   ],
+   "cases": 1280,
+   "de_cases": 0,
+   "failed_cases": 0,
+   "categories": {}
+  },
+  "pop r32": {
+   "family": "stack",
+   "census_count": 6254,
+   "in_census": true,
+   "encodings": 6,
+   "census_encodings": 5,
+   "snippets": 6,
+   "variants": [
+    "fixed"
+   ],
+   "cases": 1920,
+   "de_cases": 0,
+   "failed_cases": 0,
+   "categories": {}
+  },
+  "lea r32,m32": {
+   "family": "move",
+   "census_count": 5524,
+   "in_census": true,
+   "encodings": 1,
+   "census_encodings": 1,
+   "snippets": 39,
+   "variants": [
+    "[base+disp8]",
+    "[base+index*scale+disp32]",
+    "[disp32]",
+    "[esp+disp8]",
+    "addr-matrix [base+disp32]",
+    "addr-matrix [base+disp8]",
+    "addr-matrix [base+index*1+disp32]",
+    "addr-matrix [base+index*1+disp8]",
+    "addr-matrix [base+index*1]",
+    "addr-matrix [base+index*2+disp32]",
+    "addr-matrix [base+index*2+disp8]",
+    "addr-matrix [base+index*2]",
+    "addr-matrix [base+index*4+disp32]",
+    "addr-matrix [base+index*4+disp8]",
+    "addr-matrix [base+index*4]",
+    "addr-matrix [base+index*8+disp32]",
+    "addr-matrix [base+index*8+disp8]",
+    "addr-matrix [base+index*8]",
+    "addr-matrix [base]",
+    "addr-matrix [disp32]",
+    "addr-matrix [ebp+0]",
+    "addr-matrix [ebp+disp32]",
+    "addr-matrix [ebp+disp8]",
+    "addr-matrix [ebp+index*1+disp32]",
+    "addr-matrix [ebp+index*2+disp32]",
+    "addr-matrix [ebp+index*4+disp32]",
+    "addr-matrix [ebp+index*8+disp32]",
+    "addr-matrix [esp+disp32]",
+    "addr-matrix [esp+disp8]",
+    "addr-matrix [esp+index*1+disp8]",
+    "addr-matrix [esp+index*2+disp8]",
+    "addr-matrix [esp+index*4+disp8]",
+    "addr-matrix [esp+index*8+disp8]",
+    "addr-matrix [esp]",
+    "addr-matrix [index*1+disp32]",
+    "addr-matrix [index*2+disp32]",
+    "addr-matrix [index*4+disp32]",
+    "addr-matrix [index*8+disp32]",
+    "reg-aliases-base"
+   ],
+   "cases": 12480,
+   "de_cases": 0,
+   "failed_cases": 0,
+   "categories": {}
+  },
+  "add r32,imm": {
+   "family": "alu2",
+   "census_count": 5128,
+   "in_census": true,
+   "encodings": 3,
+   "census_encodings": 3,
+   "snippets": 28,
+   "variants": [
+    "esp-operand(rm)",
+    "fixed",
+    "regs"
+   ],
+   "cases": 1344,
+   "de_cases": 0,
+   "failed_cases": 0,
+   "categories": {}
+  },
+  "test r32,r32": {
+   "family": "alu2",
+   "census_count": 2966,
+   "in_census": true,
+   "encodings": 1,
+   "census_encodings": 1,
+   "snippets": 2,
+   "variants": [
+    "regs",
+    "same-reg"
+   ],
+   "cases": 640,
+   "de_cases": 0,
+   "failed_cases": 0,
+   "categories": {}
+  },
+  "mov m32,imm": {
+   "family": "move",
+   "census_count": 2886,
+   "in_census": true,
+   "encodings": 1,
+   "census_encodings": 1,
+   "snippets": 14,
+   "variants": [
+    "[base+disp8]",
+    "[base+index*scale+disp32]",
+    "[disp32]",
+    "[esp+disp8]"
+   ],
+   "cases": 672,
+   "de_cases": 0,
+   "failed_cases": 0,
+   "categories": {}
+  },
+  "mov r32,imm": {
+   "family": "move",
+   "census_count": 2832,
+   "in_census": true,
+   "encodings": 7,
+   "census_encodings": 7,
+   "snippets": 56,
+   "variants": [
+    "fixed"
+   ],
+   "cases": 2688,
+   "de_cases": 0,
+   "failed_cases": 0,
+   "categories": {}
+  },
+  "xor r32,r32": {
+   "family": "alu2",
+   "census_count": 2137,
+   "in_census": true,
+   "encodings": 1,
+   "census_encodings": 1,
+   "snippets": 2,
+   "variants": [
+    "regs",
+    "same-reg"
+   ],
+   "cases": 640,
+   "de_cases": 0,
+   "failed_cases": 0,
+   "categories": {}
+  },
+  "fld m32": {
+   "family": "x87",
+   "census_count": 1720,
+   "in_census": true,
+   "encodings": 1,
+   "census_encodings": 1,
+   "snippets": 4,
+   "variants": [
+    "[base+disp8]",
+    "[base+index*scale+disp32]",
+    "[disp32]",
+    "[esp+disp8]"
+   ],
+   "cases": 1280,
+   "de_cases": 0,
+   "failed_cases": 0,
+   "categories": {
+    "x87-exception-flags": 106
+   }
+  },
+  "cmp r32,r32": {
+   "family": "alu2",
+   "census_count": 1558,
+   "in_census": true,
+   "encodings": 1,
+   "census_encodings": 1,
+   "snippets": 2,
+   "variants": [
+    "regs",
+    "same-reg"
+   ],
+   "cases": 640,
+   "de_cases": 0,
+   "failed_cases": 0,
+   "categories": {}
+  },
+  "inc r32": {
+   "family": "alu1",
+   "census_count": 1491,
+   "in_census": true,
+   "encodings": 7,
+   "census_encodings": 7,
+   "snippets": 7,
+   "variants": [
+    "fixed"
+   ],
+   "cases": 2240,
+   "de_cases": 0,
+   "failed_cases": 0,
+   "categories": {}
+  },
+  "fstp m32": {
+   "family": "x87",
+   "census_count": 1005,
+   "in_census": true,
+   "encodings": 1,
+   "census_encodings": 1,
+   "snippets": 4,
+   "variants": [
+    "[base+disp8]",
+    "[base+index*scale+disp32]",
+    "[disp32]",
+    "[esp+disp8]"
+   ],
+   "cases": 1280,
+   "de_cases": 0,
+   "failed_cases": 0,
+   "categories": {
+    "x87-exception-flags": 923,
+    "x87-c1": 463
+   }
+  },
+  "fmul m32": {
+   "family": "x87",
+   "census_count": 1003,
+   "in_census": true,
+   "encodings": 1,
+   "census_encodings": 1,
+   "snippets": 4,
+   "variants": [
+    "[base+disp8]",
+    "[base+index*scale+disp32]",
+    "[disp32]",
+    "[esp+disp8]"
+   ],
+   "cases": 1280,
+   "de_cases": 0,
+   "failed_cases": 0,
+   "categories": {
+    "x87-exception-flags": 630,
+    "x87-c1": 286,
+    "x87-not-a-double": 13
+   }
+  },
+  "sub r32,imm": {
+   "family": "alu2",
+   "census_count": 957,
+   "in_census": true,
+   "encodings": 3,
+   "census_encodings": 3,
+   "snippets": 28,
+   "variants": [
+    "esp-operand(rm)",
+    "fixed",
+    "regs"
+   ],
+   "cases": 1344,
+   "de_cases": 0,
+   "failed_cases": 0,
+   "categories": {}
+  },
+  "cmp m32,r32": {
+   "family": "alu2",
+   "census_count": 859,
+   "in_census": true,
+   "encodings": 1,
+   "census_encodings": 1,
+   "snippets": 5,
+   "variants": [
+    "[base+disp8]",
+    "[base+index*scale+disp32]",
+    "[disp32]",
+    "[esp+disp8]",
+    "reg-aliases-base"
+   ],
+   "cases": 1600,
+   "de_cases": 0,
+   "failed_cases": 0,
+   "categories": {}
+  },
+  "add r32,r32": {
+   "family": "alu2",
+   "census_count": 702,
+   "in_census": true,
+   "encodings": 1,
+   "census_encodings": 1,
+   "snippets": 4,
+   "variants": [
+    "esp-operand(reg)",
+    "esp-operand(rm)",
+    "regs",
+    "same-reg"
+   ],
+   "cases": 1280,
+   "de_cases": 0,
+   "failed_cases": 0,
+   "categories": {}
+  },
+  "mov m8,imm": {
+   "family": "move",
+   "census_count": 684,
+   "in_census": true,
+   "encodings": 1,
+   "census_encodings": 1,
+   "snippets": 14,
+   "variants": [
+    "[base+disp8]",
+    "[base+index*scale+disp32]",
+    "[disp32]",
+    "[esp+disp8]"
+   ],
+   "cases": 672,
+   "de_cases": 0,
+   "failed_cases": 0,
+   "categories": {}
+  },
+  "mov m8,r8": {
+   "family": "move",
+   "census_count": 563,
+   "in_census": true,
+   "encodings": 2,
+   "census_encodings": 2,
+   "snippets": 9,
+   "variants": [
+    "[base+disp8]",
+    "[base+index*scale+disp32]",
+    "[disp32]",
+    "[esp+disp8]",
+    "high-byte",
+    "moffs#0",
+    "moffs#1",
+    "moffs#2",
+    "reg-aliases-base"
+   ],
+   "cases": 2880,
+   "de_cases": 0,
+   "failed_cases": 0,
+   "categories": {}
+  },
+  "movzx r32,m8": {
+   "family": "move",
+   "census_count": 552,
+   "in_census": true,
+   "encodings": 1,
+   "census_encodings": 1,
+   "snippets": 5,
+   "variants": [
+    "[base+disp8]",
+    "[base+index*scale+disp32]",
+    "[disp32]",
+    "[esp+disp8]",
+    "reg-aliases-base"
+   ],
+   "cases": 1600,
+   "de_cases": 0,
+   "failed_cases": 0,
+   "categories": {}
+  },
+  "test r8,imm": {
+   "family": "alu2",
+   "census_count": 494,
+   "in_census": true,
+   "encodings": 2,
+   "census_encodings": 2,
+   "snippets": 18,
+   "variants": [
+    "fixed",
+    "high-byte",
+    "regs"
+   ],
+   "cases": 864,
+   "de_cases": 0,
+   "failed_cases": 0,
+   "categories": {}
+  },
+  "and r32,imm": {
+   "family": "alu2",
+   "census_count": 493,
+   "in_census": true,
+   "encodings": 3,
+   "census_encodings": 3,
+   "snippets": 28,
+   "variants": [
+    "esp-operand(rm)",
+    "fixed",
+    "regs"
+   ],
+   "cases": 1344,
+   "de_cases": 0,
+   "failed_cases": 0,
+   "categories": {}
+  },
+  "rep stosd m32,r32": {
+   "family": "string",
+   "census_count": 420,
+   "in_census": true,
+   "encodings": 1,
+   "census_encodings": 1,
+   "snippets": 1,
+   "variants": [
+    "fixed"
+   ],
+   "cases": 320,
+   "de_cases": 0,
+   "failed_cases": 0,
+   "categories": {}
+  },
+  "cmp r32,imm": {
+   "family": "alu2",
+   "census_count": 411,
+   "in_census": true,
+   "encodings": 3,
+   "census_encodings": 3,
+   "snippets": 24,
+   "variants": [
+    "fixed",
+    "regs"
+   ],
+   "cases": 1152,
+   "de_cases": 0,
+   "failed_cases": 0,
+   "categories": {}
+  },
+  "faddp sti": {
+   "family": "x87",
+   "census_count": 382,
+   "in_census": true,
+   "encodings": 6,
+   "census_encodings": 6,
+   "snippets": 6,
+   "variants": [
+    "fixed"
+   ],
+   "cases": 1920,
+   "de_cases": 0,
+   "failed_cases": 0,
+   "categories": {
+    "x87-exception-flags": 1272,
+    "x87-c1": 622
+   }
+  },
+  "cmp r32,m32": {
+   "family": "alu2",
+   "census_count": 375,
+   "in_census": true,
+   "encodings": 1,
+   "census_encodings": 1,
+   "snippets": 5,
+   "variants": [
+    "[base+disp8]",
+    "[base+index*scale+disp32]",
+    "[disp32]",
+    "[esp+disp8]",
+    "reg-aliases-base"
+   ],
+   "cases": 1600,
+   "de_cases": 0,
+   "failed_cases": 0,
+   "categories": {}
+  },
+  "fnstsw r16": {
+   "family": "x87",
+   "census_count": 298,
+   "in_census": true,
+   "encodings": 1,
+   "census_encodings": 1,
+   "snippets": 1,
+   "variants": [
+    "fixed"
+   ],
+   "cases": 320,
+   "de_cases": 0,
+   "failed_cases": 0,
+   "categories": {
+    "fnstsw-unmodelled": 10,
+    "x87-exception-flags": 10
+   }
+  },
+  "cmp m8,imm": {
+   "family": "alu2",
+   "census_count": 260,
+   "in_census": true,
+   "encodings": 1,
+   "census_encodings": 1,
+   "snippets": 14,
+   "variants": [
+    "[base+disp8]",
+    "[base+index*scale+disp32]",
+    "[disp32]",
+    "[esp+disp8]"
+   ],
+   "cases": 672,
+   "de_cases": 0,
+   "failed_cases": 0,
+   "categories": {}
+  },
+  "mov r8,m8": {
+   "family": "move",
+   "census_count": 226,
+   "in_census": true,
+   "encodings": 2,
+   "census_encodings": 1,
+   "snippets": 9,
+   "variants": [
+    "[base+disp8]",
+    "[base+index*scale+disp32]",
+    "[disp32]",
+    "[esp+disp8]",
+    "high-byte",
+    "moffs#0",
+    "moffs#1",
+    "moffs#2",
+    "reg-aliases-base"
+   ],
+   "cases": 2880,
+   "de_cases": 0,
+   "failed_cases": 0,
+   "categories": {}
+  },
+  "sub r32,r32": {
+   "family": "alu2",
+   "census_count": 219,
+   "in_census": true,
+   "encodings": 1,
+   "census_encodings": 1,
+   "snippets": 4,
+   "variants": [
+    "esp-operand(reg)",
+    "esp-operand(rm)",
+    "regs",
+    "same-reg"
+   ],
+   "cases": 1280,
+   "de_cases": 0,
+   "failed_cases": 0,
+   "categories": {}
+  },
+  "cmp r16,imm": {
+   "family": "alu2",
+   "census_count": 207,
+   "in_census": true,
+   "encodings": 3,
+   "census_encodings": 3,
+   "snippets": 22,
+   "variants": [
+    "fixed",
+    "regs"
+   ],
+   "cases": 1056,
+   "de_cases": 0,
+   "failed_cases": 0,
+   "categories": {}
+  },
+  "sar r32,imm": {
+   "family": "shift",
+   "census_count": 192,
+   "in_census": true,
+   "encodings": 2,
+   "census_encodings": 2,
+   "snippets": 39,
+   "variants": [
+    "regs"
+   ],
+   "cases": 1840,
+   "de_cases": 0,
+   "failed_cases": 0,
+   "categories": {}
+  },
+  "shr r32,imm": {
+   "family": "shift",
+   "census_count": 187,
+   "in_census": true,
+   "encodings": 2,
+   "census_encodings": 2,
+   "snippets": 39,
+   "variants": [
+    "regs"
+   ],
+   "cases": 1840,
+   "de_cases": 0,
+   "failed_cases": 0,
+   "categories": {}
+  },
+  "fadd m32": {
+   "family": "x87",
+   "census_count": 185,
+   "in_census": true,
+   "encodings": 1,
+   "census_encodings": 1,
+   "snippets": 4,
+   "variants": [
+    "[base+disp8]",
+    "[base+index*scale+disp32]",
+    "[disp32]",
+    "[esp+disp8]"
+   ],
+   "cases": 1280,
+   "de_cases": 0,
+   "failed_cases": 0,
+   "categories": {
+    "x87-exception-flags": 520,
+    "x87-c1": 240
+   }
+  },
+  "fcomp m32": {
+   "family": "x87",
+   "census_count": 183,
+   "in_census": true,
+   "encodings": 1,
+   "census_encodings": 1,
+   "snippets": 4,
+   "variants": [
+    "[base+disp8]",
+    "[base+index*scale+disp32]",
+    "[disp32]",
+    "[esp+disp8]"
+   ],
+   "cases": 1280,
+   "de_cases": 0,
+   "failed_cases": 0,
+   "categories": {
+    "x87-exception-flags": 174
+   }
+  },
+  "shl r32,imm": {
+   "family": "shift",
+   "census_count": 182,
+   "in_census": true,
+   "encodings": 2,
+   "census_encodings": 2,
+   "snippets": 39,
+   "variants": [
+    "regs"
+   ],
+   "cases": 1840,
+   "de_cases": 0,
+   "failed_cases": 0,
+   "categories": {}
+  },
+  "fsub m32": {
+   "family": "x87",
+   "census_count": 177,
+   "in_census": true,
+   "encodings": 1,
+   "census_encodings": 1,
+   "snippets": 4,
+   "variants": [
+    "[base+disp8]",
+    "[base+index*scale+disp32]",
+    "[disp32]",
+    "[esp+disp8]"
+   ],
+   "cases": 1280,
+   "de_cases": 0,
+   "failed_cases": 0,
+   "categories": {
+    "x87-exception-flags": 471,
+    "x87-c1": 197,
+    "x87-nan-payload": 1
+   }
+  },
+  "dec r32": {
+   "family": "alu1",
+   "census_count": 170,
+   "in_census": true,
+   "encodings": 6,
+   "census_encodings": 6,
+   "snippets": 6,
+   "variants": [
+    "fixed"
+   ],
+   "cases": 1920,
+   "de_cases": 0,
+   "failed_cases": 0,
+   "categories": {}
+  },
+  "cdq": {
+   "family": "move",
+   "census_count": 156,
+   "in_census": true,
+   "encodings": 1,
+   "census_encodings": 1,
+   "snippets": 1,
+   "variants": [
+    "fixed"
+   ],
+   "cases": 320,
+   "de_cases": 0,
+   "failed_cases": 0,
+   "categories": {}
+  },
+  "or r32,r32": {
+   "family": "alu2",
+   "census_count": 152,
+   "in_census": true,
+   "encodings": 1,
+   "census_encodings": 1,
+   "snippets": 2,
+   "variants": [
+    "regs",
+    "same-reg"
+   ],
+   "cases": 640,
+   "de_cases": 0,
+   "failed_cases": 0,
+   "categories": {}
+  },
+  "cmp m32,imm": {
+   "family": "alu2",
+   "census_count": 151,
+   "in_census": true,
+   "encodings": 2,
+   "census_encodings": 2,
+   "snippets": 28,
+   "variants": [
+    "[base+disp8]",
+    "[base+index*scale+disp32]",
+    "[disp32]",
+    "[esp+disp8]"
+   ],
+   "cases": 1344,
+   "de_cases": 0,
+   "failed_cases": 0,
+   "categories": {}
+  },
+  "mov r16,m16": {
+   "family": "move",
+   "census_count": 150,
+   "in_census": true,
+   "encodings": 2,
+   "census_encodings": 2,
+   "snippets": 8,
+   "variants": [
+    "[base+disp8]",
+    "[base+index*scale+disp32]",
+    "[disp32]",
+    "[esp+disp8]",
+    "moffs#0",
+    "moffs#1",
+    "moffs#2",
+    "reg-aliases-base"
+   ],
+   "cases": 2560,
+   "de_cases": 0,
+   "failed_cases": 0,
+   "categories": {}
+  },
+  "and r32,r32": {
+   "family": "alu2",
+   "census_count": 143,
+   "in_census": true,
+   "encodings": 1,
+   "census_encodings": 1,
+   "snippets": 2,
+   "variants": [
+    "regs",
+    "same-reg"
+   ],
+   "cases": 640,
+   "de_cases": 0,
+   "failed_cases": 0,
+   "categories": {}
+  },
+  "fstp m64": {
+   "family": "x87",
+   "census_count": 143,
+   "in_census": true,
+   "encodings": 1,
+   "census_encodings": 1,
+   "snippets": 4,
+   "variants": [
+    "[base+disp8]",
+    "[base+index*scale+disp32]",
+    "[disp32]",
+    "[esp+disp8]"
+   ],
+   "cases": 1280,
+   "de_cases": 0,
+   "failed_cases": 0,
+   "categories": {
+    "x87-exception-flags": 70
+   }
+  },
+  "fxch st0,sti": {
+   "family": "x87",
+   "census_count": 136,
+   "in_census": true,
+   "encodings": 5,
+   "census_encodings": 5,
+   "snippets": 5,
+   "variants": [
+    "fixed"
+   ],
+   "cases": 1600,
+   "de_cases": 0,
+   "failed_cases": 0,
+   "categories": {
+    "x87-exception-flags": 91
+   }
+  },
+  "mov m16,r16": {
+   "family": "move",
+   "census_count": 135,
+   "in_census": true,
+   "encodings": 1,
+   "census_encodings": 1,
+   "snippets": 5,
+   "variants": [
+    "[base+disp8]",
+    "[base+index*scale+disp32]",
+    "[disp32]",
+    "[esp+disp8]",
+    "reg-aliases-base"
+   ],
+   "cases": 1600,
+   "de_cases": 0,
+   "failed_cases": 0,
+   "categories": {}
+  },
+  "fstp st0": {
+   "family": "x87",
+   "census_count": 128,
+   "in_census": true,
+   "encodings": 1,
+   "census_encodings": 1,
+   "snippets": 1,
+   "variants": [
+    "fixed"
+   ],
+   "cases": 320,
+   "de_cases": 0,
+   "failed_cases": 0,
+   "categories": {
+    "x87-exception-flags": 20
+   }
+  },
+  "fsubp sti": {
+   "family": "x87",
+   "census_count": 119,
+   "in_census": true,
+   "encodings": 4,
+   "census_encodings": 4,
+   "snippets": 4,
+   "variants": [
+    "fixed"
+   ],
+   "cases": 1280,
+   "de_cases": 0,
+   "failed_cases": 0,
+   "categories": {
+    "x87-exception-flags": 852,
+    "x87-c1": 407,
+    "x87-nan-payload": 1,
+    "x87-not-a-double": 1
+   }
+  },
+  "fmul sti": {
+   "family": "x87",
+   "census_count": 111,
+   "in_census": true,
+   "encodings": 7,
+   "census_encodings": 7,
+   "snippets": 7,
+   "variants": [
+    "fixed"
+   ],
+   "cases": 2240,
+   "de_cases": 0,
+   "failed_cases": 0,
+   "categories": {
+    "x87-exception-flags": 1475,
+    "x87-c1": 647,
+    "x87-not-a-double": 99,
+    "x87-nan-payload": 1
+   }
+  },
+  "fchs": {
+   "family": "x87",
+   "census_count": 107,
+   "in_census": true,
+   "encodings": 1,
+   "census_encodings": 1,
+   "snippets": 1,
+   "variants": [
+    "fixed"
+   ],
+   "cases": 320,
+   "de_cases": 0,
+   "failed_cases": 0,
+   "categories": {
+    "x87-exception-flags": 14
+   }
+  },
+  "neg r32": {
+   "family": "alu1",
+   "census_count": 98,
+   "in_census": true,
+   "encodings": 1,
+   "census_encodings": 1,
+   "snippets": 1,
+   "variants": [
+    "regs"
+   ],
+   "cases": 320,
+   "de_cases": 0,
+   "failed_cases": 0,
+   "categories": {}
+  },
+  "or r32,imm": {
+   "family": "alu2",
+   "census_count": 96,
+   "in_census": true,
+   "encodings": 3,
+   "census_encodings": 3,
+   "snippets": 24,
+   "variants": [
+    "fixed",
+    "regs"
+   ],
+   "cases": 1152,
+   "de_cases": 0,
+   "failed_cases": 0,
+   "categories": {}
+  },
+  "imul r32,r32,imm": {
+   "family": "mul",
+   "census_count": 94,
+   "in_census": true,
+   "encodings": 2,
+   "census_encodings": 2,
+   "snippets": 20,
+   "variants": [
+    "regs",
+    "same-reg"
+   ],
+   "cases": 960,
+   "de_cases": 0,
+   "failed_cases": 0,
+   "categories": {}
+  },
+  "fld st0": {
+   "family": "x87",
+   "census_count": 92,
+   "in_census": true,
+   "encodings": 1,
+   "census_encodings": 1,
+   "snippets": 1,
+   "variants": [
+    "fixed"
+   ],
+   "cases": 320,
+   "de_cases": 0,
+   "failed_cases": 0,
+   "categories": {
+    "x87-exception-flags": 16
+   }
+  },
+  "cmp m16,imm": {
+   "family": "alu2",
+   "census_count": 89,
+   "in_census": true,
+   "encodings": 2,
+   "census_encodings": 2,
+   "snippets": 27,
+   "variants": [
+    "[base+disp8]",
+    "[base+index*scale+disp32]",
+    "[disp32]",
+    "[esp+disp8]"
+   ],
+   "cases": 1296,
+   "de_cases": 0,
+   "failed_cases": 0,
+   "categories": {}
+  },
+  "test m8,imm": {
+   "family": "alu2",
+   "census_count": 86,
+   "in_census": true,
+   "encodings": 1,
+   "census_encodings": 1,
+   "snippets": 14,
+   "variants": [
+    "[base+disp8]",
+    "[base+index*scale+disp32]",
+    "[disp32]",
+    "[esp+disp8]"
+   ],
+   "cases": 672,
+   "de_cases": 0,
+   "failed_cases": 0,
+   "categories": {}
+  },
+  "rep movsd m32,m32": {
+   "family": "string",
+   "census_count": 82,
+   "in_census": true,
+   "encodings": 1,
+   "census_encodings": 1,
+   "snippets": 1,
+   "variants": [
+    "fixed"
+   ],
+   "cases": 320,
+   "de_cases": 0,
+   "failed_cases": 0,
+   "categories": {}
+  },
+  "fld sti": {
+   "family": "x87",
+   "census_count": 78,
+   "in_census": true,
+   "encodings": 6,
+   "census_encodings": 6,
+   "snippets": 6,
+   "variants": [
+    "fixed"
+   ],
+   "cases": 1920,
+   "de_cases": 0,
+   "failed_cases": 0,
+   "categories": {
+    "x87-exception-flags": 140
+   }
+  },
+  "fild m32": {
+   "family": "x87",
+   "census_count": 77,
+   "in_census": true,
+   "encodings": 1,
+   "census_encodings": 1,
+   "snippets": 4,
+   "variants": [
+    "[base+disp8]",
+    "[base+index*scale+disp32]",
+    "[disp32]",
+    "[esp+disp8]"
+   ],
+   "cases": 1280,
+   "de_cases": 0,
+   "failed_cases": 0,
+   "categories": {
+    "x87-exception-flags": 59
+   }
+  },
+  "mov m16,imm": {
+   "family": "move",
+   "census_count": 71,
+   "in_census": true,
+   "encodings": 1,
+   "census_encodings": 1,
+   "snippets": 13,
+   "variants": [
+    "[base+disp8]",
+    "[base+index*scale+disp32]",
+    "[disp32]",
+    "[esp+disp8]"
+   ],
+   "cases": 624,
+   "de_cases": 0,
+   "failed_cases": 0,
+   "categories": {}
+  },
+  "not r32": {
+   "family": "alu1",
+   "census_count": 69,
+   "in_census": true,
+   "encodings": 1,
+   "census_encodings": 1,
+   "snippets": 1,
+   "variants": [
+    "regs"
+   ],
+   "cases": 320,
+   "de_cases": 0,
+   "failed_cases": 0,
+   "categories": {}
+  },
+  "fdiv m32": {
+   "family": "x87",
+   "census_count": 69,
+   "in_census": true,
+   "encodings": 1,
+   "census_encodings": 1,
+   "snippets": 4,
+   "variants": [
+    "[base+disp8]",
+    "[base+index*scale+disp32]",
+    "[disp32]",
+    "[esp+disp8]"
+   ],
+   "cases": 1280,
+   "de_cases": 0,
+   "failed_cases": 0,
+   "categories": {
+    "x87-exception-flags": 814,
+    "x87-c1": 355,
+    "x87-not-a-double": 18
+   }
+  },
+  "fst m32": {
+   "family": "x87",
+   "census_count": 68,
+   "in_census": true,
+   "encodings": 1,
+   "census_encodings": 1,
+   "snippets": 4,
+   "variants": [
+    "[base+disp8]",
+    "[base+index*scale+disp32]",
+    "[disp32]",
+    "[esp+disp8]"
+   ],
+   "cases": 1280,
+   "de_cases": 0,
+   "failed_cases": 0,
+   "categories": {
+    "x87-exception-flags": 877,
+    "x87-c1": 475
+   }
+  },
+  "sete r8": {
+   "family": "setcc",
+   "census_count": 67,
+   "in_census": true,
+   "encodings": 1,
+   "census_encodings": 1,
+   "snippets": 4,
+   "variants": [
+    "cond-table rm=dh",
+    "cond-table rm=dl",
+    "high-byte",
+    "regs"
+   ],
+   "cases": 1280,
+   "de_cases": 0,
+   "failed_cases": 0,
+   "categories": {}
+  },
+  "nop": {
+   "family": "move",
+   "census_count": 66,
+   "in_census": true,
+   "encodings": 1,
+   "census_encodings": 1,
+   "snippets": 1,
+   "variants": [
+    "fixed"
+   ],
+   "cases": 320,
+   "de_cases": 0,
+   "failed_cases": 0,
+   "categories": {}
+  },
+  "fmul m64": {
+   "family": "x87",
+   "census_count": 64,
+   "in_census": true,
+   "encodings": 1,
+   "census_encodings": 1,
+   "snippets": 4,
+   "variants": [
+    "[base+disp8]",
+    "[base+index*scale+disp32]",
+    "[disp32]",
+    "[esp+disp8]"
+   ],
+   "cases": 1280,
+   "de_cases": 0,
+   "failed_cases": 0,
+   "categories": {
+    "x87-exception-flags": 860,
+    "x87-c1": 384,
+    "x87-not-a-double": 76
+   }
+  },
+  "add r32,m32": {
+   "family": "alu2",
+   "census_count": 63,
+   "in_census": true,
+   "encodings": 1,
+   "census_encodings": 1,
+   "snippets": 5,
+   "variants": [
+    "[base+disp8]",
+    "[base+index*scale+disp32]",
+    "[disp32]",
+    "[esp+disp8]",
+    "reg-aliases-base"
+   ],
+   "cases": 1600,
+   "de_cases": 0,
+   "failed_cases": 0,
+   "categories": {}
+  },
+  "imul r32,r32": {
+   "family": "mul",
+   "census_count": 62,
+   "in_census": true,
+   "encodings": 1,
+   "census_encodings": 1,
+   "snippets": 2,
+   "variants": [
+    "regs",
+    "same-reg"
+   ],
+   "cases": 640,
+   "de_cases": 0,
+   "failed_cases": 0,
+   "categories": {}
+  },
+  "sbb r32,r32": {
+   "family": "alu2",
+   "census_count": 58,
+   "in_census": true,
+   "encodings": 1,
+   "census_encodings": 1,
+   "snippets": 2,
+   "variants": [
+    "regs",
+    "same-reg"
+   ],
+   "cases": 676,
+   "de_cases": 0,
+   "failed_cases": 0,
+   "categories": {}
+  },
+  "test r8,r8": {
+   "family": "alu2",
+   "census_count": 55,
+   "in_census": true,
+   "encodings": 1,
+   "census_encodings": 1,
+   "snippets": 3,
+   "variants": [
+    "high-byte",
+    "regs",
+    "same-reg"
+   ],
+   "cases": 960,
+   "de_cases": 0,
+   "failed_cases": 0,
+   "categories": {}
+  },
+  "fcom m32": {
+   "family": "x87",
+   "census_count": 54,
+   "in_census": true,
+   "encodings": 1,
+   "census_encodings": 1,
+   "snippets": 4,
+   "variants": [
+    "[base+disp8]",
+    "[base+index*scale+disp32]",
+    "[disp32]",
+    "[esp+disp8]"
+   ],
+   "cases": 1280,
+   "de_cases": 0,
+   "failed_cases": 0,
+   "categories": {
+    "x87-exception-flags": 164
+   }
+  },
+  "movzx r32,m16": {
+   "family": "move",
+   "census_count": 53,
+   "in_census": true,
+   "encodings": 1,
+   "census_encodings": 1,
+   "snippets": 5,
+   "variants": [
+    "[base+disp8]",
+    "[base+index*scale+disp32]",
+    "[disp32]",
+    "[esp+disp8]",
+    "reg-aliases-base"
+   ],
+   "cases": 1600,
+   "de_cases": 0,
+   "failed_cases": 0,
+   "categories": {}
+  },
+  "inc m32": {
+   "family": "alu1",
+   "census_count": 46,
+   "in_census": true,
+   "encodings": 1,
+   "census_encodings": 1,
+   "snippets": 4,
+   "variants": [
+    "[base+disp8]",
+    "[base+index*scale+disp32]",
+    "[disp32]",
+    "[esp+disp8]"
+   ],
+   "cases": 1280,
+   "de_cases": 0,
+   "failed_cases": 0,
+   "categories": {}
+  },
+  "setne r8": {
+   "family": "setcc",
+   "census_count": 37,
+   "in_census": true,
+   "encodings": 1,
+   "census_encodings": 1,
+   "snippets": 4,
+   "variants": [
+    "cond-table rm=ah",
+    "cond-table rm=dl",
+    "high-byte",
+    "regs"
+   ],
+   "cases": 1280,
+   "de_cases": 0,
+   "failed_cases": 0,
+   "categories": {}
+  },
+  "movzx r32,r8": {
+   "family": "move",
+   "census_count": 36,
+   "in_census": true,
+   "encodings": 1,
+   "census_encodings": 1,
+   "snippets": 3,
+   "variants": [
+    "high-byte",
+    "regs",
+    "same-reg"
+   ],
+   "cases": 960,
+   "de_cases": 0,
+   "failed_cases": 0,
+   "categories": {}
+  },
+  "imul r32,m32": {
+   "family": "mul",
+   "census_count": 35,
+   "in_census": true,
+   "encodings": 1,
+   "census_encodings": 1,
+   "snippets": 5,
+   "variants": [
+    "[base+disp8]",
+    "[base+index*scale+disp32]",
+    "[disp32]",
+    "[esp+disp8]",
+    "reg-aliases-base"
+   ],
+   "cases": 1600,
+   "de_cases": 0,
+   "failed_cases": 0,
+   "categories": {}
+  },
+  "rep stosb m8,r8": {
+   "family": "string",
+   "census_count": 34,
+   "in_census": true,
+   "encodings": 1,
+   "census_encodings": 1,
+   "snippets": 1,
+   "variants": [
+    "fixed"
+   ],
+   "cases": 320,
+   "de_cases": 0,
+   "failed_cases": 0,
+   "categories": {}
+  },
+  "or m32,imm": {
+   "family": "alu2",
+   "census_count": 33,
+   "in_census": true,
+   "encodings": 2,
+   "census_encodings": 2,
+   "snippets": 28,
+   "variants": [
+    "[base+disp8]",
+    "[base+index*scale+disp32]",
+    "[disp32]",
+    "[esp+disp8]"
+   ],
+   "cases": 1344,
+   "de_cases": 0,
+   "failed_cases": 0,
+   "categories": {}
+  },
+  "movzx r32,r16": {
+   "family": "move",
+   "census_count": 33,
+   "in_census": true,
+   "encodings": 1,
+   "census_encodings": 1,
+   "snippets": 2,
+   "variants": [
+    "regs",
+    "same-reg"
+   ],
+   "cases": 640,
+   "de_cases": 0,
+   "failed_cases": 0,
+   "categories": {}
+  },
+  "fcomp sti": {
+   "family": "x87",
+   "census_count": 30,
+   "in_census": true,
+   "encodings": 2,
+   "census_encodings": 1,
+   "snippets": 2,
+   "variants": [
+    "fixed"
+   ],
+   "cases": 640,
+   "de_cases": 0,
+   "failed_cases": 0,
+   "categories": {
+    "x87-exception-flags": 58
+   }
+  },
+  "fild m64": {
+   "family": "x87",
+   "census_count": 29,
+   "in_census": true,
+   "encodings": 1,
+   "census_encodings": 1,
+   "snippets": 4,
+   "variants": [
+    "[base+disp8]",
+    "[base+index*scale+disp32]",
+    "[disp32]",
+    "[esp+disp8]"
+   ],
+   "cases": 1280,
+   "de_cases": 0,
+   "failed_cases": 0,
+   "categories": {
+    "x87-not-a-double": 600,
+    "x87-exception-flags": 48
+   }
+  },
+  "cmp m16,r16": {
+   "family": "alu2",
+   "census_count": 28,
+   "in_census": true,
+   "encodings": 1,
+   "census_encodings": 1,
+   "snippets": 5,
+   "variants": [
+    "[base+disp8]",
+    "[base+index*scale+disp32]",
+    "[disp32]",
+    "[esp+disp8]",
+    "reg-aliases-base"
+   ],
+   "cases": 1600,
+   "de_cases": 0,
+   "failed_cases": 0,
+   "categories": {}
+  },
+  "sub r32,m32": {
+   "family": "alu2",
+   "census_count": 27,
+   "in_census": true,
+   "encodings": 1,
+   "census_encodings": 1,
+   "snippets": 5,
+   "variants": [
+    "[base+disp8]",
+    "[base+index*scale+disp32]",
+    "[disp32]",
+    "[esp+disp8]",
+    "reg-aliases-base"
+   ],
+   "cases": 1600,
+   "de_cases": 0,
+   "failed_cases": 0,
+   "categories": {}
+  },
+  "test r16,r16": {
+   "family": "alu2",
+   "census_count": 27,
+   "in_census": true,
+   "encodings": 1,
+   "census_encodings": 1,
+   "snippets": 2,
+   "variants": [
+    "regs",
+    "same-reg"
+   ],
+   "cases": 640,
+   "de_cases": 0,
+   "failed_cases": 0,
+   "categories": {}
+  },
+  "push m32": {
+   "family": "stack",
+   "census_count": 27,
+   "in_census": true,
+   "encodings": 1,
+   "census_encodings": 1,
+   "snippets": 4,
+   "variants": [
+    "[base+disp8]",
+    "[base+index*scale+disp32]",
+    "[disp32]",
+    "[esp+disp8]"
+   ],
+   "cases": 1280,
+   "de_cases": 0,
+   "failed_cases": 0,
+   "categories": {}
+  },
+  "test m32,r32": {
+   "family": "alu2",
+   "census_count": 26,
+   "in_census": true,
+   "encodings": 1,
+   "census_encodings": 1,
+   "snippets": 5,
+   "variants": [
+    "[base+disp8]",
+    "[base+index*scale+disp32]",
+    "[disp32]",
+    "[esp+disp8]",
+    "reg-aliases-base"
+   ],
+   "cases": 1600,
+   "de_cases": 0,
+   "failed_cases": 0,
+   "categories": {}
+  },
+  "fld m64": {
+   "family": "x87",
+   "census_count": 26,
+   "in_census": true,
+   "encodings": 1,
+   "census_encodings": 1,
+   "snippets": 4,
+   "variants": [
+    "[base+disp8]",
+    "[base+index*scale+disp32]",
+    "[disp32]",
+    "[esp+disp8]"
+   ],
+   "cases": 1280,
+   "de_cases": 0,
+   "failed_cases": 0,
+   "categories": {
+    "x87-exception-flags": 90,
+    "x87-nan-payload": 33
+   }
+  },
+  "fcomp m64": {
+   "family": "x87",
+   "census_count": 25,
+   "in_census": true,
+   "encodings": 1,
+   "census_encodings": 1,
+   "snippets": 4,
+   "variants": [
+    "[base+disp8]",
+    "[base+index*scale+disp32]",
+    "[disp32]",
+    "[esp+disp8]"
+   ],
+   "cases": 1280,
+   "de_cases": 0,
+   "failed_cases": 0,
+   "categories": {
+    "x87-exception-flags": 150
+   }
+  },
+  "fsub sti": {
+   "family": "x87",
+   "census_count": 25,
+   "in_census": true,
+   "encodings": 2,
+   "census_encodings": 2,
+   "snippets": 2,
+   "variants": [
+    "fixed"
+   ],
+   "cases": 640,
+   "de_cases": 0,
+   "failed_cases": 0,
+   "categories": {
+    "x87-exception-flags": 430,
+    "x87-c1": 212
+   }
+  },
+  "stosw m16,r16": {
+   "family": "string",
+   "census_count": 25,
+   "in_census": true,
+   "encodings": 1,
+   "census_encodings": 1,
+   "snippets": 1,
+   "variants": [
+    "fixed"
+   ],
+   "cases": 320,
+   "de_cases": 0,
+   "failed_cases": 0,
+   "categories": {}
+  },
+  "test r32,imm": {
+   "family": "alu2",
+   "census_count": 24,
+   "in_census": true,
+   "encodings": 2,
+   "census_encodings": 2,
+   "snippets": 16,
+   "variants": [
+    "fixed",
+    "regs"
+   ],
+   "cases": 768,
+   "de_cases": 0,
+   "failed_cases": 0,
+   "categories": {}
+  },
+  "add m32,imm": {
+   "family": "alu2",
+   "census_count": 24,
+   "in_census": true,
+   "encodings": 2,
+   "census_encodings": 2,
+   "snippets": 28,
+   "variants": [
+    "[base+disp8]",
+    "[base+index*scale+disp32]",
+    "[disp32]",
+    "[esp+disp8]"
+   ],
+   "cases": 1344,
+   "de_cases": 0,
+   "failed_cases": 0,
+   "categories": {}
+  },
+  "test m32,imm": {
+   "family": "alu2",
+   "census_count": 22,
+   "in_census": true,
+   "encodings": 1,
+   "census_encodings": 1,
+   "snippets": 14,
+   "variants": [
+    "[base+disp8]",
+    "[base+index*scale+disp32]",
+    "[disp32]",
+    "[esp+disp8]"
+   ],
+   "cases": 672,
+   "de_cases": 0,
+   "failed_cases": 0,
+   "categories": {}
+  },
+  "fadd st0,st0": {
+   "family": "x87",
+   "census_count": 21,
+   "in_census": true,
+   "encodings": 1,
+   "census_encodings": 1,
+   "snippets": 1,
+   "variants": [
+    "fixed"
+   ],
+   "cases": 320,
+   "de_cases": 0,
+   "failed_cases": 0,
+   "categories": {
+    "x87-exception-flags": 21,
+    "x87-not-a-double": 4
+   }
+  },
+  "and m32,imm": {
+   "family": "alu2",
+   "census_count": 20,
+   "in_census": true,
+   "encodings": 2,
+   "census_encodings": 2,
+   "snippets": 28,
+   "variants": [
+    "[base+disp8]",
+    "[base+index*scale+disp32]",
+    "[disp32]",
+    "[esp+disp8]"
+   ],
+   "cases": 1344,
+   "de_cases": 0,
+   "failed_cases": 0,
+   "categories": {}
+  },
+  "cmp r8,imm": {
+   "family": "alu2",
+   "census_count": 18,
+   "in_census": true,
+   "encodings": 2,
+   "census_encodings": 2,
+   "snippets": 18,
+   "variants": [
+    "fixed",
+    "high-byte",
+    "regs"
+   ],
+   "cases": 864,
+   "de_cases": 0,
+   "failed_cases": 0,
+   "categories": {}
+  },
+  "idiv r32": {
+   "family": "div",
+   "census_count": 16,
+   "in_census": true,
+   "encodings": 1,
+   "census_encodings": 1,
+   "snippets": 3,
+   "variants": [
+    "operand=eax",
+    "operand=edx",
+    "regs"
+   ],
+   "cases": 1200,
+   "de_cases": 702,
+   "failed_cases": 0,
+   "categories": {},
+   "de_kinds": {
+    "quotient-overflow": 542,
+    "divide-by-zero": 160
+   }
+  },
+  "shl r32,r8": {
+   "family": "shift",
+   "census_count": 16,
+   "in_census": true,
+   "encodings": 1,
+   "census_encodings": 1,
+   "snippets": 2,
+   "variants": [
+    "operand=ecx",
+    "regs"
+   ],
+   "cases": 640,
+   "de_cases": 0,
+   "failed_cases": 0,
+   "categories": {}
+  },
+  "mov r8,imm": {
+   "family": "move",
+   "census_count": 15,
+   "in_census": true,
+   "encodings": 4,
+   "census_encodings": 4,
+   "snippets": 32,
+   "variants": [
+    "fixed"
+   ],
+   "cases": 1536,
+   "de_cases": 0,
+   "failed_cases": 0,
+   "categories": {}
+  },
+  "mov r8,r8": {
+   "family": "move",
+   "census_count": 15,
+   "in_census": true,
+   "encodings": 1,
+   "census_encodings": 1,
+   "snippets": 3,
+   "variants": [
+    "high-byte",
+    "regs",
+    "same-reg"
+   ],
+   "cases": 960,
+   "de_cases": 0,
+   "failed_cases": 0,
+   "categories": {}
+  },
+  "fmulp sti": {
+   "family": "x87",
+   "census_count": 14,
+   "in_census": true,
+   "encodings": 2,
+   "census_encodings": 2,
+   "snippets": 2,
+   "variants": [
+    "fixed"
+   ],
+   "cases": 640,
+   "de_cases": 0,
+   "failed_cases": 0,
+   "categories": {
+    "x87-exception-flags": 417,
+    "x87-c1": 197,
+    "x87-not-a-double": 22
+   }
+  },
+  "or m32,r32": {
+   "family": "alu2",
+   "census_count": 14,
+   "in_census": true,
+   "encodings": 1,
+   "census_encodings": 1,
+   "snippets": 5,
+   "variants": [
+    "[base+disp8]",
+    "[base+index*scale+disp32]",
+    "[disp32]",
+    "[esp+disp8]",
+    "reg-aliases-base"
+   ],
+   "cases": 1600,
+   "de_cases": 0,
+   "failed_cases": 0,
+   "categories": {}
+  },
+  "or r32,m32": {
+   "family": "alu2",
+   "census_count": 14,
+   "in_census": true,
+   "encodings": 1,
+   "census_encodings": 1,
+   "snippets": 5,
+   "variants": [
+    "[base+disp8]",
+    "[base+index*scale+disp32]",
+    "[disp32]",
+    "[esp+disp8]",
+    "reg-aliases-base"
+   ],
+   "cases": 1600,
+   "de_cases": 0,
+   "failed_cases": 0,
+   "categories": {}
+  },
+  "cmp r16,r16": {
+   "family": "alu2",
+   "census_count": 13,
+   "in_census": true,
+   "encodings": 1,
+   "census_encodings": 1,
+   "snippets": 2,
+   "variants": [
+    "regs",
+    "same-reg"
+   ],
+   "cases": 640,
+   "de_cases": 0,
+   "failed_cases": 0,
+   "categories": {}
+  },
+  "fstp sti": {
+   "family": "x87",
+   "census_count": 12,
+   "in_census": true,
+   "encodings": 4,
+   "census_encodings": 4,
+   "snippets": 4,
+   "variants": [
+    "fixed"
+   ],
+   "cases": 1280,
+   "de_cases": 0,
+   "failed_cases": 0,
+   "categories": {
+    "x87-exception-flags": 85
+   }
+  },
+  "dec m32": {
+   "family": "alu1",
+   "census_count": 12,
+   "in_census": true,
+   "encodings": 1,
+   "census_encodings": 1,
+   "snippets": 4,
+   "variants": [
+    "[base+disp8]",
+    "[base+index*scale+disp32]",
+    "[disp32]",
+    "[esp+disp8]"
+   ],
+   "cases": 1280,
+   "de_cases": 0,
+   "failed_cases": 0,
+   "categories": {}
+  },
+  "add m32,r32": {
+   "family": "alu2",
+   "census_count": 11,
+   "in_census": true,
+   "encodings": 1,
+   "census_encodings": 1,
+   "snippets": 5,
+   "variants": [
+    "[base+disp8]",
+    "[base+index*scale+disp32]",
+    "[disp32]",
+    "[esp+disp8]",
+    "reg-aliases-base"
+   ],
+   "cases": 1600,
+   "de_cases": 0,
+   "failed_cases": 0,
+   "categories": {}
+  },
+  "and r32,m32": {
+   "family": "alu2",
+   "census_count": 10,
+   "in_census": true,
+   "encodings": 1,
+   "census_encodings": 1,
+   "snippets": 5,
+   "variants": [
+    "[base+disp8]",
+    "[base+index*scale+disp32]",
+    "[disp32]",
+    "[esp+disp8]",
+    "reg-aliases-base"
+   ],
+   "cases": 1600,
+   "de_cases": 0,
+   "failed_cases": 0,
+   "categories": {}
+  },
+  "fdivr m64": {
+   "family": "x87",
+   "census_count": 10,
+   "in_census": true,
+   "encodings": 1,
+   "census_encodings": 1,
+   "snippets": 4,
+   "variants": [
+    "[base+disp8]",
+    "[base+index*scale+disp32]",
+    "[disp32]",
+    "[esp+disp8]"
+   ],
+   "cases": 1280,
+   "de_cases": 0,
+   "failed_cases": 0,
+   "categories": {
+    "x87-exception-flags": 780,
+    "x87-c1": 348,
+    "x87-not-a-double": 39
+   }
+  },
+  "and r8,imm": {
+   "family": "alu2",
+   "census_count": 10,
+   "in_census": true,
+   "encodings": 2,
+   "census_encodings": 2,
+   "snippets": 18,
+   "variants": [
+    "fixed",
+    "high-byte",
+    "regs"
+   ],
+   "cases": 864,
+   "de_cases": 0,
+   "failed_cases": 0,
+   "categories": {}
+  },
+  "movsx r16,r8": {
+   "family": "move",
+   "census_count": 10,
+   "in_census": true,
+   "encodings": 1,
+   "census_encodings": 1,
+   "snippets": 3,
+   "variants": [
+    "high-byte",
+    "regs",
+    "same-reg"
+   ],
+   "cases": 960,
+   "de_cases": 0,
+   "failed_cases": 0,
+   "categories": {}
+  },
+  "setge r8": {
+   "family": "setcc",
+   "census_count": 9,
+   "in_census": true,
+   "encodings": 1,
+   "census_encodings": 1,
+   "snippets": 4,
+   "variants": [
+    "cond-table rm=ah",
+    "cond-table rm=al",
+    "high-byte",
+    "regs"
+   ],
+   "cases": 1280,
+   "de_cases": 0,
+   "failed_cases": 0,
+   "categories": {}
+  },
+  "setg r8": {
+   "family": "setcc",
+   "census_count": 9,
+   "in_census": true,
+   "encodings": 1,
+   "census_encodings": 1,
+   "snippets": 4,
+   "variants": [
+    "cond-table rm=ah",
+    "cond-table rm=bl",
+    "high-byte",
+    "regs"
+   ],
+   "cases": 1280,
+   "de_cases": 0,
+   "failed_cases": 0,
+   "categories": {}
+  },
+  "sub m32,r32": {
+   "family": "alu2",
+   "census_count": 9,
+   "in_census": true,
+   "encodings": 1,
+   "census_encodings": 1,
+   "snippets": 5,
+   "variants": [
+    "[base+disp8]",
+    "[base+index*scale+disp32]",
+    "[disp32]",
+    "[esp+disp8]",
+    "reg-aliases-base"
+   ],
+   "cases": 1600,
+   "de_cases": 0,
+   "failed_cases": 0,
+   "categories": {}
+  },
+  "fdivr m32": {
+   "family": "x87",
+   "census_count": 9,
+   "in_census": true,
+   "encodings": 1,
+   "census_encodings": 1,
+   "snippets": 4,
+   "variants": [
+    "[base+disp8]",
+    "[base+index*scale+disp32]",
+    "[disp32]",
+    "[esp+disp8]"
+   ],
+   "cases": 1280,
+   "de_cases": 0,
+   "failed_cases": 0,
+   "categories": {
+    "x87-exception-flags": 866,
+    "x87-c1": 406,
+    "x87-not-a-double": 19,
+    "x87-nan-payload": 1
+   }
+  },
+  "and r8,r8": {
+   "family": "alu2",
+   "census_count": 9,
+   "in_census": true,
+   "encodings": 1,
+   "census_encodings": 1,
+   "snippets": 3,
+   "variants": [
+    "high-byte",
+    "regs",
+    "same-reg"
+   ],
+   "cases": 960,
+   "de_cases": 0,
+   "failed_cases": 0,
+   "categories": {}
+  },
+  "cmp r8,m8": {
+   "family": "alu2",
+   "census_count": 8,
+   "in_census": true,
+   "encodings": 1,
+   "census_encodings": 1,
+   "snippets": 6,
+   "variants": [
+    "[base+disp8]",
+    "[base+index*scale+disp32]",
+    "[disp32]",
+    "[esp+disp8]",
+    "high-byte",
+    "reg-aliases-base"
+   ],
+   "cases": 1920,
+   "de_cases": 0,
+   "failed_cases": 0,
+   "categories": {}
+  },
+  "xor r8,r8": {
+   "family": "alu2",
+   "census_count": 8,
+   "in_census": true,
+   "encodings": 1,
+   "census_encodings": 1,
+   "snippets": 3,
+   "variants": [
+    "high-byte",
+    "regs",
+    "same-reg"
+   ],
+   "cases": 960,
+   "de_cases": 0,
+   "failed_cases": 0,
+   "categories": {}
+  },
+  "fsubr m32": {
+   "family": "x87",
+   "census_count": 8,
+   "in_census": true,
+   "encodings": 1,
+   "census_encodings": 1,
+   "snippets": 4,
+   "variants": [
+    "[base+disp8]",
+    "[base+index*scale+disp32]",
+    "[disp32]",
+    "[esp+disp8]"
+   ],
+   "cases": 1280,
+   "de_cases": 0,
+   "failed_cases": 0,
+   "categories": {
+    "x87-exception-flags": 454,
+    "x87-c1": 189,
+    "x87-nan-payload": 2
+   }
+  },
+  "shr r32,r8": {
+   "family": "shift",
+   "census_count": 8,
+   "in_census": true,
+   "encodings": 1,
+   "census_encodings": 1,
+   "snippets": 2,
+   "variants": [
+    "operand=ecx",
+    "regs"
+   ],
+   "cases": 640,
+   "de_cases": 0,
+   "failed_cases": 0,
+   "categories": {}
+  },
+  "or r8,r8": {
+   "family": "alu2",
+   "census_count": 8,
+   "in_census": true,
+   "encodings": 1,
+   "census_encodings": 1,
+   "snippets": 3,
+   "variants": [
+    "high-byte",
+    "regs",
+    "same-reg"
+   ],
+   "cases": 960,
+   "de_cases": 0,
+   "failed_cases": 0,
+   "categories": {}
+  },
+  "movzx r16,m8": {
+   "family": "move",
+   "census_count": 8,
+   "in_census": true,
+   "encodings": 1,
+   "census_encodings": 1,
+   "snippets": 5,
+   "variants": [
+    "[base+disp8]",
+    "[base+index*scale+disp32]",
+    "[disp32]",
+    "[esp+disp8]",
+    "reg-aliases-base"
+   ],
+   "cases": 1600,
+   "de_cases": 0,
+   "failed_cases": 0,
+   "categories": {}
+  },
+  "cmp r16,m16": {
+   "family": "alu2",
+   "census_count": 7,
+   "in_census": true,
+   "encodings": 1,
+   "census_encodings": 1,
+   "snippets": 5,
+   "variants": [
+    "[base+disp8]",
+    "[base+index*scale+disp32]",
+    "[disp32]",
+    "[esp+disp8]",
+    "reg-aliases-base"
+   ],
+   "cases": 1600,
+   "de_cases": 0,
+   "failed_cases": 0,
+   "categories": {}
+  },
+  "fdivp sti": {
+   "family": "x87",
+   "census_count": 7,
+   "in_census": true,
+   "encodings": 1,
+   "census_encodings": 1,
+   "snippets": 1,
+   "variants": [
+    "fixed"
+   ],
+   "cases": 320,
+   "de_cases": 0,
+   "failed_cases": 0,
+   "categories": {
+    "x87-exception-flags": 276,
+    "x87-c1": 141,
+    "x87-not-a-double": 9
+   }
+  },
+  "adc r32,r32": {
+   "family": "alu2",
+   "census_count": 7,
+   "in_census": true,
+   "encodings": 1,
+   "census_encodings": 1,
+   "snippets": 2,
+   "variants": [
+    "regs",
+    "same-reg"
+   ],
+   "cases": 676,
+   "de_cases": 0,
+   "failed_cases": 0,
+   "categories": {}
+  },
+  "cmp r8,r8": {
+   "family": "alu2",
+   "census_count": 7,
+   "in_census": true,
+   "encodings": 1,
+   "census_encodings": 1,
+   "snippets": 3,
+   "variants": [
+    "high-byte",
+    "regs",
+    "same-reg"
+   ],
+   "cases": 960,
+   "de_cases": 0,
+   "failed_cases": 0,
+   "categories": {}
+  },
+  "dec r8": {
+   "family": "alu1",
+   "census_count": 6,
+   "in_census": true,
+   "encodings": 1,
+   "census_encodings": 1,
+   "snippets": 2,
+   "variants": [
+    "high-byte",
+    "regs"
+   ],
+   "cases": 640,
+   "de_cases": 0,
+   "failed_cases": 0,
+   "categories": {}
+  },
+  "fadd m64": {
+   "family": "x87",
+   "census_count": 6,
+   "in_census": true,
+   "encodings": 1,
+   "census_encodings": 1,
+   "snippets": 4,
+   "variants": [
+    "[base+disp8]",
+    "[base+index*scale+disp32]",
+    "[disp32]",
+    "[esp+disp8]"
+   ],
+   "cases": 1280,
+   "de_cases": 0,
+   "failed_cases": 0,
+   "categories": {
+    "x87-exception-flags": 649,
+    "x87-c1": 286,
+    "x87-not-a-double": 6
+   }
+  },
+  "inc r8": {
+   "family": "alu1",
+   "census_count": 6,
+   "in_census": true,
+   "encodings": 1,
+   "census_encodings": 1,
+   "snippets": 2,
+   "variants": [
+    "high-byte",
+    "regs"
+   ],
+   "cases": 640,
+   "de_cases": 0,
+   "failed_cases": 0,
+   "categories": {}
+  },
+  "setle r8": {
+   "family": "setcc",
+   "census_count": 5,
+   "in_census": true,
+   "encodings": 1,
+   "census_encodings": 1,
+   "snippets": 4,
+   "variants": [
+    "cond-table rm=al",
+    "cond-table rm=ch",
+    "high-byte",
+    "regs"
+   ],
+   "cases": 1280,
+   "de_cases": 0,
+   "failed_cases": 0,
+   "categories": {}
+  },
+  "setl r8": {
+   "family": "setcc",
+   "census_count": 5,
+   "in_census": true,
+   "encodings": 1,
+   "census_encodings": 1,
+   "snippets": 4,
+   "variants": [
+    "cond-table rm=cl",
+    "cond-table rm=dh",
+    "high-byte",
+    "regs"
+   ],
+   "cases": 1280,
+   "de_cases": 0,
+   "failed_cases": 0,
+   "categories": {}
+  },
+  "fcom m64": {
+   "family": "x87",
+   "census_count": 5,
+   "in_census": true,
+   "encodings": 1,
+   "census_encodings": 1,
+   "snippets": 4,
+   "variants": [
+    "[base+disp8]",
+    "[base+index*scale+disp32]",
+    "[disp32]",
+    "[esp+disp8]"
+   ],
+   "cases": 1280,
+   "de_cases": 0,
+   "failed_cases": 0,
+   "categories": {
+    "x87-exception-flags": 116
+   }
+  },
+  "fsub m64": {
+   "family": "x87",
+   "census_count": 5,
+   "in_census": true,
+   "encodings": 1,
+   "census_encodings": 1,
+   "snippets": 4,
+   "variants": [
+    "[base+disp8]",
+    "[base+index*scale+disp32]",
+    "[disp32]",
+    "[esp+disp8]"
+   ],
+   "cases": 1280,
+   "de_cases": 0,
+   "failed_cases": 0,
+   "categories": {
+    "x87-exception-flags": 597,
+    "x87-c1": 251
+   }
+  },
+  "not r8": {
+   "family": "alu1",
+   "census_count": 5,
+   "in_census": true,
+   "encodings": 1,
+   "census_encodings": 1,
+   "snippets": 2,
+   "variants": [
+    "high-byte",
+    "regs"
+   ],
+   "cases": 640,
+   "de_cases": 0,
+   "failed_cases": 0,
+   "categories": {}
+  },
+  "test m8,r8": {
+   "family": "alu2",
+   "census_count": 5,
+   "in_census": true,
+   "encodings": 1,
+   "census_encodings": 1,
+   "snippets": 6,
+   "variants": [
+    "[base+disp8]",
+    "[base+index*scale+disp32]",
+    "[disp32]",
+    "[esp+disp8]",
+    "high-byte",
+    "reg-aliases-base"
+   ],
+   "cases": 1920,
+   "de_cases": 0,
+   "failed_cases": 0,
+   "categories": {}
+  },
+  "add r8,imm": {
+   "family": "alu2",
+   "census_count": 5,
+   "in_census": true,
+   "encodings": 2,
+   "census_encodings": 2,
+   "snippets": 18,
+   "variants": [
+    "fixed",
+    "high-byte",
+    "regs"
+   ],
+   "cases": 864,
+   "de_cases": 0,
+   "failed_cases": 0,
+   "categories": {}
+  },
+  "movsx r16,m8": {
+   "family": "move",
+   "census_count": 5,
+   "in_census": true,
+   "encodings": 1,
+   "census_encodings": 1,
+   "snippets": 5,
+   "variants": [
+    "[base+disp8]",
+    "[base+index*scale+disp32]",
+    "[disp32]",
+    "[esp+disp8]",
+    "reg-aliases-base"
+   ],
+   "cases": 1600,
+   "de_cases": 0,
+   "failed_cases": 0,
+   "categories": {}
+  },
+  "fadd sti": {
+   "family": "x87",
+   "census_count": 4,
+   "in_census": true,
+   "encodings": 2,
+   "census_encodings": 2,
+   "snippets": 2,
+   "variants": [
+    "fixed"
+   ],
+   "cases": 640,
+   "de_cases": 0,
+   "failed_cases": 0,
+   "categories": {
+    "x87-exception-flags": 444,
+    "x87-c1": 227
+   }
+  },
+  "sbb r32,imm": {
+   "family": "alu2",
+   "census_count": 4,
+   "in_census": true,
+   "encodings": 1,
+   "census_encodings": 1,
+   "snippets": 8,
+   "variants": [
+    "regs"
+   ],
+   "cases": 384,
+   "de_cases": 0,
+   "failed_cases": 0,
+   "categories": {}
+  },
+  "imul r32": {
+   "family": "mul",
+   "census_count": 4,
+   "in_census": true,
+   "encodings": 1,
+   "census_encodings": 1,
+   "snippets": 3,
+   "variants": [
+    "operand=eax",
+    "operand=edx",
+    "regs"
+   ],
+   "cases": 960,
+   "de_cases": 0,
+   "failed_cases": 0,
+   "categories": {}
+  },
+  "add r8,r8": {
+   "family": "alu2",
+   "census_count": 4,
+   "in_census": true,
+   "encodings": 1,
+   "census_encodings": 1,
+   "snippets": 3,
+   "variants": [
+    "high-byte",
+    "regs",
+    "same-reg"
+   ],
+   "cases": 960,
+   "de_cases": 0,
+   "failed_cases": 0,
+   "categories": {}
+  },
+  "adc m32,r32": {
+   "family": "alu2",
+   "census_count": 4,
+   "in_census": true,
+   "encodings": 1,
+   "census_encodings": 1,
+   "snippets": 5,
+   "variants": [
+    "[base+disp8]",
+    "[base+index*scale+disp32]",
+    "[disp32]",
+    "[esp+disp8]",
+    "reg-aliases-base"
+   ],
+   "cases": 1672,
+   "de_cases": 0,
+   "failed_cases": 0,
+   "categories": {}
+  },
+  "fst m64": {
+   "family": "x87",
+   "census_count": 4,
+   "in_census": true,
+   "encodings": 1,
+   "census_encodings": 1,
+   "snippets": 4,
+   "variants": [
+    "[base+disp8]",
+    "[base+index*scale+disp32]",
+    "[disp32]",
+    "[esp+disp8]"
+   ],
+   "cases": 1280,
+   "de_cases": 0,
+   "failed_cases": 0,
+   "categories": {
+    "x87-exception-flags": 66
+   }
+  },
+  "fdiv m64": {
+   "family": "x87",
+   "census_count": 4,
+   "in_census": true,
+   "encodings": 1,
+   "census_encodings": 1,
+   "snippets": 4,
+   "variants": [
+    "[base+disp8]",
+    "[base+index*scale+disp32]",
+    "[disp32]",
+    "[esp+disp8]"
+   ],
+   "cases": 1280,
+   "de_cases": 0,
+   "failed_cases": 0,
+   "categories": {
+    "x87-exception-flags": 778,
+    "x87-c1": 321,
+    "x87-not-a-double": 36
+   }
+  },
+  "fdiv sti": {
+   "family": "x87",
+   "census_count": 4,
+   "in_census": true,
+   "encodings": 1,
+   "census_encodings": 1,
+   "snippets": 1,
+   "variants": [
+    "fixed"
+   ],
+   "cases": 320,
+   "de_cases": 0,
+   "failed_cases": 0,
+   "categories": {
+    "x87-exception-flags": 267,
+    "x87-c1": 136,
+    "x87-not-a-double": 13
+   }
+  },
+  "movsx r32,m16": {
+   "family": "move",
+   "census_count": 4,
+   "in_census": true,
+   "encodings": 1,
+   "census_encodings": 1,
+   "snippets": 5,
+   "variants": [
+    "[base+disp8]",
+    "[base+index*scale+disp32]",
+    "[disp32]",
+    "[esp+disp8]",
+    "reg-aliases-base"
+   ],
+   "cases": 1600,
+   "de_cases": 0,
+   "failed_cases": 0,
+   "categories": {}
+  },
+  "rep movsb m8,m8": {
+   "family": "string",
+   "census_count": 3,
+   "in_census": true,
+   "encodings": 1,
+   "census_encodings": 1,
+   "snippets": 1,
+   "variants": [
+    "fixed"
+   ],
+   "cases": 320,
+   "de_cases": 0,
+   "failed_cases": 0,
+   "categories": {}
+  },
+  "shl r8,r8": {
+   "family": "shift",
+   "census_count": 3,
+   "in_census": true,
+   "encodings": 1,
+   "census_encodings": 1,
+   "snippets": 3,
+   "variants": [
+    "high-byte",
+    "operand=ecx",
+    "regs"
+   ],
+   "cases": 960,
+   "de_cases": 0,
+   "failed_cases": 0,
+   "categories": {}
+  },
+  "inc m8": {
+   "family": "alu1",
+   "census_count": 3,
+   "in_census": true,
+   "encodings": 1,
+   "census_encodings": 1,
+   "snippets": 4,
+   "variants": [
+    "[base+disp8]",
+    "[base+index*scale+disp32]",
+    "[disp32]",
+    "[esp+disp8]"
+   ],
+   "cases": 1280,
+   "de_cases": 0,
+   "failed_cases": 0,
+   "categories": {}
+  },
+  "div r32": {
+   "family": "div",
+   "census_count": 3,
+   "in_census": true,
+   "encodings": 1,
+   "census_encodings": 1,
+   "snippets": 3,
+   "variants": [
+    "operand=eax",
+    "operand=edx",
+    "regs"
+   ],
+   "cases": 1200,
+   "de_cases": 708,
+   "failed_cases": 0,
+   "categories": {},
+   "de_kinds": {
+    "quotient-overflow": 551,
+    "divide-by-zero": 157
+   }
+  },
+  "rep stosw m16,r16": {
+   "family": "string",
+   "census_count": 3,
+   "in_census": true,
+   "encodings": 1,
+   "census_encodings": 1,
+   "snippets": 1,
+   "variants": [
+    "fixed"
+   ],
+   "cases": 320,
+   "de_cases": 0,
+   "failed_cases": 0,
+   "categories": {}
+  },
+  "adc r32,imm": {
+   "family": "alu2",
+   "census_count": 3,
+   "in_census": true,
+   "encodings": 1,
+   "census_encodings": 1,
+   "snippets": 8,
+   "variants": [
+    "regs"
+   ],
+   "cases": 384,
+   "de_cases": 0,
+   "failed_cases": 0,
+   "categories": {}
+  },
+  "movzx r16,r8": {
+   "family": "move",
+   "census_count": 3,
+   "in_census": true,
+   "encodings": 1,
+   "census_encodings": 1,
+   "snippets": 3,
+   "variants": [
+    "high-byte",
+    "regs",
+    "same-reg"
+   ],
+   "cases": 960,
+   "de_cases": 0,
+   "failed_cases": 0,
+   "categories": {}
+  },
+  "and m32,r32": {
+   "family": "alu2",
+   "census_count": 3,
+   "in_census": true,
+   "encodings": 1,
+   "census_encodings": 1,
+   "snippets": 5,
+   "variants": [
+    "[base+disp8]",
+    "[base+index*scale+disp32]",
+    "[disp32]",
+    "[esp+disp8]",
+    "reg-aliases-base"
+   ],
+   "cases": 1600,
+   "de_cases": 0,
+   "failed_cases": 0,
+   "categories": {}
+  },
+  "leave": {
+   "family": "stack",
+   "census_count": 3,
+   "in_census": true,
+   "encodings": 1,
+   "census_encodings": 1,
+   "snippets": 1,
+   "variants": [
+    "fixed"
+   ],
+   "cases": 320,
+   "de_cases": 0,
+   "failed_cases": 0,
+   "categories": {}
+  },
+  "mul r32": {
+   "family": "mul",
+   "census_count": 3,
+   "in_census": true,
+   "encodings": 1,
+   "census_encodings": 1,
+   "snippets": 3,
+   "variants": [
+    "operand=eax",
+    "operand=edx",
+    "regs"
+   ],
+   "cases": 960,
+   "de_cases": 0,
+   "failed_cases": 0,
+   "categories": {}
+  },
+  "cld": {
+   "family": "flagop",
+   "census_count": 2,
+   "in_census": true,
+   "encodings": 1,
+   "census_encodings": 1,
+   "snippets": 1,
+   "variants": [
+    "fixed"
+   ],
+   "cases": 320,
+   "de_cases": 0,
+   "failed_cases": 0,
+   "categories": {}
+  },
+  "mov r16,r16": {
+   "family": "move",
+   "census_count": 2,
+   "in_census": true,
+   "encodings": 1,
+   "census_encodings": 1,
+   "snippets": 2,
+   "variants": [
+    "regs",
+    "same-reg"
+   ],
+   "cases": 640,
+   "de_cases": 0,
+   "failed_cases": 0,
+   "categories": {}
+  },
+  "xor r32,m32": {
+   "family": "alu2",
+   "census_count": 2,
+   "in_census": true,
+   "encodings": 1,
+   "census_encodings": 1,
+   "snippets": 5,
+   "variants": [
+    "[base+disp8]",
+    "[base+index*scale+disp32]",
+    "[disp32]",
+    "[esp+disp8]",
+    "reg-aliases-base"
+   ],
+   "cases": 1600,
+   "de_cases": 0,
+   "failed_cases": 0,
+   "categories": {}
+  },
+  "fld1": {
+   "family": "x87",
+   "census_count": 2,
+   "in_census": true,
+   "encodings": 1,
+   "census_encodings": 1,
+   "snippets": 1,
+   "variants": [
+    "fixed"
+   ],
+   "cases": 320,
+   "de_cases": 0,
+   "failed_cases": 0,
+   "categories": {
+    "x87-exception-flags": 12
+   }
+  },
+  "fpatan": {
+   "family": "x87",
+   "census_count": 2,
+   "in_census": true,
+   "encodings": 1,
+   "census_encodings": 1,
+   "snippets": 1,
+   "variants": [
+    "fixed"
+   ],
+   "cases": 320,
+   "de_cases": 0,
+   "failed_cases": 0,
+   "categories": {
+    "x87-exception-flags": 299,
+    "x87-c1": 183,
+    "x87-transcendental": 2
+   }
+  },
+  "stosb m8,r8": {
+   "family": "string",
+   "census_count": 2,
+   "in_census": true,
+   "encodings": 1,
+   "census_encodings": 1,
+   "snippets": 1,
+   "variants": [
+    "fixed"
+   ],
+   "cases": 320,
+   "de_cases": 0,
+   "failed_cases": 0,
+   "categories": {}
+  },
+  "and r8,m8": {
+   "family": "alu2",
+   "census_count": 2,
+   "in_census": true,
+   "encodings": 1,
+   "census_encodings": 1,
+   "snippets": 6,
+   "variants": [
+    "[base+disp8]",
+    "[base+index*scale+disp32]",
+    "[disp32]",
+    "[esp+disp8]",
+    "high-byte",
+    "reg-aliases-base"
+   ],
+   "cases": 1920,
+   "de_cases": 0,
+   "failed_cases": 0,
+   "categories": {}
+  },
+  "idiv m32": {
+   "family": "div",
+   "census_count": 2,
+   "in_census": true,
+   "encodings": 1,
+   "census_encodings": 1,
+   "snippets": 4,
+   "variants": [
+    "[base+disp8]",
+    "[base+index*scale+disp32]",
+    "[disp32]",
+    "[esp+disp8]"
+   ],
+   "cases": 1600,
+   "de_cases": 607,
+   "failed_cases": 0,
+   "categories": {},
+   "de_kinds": {
+    "quotient-overflow": 394,
+    "divide-by-zero": 213
+   }
+  },
+  "sbb r8,r8": {
+   "family": "alu2",
+   "census_count": 2,
+   "in_census": true,
+   "encodings": 1,
+   "census_encodings": 1,
+   "snippets": 3,
+   "variants": [
+    "high-byte",
+    "regs",
+    "same-reg"
+   ],
+   "cases": 960,
+   "de_cases": 0,
+   "failed_cases": 0,
+   "categories": {}
+  },
+  "xor r32,imm": {
+   "family": "alu2",
+   "census_count": 2,
+   "in_census": true,
+   "encodings": 2,
+   "census_encodings": 2,
+   "snippets": 16,
+   "variants": [
+    "fixed",
+    "regs"
+   ],
+   "cases": 768,
+   "de_cases": 0,
+   "failed_cases": 0,
+   "categories": {}
+  },
+  "xchg r32,r32": {
+   "family": "move",
+   "census_count": 2,
+   "in_census": true,
+   "encodings": 3,
+   "census_encodings": 1,
+   "snippets": 4,
+   "variants": [
+    "fixed",
+    "regs",
+    "same-reg"
+   ],
+   "cases": 1280,
+   "de_cases": 0,
+   "failed_cases": 0,
+   "categories": {}
+  },
+  "cmp m8,r8": {
+   "family": "alu2",
+   "census_count": 1,
+   "in_census": true,
+   "encodings": 1,
+   "census_encodings": 1,
+   "snippets": 6,
+   "variants": [
+    "[base+disp8]",
+    "[base+index*scale+disp32]",
+    "[disp32]",
+    "[esp+disp8]",
+    "high-byte",
+    "reg-aliases-base"
+   ],
+   "cases": 1920,
+   "de_cases": 0,
+   "failed_cases": 0,
+   "categories": {}
+  },
+  "fldl2e": {
+   "family": "x87",
+   "census_count": 1,
+   "in_census": true,
+   "encodings": 1,
+   "census_encodings": 1,
+   "snippets": 1,
+   "variants": [
+    "fixed"
+   ],
+   "cases": 320,
+   "de_cases": 0,
+   "failed_cases": 0,
+   "categories": {
+    "x87-not-a-double": 320,
+    "x87-exception-flags": 19
+   }
+  },
+  "frndint": {
+   "family": "x87",
+   "census_count": 1,
+   "in_census": true,
+   "encodings": 1,
+   "census_encodings": 1,
+   "snippets": 1,
+   "variants": [
+    "fixed"
+   ],
+   "cases": 320,
+   "de_cases": 0,
+   "failed_cases": 0,
+   "categories": {
+    "x87-exception-flags": 262,
+    "x87-c1": 114
+   }
+  },
+  "f2xm1": {
+   "family": "x87",
+   "census_count": 1,
+   "in_census": true,
+   "encodings": 1,
+   "census_encodings": 1,
+   "snippets": 1,
+   "variants": [
+    "fixed"
+   ],
+   "cases": 320,
+   "de_cases": 0,
+   "failed_cases": 0,
+   "categories": {
+    "x87-exception-flags": 307,
+    "x87-c1": 153,
+    "x87-transcendental": 140
+   }
+  },
+  "fscale": {
+   "family": "x87",
+   "census_count": 1,
+   "in_census": true,
+   "encodings": 1,
+   "census_encodings": 1,
+   "snippets": 1,
+   "variants": [
+    "fixed"
+   ],
+   "cases": 320,
+   "de_cases": 0,
+   "failed_cases": 0,
+   "categories": {
+    "x87-exception-flags": 9,
+    "x87-not-a-double": 6
+   }
+  },
+  "fldln2": {
+   "family": "x87",
+   "census_count": 1,
+   "in_census": true,
+   "encodings": 1,
+   "census_encodings": 1,
+   "snippets": 1,
+   "variants": [
+    "fixed"
+   ],
+   "cases": 320,
+   "de_cases": 0,
+   "failed_cases": 0,
+   "categories": {
+    "x87-not-a-double": 320,
+    "x87-exception-flags": 14
+   }
+  },
+  "fyl2x": {
+   "family": "x87",
+   "census_count": 1,
+   "in_census": true,
+   "encodings": 1,
+   "census_encodings": 1,
+   "snippets": 1,
+   "variants": [
+    "fixed"
+   ],
+   "cases": 320,
+   "de_cases": 0,
+   "failed_cases": 0,
+   "categories": {
+    "x87-exception-flags": 300,
+    "x87-c1": 148,
+    "x87-transcendental": 67
+   }
+  },
+  "fsin": {
+   "family": "x87",
+   "census_count": 1,
+   "in_census": true,
+   "encodings": 1,
+   "census_encodings": 1,
+   "snippets": 1,
+   "variants": [
+    "fixed"
+   ],
+   "cases": 320,
+   "de_cases": 0,
+   "failed_cases": 3,
+   "categories": {
+    "x87-exception-flags": 303,
+    "x87-c1": 163,
+    "x87-cc": 3,
+    "x87-transcendental": 96
+   },
+   "attribution": "runtime xrt_cpu.c trig_out_of_range(): NaN/inf operands take the |x|>=2^63 path (C2=1, operand unchanged); hardware returns a QNaN with C2=0"
+  },
+  "fcos": {
+   "family": "x87",
+   "census_count": 1,
+   "in_census": true,
+   "encodings": 1,
+   "census_encodings": 1,
+   "snippets": 1,
+   "variants": [
+    "fixed"
+   ],
+   "cases": 320,
+   "de_cases": 0,
+   "failed_cases": 11,
+   "categories": {
+    "x87-exception-flags": 306,
+    "x87-transcendental": 99,
+    "x87-c1": 151,
+    "x87-cc": 11
+   },
+   "attribution": "runtime xrt_cpu.c trig_out_of_range(): NaN/inf operands take the |x|>=2^63 path (C2=1, operand unchanged); hardware returns a QNaN with C2=0"
+  },
+  "fptan": {
+   "family": "x87",
+   "census_count": 1,
+   "in_census": true,
+   "encodings": 1,
+   "census_encodings": 1,
+   "snippets": 1,
+   "variants": [
+    "fixed"
+   ],
+   "cases": 320,
+   "de_cases": 0,
+   "failed_cases": 6,
+   "categories": {
+    "x87-transcendental": 108,
+    "x87-exception-flags": 303,
+    "x87-c1": 124,
+    "x87-top": 6,
+    "x87-cc": 6
+   },
+   "attribution": "runtime xrt_cpu.c trig_out_of_range(): NaN/inf operands take the |x|>=2^63 path (C2=1, nothing pushed); hardware stores QNaN, pushes, C2=0"
+  },
+  "fsqrt": {
+   "family": "x87",
+   "census_count": 1,
+   "in_census": true,
+   "encodings": 1,
+   "census_encodings": 1,
+   "snippets": 1,
+   "variants": [
+    "fixed"
+   ],
+   "cases": 320,
+   "de_cases": 0,
+   "failed_cases": 0,
+   "categories": {
+    "x87-exception-flags": 289,
+    "x87-c1": 139
+   }
+  },
+  "repe cmpsb m8,m8": {
+   "family": "string",
+   "census_count": 1,
+   "in_census": true,
+   "encodings": 1,
+   "census_encodings": 1,
+   "snippets": 1,
+   "variants": [
+    "fixed"
+   ],
+   "cases": 320,
+   "de_cases": 0,
+   "failed_cases": 0,
+   "categories": {}
+  },
+  "and m8,r8": {
+   "family": "alu2",
+   "census_count": 1,
+   "in_census": true,
+   "encodings": 1,
+   "census_encodings": 1,
+   "snippets": 6,
+   "variants": [
+    "[base+disp8]",
+    "[base+index*scale+disp32]",
+    "[disp32]",
+    "[esp+disp8]",
+    "high-byte",
+    "reg-aliases-base"
+   ],
+   "cases": 1920,
+   "de_cases": 0,
+   "failed_cases": 0,
+   "categories": {}
+  },
+  "or m8,imm": {
+   "family": "alu2",
+   "census_count": 1,
+   "in_census": true,
+   "encodings": 1,
+   "census_encodings": 1,
+   "snippets": 14,
+   "variants": [
+    "[base+disp8]",
+    "[base+index*scale+disp32]",
+    "[disp32]",
+    "[esp+disp8]"
+   ],
+   "cases": 672,
+   "de_cases": 0,
+   "failed_cases": 0,
+   "categories": {}
+  },
+  "imul r16,m16": {
+   "family": "mul",
+   "census_count": 1,
+   "in_census": true,
+   "encodings": 1,
+   "census_encodings": 1,
+   "snippets": 5,
+   "variants": [
+    "[base+disp8]",
+    "[base+index*scale+disp32]",
+    "[disp32]",
+    "[esp+disp8]",
+    "reg-aliases-base"
+   ],
+   "cases": 1600,
+   "de_cases": 0,
+   "failed_cases": 0,
+   "categories": {}
+  },
+  "add r16,m16": {
+   "family": "alu2",
+   "census_count": 1,
+   "in_census": true,
+   "encodings": 1,
+   "census_encodings": 1,
+   "snippets": 5,
+   "variants": [
+    "[base+disp8]",
+    "[base+index*scale+disp32]",
+    "[disp32]",
+    "[esp+disp8]",
+    "reg-aliases-base"
+   ],
+   "cases": 1600,
+   "de_cases": 0,
+   "failed_cases": 0,
+   "categories": {}
+  },
+  "or r8,imm": {
+   "family": "alu2",
+   "census_count": 1,
+   "in_census": true,
+   "encodings": 2,
+   "census_encodings": 1,
+   "snippets": 18,
+   "variants": [
+    "fixed",
+    "high-byte",
+    "regs"
+   ],
+   "cases": 864,
+   "de_cases": 0,
+   "failed_cases": 0,
+   "categories": {}
+  },
+  "sub r8,imm": {
+   "family": "alu2",
+   "census_count": 1,
+   "in_census": true,
+   "encodings": 1,
+   "census_encodings": 1,
+   "snippets": 8,
+   "variants": [
+    "fixed"
+   ],
+   "cases": 384,
+   "de_cases": 0,
+   "failed_cases": 0,
+   "categories": {}
+  },
+  "imul m8": {
+   "family": "mul",
+   "census_count": 1,
+   "in_census": true,
+   "encodings": 1,
+   "census_encodings": 1,
+   "snippets": 4,
+   "variants": [
+    "[base+disp8]",
+    "[base+index*scale+disp32]",
+    "[disp32]",
+    "[esp+disp8]"
+   ],
+   "cases": 1280,
+   "de_cases": 0,
+   "failed_cases": 0,
+   "categories": {}
+  },
+  "sub r8,r8": {
+   "family": "alu2",
+   "census_count": 1,
+   "in_census": true,
+   "encodings": 1,
+   "census_encodings": 1,
+   "snippets": 3,
+   "variants": [
+    "high-byte",
+    "regs",
+    "same-reg"
+   ],
+   "cases": 960,
+   "de_cases": 0,
+   "failed_cases": 0,
+   "categories": {}
+  },
+  "sar r32,r8": {
+   "family": "shift",
+   "census_count": 1,
+   "in_census": true,
+   "encodings": 1,
+   "census_encodings": 1,
+   "snippets": 2,
+   "variants": [
+    "operand=ecx",
+    "regs"
+   ],
+   "cases": 640,
+   "de_cases": 0,
+   "failed_cases": 0,
+   "categories": {}
+  },
+  "fsubr m64": {
+   "family": "x87",
+   "census_count": 1,
+   "in_census": true,
+   "encodings": 1,
+   "census_encodings": 1,
+   "snippets": 4,
+   "variants": [
+    "[base+disp8]",
+    "[base+index*scale+disp32]",
+    "[disp32]",
+    "[esp+disp8]"
+   ],
+   "cases": 1280,
+   "de_cases": 0,
+   "failed_cases": 0,
+   "categories": {
+    "x87-exception-flags": 621,
+    "x87-c1": 270,
+    "x87-nan-payload": 1
+   }
+  },
+  "xor m32,imm": {
+   "family": "alu2",
+   "census_count": 1,
+   "in_census": true,
+   "encodings": 1,
+   "census_encodings": 1,
+   "snippets": 14,
+   "variants": [
+    "[base+disp8]",
+    "[base+index*scale+disp32]",
+    "[disp32]",
+    "[esp+disp8]"
+   ],
+   "cases": 672,
+   "de_cases": 0,
+   "failed_cases": 0,
+   "categories": {}
+  },
+  "fcom sti": {
+   "family": "x87",
+   "census_count": 1,
+   "in_census": true,
+   "encodings": 2,
+   "census_encodings": 1,
+   "snippets": 2,
+   "variants": [
+    "fixed"
+   ],
+   "cases": 640,
+   "de_cases": 0,
+   "failed_cases": 0,
+   "categories": {
+    "x87-exception-flags": 51
+   }
+  },
+  "fdivrp sti": {
+   "family": "x87",
+   "census_count": 1,
+   "in_census": true,
+   "encodings": 1,
+   "census_encodings": 1,
+   "snippets": 1,
+   "variants": [
+    "fixed"
+   ],
+   "cases": 320,
+   "de_cases": 0,
+   "failed_cases": 0,
+   "categories": {
+    "x87-exception-flags": 266,
+    "x87-c1": 140,
+    "x87-not-a-double": 9
+   }
+  },
+  "div m32": {
+   "family": "div",
+   "census_count": 1,
+   "in_census": true,
+   "encodings": 1,
+   "census_encodings": 1,
+   "snippets": 4,
+   "variants": [
+    "[base+disp8]",
+    "[base+index*scale+disp32]",
+    "[disp32]",
+    "[esp+disp8]"
+   ],
+   "cases": 1600,
+   "de_cases": 625,
+   "failed_cases": 0,
+   "categories": {},
+   "de_kinds": {
+    "quotient-overflow": 423,
+    "divide-by-zero": 202
+   }
+  },
+  "shld r32,r32,r8": {
+   "family": "dshift",
+   "census_count": 1,
+   "in_census": true,
+   "encodings": 1,
+   "census_encodings": 1,
+   "snippets": 2,
+   "variants": [
+    "regs",
+    "same-reg"
+   ],
+   "cases": 640,
+   "de_cases": 0,
+   "failed_cases": 0,
+   "categories": {}
+  },
+  "fistp m64": {
+   "family": "x87",
+   "census_count": 1,
+   "in_census": true,
+   "encodings": 1,
+   "census_encodings": 1,
+   "snippets": 4,
+   "variants": [
+    "[base+disp8]",
+    "[base+index*scale+disp32]",
+    "[disp32]",
+    "[esp+disp8]"
+   ],
+   "cases": 1280,
+   "de_cases": 0,
+   "failed_cases": 0,
+   "categories": {
+    "x87-exception-flags": 757,
+    "x87-c1": 211
+   }
+  },
+  "shrd r32,r32,r8": {
+   "family": "dshift",
+   "census_count": 1,
+   "in_census": true,
+   "encodings": 1,
+   "census_encodings": 1,
+   "snippets": 2,
+   "variants": [
+    "regs",
+    "same-reg"
+   ],
+   "cases": 640,
+   "de_cases": 0,
+   "failed_cases": 0,
+   "categories": {}
+  },
+  "mul m32": {
+   "family": "mul",
+   "census_count": 1,
+   "in_census": true,
+   "encodings": 1,
+   "census_encodings": 1,
+   "snippets": 4,
+   "variants": [
+    "[base+disp8]",
+    "[base+index*scale+disp32]",
+    "[disp32]",
+    "[esp+disp8]"
+   ],
+   "cases": 1280,
+   "de_cases": 0,
+   "failed_cases": 0,
+   "categories": {}
+  },
+  "sub m32,imm": {
+   "family": "alu2",
+   "census_count": 1,
+   "in_census": true,
+   "encodings": 1,
+   "census_encodings": 1,
+   "snippets": 14,
+   "variants": [
+    "[base+disp8]",
+    "[base+index*scale+disp32]",
+    "[disp32]",
+    "[esp+disp8]"
+   ],
+   "cases": 672,
+   "de_cases": 0,
+   "failed_cases": 0,
+   "categories": {}
+  },
+  "fidiv m32": {
+   "family": "x87",
+   "census_count": 1,
+   "in_census": true,
+   "encodings": 1,
+   "census_encodings": 1,
+   "snippets": 4,
+   "variants": [
+    "[base+disp8]",
+    "[base+index*scale+disp32]",
+    "[disp32]",
+    "[esp+disp8]"
+   ],
+   "cases": 1280,
+   "de_cases": 0,
+   "failed_cases": 0,
+   "categories": {
+    "x87-exception-flags": 868,
+    "x87-c1": 358,
+    "x87-not-a-double": 14
+   }
+  },
+  "neg r8": {
+   "family": "alu1",
+   "census_count": 1,
+   "in_census": true,
+   "encodings": 1,
+   "census_encodings": 1,
+   "snippets": 2,
+   "variants": [
+    "high-byte",
+    "regs"
+   ],
+   "cases": 640,
+   "de_cases": 0,
+   "failed_cases": 0,
+   "categories": {}
+  },
+  "seto r8": {
+   "family": "setcc",
+   "census_count": 0,
+   "in_census": false,
+   "encodings": 1,
+   "census_encodings": 0,
+   "snippets": 2,
+   "variants": [
+    "cond-table rm=ah",
+    "cond-table rm=al"
+   ],
+   "cases": 640,
+   "de_cases": 0,
+   "failed_cases": 0,
+   "categories": {}
+  },
+  "setno r8": {
+   "family": "setcc",
+   "census_count": 0,
+   "in_census": false,
+   "encodings": 1,
+   "census_encodings": 0,
+   "snippets": 2,
+   "variants": [
+    "cond-table rm=bh",
+    "cond-table rm=bl"
+   ],
+   "cases": 640,
+   "de_cases": 0,
+   "failed_cases": 0,
+   "categories": {}
+  },
+  "setb r8": {
+   "family": "setcc",
+   "census_count": 0,
+   "in_census": false,
+   "encodings": 1,
+   "census_encodings": 0,
+   "snippets": 2,
+   "variants": [
+    "cond-table rm=ah",
+    "cond-table rm=al"
+   ],
+   "cases": 640,
+   "de_cases": 0,
+   "failed_cases": 0,
+   "categories": {}
+  },
+  "setae r8": {
+   "family": "setcc",
+   "census_count": 0,
+   "in_census": false,
+   "encodings": 1,
+   "census_encodings": 0,
+   "snippets": 2,
+   "variants": [
+    "cond-table rm=bl",
+    "cond-table rm=dh"
+   ],
+   "cases": 640,
+   "de_cases": 0,
+   "failed_cases": 0,
+   "categories": {}
+  },
+  "setbe r8": {
+   "family": "setcc",
+   "census_count": 0,
+   "in_census": false,
+   "encodings": 1,
+   "census_encodings": 0,
+   "snippets": 2,
+   "variants": [
+    "cond-table rm=bh",
+    "cond-table rm=bl"
+   ],
+   "cases": 640,
+   "de_cases": 0,
+   "failed_cases": 0,
+   "categories": {}
+  },
+  "seta r8": {
+   "family": "setcc",
+   "census_count": 0,
+   "in_census": false,
+   "encodings": 1,
+   "census_encodings": 0,
+   "snippets": 2,
+   "variants": [
+    "cond-table rm=ah",
+    "cond-table rm=bl"
+   ],
+   "cases": 640,
+   "de_cases": 0,
+   "failed_cases": 0,
+   "categories": {}
+  },
+  "sets r8": {
+   "family": "setcc",
+   "census_count": 0,
+   "in_census": false,
+   "encodings": 1,
+   "census_encodings": 0,
+   "snippets": 2,
+   "variants": [
+    "cond-table rm=ah",
+    "cond-table rm=bl"
+   ],
+   "cases": 640,
+   "de_cases": 0,
+   "failed_cases": 0,
+   "categories": {}
+  },
+  "setns r8": {
+   "family": "setcc",
+   "census_count": 0,
+   "in_census": false,
+   "encodings": 1,
+   "census_encodings": 0,
+   "snippets": 2,
+   "variants": [
+    "cond-table rm=ah",
+    "cond-table rm=bl"
+   ],
+   "cases": 640,
+   "de_cases": 0,
+   "failed_cases": 0,
+   "categories": {}
+  },
+  "setp r8": {
+   "family": "setcc",
+   "census_count": 0,
+   "in_census": false,
+   "encodings": 1,
+   "census_encodings": 0,
+   "snippets": 2,
+   "variants": [
+    "cond-table rm=ch",
+    "cond-table rm=cl"
+   ],
+   "cases": 640,
+   "de_cases": 0,
+   "failed_cases": 0,
+   "categories": {}
+  },
+  "setnp r8": {
+   "family": "setcc",
+   "census_count": 0,
+   "in_census": false,
+   "encodings": 1,
+   "census_encodings": 0,
+   "snippets": 2,
+   "variants": [
+    "cond-table rm=cl",
+    "cond-table rm=dh"
+   ],
+   "cases": 640,
+   "de_cases": 0,
+   "failed_cases": 0,
+   "categories": {}
+  },
+  "x87 compare; fnstsw ax; test ah, imm": {
+   "family": "x87seq",
+   "census_count": 0,
+   "in_census": false,
+   "encodings": 1,
+   "census_encodings": 0,
+   "snippets": 44,
+   "variants": [
+    "mask=0x1",
+    "mask=0x41",
+    "mask=0x44",
+    "mask=0x5"
+   ],
+   "cases": 14080,
+   "de_cases": 0,
+   "failed_cases": 0,
+   "categories": {
+    "fnstsw-unmodelled": 1216,
+    "x87-exception-flags": 1216
+   }
+  },
+  "rol r32,imm": {
+   "family": "shift",
+   "census_count": 0,
+   "in_census": false,
+   "encodings": 2,
+   "census_encodings": 0,
+   "snippets": 39,
+   "variants": [
+    "regs"
+   ],
+   "cases": 1840,
+   "de_cases": 0,
+   "failed_cases": 0,
+   "categories": {}
+  },
+  "rol r32,r8": {
+   "family": "shift",
+   "census_count": 0,
+   "in_census": false,
+   "encodings": 1,
+   "census_encodings": 0,
+   "snippets": 2,
+   "variants": [
+    "operand=ecx",
+    "regs"
+   ],
+   "cases": 640,
+   "de_cases": 0,
+   "failed_cases": 0,
+   "categories": {}
+  },
+  "rol r8,r8": {
+   "family": "shift",
+   "census_count": 0,
+   "in_census": false,
+   "encodings": 1,
+   "census_encodings": 0,
+   "snippets": 3,
+   "variants": [
+    "high-byte",
+    "operand=ecx",
+    "regs"
+   ],
+   "cases": 960,
+   "de_cases": 0,
+   "failed_cases": 0,
+   "categories": {}
+  },
+  "rol r8,imm": {
+   "family": "shift",
+   "census_count": 0,
+   "in_census": false,
+   "encodings": 1,
+   "census_encodings": 0,
+   "snippets": 78,
+   "variants": [
+    "high-byte",
+    "operand=ecx",
+    "regs"
+   ],
+   "cases": 3120,
+   "de_cases": 0,
+   "failed_cases": 0,
+   "categories": {}
+  },
+  "rol r16,imm": {
+   "family": "shift",
+   "census_count": 0,
+   "in_census": false,
+   "encodings": 1,
+   "census_encodings": 0,
+   "snippets": 38,
+   "variants": [
+    "regs"
+   ],
+   "cases": 1520,
+   "de_cases": 0,
+   "failed_cases": 0,
+   "categories": {}
+  },
+  "rol r16,r8": {
+   "family": "shift",
+   "census_count": 0,
+   "in_census": false,
+   "encodings": 1,
+   "census_encodings": 0,
+   "snippets": 2,
+   "variants": [
+    "operand=ecx",
+    "regs"
+   ],
+   "cases": 640,
+   "de_cases": 0,
+   "failed_cases": 0,
+   "categories": {}
+  },
+  "ror r32,imm": {
+   "family": "shift",
+   "census_count": 0,
+   "in_census": false,
+   "encodings": 2,
+   "census_encodings": 0,
+   "snippets": 39,
+   "variants": [
+    "regs"
+   ],
+   "cases": 1840,
+   "de_cases": 0,
+   "failed_cases": 0,
+   "categories": {}
+  },
+  "ror r32,r8": {
+   "family": "shift",
+   "census_count": 0,
+   "in_census": false,
+   "encodings": 1,
+   "census_encodings": 0,
+   "snippets": 2,
+   "variants": [
+    "operand=ecx",
+    "regs"
+   ],
+   "cases": 640,
+   "de_cases": 0,
+   "failed_cases": 0,
+   "categories": {}
+  },
+  "ror r8,r8": {
+   "family": "shift",
+   "census_count": 0,
+   "in_census": false,
+   "encodings": 1,
+   "census_encodings": 0,
+   "snippets": 3,
+   "variants": [
+    "high-byte",
+    "operand=ecx",
+    "regs"
+   ],
+   "cases": 960,
+   "de_cases": 0,
+   "failed_cases": 0,
+   "categories": {}
+  },
+  "ror r16,r8": {
+   "family": "shift",
+   "census_count": 0,
+   "in_census": false,
+   "encodings": 1,
+   "census_encodings": 0,
+   "snippets": 2,
+   "variants": [
+    "operand=ecx",
+    "regs"
+   ],
+   "cases": 640,
+   "de_cases": 0,
+   "failed_cases": 0,
+   "categories": {}
+  },
+  "ror r8,imm": {
+   "family": "shift",
+   "census_count": 0,
+   "in_census": false,
+   "encodings": 1,
+   "census_encodings": 0,
+   "snippets": 78,
+   "variants": [
+    "high-byte",
+    "operand=ecx",
+    "regs"
+   ],
+   "cases": 3120,
+   "de_cases": 0,
+   "failed_cases": 0,
+   "categories": {}
+  },
+  "rol m32,r8": {
+   "family": "shift",
+   "census_count": 0,
+   "in_census": false,
+   "encodings": 1,
+   "census_encodings": 0,
+   "snippets": 4,
+   "variants": [
+    "[base+disp8]",
+    "[base+index*scale+disp32]",
+    "[disp32]",
+    "[esp+disp8]"
+   ],
+   "cases": 1280,
+   "de_cases": 0,
+   "failed_cases": 0,
+   "categories": {}
+  },
+  "ror m32,imm": {
+   "family": "shift",
+   "census_count": 0,
+   "in_census": false,
+   "encodings": 1,
+   "census_encodings": 0,
+   "snippets": 4,
+   "variants": [
+    "[base+disp8]",
+    "[base+index*scale+disp32]",
+    "[disp32]",
+    "[esp+disp8]"
+   ],
+   "cases": 1280,
+   "de_cases": 0,
+   "failed_cases": 0,
+   "categories": {}
+  },
+  "shr r8,r8": {
+   "family": "shift",
+   "census_count": 0,
+   "in_census": false,
+   "encodings": 1,
+   "census_encodings": 0,
+   "snippets": 3,
+   "variants": [
+    "high-byte",
+    "operand=ecx",
+    "regs"
+   ],
+   "cases": 960,
+   "de_cases": 0,
+   "failed_cases": 0,
+   "categories": {}
+  },
+  "sar r8,r8": {
+   "family": "shift",
+   "census_count": 0,
+   "in_census": false,
+   "encodings": 1,
+   "census_encodings": 0,
+   "snippets": 3,
+   "variants": [
+    "high-byte",
+    "operand=ecx",
+    "regs"
+   ],
+   "cases": 960,
+   "de_cases": 0,
+   "failed_cases": 0,
+   "categories": {}
+  },
+  "shl r16,r8": {
+   "family": "shift",
+   "census_count": 0,
+   "in_census": false,
+   "encodings": 1,
+   "census_encodings": 0,
+   "snippets": 2,
+   "variants": [
+    "operand=ecx",
+    "regs"
+   ],
+   "cases": 640,
+   "de_cases": 0,
+   "failed_cases": 0,
+   "categories": {}
+  },
+  "shr r16,r8": {
+   "family": "shift",
+   "census_count": 0,
+   "in_census": false,
+   "encodings": 1,
+   "census_encodings": 0,
+   "snippets": 2,
+   "variants": [
+    "operand=ecx",
+    "regs"
+   ],
+   "cases": 640,
+   "de_cases": 0,
+   "failed_cases": 0,
+   "categories": {}
+  },
+  "sar r16,r8": {
+   "family": "shift",
+   "census_count": 0,
+   "in_census": false,
+   "encodings": 1,
+   "census_encodings": 0,
+   "snippets": 2,
+   "variants": [
+    "operand=ecx",
+    "regs"
+   ],
+   "cases": 640,
+   "de_cases": 0,
+   "failed_cases": 0,
+   "categories": {}
+  },
+  "shl r8,imm": {
+   "family": "shift",
+   "census_count": 0,
+   "in_census": false,
+   "encodings": 1,
+   "census_encodings": 0,
+   "snippets": 78,
+   "variants": [
+    "high-byte",
+    "operand=ecx",
+    "regs"
+   ],
+   "cases": 3120,
+   "de_cases": 0,
+   "failed_cases": 0,
+   "categories": {}
+  },
+  "sar r8,imm": {
+   "family": "shift",
+   "census_count": 0,
+   "in_census": false,
+   "encodings": 2,
+   "census_encodings": 0,
+   "snippets": 81,
+   "variants": [
+    "high-byte",
+    "operand=ecx",
+    "regs"
+   ],
+   "cases": 4080,
+   "de_cases": 0,
+   "failed_cases": 0,
+   "categories": {}
+  },
+  "shr r16,imm": {
+   "family": "shift",
+   "census_count": 0,
+   "in_census": false,
+   "encodings": 1,
+   "census_encodings": 0,
+   "snippets": 38,
+   "variants": [
+    "regs"
+   ],
+   "cases": 1520,
+   "de_cases": 0,
+   "failed_cases": 0,
+   "categories": {}
+  },
+  "shr m32,imm": {
+   "family": "shift",
+   "census_count": 0,
+   "in_census": false,
+   "encodings": 1,
+   "census_encodings": 0,
+   "snippets": 80,
+   "variants": [
+    "[base+disp8]",
+    "[base+index*scale+disp32]",
+    "[disp32]",
+    "[esp+disp8]"
+   ],
+   "cases": 3200,
+   "de_cases": 0,
+   "failed_cases": 0,
+   "categories": {}
+  },
+  "sar m8,imm": {
+   "family": "shift",
+   "census_count": 0,
+   "in_census": false,
+   "encodings": 1,
+   "census_encodings": 0,
+   "snippets": 4,
+   "variants": [
+    "[base+disp8]",
+    "[base+index*scale+disp32]",
+    "[disp32]",
+    "[esp+disp8]"
+   ],
+   "cases": 1280,
+   "de_cases": 0,
+   "failed_cases": 0,
+   "categories": {}
+  },
+  "shl m32,r8": {
+   "family": "shift",
+   "census_count": 0,
+   "in_census": false,
+   "encodings": 1,
+   "census_encodings": 0,
+   "snippets": 4,
+   "variants": [
+    "[base+disp8]",
+    "[base+index*scale+disp32]",
+    "[disp32]",
+    "[esp+disp8]"
+   ],
+   "cases": 1280,
+   "de_cases": 0,
+   "failed_cases": 0,
+   "categories": {}
+  },
+  "shld r32,r32,imm": {
+   "family": "dshift",
+   "census_count": 0,
+   "in_census": false,
+   "encodings": 1,
+   "census_encodings": 0,
+   "snippets": 10,
+   "variants": [
+    "regs",
+    "same-reg"
+   ],
+   "cases": 400,
+   "de_cases": 0,
+   "failed_cases": 0,
+   "categories": {}
+  },
+  "shrd r32,r32,imm": {
+   "family": "dshift",
+   "census_count": 0,
+   "in_census": false,
+   "encodings": 1,
+   "census_encodings": 0,
+   "snippets": 10,
+   "variants": [
+    "regs",
+    "same-reg"
+   ],
+   "cases": 400,
+   "de_cases": 0,
+   "failed_cases": 0,
+   "categories": {}
+  },
+  "shld m32,r32,r8": {
+   "family": "dshift",
+   "census_count": 0,
+   "in_census": false,
+   "encodings": 1,
+   "census_encodings": 0,
+   "snippets": 5,
+   "variants": [
+    "[base+disp8]",
+    "[base+index*scale+disp32]",
+    "[disp32]",
+    "[esp+disp8]",
+    "reg-aliases-base"
+   ],
+   "cases": 1600,
+   "de_cases": 0,
+   "failed_cases": 0,
+   "categories": {}
+  },
+  "shrd m32,r32,r8": {
+   "family": "dshift",
+   "census_count": 0,
+   "in_census": false,
+   "encodings": 1,
+   "census_encodings": 0,
+   "snippets": 5,
+   "variants": [
+    "[base+disp8]",
+    "[base+index*scale+disp32]",
+    "[disp32]",
+    "[esp+disp8]",
+    "reg-aliases-base"
+   ],
+   "cases": 1600,
+   "de_cases": 0,
+   "failed_cases": 0,
+   "categories": {}
+  },
+  "cmovo r32,r32": {
+   "family": "move",
+   "census_count": 0,
+   "in_census": false,
+   "encodings": 1,
+   "census_encodings": 0,
+   "snippets": 2,
+   "variants": [
+    "regs",
+    "same-reg"
+   ],
+   "cases": 640,
+   "de_cases": 0,
+   "failed_cases": 0,
+   "categories": {}
+  },
+  "cmovno r32,r32": {
+   "family": "move",
+   "census_count": 0,
+   "in_census": false,
+   "encodings": 1,
+   "census_encodings": 0,
+   "snippets": 2,
+   "variants": [
+    "regs",
+    "same-reg"
+   ],
+   "cases": 640,
+   "de_cases": 0,
+   "failed_cases": 0,
+   "categories": {}
+  },
+  "cmovb r32,r32": {
+   "family": "move",
+   "census_count": 0,
+   "in_census": false,
+   "encodings": 1,
+   "census_encodings": 0,
+   "snippets": 2,
+   "variants": [
+    "regs",
+    "same-reg"
+   ],
+   "cases": 640,
+   "de_cases": 0,
+   "failed_cases": 0,
+   "categories": {}
+  },
+  "cmovae r32,r32": {
+   "family": "move",
+   "census_count": 0,
+   "in_census": false,
+   "encodings": 1,
+   "census_encodings": 0,
+   "snippets": 2,
+   "variants": [
+    "regs",
+    "same-reg"
+   ],
+   "cases": 640,
+   "de_cases": 0,
+   "failed_cases": 0,
+   "categories": {}
+  },
+  "cmove r32,r32": {
+   "family": "move",
+   "census_count": 0,
+   "in_census": false,
+   "encodings": 1,
+   "census_encodings": 0,
+   "snippets": 2,
+   "variants": [
+    "regs",
+    "same-reg"
+   ],
+   "cases": 640,
+   "de_cases": 0,
+   "failed_cases": 0,
+   "categories": {}
+  },
+  "cmovne r32,r32": {
+   "family": "move",
+   "census_count": 0,
+   "in_census": false,
+   "encodings": 1,
+   "census_encodings": 0,
+   "snippets": 2,
+   "variants": [
+    "regs",
+    "same-reg"
+   ],
+   "cases": 640,
+   "de_cases": 0,
+   "failed_cases": 0,
+   "categories": {}
+  },
+  "cmovbe r32,r32": {
+   "family": "move",
+   "census_count": 0,
+   "in_census": false,
+   "encodings": 1,
+   "census_encodings": 0,
+   "snippets": 2,
+   "variants": [
+    "regs",
+    "same-reg"
+   ],
+   "cases": 640,
+   "de_cases": 0,
+   "failed_cases": 0,
+   "categories": {}
+  },
+  "cmova r32,r32": {
+   "family": "move",
+   "census_count": 0,
+   "in_census": false,
+   "encodings": 1,
+   "census_encodings": 0,
+   "snippets": 2,
+   "variants": [
+    "regs",
+    "same-reg"
+   ],
+   "cases": 640,
+   "de_cases": 0,
+   "failed_cases": 0,
+   "categories": {}
+  },
+  "cmovs r32,r32": {
+   "family": "move",
+   "census_count": 0,
+   "in_census": false,
+   "encodings": 1,
+   "census_encodings": 0,
+   "snippets": 2,
+   "variants": [
+    "regs",
+    "same-reg"
+   ],
+   "cases": 640,
+   "de_cases": 0,
+   "failed_cases": 0,
+   "categories": {}
+  },
+  "cmovns r32,r32": {
+   "family": "move",
+   "census_count": 0,
+   "in_census": false,
+   "encodings": 1,
+   "census_encodings": 0,
+   "snippets": 2,
+   "variants": [
+    "regs",
+    "same-reg"
+   ],
+   "cases": 640,
+   "de_cases": 0,
+   "failed_cases": 0,
+   "categories": {}
+  },
+  "cmovp r32,r32": {
+   "family": "move",
+   "census_count": 0,
+   "in_census": false,
+   "encodings": 1,
+   "census_encodings": 0,
+   "snippets": 2,
+   "variants": [
+    "regs",
+    "same-reg"
+   ],
+   "cases": 640,
+   "de_cases": 0,
+   "failed_cases": 0,
+   "categories": {}
+  },
+  "cmovnp r32,r32": {
+   "family": "move",
+   "census_count": 0,
+   "in_census": false,
+   "encodings": 1,
+   "census_encodings": 0,
+   "snippets": 2,
+   "variants": [
+    "regs",
+    "same-reg"
+   ],
+   "cases": 640,
+   "de_cases": 0,
+   "failed_cases": 0,
+   "categories": {}
+  },
+  "cmovl r32,r32": {
+   "family": "move",
+   "census_count": 0,
+   "in_census": false,
+   "encodings": 1,
+   "census_encodings": 0,
+   "snippets": 2,
+   "variants": [
+    "regs",
+    "same-reg"
+   ],
+   "cases": 640,
+   "de_cases": 0,
+   "failed_cases": 0,
+   "categories": {}
+  },
+  "cmovge r32,r32": {
+   "family": "move",
+   "census_count": 0,
+   "in_census": false,
+   "encodings": 1,
+   "census_encodings": 0,
+   "snippets": 2,
+   "variants": [
+    "regs",
+    "same-reg"
+   ],
+   "cases": 640,
+   "de_cases": 0,
+   "failed_cases": 0,
+   "categories": {}
+  },
+  "cmovle r32,r32": {
+   "family": "move",
+   "census_count": 0,
+   "in_census": false,
+   "encodings": 1,
+   "census_encodings": 0,
+   "snippets": 2,
+   "variants": [
+    "regs",
+    "same-reg"
+   ],
+   "cases": 640,
+   "de_cases": 0,
+   "failed_cases": 0,
+   "categories": {}
+  },
+  "cmovg r32,r32": {
+   "family": "move",
+   "census_count": 0,
+   "in_census": false,
+   "encodings": 1,
+   "census_encodings": 0,
+   "snippets": 2,
+   "variants": [
+    "regs",
+    "same-reg"
+   ],
+   "cases": 640,
+   "de_cases": 0,
+   "failed_cases": 0,
+   "categories": {}
+  },
+  "cmove r32,m32": {
+   "family": "move",
+   "census_count": 0,
+   "in_census": false,
+   "encodings": 1,
+   "census_encodings": 0,
+   "snippets": 5,
+   "variants": [
+    "[base+disp8]",
+    "[base+index*scale+disp32]",
+    "[disp32]",
+    "[esp+disp8]",
+    "reg-aliases-base"
+   ],
+   "cases": 1600,
+   "de_cases": 0,
+   "failed_cases": 0,
+   "categories": {}
+  },
+  "cmove r16,r16": {
+   "family": "move",
+   "census_count": 0,
+   "in_census": false,
+   "encodings": 1,
+   "census_encodings": 0,
+   "snippets": 2,
+   "variants": [
+    "regs",
+    "same-reg"
+   ],
+   "cases": 640,
+   "de_cases": 0,
+   "failed_cases": 0,
+   "categories": {}
+  },
+  "bswap r32": {
+   "family": "move",
+   "census_count": 0,
+   "in_census": false,
+   "encodings": 3,
+   "census_encodings": 0,
+   "snippets": 3,
+   "variants": [
+    "fixed"
+   ],
+   "cases": 960,
+   "de_cases": 0,
+   "failed_cases": 0,
+   "categories": {}
+  },
+  "mul r8": {
+   "family": "mul",
+   "census_count": 0,
+   "in_census": false,
+   "encodings": 1,
+   "census_encodings": 0,
+   "snippets": 4,
+   "variants": [
+    "high-byte",
+    "operand=eax",
+    "operand=edx",
+    "regs"
+   ],
+   "cases": 1280,
+   "de_cases": 0,
+   "failed_cases": 0,
+   "categories": {}
+  },
+  "mul m8": {
+   "family": "mul",
+   "census_count": 0,
+   "in_census": false,
+   "encodings": 1,
+   "census_encodings": 0,
+   "snippets": 4,
+   "variants": [
+    "[base+disp8]",
+    "[base+index*scale+disp32]",
+    "[disp32]",
+    "[esp+disp8]"
+   ],
+   "cases": 1280,
+   "de_cases": 0,
+   "failed_cases": 0,
+   "categories": {}
+  },
+  "imul r8": {
+   "family": "mul",
+   "census_count": 0,
+   "in_census": false,
+   "encodings": 1,
+   "census_encodings": 0,
+   "snippets": 4,
+   "variants": [
+    "high-byte",
+    "operand=eax",
+    "operand=edx",
+    "regs"
+   ],
+   "cases": 1280,
+   "de_cases": 0,
+   "failed_cases": 0,
+   "categories": {}
+  },
+  "imul r16,r16": {
+   "family": "mul",
+   "census_count": 0,
+   "in_census": false,
+   "encodings": 1,
+   "census_encodings": 0,
+   "snippets": 2,
+   "variants": [
+    "regs",
+    "same-reg"
+   ],
+   "cases": 640,
+   "de_cases": 0,
+   "failed_cases": 0,
+   "categories": {}
+  },
+  "imul r16,r16,imm": {
+   "family": "mul",
+   "census_count": 0,
+   "in_census": false,
+   "encodings": 2,
+   "census_encodings": 0,
+   "snippets": 19,
+   "variants": [
+    "regs",
+    "same-reg"
+   ],
+   "cases": 912,
+   "de_cases": 0,
+   "failed_cases": 0,
+   "categories": {}
+  },
+  "cbw": {
+   "family": "move",
+   "census_count": 0,
+   "in_census": false,
+   "encodings": 1,
+   "census_encodings": 0,
+   "snippets": 1,
+   "variants": [
+    "fixed"
+   ],
+   "cases": 320,
+   "de_cases": 0,
+   "failed_cases": 0,
+   "categories": {}
+  },
+  "cwde": {
+   "family": "move",
+   "census_count": 0,
+   "in_census": false,
+   "encodings": 1,
+   "census_encodings": 0,
+   "snippets": 1,
+   "variants": [
+    "fixed"
+   ],
+   "cases": 320,
+   "de_cases": 0,
+   "failed_cases": 0,
+   "categories": {}
+  },
+  "cwd": {
+   "family": "move",
+   "census_count": 0,
+   "in_census": false,
+   "encodings": 1,
+   "census_encodings": 0,
+   "snippets": 1,
+   "variants": [
+    "fixed"
+   ],
+   "cases": 320,
+   "de_cases": 0,
+   "failed_cases": 0,
+   "categories": {}
+  },
+  "lodsb r8,m8": {
+   "family": "string",
+   "census_count": 0,
+   "in_census": false,
+   "encodings": 1,
+   "census_encodings": 0,
+   "snippets": 1,
+   "variants": [
+    "fixed"
+   ],
+   "cases": 320,
+   "de_cases": 0,
+   "failed_cases": 0,
+   "categories": {}
+  },
+  "lodsw r16,m16": {
+   "family": "string",
+   "census_count": 0,
+   "in_census": false,
+   "encodings": 1,
+   "census_encodings": 0,
+   "snippets": 1,
+   "variants": [
+    "fixed"
+   ],
+   "cases": 320,
+   "de_cases": 0,
+   "failed_cases": 0,
+   "categories": {}
+  },
+  "lodsd r32,m32": {
+   "family": "string",
+   "census_count": 0,
+   "in_census": false,
+   "encodings": 1,
+   "census_encodings": 0,
+   "snippets": 1,
+   "variants": [
+    "fixed"
+   ],
+   "cases": 320,
+   "de_cases": 0,
+   "failed_cases": 0,
+   "categories": {}
+  },
+  "scasb r8,m8": {
+   "family": "string",
+   "census_count": 0,
+   "in_census": false,
+   "encodings": 1,
+   "census_encodings": 0,
+   "snippets": 1,
+   "variants": [
+    "fixed"
+   ],
+   "cases": 320,
+   "de_cases": 0,
+   "failed_cases": 0,
+   "categories": {}
+  },
+  "scasw r16,m16": {
+   "family": "string",
+   "census_count": 0,
+   "in_census": false,
+   "encodings": 1,
+   "census_encodings": 0,
+   "snippets": 1,
+   "variants": [
+    "fixed"
+   ],
+   "cases": 320,
+   "de_cases": 0,
+   "failed_cases": 0,
+   "categories": {}
+  },
+  "scasd r32,m32": {
+   "family": "string",
+   "census_count": 0,
+   "in_census": false,
+   "encodings": 1,
+   "census_encodings": 0,
+   "snippets": 1,
+   "variants": [
+    "fixed"
+   ],
+   "cases": 320,
+   "de_cases": 0,
+   "failed_cases": 0,
+   "categories": {}
+  },
+  "cmpsb m8,m8": {
+   "family": "string",
+   "census_count": 0,
+   "in_census": false,
+   "encodings": 1,
+   "census_encodings": 0,
+   "snippets": 1,
+   "variants": [
+    "fixed"
+   ],
+   "cases": 320,
+   "de_cases": 0,
+   "failed_cases": 0,
+   "categories": {}
+  },
+  "cmpsw m16,m16": {
+   "family": "string",
+   "census_count": 0,
+   "in_census": false,
+   "encodings": 1,
+   "census_encodings": 0,
+   "snippets": 1,
+   "variants": [
+    "fixed"
+   ],
+   "cases": 320,
+   "de_cases": 0,
+   "failed_cases": 0,
+   "categories": {}
+  },
+  "cmpsd m32,m32": {
+   "family": "string",
+   "census_count": 0,
+   "in_census": false,
+   "encodings": 1,
+   "census_encodings": 0,
+   "snippets": 1,
+   "variants": [
+    "fixed"
+   ],
+   "cases": 320,
+   "de_cases": 0,
+   "failed_cases": 0,
+   "categories": {}
+  },
+  "movsb m8,m8": {
+   "family": "string",
+   "census_count": 0,
+   "in_census": false,
+   "encodings": 1,
+   "census_encodings": 0,
+   "snippets": 1,
+   "variants": [
+    "fixed"
+   ],
+   "cases": 320,
+   "de_cases": 0,
+   "failed_cases": 0,
+   "categories": {}
+  },
+  "movsw m16,m16": {
+   "family": "string",
+   "census_count": 0,
+   "in_census": false,
+   "encodings": 1,
+   "census_encodings": 0,
+   "snippets": 1,
+   "variants": [
+    "fixed"
+   ],
+   "cases": 320,
+   "de_cases": 0,
+   "failed_cases": 0,
+   "categories": {}
+  },
+  "movsd m32,m32": {
+   "family": "string",
+   "census_count": 0,
+   "in_census": false,
+   "encodings": 1,
+   "census_encodings": 0,
+   "snippets": 1,
+   "variants": [
+    "fixed"
+   ],
+   "cases": 320,
+   "de_cases": 0,
+   "failed_cases": 0,
+   "categories": {}
+  },
+  "stosd m32,r32": {
+   "family": "string",
+   "census_count": 0,
+   "in_census": false,
+   "encodings": 1,
+   "census_encodings": 0,
+   "snippets": 1,
+   "variants": [
+    "fixed"
+   ],
+   "cases": 320,
+   "de_cases": 0,
+   "failed_cases": 0,
+   "categories": {}
+  },
+  "rep movsw m16,m16": {
+   "family": "string",
+   "census_count": 0,
+   "in_census": false,
+   "encodings": 1,
+   "census_encodings": 0,
+   "snippets": 1,
+   "variants": [
+    "fixed"
+   ],
+   "cases": 320,
+   "de_cases": 0,
+   "failed_cases": 0,
+   "categories": {}
+  },
+  "repne scasb r8,m8": {
+   "family": "string",
+   "census_count": 0,
+   "in_census": false,
+   "encodings": 1,
+   "census_encodings": 0,
+   "snippets": 1,
+   "variants": [
+    "fixed"
+   ],
+   "cases": 320,
+   "de_cases": 0,
+   "failed_cases": 0,
+   "categories": {}
+  },
+  "repe scasb r8,m8": {
+   "family": "string",
+   "census_count": 0,
+   "in_census": false,
+   "encodings": 1,
+   "census_encodings": 0,
+   "snippets": 1,
+   "variants": [
+    "fixed"
+   ],
+   "cases": 320,
+   "de_cases": 0,
+   "failed_cases": 0,
+   "categories": {}
+  },
+  "repne scasd r32,m32": {
+   "family": "string",
+   "census_count": 0,
+   "in_census": false,
+   "encodings": 1,
+   "census_encodings": 0,
+   "snippets": 1,
+   "variants": [
+    "fixed"
+   ],
+   "cases": 320,
+   "de_cases": 0,
+   "failed_cases": 0,
+   "categories": {}
+  },
+  "repne cmpsb m8,m8": {
+   "family": "string",
+   "census_count": 0,
+   "in_census": false,
+   "encodings": 1,
+   "census_encodings": 0,
+   "snippets": 1,
+   "variants": [
+    "fixed"
+   ],
+   "cases": 320,
+   "de_cases": 0,
+   "failed_cases": 0,
+   "categories": {}
+  },
+  "repe cmpsd m32,m32": {
+   "family": "string",
+   "census_count": 0,
+   "in_census": false,
+   "encodings": 1,
+   "census_encodings": 0,
+   "snippets": 1,
+   "variants": [
+    "fixed"
+   ],
+   "cases": 320,
+   "de_cases": 0,
+   "failed_cases": 0,
+   "categories": {}
+  },
+  "std": {
+   "family": "flagop",
+   "census_count": 0,
+   "in_census": false,
+   "encodings": 1,
+   "census_encodings": 0,
+   "snippets": 1,
+   "variants": [
+    "fixed"
+   ],
+   "cases": 320,
+   "de_cases": 0,
+   "failed_cases": 0,
+   "categories": {}
+  },
+  "stc": {
+   "family": "flagop",
+   "census_count": 0,
+   "in_census": false,
+   "encodings": 1,
+   "census_encodings": 0,
+   "snippets": 1,
+   "variants": [
+    "fixed"
+   ],
+   "cases": 320,
+   "de_cases": 0,
+   "failed_cases": 0,
+   "categories": {}
+  },
+  "clc": {
+   "family": "flagop",
+   "census_count": 0,
+   "in_census": false,
+   "encodings": 1,
+   "census_encodings": 0,
+   "snippets": 1,
+   "variants": [
+    "fixed"
+   ],
+   "cases": 320,
+   "de_cases": 0,
+   "failed_cases": 0,
+   "categories": {}
+  },
+  "cmc": {
+   "family": "flagop",
+   "census_count": 0,
+   "in_census": false,
+   "encodings": 1,
+   "census_encodings": 0,
+   "snippets": 1,
+   "variants": [
+    "fixed"
+   ],
+   "cases": 320,
+   "de_cases": 0,
+   "failed_cases": 0,
+   "categories": {}
+  },
+  "xchg m32,r32": {
+   "family": "move",
+   "census_count": 0,
+   "in_census": false,
+   "encodings": 1,
+   "census_encodings": 0,
+   "snippets": 5,
+   "variants": [
+    "[base+disp8]",
+    "[base+index*scale+disp32]",
+    "[disp32]",
+    "[esp+disp8]",
+    "reg-aliases-base"
+   ],
+   "cases": 1600,
+   "de_cases": 0,
+   "failed_cases": 0,
+   "categories": {}
+  },
+  "xchg r8,r8": {
+   "family": "move",
+   "census_count": 0,
+   "in_census": false,
+   "encodings": 1,
+   "census_encodings": 0,
+   "snippets": 3,
+   "variants": [
+    "high-byte",
+    "regs",
+    "same-reg"
+   ],
+   "cases": 960,
+   "de_cases": 0,
+   "failed_cases": 0,
+   "categories": {}
+  },
+  "xchg r16,r16": {
+   "family": "move",
+   "census_count": 0,
+   "in_census": false,
+   "encodings": 1,
+   "census_encodings": 0,
+   "snippets": 2,
+   "variants": [
+    "regs",
+    "same-reg"
+   ],
+   "cases": 640,
+   "de_cases": 0,
+   "failed_cases": 0,
+   "categories": {}
+  },
+  "neg r16": {
+   "family": "alu1",
+   "census_count": 0,
+   "in_census": false,
+   "encodings": 1,
+   "census_encodings": 0,
+   "snippets": 1,
+   "variants": [
+    "regs"
+   ],
+   "cases": 320,
+   "de_cases": 0,
+   "failed_cases": 0,
+   "categories": {}
+  },
+  "not r16": {
+   "family": "alu1",
+   "census_count": 0,
+   "in_census": false,
+   "encodings": 1,
+   "census_encodings": 0,
+   "snippets": 1,
+   "variants": [
+    "regs"
+   ],
+   "cases": 320,
+   "de_cases": 0,
+   "failed_cases": 0,
+   "categories": {}
+  },
+  "neg m32": {
+   "family": "alu1",
+   "census_count": 0,
+   "in_census": false,
+   "encodings": 1,
+   "census_encodings": 0,
+   "snippets": 4,
+   "variants": [
+    "[base+disp8]",
+    "[base+index*scale+disp32]",
+    "[disp32]",
+    "[esp+disp8]"
+   ],
+   "cases": 1280,
+   "de_cases": 0,
+   "failed_cases": 0,
+   "categories": {}
+  },
+  "neg m8": {
+   "family": "alu1",
+   "census_count": 0,
+   "in_census": false,
+   "encodings": 1,
+   "census_encodings": 0,
+   "snippets": 4,
+   "variants": [
+    "[base+disp8]",
+    "[base+index*scale+disp32]",
+    "[disp32]",
+    "[esp+disp8]"
+   ],
+   "cases": 1280,
+   "de_cases": 0,
+   "failed_cases": 0,
+   "categories": {}
+  },
+  "not m32": {
+   "family": "alu1",
+   "census_count": 0,
+   "in_census": false,
+   "encodings": 1,
+   "census_encodings": 0,
+   "snippets": 4,
+   "variants": [
+    "[base+disp8]",
+    "[base+index*scale+disp32]",
+    "[disp32]",
+    "[esp+disp8]"
+   ],
+   "cases": 1280,
+   "de_cases": 0,
+   "failed_cases": 0,
+   "categories": {}
+  },
+  "inc r16": {
+   "family": "alu1",
+   "census_count": 0,
+   "in_census": false,
+   "encodings": 1,
+   "census_encodings": 0,
+   "snippets": 1,
+   "variants": [
+    "fixed"
+   ],
+   "cases": 320,
+   "de_cases": 0,
+   "failed_cases": 0,
+   "categories": {}
+  },
+  "dec m16": {
+   "family": "alu1",
+   "census_count": 0,
+   "in_census": false,
+   "encodings": 1,
+   "census_encodings": 0,
+   "snippets": 4,
+   "variants": [
+    "[base+disp8]",
+    "[base+index*scale+disp32]",
+    "[disp32]",
+    "[esp+disp8]"
+   ],
+   "cases": 1280,
+   "de_cases": 0,
+   "failed_cases": 0,
+   "categories": {}
+  },
+  "dec m8": {
+   "family": "alu1",
+   "census_count": 0,
+   "in_census": false,
+   "encodings": 1,
+   "census_encodings": 0,
+   "snippets": 4,
+   "variants": [
+    "[base+disp8]",
+    "[base+index*scale+disp32]",
+    "[disp32]",
+    "[esp+disp8]"
+   ],
+   "cases": 1280,
+   "de_cases": 0,
+   "failed_cases": 0,
+   "categories": {}
+  },
+  "adc r8,r8": {
+   "family": "alu2",
+   "census_count": 0,
+   "in_census": false,
+   "encodings": 1,
+   "census_encodings": 0,
+   "snippets": 3,
+   "variants": [
+    "high-byte",
+    "regs",
+    "same-reg"
+   ],
+   "cases": 960,
+   "de_cases": 0,
+   "failed_cases": 0,
+   "categories": {}
+  },
+  "sbb r16,r16": {
+   "family": "alu2",
+   "census_count": 0,
+   "in_census": false,
+   "encodings": 1,
+   "census_encodings": 0,
+   "snippets": 2,
+   "variants": [
+    "regs",
+    "same-reg"
+   ],
+   "cases": 640,
+   "de_cases": 0,
+   "failed_cases": 0,
+   "categories": {}
+  },
+  "adc m32,imm": {
+   "family": "alu2",
+   "census_count": 0,
+   "in_census": false,
+   "encodings": 1,
+   "census_encodings": 0,
+   "snippets": 14,
+   "variants": [
+    "[base+disp8]",
+    "[base+index*scale+disp32]",
+    "[disp32]",
+    "[esp+disp8]"
+   ],
+   "cases": 672,
+   "de_cases": 0,
+   "failed_cases": 0,
+   "categories": {}
+  },
+  "sbb m8,imm": {
+   "family": "alu2",
+   "census_count": 0,
+   "in_census": false,
+   "encodings": 1,
+   "census_encodings": 0,
+   "snippets": 14,
+   "variants": [
+    "[base+disp8]",
+    "[base+index*scale+disp32]",
+    "[disp32]",
+    "[esp+disp8]"
+   ],
+   "cases": 672,
+   "de_cases": 0,
+   "failed_cases": 0,
+   "categories": {}
+  },
+  "sbb r32,m32": {
+   "family": "alu2",
+   "census_count": 0,
+   "in_census": false,
+   "encodings": 1,
+   "census_encodings": 0,
+   "snippets": 5,
+   "variants": [
+    "[base+disp8]",
+    "[base+index*scale+disp32]",
+    "[disp32]",
+    "[esp+disp8]",
+    "reg-aliases-base"
+   ],
+   "cases": 1672,
+   "de_cases": 0,
+   "failed_cases": 0,
+   "categories": {}
+  },
+  "sbb m32,r32": {
+   "family": "alu2",
+   "census_count": 0,
+   "in_census": false,
+   "encodings": 1,
+   "census_encodings": 0,
+   "snippets": 5,
+   "variants": [
+    "[base+disp8]",
+    "[base+index*scale+disp32]",
+    "[disp32]",
+    "[esp+disp8]",
+    "reg-aliases-base"
+   ],
+   "cases": 1672,
+   "de_cases": 0,
+   "failed_cases": 0,
+   "categories": {}
+  },
+  "adc r8,imm": {
+   "family": "alu2",
+   "census_count": 0,
+   "in_census": false,
+   "encodings": 1,
+   "census_encodings": 0,
+   "snippets": 8,
+   "variants": [
+    "fixed"
+   ],
+   "cases": 384,
+   "de_cases": 0,
+   "failed_cases": 0,
+   "categories": {}
+  },
+  "sbb r8,imm": {
+   "family": "alu2",
+   "census_count": 0,
+   "in_census": false,
+   "encodings": 1,
+   "census_encodings": 0,
+   "snippets": 8,
+   "variants": [
+    "fixed"
+   ],
+   "cases": 384,
+   "de_cases": 0,
+   "failed_cases": 0,
+   "categories": {}
+  },
+  "add r16,r16": {
+   "family": "alu2",
+   "census_count": 0,
+   "in_census": false,
+   "encodings": 1,
+   "census_encodings": 0,
+   "snippets": 2,
+   "variants": [
+    "regs",
+    "same-reg"
+   ],
+   "cases": 640,
+   "de_cases": 0,
+   "failed_cases": 0,
+   "categories": {}
+  },
+  "sub r16,r16": {
+   "family": "alu2",
+   "census_count": 0,
+   "in_census": false,
+   "encodings": 1,
+   "census_encodings": 0,
+   "snippets": 2,
+   "variants": [
+    "regs",
+    "same-reg"
+   ],
+   "cases": 640,
+   "de_cases": 0,
+   "failed_cases": 0,
+   "categories": {}
+  },
+  "and r16,r16": {
+   "family": "alu2",
+   "census_count": 0,
+   "in_census": false,
+   "encodings": 1,
+   "census_encodings": 0,
+   "snippets": 2,
+   "variants": [
+    "regs",
+    "same-reg"
+   ],
+   "cases": 640,
+   "de_cases": 0,
+   "failed_cases": 0,
+   "categories": {}
+  },
+  "or r16,r16": {
+   "family": "alu2",
+   "census_count": 0,
+   "in_census": false,
+   "encodings": 1,
+   "census_encodings": 0,
+   "snippets": 2,
+   "variants": [
+    "regs",
+    "same-reg"
+   ],
+   "cases": 640,
+   "de_cases": 0,
+   "failed_cases": 0,
+   "categories": {}
+  },
+  "xor r16,r16": {
+   "family": "alu2",
+   "census_count": 0,
+   "in_census": false,
+   "encodings": 1,
+   "census_encodings": 0,
+   "snippets": 2,
+   "variants": [
+    "regs",
+    "same-reg"
+   ],
+   "cases": 640,
+   "de_cases": 0,
+   "failed_cases": 0,
+   "categories": {}
+  },
+  "test r16,imm": {
+   "family": "alu2",
+   "census_count": 0,
+   "in_census": false,
+   "encodings": 1,
+   "census_encodings": 0,
+   "snippets": 7,
+   "variants": [
+    "fixed"
+   ],
+   "cases": 336,
+   "de_cases": 0,
+   "failed_cases": 0,
+   "categories": {}
+  },
+  "test m16,r16": {
+   "family": "alu2",
+   "census_count": 0,
+   "in_census": false,
+   "encodings": 1,
+   "census_encodings": 0,
+   "snippets": 5,
+   "variants": [
+    "[base+disp8]",
+    "[base+index*scale+disp32]",
+    "[disp32]",
+    "[esp+disp8]",
+    "reg-aliases-base"
+   ],
+   "cases": 1600,
+   "de_cases": 0,
+   "failed_cases": 0,
+   "categories": {}
+  },
+  "add m16,imm": {
+   "family": "alu2",
+   "census_count": 0,
+   "in_census": false,
+   "encodings": 1,
+   "census_encodings": 0,
+   "snippets": 13,
+   "variants": [
+    "[base+disp8]",
+    "[base+index*scale+disp32]",
+    "[disp32]",
+    "[esp+disp8]"
+   ],
+   "cases": 624,
+   "de_cases": 0,
+   "failed_cases": 0,
+   "categories": {}
+  },
+  "sub r16,imm": {
+   "family": "alu2",
+   "census_count": 0,
+   "in_census": false,
+   "encodings": 1,
+   "census_encodings": 0,
+   "snippets": 8,
+   "variants": [
+    "regs"
+   ],
+   "cases": 384,
+   "de_cases": 0,
+   "failed_cases": 0,
+   "categories": {}
+  },
+  "or r16,imm": {
+   "family": "alu2",
+   "census_count": 0,
+   "in_census": false,
+   "encodings": 1,
+   "census_encodings": 0,
+   "snippets": 8,
+   "variants": [
+    "regs"
+   ],
+   "cases": 384,
+   "de_cases": 0,
+   "failed_cases": 0,
+   "categories": {}
+  },
+  "add m8,r8": {
+   "family": "alu2",
+   "census_count": 0,
+   "in_census": false,
+   "encodings": 1,
+   "census_encodings": 0,
+   "snippets": 6,
+   "variants": [
+    "[base+disp8]",
+    "[base+index*scale+disp32]",
+    "[disp32]",
+    "[esp+disp8]",
+    "high-byte",
+    "reg-aliases-base"
+   ],
+   "cases": 1920,
+   "de_cases": 0,
+   "failed_cases": 0,
+   "categories": {}
+  },
+  "sub m8,r8": {
+   "family": "alu2",
+   "census_count": 0,
+   "in_census": false,
+   "encodings": 1,
+   "census_encodings": 0,
+   "snippets": 6,
+   "variants": [
+    "[base+disp8]",
+    "[base+index*scale+disp32]",
+    "[disp32]",
+    "[esp+disp8]",
+    "high-byte",
+    "reg-aliases-base"
+   ],
+   "cases": 1920,
+   "de_cases": 0,
+   "failed_cases": 0,
+   "categories": {}
+  },
+  "xor r8,m8": {
+   "family": "alu2",
+   "census_count": 0,
+   "in_census": false,
+   "encodings": 1,
+   "census_encodings": 0,
+   "snippets": 6,
+   "variants": [
+    "[base+disp8]",
+    "[base+index*scale+disp32]",
+    "[disp32]",
+    "[esp+disp8]",
+    "high-byte",
+    "reg-aliases-base"
+   ],
+   "cases": 1920,
+   "de_cases": 0,
+   "failed_cases": 0,
+   "categories": {}
+  },
+  "or r8,m8": {
+   "family": "alu2",
+   "census_count": 0,
+   "in_census": false,
+   "encodings": 1,
+   "census_encodings": 0,
+   "snippets": 6,
+   "variants": [
+    "[base+disp8]",
+    "[base+index*scale+disp32]",
+    "[disp32]",
+    "[esp+disp8]",
+    "high-byte",
+    "reg-aliases-base"
+   ],
+   "cases": 1920,
+   "de_cases": 0,
+   "failed_cases": 0,
+   "categories": {}
+  },
+  "xor m8,imm": {
+   "family": "alu2",
+   "census_count": 0,
+   "in_census": false,
+   "encodings": 1,
+   "census_encodings": 0,
+   "snippets": 14,
+   "variants": [
+    "[base+disp8]",
+    "[base+index*scale+disp32]",
+    "[disp32]",
+    "[esp+disp8]"
+   ],
+   "cases": 672,
+   "de_cases": 0,
+   "failed_cases": 0,
+   "categories": {}
+  },
+  "xor r8,imm": {
+   "family": "alu2",
+   "census_count": 0,
+   "in_census": false,
+   "encodings": 1,
+   "census_encodings": 0,
+   "snippets": 8,
+   "variants": [
+    "fixed"
+   ],
+   "cases": 384,
+   "de_cases": 0,
+   "failed_cases": 0,
+   "categories": {}
+  },
+  "movsx r32,r8": {
+   "family": "move",
+   "census_count": 0,
+   "in_census": false,
+   "encodings": 1,
+   "census_encodings": 0,
+   "snippets": 3,
+   "variants": [
+    "high-byte",
+    "regs",
+    "same-reg"
+   ],
+   "cases": 960,
+   "de_cases": 0,
+   "failed_cases": 0,
+   "categories": {}
+  },
+  "movsx r32,r16": {
+   "family": "move",
+   "census_count": 0,
+   "in_census": false,
+   "encodings": 1,
+   "census_encodings": 0,
+   "snippets": 2,
+   "variants": [
+    "regs",
+    "same-reg"
+   ],
+   "cases": 640,
+   "de_cases": 0,
+   "failed_cases": 0,
+   "categories": {}
+  },
+  "movsx r32,m8": {
+   "family": "move",
+   "census_count": 0,
+   "in_census": false,
+   "encodings": 1,
+   "census_encodings": 0,
+   "snippets": 5,
+   "variants": [
+    "[base+disp8]",
+    "[base+index*scale+disp32]",
+    "[disp32]",
+    "[esp+disp8]",
+    "reg-aliases-base"
+   ],
+   "cases": 1600,
+   "de_cases": 0,
+   "failed_cases": 0,
+   "categories": {}
+  },
+  "sete m8": {
+   "family": "setcc",
+   "census_count": 0,
+   "in_census": false,
+   "encodings": 1,
+   "census_encodings": 0,
+   "snippets": 4,
+   "variants": [
+    "[base+disp8]",
+    "[base+index*scale+disp32]",
+    "[disp32]",
+    "[esp+disp8]"
+   ],
+   "cases": 1280,
+   "de_cases": 0,
+   "failed_cases": 0,
+   "categories": {}
+  },
+  "setg m8": {
+   "family": "setcc",
+   "census_count": 0,
+   "in_census": false,
+   "encodings": 1,
+   "census_encodings": 0,
+   "snippets": 4,
+   "variants": [
+    "[base+disp8]",
+    "[base+index*scale+disp32]",
+    "[disp32]",
+    "[esp+disp8]"
+   ],
+   "cases": 1280,
+   "de_cases": 0,
+   "failed_cases": 0,
+   "categories": {}
+  },
+  "pop m32": {
+   "family": "stack",
+   "census_count": 0,
+   "in_census": false,
+   "encodings": 1,
+   "census_encodings": 0,
+   "snippets": 4,
+   "variants": [
+    "[base+disp8]",
+    "[base+index*scale+disp32]",
+    "[disp32]",
+    "[esp+disp8]"
+   ],
+   "cases": 1280,
+   "de_cases": 0,
+   "failed_cases": 0,
+   "categories": {}
+  },
+  "lock add m32,r32": {
+   "family": "alu2",
+   "census_count": 0,
+   "in_census": false,
+   "encodings": 1,
+   "census_encodings": 0,
+   "snippets": 5,
+   "variants": [
+    "[base+disp8]",
+    "[base+index*scale+disp32]",
+    "[disp32]",
+    "[esp+disp8]",
+    "reg-aliases-base"
+   ],
+   "cases": 1600,
+   "de_cases": 0,
+   "failed_cases": 0,
+   "categories": {}
+  },
+  "lock inc m32": {
+   "family": "alu1",
+   "census_count": 0,
+   "in_census": false,
+   "encodings": 1,
+   "census_encodings": 0,
+   "snippets": 4,
+   "variants": [
+    "[base+disp8]",
+    "[base+index*scale+disp32]",
+    "[disp32]",
+    "[esp+disp8]"
+   ],
+   "cases": 1280,
+   "de_cases": 0,
+   "failed_cases": 0,
+   "categories": {}
+  },
+  "lock dec m32": {
+   "family": "alu1",
+   "census_count": 0,
+   "in_census": false,
+   "encodings": 1,
+   "census_encodings": 0,
+   "snippets": 4,
+   "variants": [
+    "[base+disp8]",
+    "[base+index*scale+disp32]",
+    "[disp32]",
+    "[esp+disp8]"
+   ],
+   "cases": 1280,
+   "de_cases": 0,
+   "failed_cases": 0,
+   "categories": {}
+  },
+  "lock sub m32,r32": {
+   "family": "alu2",
+   "census_count": 0,
+   "in_census": false,
+   "encodings": 1,
+   "census_encodings": 0,
+   "snippets": 5,
+   "variants": [
+    "[base+disp8]",
+    "[base+index*scale+disp32]",
+    "[disp32]",
+    "[esp+disp8]",
+    "reg-aliases-base"
+   ],
+   "cases": 1600,
+   "de_cases": 0,
+   "failed_cases": 0,
+   "categories": {}
+  },
+  "lock and m32,r32": {
+   "family": "alu2",
+   "census_count": 0,
+   "in_census": false,
+   "encodings": 1,
+   "census_encodings": 0,
+   "snippets": 5,
+   "variants": [
+    "[base+disp8]",
+    "[base+index*scale+disp32]",
+    "[disp32]",
+    "[esp+disp8]",
+    "reg-aliases-base"
+   ],
+   "cases": 1600,
+   "de_cases": 0,
+   "failed_cases": 0,
+   "categories": {}
+  },
+  "lock or m32,r32": {
+   "family": "alu2",
+   "census_count": 0,
+   "in_census": false,
+   "encodings": 1,
+   "census_encodings": 0,
+   "snippets": 5,
+   "variants": [
+    "[base+disp8]",
+    "[base+index*scale+disp32]",
+    "[disp32]",
+    "[esp+disp8]",
+    "reg-aliases-base"
+   ],
+   "cases": 1600,
+   "de_cases": 0,
+   "failed_cases": 0,
+   "categories": {}
+  },
+  "lock xor m32,r32": {
+   "family": "alu2",
+   "census_count": 0,
+   "in_census": false,
+   "encodings": 1,
+   "census_encodings": 0,
+   "snippets": 5,
+   "variants": [
+    "[base+disp8]",
+    "[base+index*scale+disp32]",
+    "[disp32]",
+    "[esp+disp8]",
+    "reg-aliases-base"
+   ],
+   "cases": 1600,
+   "de_cases": 0,
+   "failed_cases": 0,
+   "categories": {}
+  },
+  "lock neg m32": {
+   "family": "alu1",
+   "census_count": 0,
+   "in_census": false,
+   "encodings": 1,
+   "census_encodings": 0,
+   "snippets": 4,
+   "variants": [
+    "[base+disp8]",
+    "[base+index*scale+disp32]",
+    "[disp32]",
+    "[esp+disp8]"
+   ],
+   "cases": 1280,
+   "de_cases": 0,
+   "failed_cases": 0,
+   "categories": {}
+  },
+  "lock not m32": {
+   "family": "alu1",
+   "census_count": 0,
+   "in_census": false,
+   "encodings": 1,
+   "census_encodings": 0,
+   "snippets": 4,
+   "variants": [
+    "[base+disp8]",
+    "[base+index*scale+disp32]",
+    "[disp32]",
+    "[esp+disp8]"
+   ],
+   "cases": 1280,
+   "de_cases": 0,
+   "failed_cases": 0,
+   "categories": {}
+  },
+  "lock adc m32,r32": {
+   "family": "alu2",
+   "census_count": 0,
+   "in_census": false,
+   "encodings": 1,
+   "census_encodings": 0,
+   "snippets": 5,
+   "variants": [
+    "[base+disp8]",
+    "[base+index*scale+disp32]",
+    "[disp32]",
+    "[esp+disp8]",
+    "reg-aliases-base"
+   ],
+   "cases": 1672,
+   "de_cases": 0,
+   "failed_cases": 0,
+   "categories": {}
+  },
+  "lock sbb m32,r32": {
+   "family": "alu2",
+   "census_count": 0,
+   "in_census": false,
+   "encodings": 1,
+   "census_encodings": 0,
+   "snippets": 5,
+   "variants": [
+    "[base+disp8]",
+    "[base+index*scale+disp32]",
+    "[disp32]",
+    "[esp+disp8]",
+    "reg-aliases-base"
+   ],
+   "cases": 1672,
+   "de_cases": 0,
+   "failed_cases": 0,
+   "categories": {}
+  },
+  "fabs": {
+   "family": "x87",
+   "census_count": 0,
+   "in_census": false,
+   "encodings": 1,
+   "census_encodings": 0,
+   "snippets": 1,
+   "variants": [
+    "fixed"
+   ],
+   "cases": 320,
+   "de_cases": 0,
+   "failed_cases": 0,
+   "categories": {
+    "x87-exception-flags": 11
+   }
+  },
+  "ftst": {
+   "family": "x87",
+   "census_count": 0,
+   "in_census": false,
+   "encodings": 1,
+   "census_encodings": 0,
+   "snippets": 1,
+   "variants": [
+    "fixed"
+   ],
+   "cases": 320,
+   "de_cases": 0,
+   "failed_cases": 0,
+   "categories": {
+    "x87-exception-flags": 24
+   }
+  },
+  "fldz": {
+   "family": "x87",
+   "census_count": 0,
+   "in_census": false,
+   "encodings": 1,
+   "census_encodings": 0,
+   "snippets": 1,
+   "variants": [
+    "fixed"
+   ],
+   "cases": 320,
+   "de_cases": 0,
+   "failed_cases": 0,
+   "categories": {
+    "x87-exception-flags": 17
+   }
+  },
+  "fldpi": {
+   "family": "x87",
+   "census_count": 0,
+   "in_census": false,
+   "encodings": 1,
+   "census_encodings": 0,
+   "snippets": 1,
+   "variants": [
+    "fixed"
+   ],
+   "cases": 320,
+   "de_cases": 0,
+   "failed_cases": 0,
+   "categories": {
+    "x87-not-a-double": 320,
+    "x87-exception-flags": 14
+   }
+  },
+  "fldlg2": {
+   "family": "x87",
+   "census_count": 0,
+   "in_census": false,
+   "encodings": 1,
+   "census_encodings": 0,
+   "snippets": 1,
+   "variants": [
+    "fixed"
+   ],
+   "cases": 320,
+   "de_cases": 0,
+   "failed_cases": 0,
+   "categories": {
+    "x87-not-a-double": 320,
+    "x87-exception-flags": 16
+   }
+  },
+  "fldl2t": {
+   "family": "x87",
+   "census_count": 0,
+   "in_census": false,
+   "encodings": 1,
+   "census_encodings": 0,
+   "snippets": 1,
+   "variants": [
+    "fixed"
+   ],
+   "cases": 320,
+   "de_cases": 0,
+   "failed_cases": 0,
+   "categories": {
+    "x87-not-a-double": 320,
+    "x87-exception-flags": 14
+   }
+  },
+  "fucom sti": {
+   "family": "x87",
+   "census_count": 0,
+   "in_census": false,
+   "encodings": 1,
+   "census_encodings": 0,
+   "snippets": 1,
+   "variants": [
+    "fixed"
+   ],
+   "cases": 320,
+   "de_cases": 0,
+   "failed_cases": 0,
+   "categories": {
+    "x87-exception-flags": 19
+   }
+  },
+  "fucomp sti": {
+   "family": "x87",
+   "census_count": 0,
+   "in_census": false,
+   "encodings": 1,
+   "census_encodings": 0,
+   "snippets": 1,
+   "variants": [
+    "fixed"
+   ],
+   "cases": 320,
+   "de_cases": 0,
+   "failed_cases": 0,
+   "categories": {
+    "x87-exception-flags": 18
+   }
+  },
+  "fucompp": {
+   "family": "x87",
+   "census_count": 0,
+   "in_census": false,
+   "encodings": 1,
+   "census_encodings": 0,
+   "snippets": 1,
+   "variants": [
+    "fixed"
+   ],
+   "cases": 320,
+   "de_cases": 0,
+   "failed_cases": 0,
+   "categories": {
+    "x87-exception-flags": 18
+   }
+  },
+  "fcompp": {
+   "family": "x87",
+   "census_count": 0,
+   "in_census": false,
+   "encodings": 1,
+   "census_encodings": 0,
+   "snippets": 1,
+   "variants": [
+    "fixed"
+   ],
+   "cases": 320,
+   "de_cases": 0,
+   "failed_cases": 0,
+   "categories": {
+    "x87-exception-flags": 26
+   }
+  },
+  "fild m16": {
+   "family": "x87",
+   "census_count": 0,
+   "in_census": false,
+   "encodings": 1,
+   "census_encodings": 0,
+   "snippets": 4,
+   "variants": [
+    "[base+disp8]",
+    "[base+index*scale+disp32]",
+    "[disp32]",
+    "[esp+disp8]"
+   ],
+   "cases": 1280,
+   "de_cases": 0,
+   "failed_cases": 0,
+   "categories": {
+    "x87-exception-flags": 63
+   }
+  },
+  "fist m16": {
+   "family": "x87",
+   "census_count": 0,
+   "in_census": false,
+   "encodings": 1,
+   "census_encodings": 0,
+   "snippets": 4,
+   "variants": [
+    "[base+disp8]",
+    "[base+index*scale+disp32]",
+    "[disp32]",
+    "[esp+disp8]"
+   ],
+   "cases": 1280,
+   "de_cases": 0,
+   "failed_cases": 0,
+   "categories": {
+    "x87-exception-flags": 1167,
+    "x87-c1": 80
+   }
+  },
+  "fistp m16": {
+   "family": "x87",
+   "census_count": 0,
+   "in_census": false,
+   "encodings": 1,
+   "census_encodings": 0,
+   "snippets": 4,
+   "variants": [
+    "[base+disp8]",
+    "[base+index*scale+disp32]",
+    "[disp32]",
+    "[esp+disp8]"
+   ],
+   "cases": 1280,
+   "de_cases": 0,
+   "failed_cases": 0,
+   "categories": {
+    "x87-exception-flags": 1152,
+    "x87-c1": 86
+   }
+  },
+  "fist m32": {
+   "family": "x87",
+   "census_count": 0,
+   "in_census": false,
+   "encodings": 1,
+   "census_encodings": 0,
+   "snippets": 4,
+   "variants": [
+    "[base+disp8]",
+    "[base+index*scale+disp32]",
+    "[disp32]",
+    "[esp+disp8]"
+   ],
+   "cases": 1280,
+   "de_cases": 0,
+   "failed_cases": 0,
+   "categories": {
+    "x87-exception-flags": 1081,
+    "x87-c1": 174
+   }
+  },
+  "fistp m32": {
+   "family": "x87",
+   "census_count": 0,
+   "in_census": false,
+   "encodings": 1,
+   "census_encodings": 0,
+   "snippets": 4,
+   "variants": [
+    "[base+disp8]",
+    "[base+index*scale+disp32]",
+    "[disp32]",
+    "[esp+disp8]"
+   ],
+   "cases": 1280,
+   "de_cases": 0,
+   "failed_cases": 0,
+   "categories": {
+    "x87-exception-flags": 1074,
+    "x87-c1": 159
+   }
+  },
+  "fiadd m32": {
+   "family": "x87",
+   "census_count": 0,
+   "in_census": false,
+   "encodings": 1,
+   "census_encodings": 0,
+   "snippets": 4,
+   "variants": [
+    "[base+disp8]",
+    "[base+index*scale+disp32]",
+    "[disp32]",
+    "[esp+disp8]"
+   ],
+   "cases": 1280,
+   "de_cases": 0,
+   "failed_cases": 0,
+   "categories": {
+    "x87-exception-flags": 663,
+    "x87-c1": 310
+   }
+  },
+  "fimul m16": {
+   "family": "x87",
+   "census_count": 0,
+   "in_census": false,
+   "encodings": 1,
+   "census_encodings": 0,
+   "snippets": 4,
+   "variants": [
+    "[base+disp8]",
+    "[base+index*scale+disp32]",
+    "[disp32]",
+    "[esp+disp8]"
+   ],
+   "cases": 1280,
+   "de_cases": 0,
+   "failed_cases": 0,
+   "categories": {
+    "x87-exception-flags": 509,
+    "x87-c1": 239,
+    "x87-not-a-double": 17
+   }
+  },
+  "fisub m32": {
+   "family": "x87",
+   "census_count": 0,
+   "in_census": false,
+   "encodings": 1,
+   "census_encodings": 0,
+   "snippets": 4,
+   "variants": [
+    "[base+disp8]",
+    "[base+index*scale+disp32]",
+    "[disp32]",
+    "[esp+disp8]"
+   ],
+   "cases": 1280,
+   "de_cases": 0,
+   "failed_cases": 0,
+   "categories": {
+    "x87-exception-flags": 708,
+    "x87-c1": 342
+   }
+  },
+  "fisubr m32": {
+   "family": "x87",
+   "census_count": 0,
+   "in_census": false,
+   "encodings": 1,
+   "census_encodings": 0,
+   "snippets": 4,
+   "variants": [
+    "[base+disp8]",
+    "[base+index*scale+disp32]",
+    "[disp32]",
+    "[esp+disp8]"
+   ],
+   "cases": 1280,
+   "de_cases": 0,
+   "failed_cases": 0,
+   "categories": {
+    "x87-exception-flags": 673,
+    "x87-c1": 322
+   }
+  },
+  "fidivr m16": {
+   "family": "x87",
+   "census_count": 0,
+   "in_census": false,
+   "encodings": 1,
+   "census_encodings": 0,
+   "snippets": 4,
+   "variants": [
+    "[base+disp8]",
+    "[base+index*scale+disp32]",
+    "[disp32]",
+    "[esp+disp8]"
+   ],
+   "cases": 1280,
+   "de_cases": 0,
+   "failed_cases": 0,
+   "categories": {
+    "x87-not-a-double": 24,
+    "x87-exception-flags": 1037,
+    "x87-c1": 484
+   }
+  },
+  "ficom m32": {
+   "family": "x87",
+   "census_count": 0,
+   "in_census": false,
+   "encodings": 1,
+   "census_encodings": 0,
+   "snippets": 4,
+   "variants": [
+    "[base+disp8]",
+    "[base+index*scale+disp32]",
+    "[disp32]",
+    "[esp+disp8]"
+   ],
+   "cases": 1280,
+   "de_cases": 0,
+   "failed_cases": 0,
+   "categories": {
+    "x87-exception-flags": 96
+   }
+  },
+  "ficomp m16": {
+   "family": "x87",
+   "census_count": 0,
+   "in_census": false,
+   "encodings": 1,
+   "census_encodings": 0,
+   "snippets": 4,
+   "variants": [
+    "[base+disp8]",
+    "[base+index*scale+disp32]",
+    "[disp32]",
+    "[esp+disp8]"
+   ],
+   "cases": 1280,
+   "de_cases": 0,
+   "failed_cases": 0,
+   "categories": {
+    "x87-exception-flags": 83
+   }
+  },
+  "fsubrp sti": {
+   "family": "x87",
+   "census_count": 0,
+   "in_census": false,
+   "encodings": 1,
+   "census_encodings": 0,
+   "snippets": 1,
+   "variants": [
+    "fixed"
+   ],
+   "cases": 320,
+   "de_cases": 0,
+   "failed_cases": 0,
+   "categories": {
+    "x87-exception-flags": 213,
+    "x87-c1": 100
+   }
+  },
+  "fadd sti,st0": {
+   "family": "x87",
+   "census_count": 0,
+   "in_census": false,
+   "encodings": 1,
+   "census_encodings": 0,
+   "snippets": 1,
+   "variants": [
+    "fixed"
+   ],
+   "cases": 320,
+   "de_cases": 0,
+   "failed_cases": 0,
+   "categories": {
+    "x87-exception-flags": 225,
+    "x87-c1": 104
+   }
+  },
+  "fsub sti,st0": {
+   "family": "x87",
+   "census_count": 0,
+   "in_census": false,
+   "encodings": 1,
+   "census_encodings": 0,
+   "snippets": 1,
+   "variants": [
+    "fixed"
+   ],
+   "cases": 320,
+   "de_cases": 0,
+   "failed_cases": 0,
+   "categories": {
+    "x87-exception-flags": 214,
+    "x87-c1": 104
+   }
+  },
+  "fsubr sti,st0": {
+   "family": "x87",
+   "census_count": 0,
+   "in_census": false,
+   "encodings": 1,
+   "census_encodings": 0,
+   "snippets": 1,
+   "variants": [
+    "fixed"
+   ],
+   "cases": 320,
+   "de_cases": 0,
+   "failed_cases": 0,
+   "categories": {
+    "x87-exception-flags": 227,
+    "x87-c1": 106
+   }
+  },
+  "fdiv sti,st0": {
+   "family": "x87",
+   "census_count": 0,
+   "in_census": false,
+   "encodings": 1,
+   "census_encodings": 0,
+   "snippets": 1,
+   "variants": [
+    "fixed"
+   ],
+   "cases": 320,
+   "de_cases": 0,
+   "failed_cases": 0,
+   "categories": {
+    "x87-exception-flags": 261,
+    "x87-c1": 115,
+    "x87-not-a-double": 11
+   }
+  },
+  "fdivr sti,st0": {
+   "family": "x87",
+   "census_count": 0,
+   "in_census": false,
+   "encodings": 1,
+   "census_encodings": 0,
+   "snippets": 1,
+   "variants": [
+    "fixed"
+   ],
+   "cases": 320,
+   "de_cases": 0,
+   "failed_cases": 0,
+   "categories": {
+    "x87-exception-flags": 266,
+    "x87-c1": 132,
+    "x87-not-a-double": 8
+   }
+  },
+  "fmul sti,st0": {
+   "family": "x87",
+   "census_count": 0,
+   "in_census": false,
+   "encodings": 1,
+   "census_encodings": 0,
+   "snippets": 1,
+   "variants": [
+    "fixed"
+   ],
+   "cases": 320,
+   "de_cases": 0,
+   "failed_cases": 0,
+   "categories": {
+    "x87-exception-flags": 223,
+    "x87-not-a-double": 19,
+    "x87-c1": 90
+   }
+  },
+  "fsubr sti": {
+   "family": "x87",
+   "census_count": 0,
+   "in_census": false,
+   "encodings": 1,
+   "census_encodings": 0,
+   "snippets": 1,
+   "variants": [
+    "fixed"
+   ],
+   "cases": 320,
+   "de_cases": 0,
+   "failed_cases": 0,
+   "categories": {
+    "x87-exception-flags": 221,
+    "x87-c1": 100
+   }
+  },
+  "fdivr sti": {
+   "family": "x87",
+   "census_count": 0,
+   "in_census": false,
+   "encodings": 1,
+   "census_encodings": 0,
+   "snippets": 1,
+   "variants": [
+    "fixed"
+   ],
+   "cases": 320,
+   "de_cases": 0,
+   "failed_cases": 0,
+   "categories": {
+    "x87-exception-flags": 266,
+    "x87-c1": 139,
+    "x87-not-a-double": 16
+   }
+  },
+  "fst sti": {
+   "family": "x87",
+   "census_count": 0,
+   "in_census": false,
+   "encodings": 1,
+   "census_encodings": 0,
+   "snippets": 1,
+   "variants": [
+    "fixed"
+   ],
+   "cases": 320,
+   "de_cases": 0,
+   "failed_cases": 0,
+   "categories": {
+    "x87-exception-flags": 16
+   }
+  },
+  "fnstsw m16": {
+   "family": "x87",
+   "census_count": 0,
+   "in_census": false,
+   "encodings": 1,
+   "census_encodings": 0,
+   "snippets": 4,
+   "variants": [
+    "[base+disp8]",
+    "[base+index*scale+disp32]",
+    "[disp32]",
+    "[esp+disp8]"
+   ],
+   "cases": 1280,
+   "de_cases": 0,
+   "failed_cases": 0,
+   "categories": {}
+  },
+  "fnstcw m16": {
+   "family": "x87",
+   "census_count": 0,
+   "in_census": false,
+   "encodings": 1,
+   "census_encodings": 0,
+   "snippets": 4,
+   "variants": [
+    "[base+disp8]",
+    "[base+index*scale+disp32]",
+    "[disp32]",
+    "[esp+disp8]"
+   ],
+   "cases": 1280,
+   "de_cases": 0,
+   "failed_cases": 0,
+   "categories": {
+    "x87-exception-flags": 56
+   }
+  },
+  "fldcw m16": {
+   "family": "x87",
+   "census_count": 0,
+   "in_census": false,
+   "encodings": 1,
+   "census_encodings": 0,
+   "snippets": 4,
+   "variants": [
+    "[base+disp8]",
+    "[base+index*scale+disp32]",
+    "[disp32]",
+    "[esp+disp8]"
+   ],
+   "cases": 1280,
+   "de_cases": 0,
+   "failed_cases": 0,
+   "categories": {
+    "fatal-by-design": 791,
+    "x87-exception-flags": 25
+   }
+  },
+  "fnclex": {
+   "family": "x87",
+   "census_count": 0,
+   "in_census": false,
+   "encodings": 1,
+   "census_encodings": 0,
+   "snippets": 1,
+   "variants": [
+    "fixed"
+   ],
+   "cases": 320,
+   "de_cases": 0,
+   "failed_cases": 0,
+   "categories": {}
+  },
+  "fninit": {
+   "family": "x87",
+   "census_count": 0,
+   "in_census": false,
+   "encodings": 1,
+   "census_encodings": 0,
+   "snippets": 1,
+   "variants": [
+    "fixed"
+   ],
+   "cases": 320,
+   "de_cases": 0,
+   "failed_cases": 0,
+   "categories": {}
+  },
+  "wait": {
+   "family": "other",
+   "census_count": 0,
+   "in_census": false,
+   "encodings": 1,
+   "census_encodings": 0,
+   "snippets": 1,
+   "variants": [
+    "fixed"
+   ],
+   "cases": 320,
+   "de_cases": 0,
+   "failed_cases": 0,
+   "categories": {}
+  }
+ },
+ "mutation_check": [
+  {
+   "mutation": "adc ignores carry-in",
+   "sites": 45,
+   "result": "killed",
+   "detail": "failed cases: 3185; forms: adc m32,r32 (842), lock adc m32,r32 (827), adc r8,r8 (483), adc r32,r32 (338), adc m32,imm (308), adc r8,imm (191), adc r32,imm (176), fcos (11), fptan (6), fsin (3)"
+  },
+  {
+   "mutation": "sbb carry-out ignores carry-in",
+   "sites": 52,
+   "result": "killed",
+   "detail": "failed cases: 890; forms: sbb r8,r8 (327), sbb r32,r32 (182), sbb r16,r16 (171), sbb r32,m32 (52), sbb m32,r32 (52), lock sbb m32,r32 (52), sbb m8,imm (17), sbb r8,imm (11), fcos (11), sbb r32,imm (6), fptan (6), fsin (3)"
+  },
+  {
+   "mutation": "shr CF taken from the wrong bit",
+   "sites": 164,
+   "result": "killed",
+   "detail": "failed cases: 1172; forms: shr m32,imm (382), shr r32,imm (308), shr r32,r8 (172), shr r16,imm (109), shr r16,r8 (107), shr r8,r8 (74), fcos (11), fptan (6), fsin (3)"
+  },
+  {
+   "mutation": "setl condition inverted",
+   "sites": 4,
+   "result": "killed",
+   "detail": "failed cases: 1300; forms: setl r8 (1280), fcos (11), fptan (6), fsin (3)"
+  },
+  {
+   "mutation": "high-byte register write clobbers the low byte",
+   "sites": 317,
+   "result": "killed",
+   "detail": "failed cases: 30158; forms: sar r8,imm (3033), ror r8,imm (2711), and r8,m8 (1596), or r8,m8 (1592), shl r8,imm (1356), rol r8,imm (1352), setle r8 (959), setge r8 (959), setg r8 (957), setne r8 (956), sub r8,r8 (951), xchg r8,r8 (639)"
+  },
+  {
+   "mutation": "8-bit compare flags computed at 32 bits",
+   "sites": 64,
+   "result": "killed",
+   "detail": "failed cases: 5354; forms: cmp r8,m8 (1441), sub m8,r8 (1071), cmp m8,r8 (1053), cmp r8,imm (490), cmp r8,r8 (387), sub r8,r8 (349), cmp m8,imm (322), sub r8,imm (221), fcos (11), fptan (6), fsin (3)"
+  },
+  {
+   "mutation": "idiv quotient overflow not detected",
+   "sites": 7,
+   "result": "killed",
+   "detail": "failed cases: 951; forms: idiv r32 (541), idiv m32 (390), fcos (11), fptan (6), fsin (3)"
+  },
+  {
+   "mutation": "string ops ignore DF",
+   "sites": 9,
+   "result": "killed",
+   "detail": "failed cases: 1435; forms: movsd m32,m32 (175), stosd m32,r32 (165), scasd r32,m32 (164), repe cmpsd m32,m32 (157), rep stosd m32,r32 (153), rep movsd m32,m32 (153), lodsd r32,m32 (152), repne scasd r32,m32 (150), cmpsd m32,m32 (146), fcos (11), fptan (6), fsin (3)"
+  },
+  {
+   "mutation": "fsub/fsubp ST(i),ST(0) operand order swapped",
+   "sites": 2,
+   "result": "killed",
+   "detail": "failed cases: 640; forms: fsubp sti (312), fsub sti,st0 (308), fcos (11), fptan (6), fsin (3)"
+  },
+  {
+   "mutation": "sar shifts logically",
+   "sites": 41,
+   "result": "killed",
+   "detail": "failed cases: 805; forms: sar r32,imm (542), sar r32,r8 (243), fcos (11), fptan (6), fsin (3)"
+  },
+  {
+   "mutation": "movsx from 16 bits treated as 8 bits",
+   "sites": 8,
+   "result": "killed",
+   "detail": "failed cases: 1605; forms: movsx r32,m16 (1017), movsx r32,r16 (376), cwde (192), fcos (11), fptan (6), fsin (3)"
+  },
+  {
+   "mutation": "x87 fild m64 read as m32",
+   "sites": 4,
+   "result": "killed",
+   "detail": "failed cases: 184; forms: fild m64 (164), fcos (11), fptan (6), fsin (3)"
+  },
+  {
+   "mutation": "fs: operands off by 4 bytes",
+   "sites": 14,
+   "result": "killed",
+   "detail": "failed cases: 4486; forms: mov r32,m32 (3200), mov m32,r32 (1266), fcos (11), fptan (6), fsin (3)"
+  }
+ ]
+}
