@@ -31,6 +31,70 @@ real `_vsnprintf` into a 65,536-character buffer; candidate: `xrt_output` with a
 character). Outputs of 65,536 characters or more are reported as `SKIP` on both sides; a disagreement about that
 would itself be a mismatch.
 
+## Bounded printf: `_snprintf`, `_vsnprintf`, `_vsnwprintf` (Editor.dll / ucc make phase)
+
+**Scope.** These are the bounded printf functions the modules import:
+- `_snprintf` and `_vsnprintf`: Engine.dll and GlmLib.dll;
+- `_vsnwprintf`: Core.dll.
+
+`_snwprintf` is imported by no module and is excluded. `vsprintf` and `swprintf` are unbounded and outside this
+target. The reference is the real `msvcr70.dll`.
+
+**Method.**
+- **B lines** (narrow functions: format as bytes; `_vsnwprintf`: UTF-16). The function under test first measures
+  the full length L with a 16,384-character capacity. Each case then runs at capacities 0, 1, 2, L-1, L, L+1, L+2
+  and L+16, each in a fresh allocation of exactly that capacity.
+  - Destination region: `[16 guard bytes 0xA5][capacity characters 0xCC][16 guard bytes 0x5A]`. The callee gets
+    the address after the front guard.
+  - Recorded per call: the return value, every byte of the region (both guards included, so an underrun,
+    overrun, missing or extra terminator, or a write past the end all show), and the `%n` targets.
+  - `_snprintf` receives its varargs on the stack after (buffer, count, format), which exercises the adapter's
+    guest varargs marshalling. The `va_list` functions receive a pointer to the argument block.
+  - String and character arguments are typed for the function's width: narrow `%s`, wide `%S %ls %ws %C %lc` in
+    the narrow functions, and the reverse (`%S %hs %C %hc`) in `_vsnwprintf`.
+  - Coverage: literals of 0-4097 characters, integers (flags, width/precision, `*`, `I64`), strings incl. NULL
+    and 300 characters, cross-width text incl. characters above 0xFF, `%c`/`%C`, floats incl. INF/NaN and
+    `%.600f`, `%n` before and after the cut-off, odd specifications, `%p`, Engine/GlmLib-style formats and 200
+    random mixes per function.
+- **K lines.** Explicit counts 0, 1, 2, 3, 0x3FFFFFFF, 0x40000000, 0x7FFFFFFF, 0x80000000, 0x80000001,
+  0xC0000000, 0xC0000003, 0xFFFFFFFE, 0xFFFFFFFF, with a 64-character allocation and guards. Every output is at
+  most 16 characters, so all inputs stay valid for the allocation whatever the CRT does with the count.
+- **E lines** (intentional error behaviour, in `errors.txt`): NULL destination with various counts, and NULL
+  format.
+  - `compare.py` runs each in its own reference and candidate process. The candidate harness has no fault
+    handler, so a fault ends its process.
+  - A fault on both sides is a match, and both codes are recorded in `results.json`.
+
+**PENDING.** The candidate looks its adapters up by export name in `xrt_hle_msvcr70[]`. A function with no
+adapter yet (`_snprintf` and `_vsnprintf` as of `bfb8118`: unbound, fatal if called) gets `PENDING` on the
+candidate side. Its reference results are still recorded, and it compares automatically once an adapter is
+registered. PENDING is never counted as passed: `compare.py` exits 3 when cases are pending and nothing
+mismatched.
+
+**Results**, runtime commit `bfb8118` (runtime sources clean; provenance with source and binary SHA-256 in
+`results.json`):
+- Default corpus (seed 20261022): 212,250 cases plus 27 isolated, **4 mismatches**, **1,796 PENDING**.
+- Extended corpus (seed 7): 315,662 cases, the same 4 mismatches and 1,796 PENDING.
+
+| Function | Cases | Result |
+|---|---:|---|
+| `_vsnwprintf` (B, K) | 878 | 0 mismatches: whole region including both guards byte-identical, at every capacity and count |
+| `_vsnwprintf` (E, isolated) | 9 | **4 mismatches (open, reported to the main session)**. With a NULL destination and count 0, 0x7FFFFFFF or 0xFFFFFFFF, msvcr70 returns the full length (3 for `L"abc"`, 5 for `%d` of 12345) and the adapter returns -1. NULL with count 1 or 16, and a NULL format, fault on both sides. Reproducers: `repro/bvsnwerr.{1,2,5,6}.txt` |
+| `_snprintf`, `_vsnprintf` (B, K, E) | 1,796 | PENDING: no runtime adapter. Reference recorded |
+
+**Reference behaviour seen in the E lines**, the contract a future adapter must reproduce:
+- **Narrow `_snprintf`/`_vsnprintf` with a NULL destination:** return the full length for every count (0, 1, 16,
+  0x7FFFFFFF, 0xFFFFFFFF) and never fault.
+- **`_vsnwprintf` with a NULL destination:** returns the length when count 0, or `count*2` read as an int, is
+  not positive. Otherwise it faults at the terminator store.
+- **A NULL format** faults in all three functions.
+
+This fits msvcr70's string stream writing nothing while its base is NULL (it only counts).
+
+Each reproducer in `repro/` is a one-line corpus with both results in comment lines (the drivers skip `#` lines).
+Rerun one with `ref.exe <dll> <file> out.txt` and `cand.exe <file> out.txt`, in their own processes for `E` lines.
+`compare.py` rewrites `repro/` on every run.
+
 ## Files
 
 | File | What |
@@ -42,7 +106,8 @@ would itself be a mismatch.
 | `compare.py` | generates the corpus, runs both sides, compares, prints a summary, optionally writes JSON |
 | `i10_model.py` | Python model of msvcr70's double-to-digits code (`__dtold` + `$I10_OUTPUT`); generates the power-of-ten tables used in `xrt_fmt.c` |
 | `build.cmd` | builds `ref.exe` (x86) and `cand.exe` (x64) into `experiments/xrt/build/crt_diff/` |
-| `results.json` | summary of the last runs (default, extended, and the before-fix measurement) |
+| `results.json` | summary of the last runs (default, extended, and the before-fix measurement), with provenance: commit, dirty files, SHA-256 of the runtime sources and of `ref.exe`/`cand.exe`, commands, seed, counts, adapters present, exclusions |
+| `repro/` | one reproducer per mismatch of the latest run (one-line corpus plus both results) |
 
 ## How to run
 
@@ -57,7 +122,8 @@ rem check that the generated power-of-ten tables equal the ones in the DLL (read
 .venv\Scripts\python.exe -I experiments\xrt\tests\crt_diff\i10_model.py --check-dll sandbox_ref\hellofull\System\msvcr70.dll
 ```
 
-`compare.py` exits 0 only when every case matches. The default run takes about 30 s. `compare.py --json` writes only the
+`compare.py` exits 0 when every case was compared and matched, 1 on any mismatch, and 3 when nothing mismatched
+but some cases are PENDING. The default run takes about 30 s. `compare.py --json` writes only the
 default-run sections; the others were merged in by hand from one-off runs:
 - `extended_run`: the extended command above, now including the narrow cases;
 - `extended_run_wide_only`: the same command before the narrow cases existed;

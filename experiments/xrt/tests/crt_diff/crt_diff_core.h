@@ -9,6 +9,9 @@
  *   static uint32_t call_wprintf(Ptr fmt, const uint32_t* block, uint32_t* exc);      variadic call
  *   static uint32_t call_sprintf(Ptr buf, Ptr fmt, const uint32_t* block, uint32_t* exc);   narrow sprintf
  *   static int probe_too_long(Ptr fmt, Ptr va, uint32_t limit, uint32_t* exc);   narrow output >= limit chars?
+ *   static int bounded_available(int bf);     1 if bounded function bf can be called (candidate: adapter exists)
+ *   static uint32_t call_bounded(int bf, Ptr buf, uint32_t count, Ptr fmt, Ptr va, const uint32_t* block,
+ *                                uint32_t* exc);   _snprintf (varargs from block) / _vsnprintf / _vsnwprintf (va)
  *   static void flush_stdout(void);
  * Both sides read the same corpus and write the same result format; compare.py diffs them. */
 #define WIN32_LEAN_AND_MEAN
@@ -33,10 +36,20 @@ static const int fn_returns_ptr[F_COUNT] = {0, 0, 1, 1, 1, 0, 0, 0, 0, 1, 1, 1, 
 
 #define ABIG 65536       /* narrow sprintf: outputs of ABIG characters or more are not run (sprintf is unbounded) */
 
+/* bounded printf functions (B, K and E lines) */
+enum { BF_SNPRINTF, BF_VSNPRINTF, BF_VSNWPRINTF, BF_COUNT };
+static const char* const bf_names[BF_COUNT] = {"_snprintf", "_vsnprintf", "_vsnwprintf"};
+static const uint32_t bf_unit[BF_COUNT] = {1, 1, 2};   /* bytes per character */
+#define BMEASURE 16384   /* capacity, in characters, of the call that measures the full length L */
+#define BPRE 16          /* guard bytes before the destination (0xA5) */
+#define BPOST 16         /* guard bytes after the destination (0x5A); the destination itself is filled with 0xCC */
+
 static uint32_t call_fn(int f, const uint32_t* args, int nargs, uint32_t* exc);
 static uint32_t call_wprintf(Ptr fmt, const uint32_t* block, uint32_t* exc);
 static uint32_t call_sprintf(Ptr buf, Ptr fmt, const uint32_t* block, uint32_t* exc);
 static int probe_too_long(Ptr fmt, Ptr va, uint32_t limit, uint32_t* exc);
+static int bounded_available(int bf);
+static uint32_t call_bounded(int bf, Ptr buf, uint32_t count, Ptr fmt, Ptr va, const uint32_t* block, uint32_t* exc);
 static void flush_stdout(void);
 
 static Ptr bump;
@@ -352,6 +365,140 @@ static void run_sprintf(FILE* o, const char* id, Ptr fmt, Ptr va, const uint32_t
     fputc('\n', o);
 }
 
+/* ---------------------------------------------------------------- bounded printf (_snprintf, _vsnprintf, _vsnwprintf)
+ * A destination region is [BPRE guard bytes 0xA5][count characters 0xCC][BPOST guard bytes 0x5A]; the callee
+ * gets the address after the front guard and `count`. Each result records the return value and the whole
+ * region (both guards included), then the %n targets. */
+static int bf_index(const char* name) {
+    int i;
+    for (i = 0; i < BF_COUNT; i++)
+        if (!strcmp(bf_names[i], name))
+            return i;
+    fprintf(stderr, "unknown bounded function %s\n", name);
+    exit(3);
+}
+
+static Ptr bregion(uint32_t bytes) {
+    Ptr r = talloc(BPRE + bytes + BPOST);
+    memset(H(r), 0xA5, BPRE);
+    memset((uint8_t*)H(r) + BPRE, 0xCC, bytes);
+    memset((uint8_t*)H(r) + BPRE + bytes, 0x5A, BPOST);
+    return r;
+}
+
+static void put_region(FILE* o, Ptr r, uint32_t bytes) {
+    uint32_t i;
+    for (i = 0; i < BPRE + bytes + BPOST; i++)
+        fprintf(o, "%02X", ((uint8_t*)H(r))[i]);
+}
+
+/* one call into a fresh region of `alloc` characters with capacity `count`; appends " ; count:ret:region" */
+static void bounded_call(FILE* o, int bf, uint32_t alloc, uint32_t count, Ptr fmt, Ptr va, const uint32_t* block,
+                         int has_n) {
+    uint32_t exc = 0, bytes = alloc * bf_unit[bf];
+    Ptr r = bregion(bytes);
+    int32_t ret;
+    reset_slots();
+    ret = (int32_t)call_bounded(bf, r + BPRE, count, fmt, va, block, &exc);
+    if (exc) {
+        fprintf(o, " ; %u:EXC%08X", count, exc);
+        return;
+    }
+    fprintf(o, " ; %u:%d:", count, ret);
+    put_region(o, r, bytes);
+    if (has_n)
+        put_slots(o);
+}
+
+/* B <id> <func> <fmt> <arg>*: L is measured by the function itself with BMEASURE characters; then capacities
+ * 0, 1, 2, L-1, L, L+1, L+2, L+16, each with an allocation of exactly that capacity */
+static void run_bounded(FILE* o, const char* id, int bf, Ptr fmt, Ptr va, const uint32_t* block, int has_n) {
+    uint32_t exc = 0, caps[8], ncap = 0, k;
+    int32_t L;
+    Ptr big;
+    if (!bounded_available(bf)) {
+        fprintf(o, "B %s PENDING\n", id);
+        return;
+    }
+    big = bregion(BMEASURE * bf_unit[bf]);
+    reset_slots();
+    L = (int32_t)call_bounded(bf, big + BPRE, BMEASURE, fmt, va, block, &exc);
+    if (exc) {
+        exc_line(o, "B", id, exc);
+        return;
+    }
+    if (L < 0 || L >= BMEASURE) {
+        fprintf(o, "B %s SKIP R=%d\n", id, L);
+        return;
+    }
+    {
+        int32_t want[8];
+        want[0] = 0; want[1] = 1; want[2] = 2; want[3] = L - 1; want[4] = L; want[5] = L + 1; want[6] = L + 2;
+        want[7] = L + 16;
+        for (k = 0; k < 8; k++) {
+            uint32_t j;
+            int dup = want[k] < 0;
+            for (j = 0; j < ncap && !dup; j++)
+                dup = caps[j] == (uint32_t)want[k];
+            if (!dup)
+                caps[ncap++] = (uint32_t)want[k];
+        }
+    }
+    fprintf(o, "B %s L=%d", id, L);
+    for (k = 0; k < ncap; k++)
+        bounded_call(o, bf, caps[k], caps[k], fmt, va, block, has_n);
+    fputc('\n', o);
+}
+
+/* K <id> <func> <alloc> <counts> <fmt> <arg>*: explicit counts (huge, wrapping) with a fixed allocation; the
+ * outputs used are short enough for the allocation whatever the count */
+static void run_kcounts(FILE* o, const char* id, int bf, uint32_t alloc, char* counts, Ptr fmt, Ptr va,
+                        const uint32_t* block, int has_n) {
+    char* p = counts;
+    if (!bounded_available(bf)) {
+        fprintf(o, "K %s PENDING\n", id);
+        return;
+    }
+    fprintf(o, "K %s", id);
+    while (*p) {
+        uint32_t c = (uint32_t)strtoul(p, &p, 0);
+        if (*p == ',')
+            p++;
+        bounded_call(o, bf, alloc, c, fmt, va, block, has_n);
+    }
+    fputc('\n', o);
+}
+
+/* E <id> <func> <dest: null|<alloc>> <count> <fmt|null> <arg>*: intentional error behaviour (NULL destination,
+ * NULL format). compare.py runs every E line in its own pair of processes: on the candidate side a fault ends
+ * the process, which compare.py records as the outcome. */
+static void run_error(FILE* o, const char* id, int bf, const char* dest, uint32_t count, Ptr fmt, Ptr va,
+                      const uint32_t* block) {
+    uint32_t exc = 0, alloc = 0;
+    Ptr r = 0;
+    int32_t ret;
+    if (!bounded_available(bf)) {
+        fprintf(o, "E %s PENDING\n", id);
+        return;
+    }
+    if (strcmp(dest, "null")) {
+        alloc = (uint32_t)atoi(dest);
+        r = bregion(alloc * bf_unit[bf]);
+    }
+    fflush(o);
+    ret = (int32_t)call_bounded(bf, r ? r + BPRE : 0, count, fmt, va, block, &exc);
+    if (exc) {
+        exc_line(o, "E", id, exc);
+        return;
+    }
+    fprintf(o, "E %s R=%d", id, ret);
+    if (r) {
+        fputc(' ', o);
+        put_region(o, r, alloc * bf_unit[bf]);
+    }
+    fputc('\n', o);
+}
+
 static int fn_index(const char* name) {
     int i;
     for (i = 0; i < F_COUNT; i++)
@@ -495,6 +642,31 @@ static void run_corpus(const char* corpus, const char* results) {
             va = talloc(BLOCKW * 4);
             memcpy(H(va), block, BLOCKW * 4);
             run_sprintf(o, id, fmt, va, block, has_n);
+        } else if (kind[0] == 'B' || kind[0] == 'K' || kind[0] == 'E') {
+            int bf = bf_index(next_tok(&s)), has_n;
+            char *alloc = NULL, *counts = NULL, *dest = NULL, *cnt = NULL, *f;
+            Ptr fmt, va;
+            if (kind[0] == 'K') {
+                alloc = next_tok(&s);
+                counts = next_tok(&s);
+            } else if (kind[0] == 'E') {
+                dest = next_tok(&s);
+                cnt = next_tok(&s);
+            }
+            f = next_tok(&s);
+            if (!strcmp(f, "null"))
+                fmt = 0;
+            else
+                fmt = bf_unit[bf] == 2 ? put_wstr(f, 0) : put_astr(f);
+            has_n = build_block(&s, block);
+            va = talloc(BLOCKW * 4);
+            memcpy(H(va), block, BLOCKW * 4);
+            if (kind[0] == 'B')
+                run_bounded(o, id, bf, fmt, va, block, has_n);
+            else if (kind[0] == 'K')
+                run_kcounts(o, id, bf, (uint32_t)atoi(alloc), counts, fmt, va, block, has_n);
+            else
+                run_error(o, id, bf, dest, (uint32_t)strtoul(cnt, NULL, 0), fmt, va, block);
         } else if (kind[0] == 'S') {
             run_string(o, id, s);
         } else if (kind[0] == 'M') {

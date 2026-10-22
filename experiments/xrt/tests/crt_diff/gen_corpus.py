@@ -5,6 +5,10 @@ Line kinds (read by crt_diff_core.h):
   C <id> <counts> <fmt> <arg>*   _vsnwprintf with explicit counts (comma separated, decimal)
   W <id> <fmt> <arg>*        wprintf to stdout
   A <id> <fmt bytes> <arg>*  narrow sprintf (output length probed first; SKIP when 65536 characters or more)
+  B <id> <func> <fmt> <arg>*  bounded printf (_snprintf/_vsnprintf: fmt bytes; _vsnwprintf: UTF-16) at
+                             capacities 0, 1, 2, L-1, L, L+1, L+2, L+16, whole destination + guards recorded
+  K <id> <func> <alloc> <counts> <fmt> <arg>*   bounded printf with explicit counts, fixed allocation
+  E <id> <func> <null|alloc> <count> <fmt|null> <arg>*   error behaviour (separate file, one process each)
   S <id> <func> <arg>*       string function (w<hex> string, b<cap>,<hex> buffer, u<hex8> integer, 0 null)
   M <id> <size> <dst> <src> <n>   memmove inside one byte buffer
   R <id> <seed hex8|-> <n>   srand(seed) (unless '-') then n x rand()
@@ -73,6 +77,7 @@ NULL = "0"
 class Corpus:
     def __init__(self):
         self.lines = []
+        self.err_lines = []     # E lines: written to a separate file, one process per case
         self.counts = {}
 
     def _id(self, cat):
@@ -105,6 +110,36 @@ class Corpus:
                 return
             fmt = fmt.encode("latin-1")
         self.lines.append(" ".join(["A", self._id(cat), fmt.hex().upper() or "~"] + list(args)))
+
+    @staticmethod
+    def _bfmt(func, fmt):
+        """format of a bounded function: UTF-16 units for _vsnwprintf, bytes otherwise; None = NULL format;
+        returns None when a narrow format would need code points > 0xFF"""
+        if fmt is None:
+            return "null"
+        if func == "_vsnwprintf":
+            return hx(fmt)
+        if isinstance(fmt, str):
+            if any(ord(ch) > 0xFF for ch in fmt):
+                return None
+            fmt = fmt.encode("latin-1")
+        return fmt.hex().upper() or "~"
+
+    def B(self, cat, func, fmt, *args):
+        f = self._bfmt(func, fmt)
+        if f is not None:
+            self.lines.append(" ".join(["B", self._id(cat), func, f] + list(args)))
+
+    def K(self, cat, func, alloc, counts, fmt, *args):
+        f = self._bfmt(func, fmt)
+        if f is not None:
+            self.lines.append(" ".join(["K", self._id(cat), func, str(alloc), ",".join("0x%X" % k for k in counts), f]
+                                       + list(args)))
+
+    def E(self, cat, func, dest, count, fmt, *args):
+        f = self._bfmt(func, fmt)
+        if f is not None:
+            self.err_lines.append(" ".join(["E", self._id(cat), func, dest, "0x%X" % count, f] + list(args)))
 
 
 class Narrow:
@@ -406,6 +441,113 @@ def gen_narrow_text(c, rng):
         c.A("nmix", "".join(parts), *args)
 
 
+BOUNDED = ["_snprintf", "_vsnprintf", "_vsnwprintf"]
+
+
+def gen_bounded(c, rng):
+    """bounded printf, imported by Engine.dll and GlmLib.dll (_snprintf, _vsnprintf) and Core.dll (_vsnwprintf).
+    Every B case runs at capacities 0, 1, 2, L-1, L, L+1, L+2 and L+16 (see crt_diff_core.h). String arguments
+    are typed for the function's width: in the narrow functions %s is narrow and %S/%ls/%ws wide, in
+    _vsnwprintf %s is wide and %S/%hs narrow; %C / %lc / %hc likewise."""
+    for func in BOUNDED:
+        wide = func == "_vsnwprintf"
+        nat = (lambda v: W(v) if v is not None else NULL) if wide else (lambda v: A(v.encode("latin-1")) if v is not None else NULL)
+        oth = (lambda v: A(v.encode("latin-1")) if v is not None else NULL) if wide else (lambda v: W(v) if v is not None else NULL)
+        cat = {"_snprintf": "bsn", "_vsnprintf": "bvsn", "_vsnwprintf": "bvsnw"}[func]
+        # output lengths around powers of two, and high characters in literal text
+        c.B(cat + "lit", func, "")
+        for k in [1, 2, 3, 7, 8, 15, 16, 17, 31, 32, 33, 63, 64, 65, 127, 128, 255, 256, 257, 511, 512, 1023, 1024,
+                  1025, 4095, 4096, 4097]:
+            c.B(cat + "lit", func, "x" * k)
+        c.B(cat + "lit", func, "\x80\xe9\xff high" if not wide else "Ā中é high")
+        # integers
+        ivals = [0, 1, -1, 42, 255, 0x12345678, 0x7FFFFFFF, -0x80000000]
+        for spec in ["%d", "%i", "%u", "%x", "%X", "%o", "%5d", "%-5d|", "%05d", "%+d", "% d", "%.3d", "%8.3d", "%#x",
+                     "%#o", "%hd", "%ld", "%c", "%10d|%-10x|"]:
+            for v in ivals:
+                args = [I(v)] * spec.count("%")
+                c.B(cat + "int", func, spec, *args)
+        for spec in ["%*d", "%-*d|", "%.*d", "%*.*d"]:
+            for w in [0, 3, 12, -12, 40]:
+                for v in [7, -123456]:
+                    args = [I(w)] * (spec.count("*")) + [I(v)]
+                    c.B(cat + "int", func, spec, *args)
+        for spec in ["%I64d", "%I64u", "%I64x", "%20I64d|"]:
+            for v in [0, -1, 0x7FFFFFFFFFFFFFFF, -0x8000000000000000, 0x123456789ABCDEF]:
+                c.B(cat + "int", func, spec, Q(v))
+        # strings of the function's own width, and the other width
+        svals = [None, "", "a", "abc", "hello world", "x" * 40, "y" * 300, "éÿ"]
+        for spec in ["%s", "%10s", "%-10s|", "%.3s", "%.0s", "%10.3s", "%-8.40s|"]:
+            for v in svals:
+                c.B(cat + "str", func, spec, nat(v))
+        for spec in ["%*s", "%-*s|", "%.*s"]:
+            for w in [0, 5, -5, 50]:
+                c.B(cat + "str", func, spec, I(w), nat("abcdef"))
+        ovals = ([None, "", "abc", "x" * 40, "éÿ", "aĀb", "€"] if not wide
+                 else [None, "", "abc", "x" * 40, "éÿ"])
+        for spec in (["%S", "%ls", "%ws", "%-6S|", "%.2S", "%8S|"] if not wide else ["%S", "%hs", "%-6S|", "%.2S", "%8hs|"]):
+            for v in ovals:
+                c.B(cat + "xstr", func, spec, oth(v))
+        for spec in (["%c", "%C", "%lc", "%-3C|", "%3c|"] if not wide else ["%c", "%C", "%hc", "%-3C|", "%3c|"]):
+            for v in [0x41, 0xE9, 0x100, 0x20AC, 0]:
+                c.B(cat + "chr", func, spec, I(v))
+        # floating point
+        fvals = [D(x) for x in [0.0, -0.0, 1.0, -1.5, 0.1, 0.125, 2.5, 9.9999, 123456.789, 1e21, 1e-5, 1e300,
+                                5e-324]] + [DB(b) for b in [0x7FF0000000000000, 0xFFF0000000000000, 0x7FF8000000000000,
+                                                            0xFFF8000000000000]]
+        for spec in ["%f", "%.0f", "%.1f", "%.2f", "%10.3f", "%-10.3f|", "%+f", "%e", "%E", "%.10e", "%g", "%G", "%#g",
+                     "%.17g", "%#.0f", "%010.2f"]:
+            for v in fvals:
+                c.B(cat + "flt", func, spec, v)
+        for v in [D(1e300), D(-2.5), D(123.0)]:
+            c.B(cat + "flt", func, "%.600f", v)
+        # %n before and after the point where the output stops fitting
+        for fmt, args in [("abc%n", ["n0"]), ("%s%n|%d%n", [nat("hello"), "n0", I(12345), "n1"]), ("%n", ["n0"]),
+                          ("%10d%hn|", [I(5), "n0"]), ("x%ny%nz%n", ["n0", "n1", "n2"]),
+                          ("0123456789%n0123456789%n", ["n0", "n1"])]:
+            c.B(cat + "n", func, fmt, *args)
+        # odd specifications and %p
+        for fmt in ["%%", "100%%", "%5%", "%y", "abc%", "%-%d", "%I", "%Iq", "%.*%"]:
+            c.B(cat + "odd", func, fmt, I(42), I(7))
+        for spec in ["%p", "%10p", "%-10p|", "%#p"]:
+            for v in [0, 0xDEADBEEF, 0x12AB]:
+                c.B(cat + "ptr", func, spec, I(v))
+        # Engine/GlmLib-style formats and random mixes
+        for fmt, args in [("%s(%d): %s", [nat("File.cpp"), I(123), nat("message")]), ("%s.%s", [nat("Pkg"), nat("Obj")]),
+                          ("%08X", [I(0xDEAD)]), ("%.2f%%", [D(99.5)]), ("%I64u bytes", [Q(123456789012)]),
+                          ("[%3d] %-12s %6.2f", [I(7), nat("name"), D(3.14159)])]:
+            c.B(cat + "mix", func, fmt, *args)
+        specs = ["%d", "%u", "%x", "%5d", "%-5d|", "%f", "%.2f", "%g", "%e", "%s", "%10s", "%-10s|", "%c", "%%", "%p"]
+        for _ in range(200):
+            parts, args = [], []
+            for _ in range(rng.randint(1, 6)):
+                s = rng.choice(specs)
+                parts.append(rng.choice(["", " ", ", ", "=", "x"]) + s)
+                conv = s.rstrip("|")[-1]
+                if s == "%%":
+                    continue
+                if conv in "feg":
+                    args.append(rng.choice(fvals))
+                elif conv == "s":
+                    args.append(nat(rng.choice(["name", "", "café", None, "z" * 60])))
+                else:
+                    args.append(I(rng.choice(INT32)))
+            c.B(cat + "mix", func, "".join(parts), *args)
+        # explicit counts with a 64-character allocation (outputs at most 16 characters): huge, sign-flipping
+        # and (for _vsnwprintf, whose byte count is count*2) wrapping counts
+        counts = [0, 1, 2, 3, 0x3FFFFFFF, 0x40000000, 0x7FFFFFFF, 0x80000000, 0x80000001, 0xC0000000, 0xC0000003,
+                  0xFFFFFFFE, 0xFFFFFFFF]
+        for fmt, args in [("", []), ("a", []), ("abc", []), ("%d|%s", [I(12345), nat("str")]), ("abcdefghij%n", ["n0"])]:
+            c.K(cat + "cnt", func, 64, counts, fmt, *args)
+        # intentional error behaviour, one process per case: NULL destination, NULL format
+        ecat = cat + "err"
+        for count, fmt, args in [(0, "", []), (0, "abc", []), (0, "%d", [I(12345)]), (1, "abc", []), (16, "abc", []),
+                                 (0x7FFFFFFF, "abc", []), (0xFFFFFFFF, "abc", [])]:
+            c.E(ecat, func, "null", count, fmt, *args)
+        for count in (16, 0):
+            c.E(ecat, func, "16", count, None)
+
+
 def gen_ptr(c, rng):
     for flags in ALL_FLAGS:
         for size in ["", "h", "l", "I64", "I32", "w"]:
@@ -604,6 +746,7 @@ def main():
     ap.add_argument("--seed", type=int, default=20261022)
     ap.add_argument("--i10", type=int, default=6000, help="cases of 8 random doubles at %%.16e")
     ap.add_argument("--narrow-i10", type=int, default=2000, help="the same for narrow sprintf")
+    ap.add_argument("--errors-out", help="write the E lines (intentional error behaviour, one process per case) here")
     a = ap.parse_args()
     rng = random.Random(a.seed)
     c = Corpus()
@@ -631,8 +774,13 @@ def main():
     gen_trunc(n, nr)
     gen_str_narrow(c, nr)
     gen_narrow_text(c, nr)
+    # bounded printf, from its own random stream (the corpus above stays unchanged)
+    gen_bounded(c, random.Random(a.seed + 2))
     with open(a.out, "w", encoding="ascii", newline="\n") as f:
         f.write("\n".join(c.lines) + "\n")
+    if a.errors_out:
+        with open(a.errors_out, "w", encoding="ascii", newline="\n") as f:
+            f.write("\n".join(c.err_lines) + "\n")
     total = sum(c.counts.values())
     print("corpus: %d cases -> %s" % (total, a.out))
     for k in sorted(c.counts):

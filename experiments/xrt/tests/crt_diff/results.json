@@ -1,5 +1,29 @@
 {
  "date": "2026-10-22",
+ "provenance": {
+  "commit": "bfb8118ccda84e40d0768f3349ba1d1d9352164e",
+  "runtime_dirty": "M tools/xrt/discover.py\n M tools/xrt/xlift.py",
+  "runtime_sources_sha256": {
+   "xrt_fmt.c": "7a1003e73a95b78dea1b243c106c4df5b452c66032a35623cf10a0a7f9a99178",
+   "hle_msvcr70.c": "5735fbc3d9198c87df1b4f7fd0cbd7c710dd3324b2cb472dcf2d752cbd7eb61d",
+   "xrt_mem.c": "8b188bd8ea56b64c3e9079a272496635ac88f93b56aa76d29e5db38c1e2a3d95",
+   "xrt.h": "8cf3867a876d3888af8d4cb55c7ad9c9f7d11b29286cb82d9fe268215abf623e",
+   "xrt_internal.h": "c7e96675cd920814f7d0cbadbc80728b8353ce8b3e712f94b181d57eac235a94"
+  },
+  "ref_exe_sha256": "4389c6d4c76aa41e57c94d44a26b59c53639dfb5bd96bdd2d3bbeca69a7d1584",
+  "cand_exe_sha256": "ffecb58b44d659dd04f2074b8a9430042bd008f947d8cc84e0e3282363696814",
+  "candidate_adapters": [
+   "bounded _snprintf: no adapter (PENDING)",
+   "bounded _vsnprintf: no adapter (PENDING)",
+   "bounded _vsnwprintf: adapter"
+  ],
+  "commands": [
+   ".venv\\Scripts\\python.exe -I experiments\\xrt\\tests\\crt_diff\\gen_corpus.py experiments\\xrt\\build\\crt_diff\\corpus.txt --seed 20261022 --i10 6000 --errors-out experiments\\xrt\\build\\crt_diff\\errors.txt",
+   "build\\crt_diff\\ref.exe <dll> corpus.txt ref_results.txt",
+   "build\\crt_diff\\cand.exe corpus.txt cand_results.txt",
+   "per E line: ref.exe and cand.exe on a one-line corpus"
+  ]
+ },
  "reference": {
   "dll": "sandbox_ref/hellofull/System/msvcr70.dll",
   "sha256": "f68e4cdbc879423ea47d763a6768567f5f8063924f13a74239750c13fa8d168a"
@@ -7,241 +31,821 @@
  "corpus": {
   "seed": 20261022,
   "i10_cases": 6000,
-  "cases": 209573
+  "cases": 212250,
+  "isolated_error_cases": 27
  },
  "categories": {
   "int": {
    "cases": 9504,
-   "mismatches": 0
+   "mismatches": 0,
+   "pending": 0
   },
   "intsweep": {
    "cases": 2592,
-   "mismatches": 0
+   "mismatches": 0,
+   "pending": 0
   },
   "flt": {
    "cases": 6460,
-   "mismatches": 0
+   "mismatches": 0,
+   "pending": 0
   },
   "fltsweep": {
    "cases": 4800,
-   "mismatches": 0
+   "mismatches": 0,
+   "pending": 0
   },
   "fltfix": {
    "cases": 31,
-   "mismatches": 0
+   "mismatches": 0,
+   "pending": 0
   },
   "i10": {
    "cases": 6000,
-   "mismatches": 0
+   "mismatches": 0,
+   "pending": 0
   },
   "fltrand": {
    "cases": 1500,
-   "mismatches": 0
+   "mismatches": 0,
+   "pending": 0
   },
   "ties": {
    "cases": 2000,
-   "mismatches": 0
+   "mismatches": 0,
+   "pending": 0
   },
   "nearties": {
    "cases": 2000,
-   "mismatches": 0
+   "mismatches": 0,
+   "pending": 0
   },
   "str": {
    "cases": 1152,
-   "mismatches": 0
+   "mismatches": 0,
+   "pending": 0
   },
   "chr": {
    "cases": 576,
-   "mismatches": 0
+   "mismatches": 0,
+   "pending": 0
   },
   "ptr": {
    "cases": 192,
-   "mismatches": 0
+   "mismatches": 0,
+   "pending": 0
   },
   "n": {
    "cases": 27,
-   "mismatches": 0
+   "mismatches": 0,
+   "pending": 0
   },
   "odd": {
    "cases": 268,
-   "mismatches": 0
+   "mismatches": 0,
+   "pending": 0
   },
   "oddB": {
    "cases": 20,
-   "mismatches": 0
+   "mismatches": 0,
+   "pending": 0
   },
   "fuzz": {
    "cases": 4000,
-   "mismatches": 0
+   "mismatches": 0,
+   "pending": 0
   },
   "cstr": {
    "cases": 104,
-   "mismatches": 0
+   "mismatches": 0,
+   "pending": 0
   },
   "trunc": {
    "cases": 48,
-   "mismatches": 0
+   "mismatches": 0,
+   "pending": 0
   },
   "count": {
    "cases": 4,
-   "mismatches": 0
+   "mismatches": 0,
+   "pending": 0
   },
   "wprintf": {
    "cases": 182,
-   "mismatches": 0
+   "mismatches": 0,
+   "pending": 0
   },
   "wcslen": {
    "cases": 31,
-   "mismatches": 0
+   "mismatches": 0,
+   "pending": 0
   },
   "wcscpy": {
    "cases": 31,
-   "mismatches": 0
+   "mismatches": 0,
+   "pending": 0
   },
   "wcsupr": {
    "cases": 34,
-   "mismatches": 0
+   "mismatches": 0,
+   "pending": 0
   },
   "wcscat": {
    "cases": 186,
-   "mismatches": 0
+   "mismatches": 0,
+   "pending": 0
   },
   "wcsncpy": {
    "cases": 1302,
-   "mismatches": 0
+   "mismatches": 0,
+   "pending": 0
   },
   "wcscmp": {
    "cases": 961,
-   "mismatches": 0
+   "mismatches": 0,
+   "pending": 0
   },
   "wcsicmp": {
    "cases": 1015,
-   "mismatches": 0
+   "mismatches": 0,
+   "pending": 0
   },
   "wcsncmp": {
    "cases": 961,
-   "mismatches": 0
+   "mismatches": 0,
+   "pending": 0
   },
   "wcsnicmp": {
    "cases": 1015,
-   "mismatches": 0
+   "mismatches": 0,
+   "pending": 0
   },
   "wcschr": {
    "cases": 80,
-   "mismatches": 0
+   "mismatches": 0,
+   "pending": 0
   },
   "wcsrchr": {
    "cases": 80,
-   "mismatches": 0
+   "mismatches": 0,
+   "pending": 0
   },
   "wcsstr": {
    "cases": 96,
-   "mismatches": 0
+   "mismatches": 0,
+   "pending": 0
   },
   "wtoi": {
    "cases": 55,
-   "mismatches": 0
+   "mismatches": 0,
+   "pending": 0
   },
   "wtoiall": {
    "cases": 131070,
-   "mismatches": 0
+   "mismatches": 0,
+   "pending": 0
   },
   "memmove": {
    "cases": 11,
-   "mismatches": 0
+   "mismatches": 0,
+   "pending": 0
   },
   "rand": {
    "cases": 10,
-   "mismatches": 0
+   "mismatches": 0,
+   "pending": 0
   },
   "nint": {
    "cases": 9504,
-   "mismatches": 0
+   "mismatches": 0,
+   "pending": 0
   },
   "nintsweep": {
    "cases": 2592,
-   "mismatches": 0
+   "mismatches": 0,
+   "pending": 0
   },
   "nflt": {
    "cases": 6460,
-   "mismatches": 0
+   "mismatches": 0,
+   "pending": 0
   },
   "nfltsweep": {
    "cases": 4800,
-   "mismatches": 0
+   "mismatches": 0,
+   "pending": 0
   },
   "nfltfix": {
    "cases": 31,
-   "mismatches": 0
+   "mismatches": 0,
+   "pending": 0
   },
   "ni10": {
    "cases": 2000,
-   "mismatches": 0
+   "mismatches": 0,
+   "pending": 0
   },
   "nfltrand": {
    "cases": 500,
-   "mismatches": 0
+   "mismatches": 0,
+   "pending": 0
   },
   "nties": {
    "cases": 666,
-   "mismatches": 0
+   "mismatches": 0,
+   "pending": 0
   },
   "nnearties": {
    "cases": 666,
-   "mismatches": 0
+   "mismatches": 0,
+   "pending": 0
   },
   "nptr": {
    "cases": 192,
-   "mismatches": 0
+   "mismatches": 0,
+   "pending": 0
   },
   "nn": {
    "cases": 26,
-   "mismatches": 0
+   "mismatches": 0,
+   "pending": 0
   },
   "nodd": {
    "cases": 258,
-   "mismatches": 0
+   "mismatches": 0,
+   "pending": 0
   },
   "noddB": {
    "cases": 20,
-   "mismatches": 0
+   "mismatches": 0,
+   "pending": 0
   },
   "nfuzz": {
    "cases": 1587,
-   "mismatches": 0
+   "mismatches": 0,
+   "pending": 0
   },
   "ncstr": {
    "cases": 104,
-   "mismatches": 0
+   "mismatches": 0,
+   "pending": 0
   },
   "ntrunc": {
    "cases": 47,
-   "mismatches": 0
+   "mismatches": 0,
+   "pending": 0
   },
   "ncount": {
    "cases": 4,
-   "mismatches": 0
+   "mismatches": 0,
+   "pending": 0
   },
   "nstr": {
    "cases": 768,
-   "mismatches": 0
+   "mismatches": 0,
+   "pending": 0
   },
   "nchr": {
    "cases": 288,
-   "mismatches": 0
+   "mismatches": 0,
+   "pending": 0
   },
   "ntext": {
    "cases": 62,
-   "mismatches": 0
+   "mismatches": 0,
+   "pending": 0
   },
   "nmix": {
    "cases": 600,
-   "mismatches": 0
+   "mismatches": 0,
+   "pending": 0
+  },
+  "bsnlit": {
+   "cases": 29,
+   "mismatches": 0,
+   "pending": 29
+  },
+  "bsnint": {
+   "cases": 212,
+   "mismatches": 0,
+   "pending": 212
+  },
+  "bsnstr": {
+   "cases": 68,
+   "mismatches": 0,
+   "pending": 68
+  },
+  "bsnxstr": {
+   "cases": 42,
+   "mismatches": 0,
+   "pending": 42
+  },
+  "bsnchr": {
+   "cases": 25,
+   "mismatches": 0,
+   "pending": 25
+  },
+  "bsnflt": {
+   "cases": 275,
+   "mismatches": 0,
+   "pending": 275
+  },
+  "bsnn": {
+   "cases": 6,
+   "mismatches": 0,
+   "pending": 6
+  },
+  "bsnodd": {
+   "cases": 9,
+   "mismatches": 0,
+   "pending": 9
+  },
+  "bsnptr": {
+   "cases": 12,
+   "mismatches": 0,
+   "pending": 12
+  },
+  "bsnmix": {
+   "cases": 206,
+   "mismatches": 0,
+   "pending": 206
+  },
+  "bsncnt": {
+   "cases": 5,
+   "mismatches": 0,
+   "pending": 5
+  },
+  "bvsnlit": {
+   "cases": 29,
+   "mismatches": 0,
+   "pending": 29
+  },
+  "bvsnint": {
+   "cases": 212,
+   "mismatches": 0,
+   "pending": 212
+  },
+  "bvsnstr": {
+   "cases": 68,
+   "mismatches": 0,
+   "pending": 68
+  },
+  "bvsnxstr": {
+   "cases": 42,
+   "mismatches": 0,
+   "pending": 42
+  },
+  "bvsnchr": {
+   "cases": 25,
+   "mismatches": 0,
+   "pending": 25
+  },
+  "bvsnflt": {
+   "cases": 275,
+   "mismatches": 0,
+   "pending": 275
+  },
+  "bvsnn": {
+   "cases": 6,
+   "mismatches": 0,
+   "pending": 6
+  },
+  "bvsnodd": {
+   "cases": 9,
+   "mismatches": 0,
+   "pending": 9
+  },
+  "bvsnptr": {
+   "cases": 12,
+   "mismatches": 0,
+   "pending": 12
+  },
+  "bvsnmix": {
+   "cases": 206,
+   "mismatches": 0,
+   "pending": 206
+  },
+  "bvsncnt": {
+   "cases": 5,
+   "mismatches": 0,
+   "pending": 5
+  },
+  "bvsnwlit": {
+   "cases": 29,
+   "mismatches": 0,
+   "pending": 0
+  },
+  "bvsnwint": {
+   "cases": 212,
+   "mismatches": 0,
+   "pending": 0
+  },
+  "bvsnwstr": {
+   "cases": 68,
+   "mismatches": 0,
+   "pending": 0
+  },
+  "bvsnwxstr": {
+   "cases": 25,
+   "mismatches": 0,
+   "pending": 0
+  },
+  "bvsnwchr": {
+   "cases": 25,
+   "mismatches": 0,
+   "pending": 0
+  },
+  "bvsnwflt": {
+   "cases": 275,
+   "mismatches": 0,
+   "pending": 0
+  },
+  "bvsnwn": {
+   "cases": 6,
+   "mismatches": 0,
+   "pending": 0
+  },
+  "bvsnwodd": {
+   "cases": 9,
+   "mismatches": 0,
+   "pending": 0
+  },
+  "bvsnwptr": {
+   "cases": 12,
+   "mismatches": 0,
+   "pending": 0
+  },
+  "bvsnwmix": {
+   "cases": 206,
+   "mismatches": 0,
+   "pending": 0
+  },
+  "bvsnwcnt": {
+   "cases": 5,
+   "mismatches": 0,
+   "pending": 0
+  },
+  "bsnerr": {
+   "cases": 9,
+   "mismatches": 0,
+   "pending": 9,
+   "outcomes": {
+    "bsnerr.0": {
+     "ref": [
+      "ret",
+      "R=0"
+     ],
+     "cand": [
+      "pending",
+      ""
+     ]
+    },
+    "bsnerr.1": {
+     "ref": [
+      "ret",
+      "R=3"
+     ],
+     "cand": [
+      "pending",
+      ""
+     ]
+    },
+    "bsnerr.2": {
+     "ref": [
+      "ret",
+      "R=5"
+     ],
+     "cand": [
+      "pending",
+      ""
+     ]
+    },
+    "bsnerr.3": {
+     "ref": [
+      "ret",
+      "R=3"
+     ],
+     "cand": [
+      "pending",
+      ""
+     ]
+    },
+    "bsnerr.4": {
+     "ref": [
+      "ret",
+      "R=3"
+     ],
+     "cand": [
+      "pending",
+      ""
+     ]
+    },
+    "bsnerr.5": {
+     "ref": [
+      "ret",
+      "R=3"
+     ],
+     "cand": [
+      "pending",
+      ""
+     ]
+    },
+    "bsnerr.6": {
+     "ref": [
+      "ret",
+      "R=3"
+     ],
+     "cand": [
+      "pending",
+      ""
+     ]
+    },
+    "bsnerr.7": {
+     "ref": [
+      "fault",
+      "EXC=C0000005"
+     ],
+     "cand": [
+      "pending",
+      ""
+     ]
+    },
+    "bsnerr.8": {
+     "ref": [
+      "fault",
+      "EXC=C0000005"
+     ],
+     "cand": [
+      "pending",
+      ""
+     ]
+    }
+   }
+  },
+  "bvsnerr": {
+   "cases": 9,
+   "mismatches": 0,
+   "pending": 9,
+   "outcomes": {
+    "bvsnerr.0": {
+     "ref": [
+      "ret",
+      "R=0"
+     ],
+     "cand": [
+      "pending",
+      ""
+     ]
+    },
+    "bvsnerr.1": {
+     "ref": [
+      "ret",
+      "R=3"
+     ],
+     "cand": [
+      "pending",
+      ""
+     ]
+    },
+    "bvsnerr.2": {
+     "ref": [
+      "ret",
+      "R=5"
+     ],
+     "cand": [
+      "pending",
+      ""
+     ]
+    },
+    "bvsnerr.3": {
+     "ref": [
+      "ret",
+      "R=3"
+     ],
+     "cand": [
+      "pending",
+      ""
+     ]
+    },
+    "bvsnerr.4": {
+     "ref": [
+      "ret",
+      "R=3"
+     ],
+     "cand": [
+      "pending",
+      ""
+     ]
+    },
+    "bvsnerr.5": {
+     "ref": [
+      "ret",
+      "R=3"
+     ],
+     "cand": [
+      "pending",
+      ""
+     ]
+    },
+    "bvsnerr.6": {
+     "ref": [
+      "ret",
+      "R=3"
+     ],
+     "cand": [
+      "pending",
+      ""
+     ]
+    },
+    "bvsnerr.7": {
+     "ref": [
+      "fault",
+      "EXC=C0000005"
+     ],
+     "cand": [
+      "pending",
+      ""
+     ]
+    },
+    "bvsnerr.8": {
+     "ref": [
+      "fault",
+      "EXC=C0000005"
+     ],
+     "cand": [
+      "pending",
+      ""
+     ]
+    }
+   }
+  },
+  "bvsnwerr": {
+   "cases": 9,
+   "mismatches": 4,
+   "pending": 0,
+   "outcomes": {
+    "bvsnwerr.0": {
+     "ref": [
+      "ret",
+      "R=0"
+     ],
+     "cand": [
+      "ret",
+      "R=0"
+     ]
+    },
+    "bvsnwerr.1": {
+     "ref": [
+      "ret",
+      "R=3"
+     ],
+     "cand": [
+      "ret",
+      "R=-1"
+     ]
+    },
+    "bvsnwerr.2": {
+     "ref": [
+      "ret",
+      "R=5"
+     ],
+     "cand": [
+      "ret",
+      "R=-1"
+     ]
+    },
+    "bvsnwerr.3": {
+     "ref": [
+      "fault",
+      "EXC=C0000005"
+     ],
+     "cand": [
+      "fault",
+      "process exit 0xC0000005"
+     ]
+    },
+    "bvsnwerr.4": {
+     "ref": [
+      "fault",
+      "EXC=C0000005"
+     ],
+     "cand": [
+      "fault",
+      "process exit 0xC0000005"
+     ]
+    },
+    "bvsnwerr.5": {
+     "ref": [
+      "ret",
+      "R=3"
+     ],
+     "cand": [
+      "ret",
+      "R=-1"
+     ]
+    },
+    "bvsnwerr.6": {
+     "ref": [
+      "ret",
+      "R=3"
+     ],
+     "cand": [
+      "ret",
+      "R=-1"
+     ]
+    },
+    "bvsnwerr.7": {
+     "ref": [
+      "fault",
+      "EXC=C0000005"
+     ],
+     "cand": [
+      "fault",
+      "process exit 0xC0000005"
+     ]
+    },
+    "bvsnwerr.8": {
+     "ref": [
+      "fault",
+      "EXC=C0000005"
+     ],
+     "cand": [
+      "fault",
+      "process exit 0xC0000005"
+     ]
+    }
+   }
   }
  },
- "total_mismatches": 0,
+ "total_mismatches": 4,
+ "pending": 1796,
  "reference_faults": [],
- "mismatch_examples": {},
+ "mismatch_examples": {
+  "bvsnwerr": [
+   {
+    "id": "bvsnwerr.1",
+    "case": "E bvsnwerr.1 _vsnwprintf null 0x0 006100620063",
+    "ref": [
+     "ret",
+     "R=3"
+    ],
+    "cand": [
+     "ret",
+     "R=-1"
+    ]
+   },
+   {
+    "id": "bvsnwerr.2",
+    "case": "E bvsnwerr.2 _vsnwprintf null 0x0 00250064 i00003039",
+    "ref": [
+     "ret",
+     "R=5"
+    ],
+    "cand": [
+     "ret",
+     "R=-1"
+    ]
+   },
+   {
+    "id": "bvsnwerr.5",
+    "case": "E bvsnwerr.5 _vsnwprintf null 0x7FFFFFFF 006100620063",
+    "ref": [
+     "ret",
+     "R=3"
+    ],
+    "cand": [
+     "ret",
+     "R=-1"
+    ]
+   },
+   {
+    "id": "bvsnwerr.6",
+    "case": "E bvsnwerr.6 _vsnwprintf null 0xFFFFFFFF 006100620063",
+    "ref": [
+     "ret",
+     "R=3"
+    ],
+    "cand": [
+     "ret",
+     "R=-1"
+    ]
+   }
+  ]
+ },
+ "exclusions": {
+  "_snwprintf": "not imported by UCC.exe, Core.dll, Engine.dll, GlmLib.dll or Editor.dll",
+  "vsprintf, swprintf": "unbounded variants imported by Engine.dll/GlmLib.dll; no runtime adapter; outside the bounded-printf target (sprintf itself is covered by the A lines)",
+  "outputs of 16384 characters or more": "B lines: SKIP (the measuring call has a 16384-character capacity)",
+  "F2 (ACP 932 command-line splitting)": "separate test experiments/xrt/tests/f2_mbcs_argv, open, not part of this formatter result"
+ },
+ "extended_run": {
+  "command": "compare.py --i10 60000 --seed 7",
+  "commit": "bfb8118ccda84e40d0768f3349ba1d1d9352164e",
+  "cases": 315662,
+  "total_mismatches": 4,
+  "pending": 1796,
+  "note": "includes the narrow sprintf (A) and bounded (B, K, E) cases; the 4 mismatches are the _vsnwprintf NULL-destination cases of the default run (E lines do not depend on the seed)"
+ },
  "extended_run_wide_only": {
   "command": "compare.py --i10 60000 --seed 7",
   "cases": 281898,
@@ -264,6 +868,11 @@
     "mismatches": 0
    }
   }
+ },
+ "narrow_sprintf": {
+  "cases_default": 31175,
+  "skipped_both_sides_65536_or_more": 389,
+  "found_and_fixed": "narrow-string conversions (%s, %hs) with a negative precision other than -1 (e.g. %.*5s with * = -1): msvcr70's narrow _output prints the whole string (while (i-- && *p)); xrt_output printed nothing (17 cases) until the fix in xrt_fmt.c the same day"
  },
  "before_fix": {
   "adapters": "runtime/xrt_fmt.c and runtime/hle_msvcr70.c at commit edb955c, same corpus (seed 20261022)",
@@ -336,16 +945,5 @@
     "mismatches": 398
    }
   }
- },
- "extended_run": {
-  "command": "compare.py --i10 60000 --seed 7",
-  "cases": 312985,
-  "total_mismatches": 0,
-  "note": "includes the narrow sprintf ('A') cases"
- },
- "narrow_sprintf": {
-  "cases_default": 31175,
-  "skipped_both_sides_65536_or_more": 389,
-  "found_and_fixed": "narrow-string conversions (%s, %hs) with a negative precision other than -1 (e.g. %.*5s with * = -1): msvcr70's narrow _output prints the whole string (while (i-- && *p)); xrt_output printed nothing (17 cases) until the fix in xrt_fmt.c the same day"
  }
 }

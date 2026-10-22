@@ -43,13 +43,23 @@ uint32_t xrt_call_guest(CPU* c, uint32_t va, int nargs, const uint32_t* args, in
     xrt_fatal(c, 70, "xrt_call_guest(%08x) in the test harness", va);
 }
 XRT_NORETURN void xrt_process_exit(CPU* c, uint32_t code) { xrt_fatal(c, 70, "xrt_process_exit(%u) in the test harness", code); }
-void xrt_fldcw(CPU* c, uint16_t cw) { c->fcw = cw; }
+/* the runtime's xrt_fldcw enforces the modelled control word; no adapter under test should reach it */
+void xrt_fldcw(CPU* c, uint16_t cw) { xrt_fatal(c, 70, "xrt_fldcw(%04x) reached in the test harness", cw); }
 void hle_msvcr70_init(void);
 
 /* ---------------------------------------------------------------- adapter calls */
 static XrtThread thr;
-static XrtFn fns[F_COUNT], f_wprintf, f_sprintf;
+static XrtFn fns[F_COUNT], f_wprintf, f_sprintf, bfns[BF_COUNT];
 static unsigned long direct_mismatches;
+
+/* NULL when the runtime registers no adapter under that export name (the import stays unbound and fatal) */
+static XrtFn lookup_opt(const char* name) {
+    const XrtHle* h;
+    for (h = xrt_hle_msvcr70; h->name; h++)
+        if (!strcmp(h->name, name) && h->fn)
+            return h->fn;
+    return NULL;
+}
 
 static XrtFn lookup(const char* name) {
     const XrtHle* h;
@@ -117,6 +127,24 @@ static uint32_t call_sprintf(Ptr buf, Ptr fmt, const uint32_t* block, uint32_t* 
     return call_adapter(f_sprintf, a, BLOCKW + 2);
 }
 
+static int bounded_available(int bf) { return bfns[bf] != NULL; }
+
+/* _snprintf through its adapter: buffer, count, format, then the varargs (at esp+16); the va_list functions get
+ * buffer, count, format and a pointer to the argument block */
+static uint32_t call_bounded(int bf, Ptr buf, uint32_t count, Ptr fmt, Ptr va, const uint32_t* block, uint32_t* exc) {
+    uint32_t a[BLOCKW + 3];
+    (void)exc;
+    a[0] = buf;
+    a[1] = count;
+    a[2] = fmt;
+    if (bf == BF_SNPRINTF) {
+        memcpy(a + 3, block, BLOCKW * 4);
+        return call_adapter(bfns[bf], a, BLOCKW + 3);
+    }
+    a[3] = va;
+    return call_adapter(bfns[bf], a, 4);
+}
+
 /* length probe: the runtime's narrow formatter over a sink that refuses the character after `limit`, which
  * the CRT's charsout rule turns into -1, as the real _vsnprintf's full string stream does */
 typedef struct Count { uint32_t n, limit; } Count;
@@ -156,6 +184,10 @@ int main(int argc, char** argv) {
         fns[i] = lookup(fn_names[i]);
     f_wprintf = lookup("wprintf");
     f_sprintf = lookup("sprintf");
+    for (i = 0; i < BF_COUNT; i++) {
+        bfns[i] = lookup_opt(bf_names[i]);
+        fprintf(stderr, "bounded %s: %s\n", bf_names[i], bfns[i] ? "adapter" : "no adapter (PENDING)");
+    }
     run_corpus(argv[1], argv[2]);
     xrt_stdout_flush();
     fprintf(stderr, "direct xrt_wformat vs adapter mismatches: %lu\n", direct_mismatches);

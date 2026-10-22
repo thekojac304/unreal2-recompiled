@@ -27,7 +27,8 @@ uint32_t xrt_call_guest(CPU* c, uint32_t va, int nargs, const uint32_t* args, in
     xrt_fatal(c, 70, "xrt_call_guest(%08x) in the test harness", va);
 }
 XRT_NORETURN void xrt_process_exit(CPU* c, uint32_t code) { xrt_fatal(c, 70, "xrt_process_exit(%u)", code); }
-void xrt_fldcw(CPU* c, uint16_t cw) { c->fcw = cw; }
+/* the runtime's xrt_fldcw enforces the modelled control word; no adapter under test should reach it */
+void xrt_fldcw(CPU* c, uint16_t cw) { xrt_fatal(c, 70, "xrt_fldcw(%04x) reached in the test harness", cw); }
 void hle_msvcr70_init(void);
 
 static XrtThread thr;

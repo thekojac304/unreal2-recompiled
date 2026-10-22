@@ -17,11 +17,13 @@ typedef uint32_t(__cdecl* Fn4)(uint32_t, uint32_t, uint32_t, uint32_t);
 typedef struct Block { uint32_t w[BLOCKW]; } Block;
 typedef int(__cdecl* WprintfFn)(const wchar_t*, Block);
 typedef int(__cdecl* SprintfFn)(char*, const char*, Block);
+typedef int(__cdecl* SnprintfFn)(char*, uint32_t, const char*, Block);
 typedef int(__cdecl* FflushFn)(void*);
 
 static FARPROC fns[F_COUNT];
 static WprintfFn p_wprintf;
 static SprintfFn p_sprintf;
+static SnprintfFn p_snprintf;
 static Fn4 p_vsnprintf;
 static FflushFn p_fflush;
 static uint8_t* p_iob;
@@ -75,6 +77,28 @@ static int probe_too_long(Ptr fmt, Ptr va, uint32_t limit, uint32_t* exc) {
     return r < 0 || (uint32_t)r >= limit;
 }
 
+static int bounded_available(int bf) {
+    (void)bf;
+    return 1;
+}
+
+/* _snprintf gets the argument block by value (so its varargs follow the format on the stack); the va_list
+ * functions get a pointer to the block */
+static uint32_t call_bounded(int bf, Ptr buf, uint32_t count, Ptr fmt, Ptr va, const uint32_t* block, uint32_t* exc) {
+    Block b;
+    uint32_t r = 0;
+    memcpy(b.w, block, sizeof b.w);
+    __try {
+        if (bf == BF_SNPRINTF)
+            r = (uint32_t)p_snprintf((char*)H(buf), count, (const char*)H(fmt), b);
+        else
+            r = (bf == BF_VSNPRINTF ? p_vsnprintf : (Fn4)fns[F_VSNWPRINTF])(buf, count, fmt, va);
+    } __except (EXCEPTION_EXECUTE_HANDLER) {
+        *exc = GetExceptionCode();
+    }
+    return r;
+}
+
 static void flush_stdout(void) { p_fflush(p_iob + 32); }   /* &_iob[1]: msvcr70 FILE is 32 bytes */
 
 int main(int argc, char** argv) {
@@ -100,7 +124,8 @@ int main(int argc, char** argv) {
     p_iob = (uint8_t*)GetProcAddress(m, "_iob");
     p_sprintf = (SprintfFn)GetProcAddress(m, "sprintf");
     p_vsnprintf = (Fn4)GetProcAddress(m, "_vsnprintf");
-    if (!p_wprintf || !p_fflush || !p_iob || !p_sprintf || !p_vsnprintf)
+    p_snprintf = (SnprintfFn)GetProcAddress(m, "_snprintf");
+    if (!p_wprintf || !p_fflush || !p_iob || !p_sprintf || !p_vsnprintf || !p_snprintf)
         return 2;
     mem = VirtualAlloc(NULL, 64u << 20, MEM_RESERVE | MEM_COMMIT, PAGE_READWRITE);
     if (!mem)
