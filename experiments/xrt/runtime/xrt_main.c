@@ -19,6 +19,9 @@
 
 extern const XrtLiftedModule xrt_mod_UCC, xrt_mod_Core, xrt_mod_Engine, xrt_mod_GlmLib, xrt_mod_Editor, xrt_mod_Window,
     xrt_mod_UnrImp, xrt_mod_Fire;
+#ifdef XRT_WITH_UNREAL2
+extern const XrtLiftedModule xrt_mod_Unreal2, xrt_mod_WinDrv, xrt_mod_D3DDrv;
+#endif
 void hle_msvcr70_init(void);
 
 /* Every translated module linked into this host. UCC.exe and Core.dll are mapped at start (Core is UCC's static
@@ -30,7 +33,11 @@ void hle_msvcr70_init(void);
  * Editor.u imports the Fire package, whose native classes are in Fire.dll. The original placed these two differently
  * from run to run; this host uses the bases of one observed run, UnrImp.gpi 0x036d0000 and Fire.dll 0x03710000. */
 static const XrtLiftedModule* const lifted_all[] = {&xrt_mod_UCC, &xrt_mod_Core, &xrt_mod_Engine, &xrt_mod_GlmLib,
-                                                    &xrt_mod_Editor, &xrt_mod_Window, &xrt_mod_UnrImp, &xrt_mod_Fire};
+                                                    &xrt_mod_Editor, &xrt_mod_Window, &xrt_mod_UnrImp, &xrt_mod_Fire
+#ifdef XRT_WITH_UNREAL2
+                                                    , &xrt_mod_Unreal2, &xrt_mod_WinDrv, &xrt_mod_D3DDrv
+#endif
+};
 #define NLIFTED ((int)(sizeof lifted_all / sizeof lifted_all[0]))
 static XrtModule* init_order[16];   /* DLLs whose DLL_PROCESS_ATTACH completed, in that order */
 static int ninit;
@@ -38,10 +45,12 @@ static char app_dir[520];           /* directory of the guest EXE: where the loa
 
 char xrt_sandbox_root[520];
 uint32_t xrt_cmdline_a;
+uint32_t xrt_cmdline_w;
 const char* xrt_report_path;
 static const char* run_id = "";
 static volatile long report_written;
 static char guest_cmdline[4096];
+static WCHAR guest_cmdline_w[4096];
 static volatile long process_exiting;
 static uint32_t timeout_ms;
 static int quote_exe;               /* --quote-exe: quote the guest exe path as uctrace does */
@@ -100,7 +109,7 @@ void xrt_report_write(uint32_t exit_code, const char* outcome) {
         char d[512];
         xrt_describe(d, sizeof d, t->start_va);
         fprintf(f, "%s\n  {\"index\": %d, \"guest_tid\": %u, \"entry\": ", i ? "," : "", t->index, t->guest_tid);
-        json_str(f, t->index ? d : "main (UCC.exe entry point)");
+        json_str(f, t->index ? d : "main executable entry point");
         fprintf(f, ", \"state\": \"%s\", \"exit_code\": %u, \"exit_via\": \"%s\", \"sleeps\": %llu, \"contended_cs\": %llu, "
                    "\"preemptions\": %llu, \"functions_entered\": %u, \"x87_cw\": \"0x%04x\"}",
                 t->state == 2 ? "exited" : t->state == 1 ? "running" : "created", t->exit_code,
@@ -180,7 +189,7 @@ static void map_tree(CPU* c, const char* host_path, const XrtLiftedModule* l, Xr
     XrtModule* m = xrt_module_load(host_path, l);
     uint8_t* hdr = (uint8_t*)G2H(m->base);
     uint32_t pe = *(uint32_t*)(hdr + 0x3C), dir = *(uint32_t*)(hdr + pe + 24 + 104), d;
-    xrt_event("dll_mapped", "\"module\": \"%s\", \"base\": \"0x%08x\", \"preferred_base\": \"0x%08x\"", m->name, m->base,
+    xrt_event(m->is_dll ? "dll_mapped" : "exe_mapped", "\"module\": \"%s\", \"base\": \"0x%08x\", \"preferred_base\": \"0x%08x\"", m->name, m->base,
               m->preferred_base);
     for (d = dir ? m->base + dir : 0; d && rd32(d + 12); d += 20) {
         const char* dll = (const char*)G2H(m->base + rd32(d + 12));
@@ -395,7 +404,9 @@ int main(int argc, char** argv) {
     const wchar_t* rest;
     char rest_a[3000] = "";
     int i;
-    XrtModule *ucc, *core;
+    XrtModule *ucc, *core, *startup[8];
+    int nstartup = 0;
+    const XrtLiftedModule* executable;
     XrtThread* t;
     CPU* c;
     uint32_t rc;
@@ -444,7 +455,12 @@ int main(int argc, char** argv) {
         WideCharToMultiByte(CP_ACP, 0, rest, -1, rest_a, sizeof rest_a, NULL, NULL);
     {
         char exe[600];
+        WCHAR exe_w[600];
         snprintf(exe, sizeof exe, "%s", guest_cmdline);
+        MultiByteToWideChar(CP_ACP, 0, exe, -1, exe_w, 600);
+        _snwprintf(guest_cmdline_w, 4095, quote_exe || strchr(exe, ' ') || strchr(exe, '\t') ? L"\"%ls\"%ls%ls" : L"%ls%ls%ls",
+                   exe_w, rest && *rest ? L" " : L"", rest ? rest : L"");
+        guest_cmdline_w[4095] = 0;
         if (quote_exe || strchr(exe, ' ') || strchr(exe, '\t'))
             snprintf(guest_cmdline, sizeof guest_cmdline, "\"%s\"%s%s", exe, rest_a[0] ? " " : "", rest_a);
         else
@@ -459,25 +475,42 @@ int main(int argc, char** argv) {
     xrt_log("run id: %s", run_id);
     xrt_log("guest command line: %s", guest_cmdline);
     xrt_log("sandbox root: %s", xrt_sandbox_root);
+    executable = xrt_lifted_find(file_part(guest));
+    if (!executable || (strcmp(executable->name, "UCC.exe") && strcmp(executable->name, "Unreal2.exe")))
+        xrt_fatal(NULL, XRT_EXIT_SETUP, "guest executable has no linked translation: %s", guest);
     {
         char exe_full[600];
-        snprintf(exe_full, sizeof exe_full, "%s\\UCC.exe", dir);
-        ucc = xrt_module_load(exe_full, &xrt_mod_UCC);
+        snprintf(exe_full, sizeof exe_full, "%s\\%s", dir, executable->name);
+        if (executable == &xrt_mod_UCC) {
+            ucc = xrt_module_load(exe_full, executable);
+            core = xrt_module_load(core_path, &xrt_mod_Core);
+            xrt_module_bind_imports(core);
+            xrt_module_bind_imports(ucc);
+            startup[nstartup++] = core;
+        } else {
+            map_tree(NULL, exe_full, executable, startup, &nstartup);
+            ucc = startup[nstartup - 1];
+            for (i = 0; i < nstartup; i++) {
+                startup[i]->load_count = -1;
+                xrt_module_bind_imports(startup[i]);
+            }
+        }
     }
-    core = xrt_module_load(core_path, &xrt_mod_Core);
-    xrt_module_bind_imports(core);
-    xrt_module_bind_imports(ucc);
     xrt_watches_arm();
     xrt_cmdline_a = xrt_guest_strdup_a(guest_cmdline);
+    xrt_cmdline_w = xrt_rt_alloc((uint32_t)(2 * (wcslen(guest_cmdline_w) + 1)), 2);
+    memcpy(G2H(xrt_cmdline_w), guest_cmdline_w, 2 * (wcslen(guest_cmdline_w) + 1));
     hle_msvcr70_init();
     t = xrt_thread_main(xrt_default_stack_reserve);
     xrt_baton_acquire();
     c = &t->cpu;
-    dll_attach(c, core, 1);                       /* reserved non-NULL: static load, as for an import-time DLL */
+    for (i = 0; i < nstartup; i++)
+        if (startup[i]->is_dll)
+            dll_attach(c, startup[i], 1);        /* reserved non-NULL: static load */
     xrt_log("entering %s entry point %08x", ucc->name, ucc->entry);
     xrt_event("exe_entry", "\"module\": \"%s\"", ucc->name);
     rc = xrt_call_guest(c, ucc->entry, 0, NULL, 1);
-    xrt_log("UCC.exe entry point returned %u", rc);
+    xrt_log("%s entry point returned %u", ucc->name, rc);
     xrt_event("exe_entry_returned", "\"result\": %u", rc);
     xrt_process_exit(c, rc);
 }

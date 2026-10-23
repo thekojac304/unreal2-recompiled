@@ -1,0 +1,74 @@
+"""Validate reused checkpoint objects/headers, and bind a client build to its actual source and lift inputs."""
+import argparse
+import json
+from pathlib import Path
+import sys
+
+sys.path.insert(0, str(Path(__file__).resolve().parent))
+import run_xrt as R
+from fresh_checkpoint import hashes
+
+WS = Path(R.WS)
+
+
+def main():
+    ap = argparse.ArgumentParser(description=__doc__)
+    ap.add_argument("--base", type=Path, required=True)
+    ap.add_argument("--out", type=Path, required=True)
+    ap.add_argument("--record", action="store_true")
+    a = ap.parse_args()
+    base, out = a.base.resolve(), a.out.resolve()
+    base.relative_to(WS / "experiments/xrt/build")
+    out.relative_to(WS / "experiments/xrt/build")
+    checkpoint = json.loads((base / "identity.json").read_text())
+    if checkpoint.get("result") != "PASS":
+        raise RuntimeError("base is not a successful full checkpoint")
+    for path, digest in checkpoint["generated_after"].items():
+        if R.sha256_file(WS / "experiments/xrt/gen" / path) != digest:
+            raise RuntimeError(f"baseline generated input changed: {path}")
+    if R.sha256_file(WS / "experiments/xrt/runtime/xrt.h") != checkpoint["sources"]["experiments/xrt/runtime"]["xrt.h"]:
+        raise RuntimeError("generated-code runtime header changed: a full rebuild is required")
+    for path, digest in checkpoint["build_outputs"].items():
+        if path.startswith("gen/") and R.sha256_file(base / "obj" / path) != digest:
+            raise RuntimeError(f"baseline generated object changed: {path}")
+    expected_objects = {p[4:]:h for p,h in checkpoint["build_outputs"].items() if p.startswith("gen/")}
+    if hashes(base / "obj/gen") != expected_objects:
+        raise RuntimeError("unexpected/missing baseline objects; wildcard linking refused")
+    lifts = []
+    for stem, name, expected_base in [("unreal2", "Unreal2.exe", "0x10900000"),
+                                      ("windrv", "WinDrv.dll", "0x11100000"),
+                                      ("d3ddrv", "D3DDrv.dll", "0x6960000")]:
+        meta = json.loads((WS / "experiments/xrt/gen" / stem / (name.split('.')[0] + "_meta.json")).read_text())
+        if int(meta["base"],16) != int(expected_base,16) or meta["sha256"] != R.sha256_file(WS / "sandbox_cmp/level/System" / name):
+            raise RuntimeError(f"client lift/input/base mismatch: {name}")
+        expected = set(meta["files"]) | {name.split('.')[0] + "_meta.json"}
+        if set(hashes(WS / "experiments/xrt/gen" / stem)) != expected:
+            raise RuntimeError(f"unexpected/missing generated client files: {name}")
+        lifts.append(meta)
+    identity = {"git": R.git_identity(), "base_identity": R.file_identity(str(base / "identity.json")),
+                "baseline_binary": checkpoint["binary_sha256"], "runtime": R.tree_digest(str(WS / "experiments/xrt/runtime")),
+                "generated": R.tree_digest(str(WS / "experiments/xrt/gen")), "lifter": R.file_identity(str(WS / "tools/xrt/xlift.py")),
+                "client_lifts": lifts, "build_script": R.file_identity(str(WS / "experiments/xrt/build_client.cmd")),
+                "identity_driver": R.file_identity(str(Path(__file__).resolve()))}
+    out.mkdir(parents=True, exist_ok=True)
+    if a.record:
+        plan = json.loads((out / "client-plan.json").read_text())
+        if any(plan[k] != identity[k] for k in ["runtime", "generated", "lifter", "base_identity", "build_script", "identity_driver"]):
+            raise RuntimeError("source/lifts/base changed during client build")
+        client_sources = [p for stem in ["unreal2","windrv","d3ddrv"] for p in (WS / "experiments/xrt/gen" / stem).glob("*.c")]
+        runtime_sources = list((WS / "experiments/xrt/runtime").glob("*.c"))
+        for folder, sources in [("client",client_sources),("rt",runtime_sources)]:
+            if {p.name for p in (out / "obj" / folder).glob("*.obj")} != {p.stem+".obj" for p in sources}:
+                raise RuntimeError(f"unexpected/missing {folder} objects; wildcard linking refused")
+        identity["binary"] = R.file_identity(str(out / "xrt_ucc.exe"))
+        identity["objects"] = hashes(out / "obj")
+        dest = out / "client-identity.json"
+    else:
+        dest = out / "client-plan.json"
+    dest.write_text(json.dumps(identity, indent=2))
+    print(dest)
+    return 0
+
+
+if __name__ == "__main__":
+    sys.exit(main())

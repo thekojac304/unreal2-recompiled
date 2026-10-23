@@ -80,7 +80,20 @@ int xrt_path_is_inside_sandbox(const uint16_t* p) {
 }
 #endif
 
+#if defined(STUB_CRTDEPS) || defined(STUB_K32DEPS)
+int xrt_lifted_overlap(uint32_t a, uint32_t size, uint32_t* end) {
+    (void)end;
+    xrt_fatal(NULL, XRT_EXIT_UNSUPPORTED, "test harness: xrt_lifted_overlap(%08x, %u) reached", a, size);
+}
+#endif
+
 #ifdef STUB_K32EXTRA
+uint32_t xrt_virtual_alloc(CPU* c, uint32_t size) {
+    xrt_fatal(c, XRT_EXIT_UNSUPPORTED, "test harness: xrt_virtual_alloc(%u) reached", size);
+}
+int xrt_virtual_free(CPU* c, uint32_t base) {
+    xrt_fatal(c, XRT_EXIT_UNSUPPORTED, "test harness: xrt_virtual_free(%08x) reached", base);
+}
 uint32_t xrt_guest_strdup_a(const char* s) {
     (void)s;
     xrt_fatal(NULL, XRT_EXIT_UNSUPPORTED, "test harness: xrt_guest_strdup_a reached");

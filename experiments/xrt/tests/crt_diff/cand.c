@@ -27,7 +27,7 @@ static void flush_stdout(void) { xrt_stdout_flush(); }
 
 /* ---------------------------------------------------------------- stubs for the rest of the runtime */
 __declspec(thread) XrtThread* xrt_cur;
-uint32_t xrt_cmdline_a;
+uint32_t xrt_cmdline_a, xrt_cmdline_w;
 void xrt_log(const char* fmt, ...) { (void)fmt; }
 void xrt_event(const char* kind, const char* fmt, ...) { (void)kind; (void)fmt; }
 XRT_NORETURN void xrt_fatal(CPU* c, int code, const char* fmt, ...) {
@@ -41,9 +41,12 @@ XRT_NORETURN void xrt_fatal(CPU* c, int code, const char* fmt, ...) {
     fputc('\n', stderr);
     exit(code);
 }
-/* the adapters' data exports: hle_msvcr70_init asks for "_iob" only (20 FILEs of 32 bytes) */
+/* Exact data exports requested by startup; unrecognized dependencies stay fatal. */
 static Ptr iob_va;
 uint32_t xrt_hle_data(const char* dll, const char* name) {
+    static Ptr acmdln_va;
+    if (!_stricmp(dll, "msvcr70.dll") && !strcmp(name, "_acmdln"))
+        return acmdln_va ? acmdln_va : (acmdln_va = xrt_rt_alloc(4, 4));
     if (strcmp(name, "_iob"))
         xrt_fatal(NULL, 70, "xrt_hle_data(%s, %s) in the test harness", dll, name);
     return iob_va = xrt_rt_alloc(20 * 32, 16);

@@ -18,7 +18,7 @@ static void* H(Ptr p) { return G2H(p); }
 /* ---------------------------------------------------------------- stubs for the rest of the runtime */
 __declspec(thread) XrtThread* xrt_cur;
 char xrt_sandbox_root[520];
-uint32_t xrt_cmdline_a;
+uint32_t xrt_cmdline_a, xrt_cmdline_w;
 void xrt_log(const char* fmt, ...) { (void)fmt; }
 XRT_NORETURN void xrt_fatal(CPU* c, int code, const char* fmt, ...) {
     va_list ap;
@@ -31,7 +31,13 @@ XRT_NORETURN void xrt_fatal(CPU* c, int code, const char* fmt, ...) {
     fputc('\n', stderr);
     exit(code);
 }
-uint32_t xrt_hle_data(const char* dll, const char* name) { (void)dll; (void)name; return xrt_rt_alloc(20 * 32, 16); }
+uint32_t xrt_hle_data(const char* dll, const char* name) {
+    static uint32_t streams, command_line;
+    if (_stricmp(dll, "msvcr70.dll")) xrt_fatal(NULL, 76, "unexpected data DLL: %s", dll);
+    if (!strcmp(name, "_iob")) return streams ? streams : (streams = xrt_rt_alloc(20 * 32, 16));
+    if (!strcmp(name, "_acmdln")) return command_line ? command_line : (command_line = xrt_rt_alloc(4, 4));
+    xrt_fatal(NULL, 76, "unexpected CRT data import: %s", name);
+}
 XRT_NORETURN void xrt_process_exit(CPU* c, uint32_t code) { xrt_fatal(c, 70, "xrt_process_exit(%u) in the test harness", code); }
 void xrt_fldcw(CPU* c, uint16_t cw) { xrt_fatal(c, 70, "test harness: unexpected xrt_fldcw(%04x)", cw); }
 void hle_msvcr70_init(void);

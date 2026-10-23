@@ -28,7 +28,7 @@
 #include <string.h>
 #include <windows.h>
 
-#define MAX_MODS 64
+#define MAX_MODS 128
 #define MAX_BP (1 << 18)
 #define IMPORT_CAP 20000
 
@@ -57,7 +57,7 @@ static int order_counter;
 #define MAX_EVENTS 200000
 typedef struct { char mod[64]; DWORD rva; char label[96]; } EvPoint;
 static EvPoint* evp; static int nevp;
-typedef struct { int seq; int thread; int point; DWORD esp, top, eax, ebp; int exc; } EvRec;   /* exc: index into exs or -1 */
+typedef struct { int seq; int thread; int point; DWORD esp, top, eax, ebp, ecx, edx, esi, edi, args[12]; WCHAR text0[256]; int exc; } EvRec;
 static EvRec* evlog; static int nevlog, evdropped, ev_seq;
 #define MAX_SITES 65536
 static char site_names[8][64]; static int nsite_names;
@@ -72,6 +72,15 @@ static void site_count(int imp, DWORD ret, DWORD ret2) {
     if (nsites < MAX_SITES) { sites[nsites].imp = imp; sites[nsites].ret = ret; sites[nsites].ret2 = ret2; sites[nsites].count = 1; nsites++; }
 }
 static int loader_done;   /* set at the loader's initial breakpoint: later DLL loads are dynamic */
+static DWORD time_limit_ms;
+static ULONGLONG started;
+static const char* stop_label;
+static unsigned stop_after = 1, stop_hits;
+static const char* termination_reason = "natural";
+#define MAX_CALL_RECORDS 2048
+typedef struct { int imp, thread, seq; DWORD ret, args[8]; char a[3][512]; WCHAR w[3][512]; } CallRec;
+static CallRec* call_records;
+static int ncalls, calls_dropped;
 
 static HANDLE thread_handle(DWORD tid) {
     for (int i = 0; i < nthreads; i++) if (threads[i].tid == tid) return threads[i].h;
@@ -148,7 +157,7 @@ static int mod_of(DWORD a) {
 }
 
 static void add_module(DWORD base, const char* path, int dynamic) {
-    if (nmods >= MAX_MODS) return;
+    if (nmods >= MAX_MODS) { fprintf(stderr, "uctrace: module capacity exceeded\n"); exit(5); }
     Mod* m = &mods[nmods];
     memset(m, 0, sizeof *m);
     strncpy(m->path, path, MAX_PATH - 1);
@@ -202,7 +211,16 @@ static void log_event(int point, int exc, int thread, const CONTEXT* ctx) {
     EvRec* r = &evlog[nevlog++];
     r->seq = seq; r->thread = thread; r->point = point; r->exc = exc;
     r->esp = ctx->Esp; r->eax = ctx->Eax; r->ebp = ctx->Ebp; r->top = 0;
+    r->ecx = ctx->Ecx; r->edx = ctx->Edx; r->esi = ctx->Esi; r->edi = ctx->Edi;
+    memset(r->args, 0, sizeof r->args);
+    rd(ctx->Esp + 4, r->args, sizeof r->args);
+    memset(r->text0, 0, sizeof r->text0);
+    if (point >= 0) rd(r->args[0], r->text0, sizeof r->text0 - sizeof(WCHAR));
     rd(ctx->Esp, &r->top, 4);
+    if (point >= 0 && stop_label && !strcmp(evp[point].label, stop_label) && ++stop_hits == stop_after) {
+        termination_reason = "event_limit";
+        if (!TerminateProcess(hProc, 0xE0000001u)) { fprintf(stderr, "uctrace: controlled stop failed\n"); exit(5); }
+    }
 }
 
 /* Resolve the bound IAT of an instrumented module and set persistent breakpoints on its targets. */
@@ -294,6 +312,10 @@ static CfRec cfs[256]; static int ncfs;
 int main(int argc, char** argv) {
     if (argc < 5) { fprintf(stderr, "usage: uctrace <entries-dir> <out.json> <stdout-file> <exe> [args...]\n"); return 2; }
     strncpy(entries_dir, argv[1], MAX_PATH - 1);
+    if (getenv("UCTRACE_TIMEOUT_MS")) time_limit_ms = strtoul(getenv("UCTRACE_TIMEOUT_MS"), NULL, 10);
+    stop_label = getenv("UCTRACE_STOP_LABEL");
+    if (getenv("UCTRACE_STOP_AFTER")) stop_after = strtoul(getenv("UCTRACE_STOP_AFTER"), NULL, 10);
+    if ((getenv("UCTRACE_TIMEOUT_MS") && !time_limit_ms) || !stop_after) return 2;
     if (getenv("UCTRACE_EVENTS")) load_event_points(getenv("UCTRACE_EVENTS"));
     {
         const char* env = getenv("UCTRACE_SITES");
@@ -307,6 +329,7 @@ int main(int argc, char** argv) {
         }
     }
     bps = malloc(MAX_BP * sizeof(BP));
+    if (nsite_names) call_records = calloc(MAX_CALL_RECORDS, sizeof(CallRec));
     bpmap = malloc(bpmap_size * sizeof(int));
     memset(bpmap, 0xFF, bpmap_size * sizeof(int));
     /* debuggee command line: the exe (quoted only when it contains blanks, as subprocess.list2cmdline and
@@ -330,8 +353,17 @@ int main(int argc, char** argv) {
         fprintf(stderr, "CreateProcess failed %lu\n", GetLastError()); return 1;
     }
     DWORD exit_code = 0; int done = 0;
+    started = GetTickCount64();
     DEBUG_EVENT ev;
-    while (!done && WaitForDebugEvent(&ev, INFINITE)) {
+    while (!done) {
+        if (time_limit_ms && GetTickCount64() - started >= time_limit_ms && !strcmp(termination_reason, "natural")) {
+            termination_reason = "time_limit";
+            if (!TerminateProcess(pi.hProcess, 0xE0000002u)) { fprintf(stderr, "uctrace: timeout termination failed\n"); return 5; }
+        }
+        if (!WaitForDebugEvent(&ev, time_limit_ms ? 100 : INFINITE)) {
+            if (GetLastError() == ERROR_SEM_TIMEOUT) continue;
+            break;
+        }
         DWORD cont = DBG_CONTINUE;
         switch (ev.dwDebugEventCode) {
         case CREATE_PROCESS_DEBUG_EVENT: {
@@ -397,6 +429,15 @@ int main(int argc, char** argv) {
                             DWORD ret2 = 0;
                             if (site_extra_off >= 0) rd(ctx.Esp + (DWORD)site_extra_off, &ret2, 4);
                             site_count(b->imp, ret, ret2);
+                            if (ncalls < MAX_CALL_RECORDS) {
+                                CallRec* r = &call_records[ncalls++];
+                                r->imp = b->imp; r->thread = thread_index(ev.dwThreadId); r->seq = ++ev_seq; r->ret = ret;
+                                rd(ctx.Esp + 4, r->args, sizeof r->args);
+                                for (int k = 0; k < 3; k++) {
+                                    rd(r->args[k], r->a[k], sizeof r->a[k] - 1);
+                                    rd(r->args[k], r->w[k], sizeof r->w[k] - sizeof(WCHAR));
+                                }
+                            } else calls_dropped++;
                         }
                         char where[160]; snprintf(where, sizeof where, "%s from %s", im->name, mods[cm].name);
                         note_cw(th, where);
@@ -475,6 +516,8 @@ int main(int argc, char** argv) {
     fprintf(jout, "{\n \"run_id\": "); json_str(jout, getenv("UCTRACE_RUN_ID") ? getenv("UCTRACE_RUN_ID") : "");
     fprintf(jout, ",\n \"complete\": %s", done ? "true" : "false");
     fprintf(jout, ",\n \"debuggee_terminated\": %s", terminated ? "true" : "false");
+    fprintf(jout, ",\n \"termination_reason\": \"%s\", \"time_limit_ms\": %lu, \"stop_hits\": %u",
+            termination_reason, time_limit_ms, stop_hits);
     fprintf(jout, ",\n \"command\": "); json_wstr(jout, wcmd);
     fprintf(jout, ",\n \"exit_code\": %lu,\n \"threads\": %d,\n \"modules\": [\n", exit_code, nthreads);
     for (int i = 0; i < nmods; i++) {
@@ -503,6 +546,19 @@ int main(int argc, char** argv) {
         json_str(jout, imps[sites[i].imp].name);
         fprintf(jout, ", \"return_address\": \"0x%08lx\", \"extra\": \"0x%08lx\", \"count\": %d}", sites[i].ret, sites[i].ret2, sites[i].count);
     }
+    fprintf(jout, "\n ],\n \"calls_dropped\": %d, \"selected_calls\": [", calls_dropped);
+    for (int i = 0; i < ncalls; i++) {
+        CallRec* r = &call_records[i];
+        fprintf(jout, "%s\n {\"seq\": %d, \"thread\": %d, \"import\": ", i ? "," : "", r->seq, r->thread);
+        json_str(jout, imps[r->imp].name);
+        fprintf(jout, ", \"return_address\": \"0x%08lx\", \"args\": [", r->ret);
+        for (int k = 0; k < 8; k++) fprintf(jout, "%s\"%08lx\"", k ? "," : "", r->args[k]);
+        fputs("], \"diagnostic_ansi\": [", jout);
+        for (int k = 0; k < 3; k++) { if (k) fputc(',', jout); json_str(jout, r->a[k]); }
+        fputs("], \"diagnostic_wide\": [", jout);
+        for (int k = 0; k < 3; k++) { if (k) fputc(',', jout); json_wstr(jout, r->w[k]); }
+        fputs("]}", jout);
+    }
     fprintf(jout, "\n ],\n \"exceptions\": [");
     for (int i = 0; i < nexs; i++) {
         fprintf(jout, "%s\n  {\"code\": \"0x%08lx\", \"addr\": \"0x%08lx\", \"caller\": \"0x%08lx\", \"module\": \"%s\", \"type\": ", i ? "," : "",
@@ -527,8 +583,13 @@ int main(int argc, char** argv) {
             fprintf(jout, "\"kind\": \"exception\", \"index\": %d, \"code\": \"0x%08lx\", \"caller\": \"0x%08lx\"",
                     r->exc, exs[r->exc].code, exs[r->exc].ret);
         }
-        fprintf(jout, ", \"esp\": \"0x%08lx\", \"stack_top\": \"0x%08lx\", \"eax\": \"0x%08lx\", \"ebp\": \"0x%08lx\"}",
-                r->esp, r->top, r->eax, r->ebp);
+        fprintf(jout, ", \"esp\": \"0x%08lx\", \"stack_top\": \"0x%08lx\", \"eax\": \"0x%08lx\", \"ebp\": \"0x%08lx\", "
+                "\"ecx\": \"0x%08lx\", \"edx\": \"0x%08lx\", \"esi\": \"0x%08lx\", \"edi\": \"0x%08lx\", \"stack_args\": [",
+                r->esp, r->top, r->eax, r->ebp, r->ecx, r->edx, r->esi, r->edi);
+        for (int k = 0; k < 12; k++) fprintf(jout, "%s\"%08lx\"", k ? "," : "", r->args[k]);
+        fputs("], \"diagnostic_arg0_wide\": ", jout);
+        json_wstr(jout, r->text0);
+        fputs("}", jout);
     }
     fprintf(jout, "\n ],\n \"x87_control_words_seen\": [");
     for (int i = 0; i < ncws; i++) { fprintf(jout, "%s{\"cw\": \"0x%04x\", \"first_seen_at\": ", i ? ", " : "", cws[i]); json_str(jout, cw_where[i]); fprintf(jout, "}"); }

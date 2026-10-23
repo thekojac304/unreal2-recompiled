@@ -68,6 +68,8 @@ void hle_msvcr70_init(void) {
     fmode_var = xrt_rt_alloc(4, 4);
     commode_var = xrt_rt_alloc(4, 4);
     initenv_var = xrt_rt_alloc(4, 4);
+    /* The GUI CRT startup reads the imported char* itself, rather than calling GetCommandLineA. */
+    wr32(xrt_hle_data("msvcr70.dll", "_acmdln"), xrt_cmdline_a);
     _setmode(_fileno(stdout), _O_BINARY);   /* text-mode translation is done above, exactly once */
 }
 
@@ -1792,5 +1794,6 @@ const XrtHle xrt_hle_msvcr70[] = {
     {"msvcr70.dll", "_CxxThrowException", xrt_eh_throw},
     {"msvcr70.dll", "_iob", NULL, 20 * 32},
     {"msvcr70.dll", "_adjust_fdiv", NULL, 4},
+    {"msvcr70.dll", "_acmdln", NULL, 4},
     {0},
 };

@@ -109,7 +109,7 @@ static XrtThread* new_thread(uint32_t reserve) {
     xrt_commit(t->stack_lo, reserve);
     if (!peb) {
         peb = xrt_rt_alloc(0x1000, 0x1000);
-        wr32(peb + 0x08, 0x00400000u);  /* ImageBaseAddress */
+        wr32(peb + 0x08, xrt_module_get(0)->base);  /* ImageBaseAddress of the actual mapped executable */
     }
     teb = xrt_rt_alloc(0x1000, 0x1000);
     wr32(teb + 0x00, 0xFFFFFFFFu);     /* ExceptionList: end of the SEH chain */

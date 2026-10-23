@@ -10,7 +10,7 @@
 uint8_t* xrt_g;
 volatile long xrt_exiting;
 char xrt_sandbox_root[520];
-uint32_t xrt_cmdline_a;
+uint32_t xrt_cmdline_a, xrt_cmdline_w;
 
 jmp_buf f3_fatal_jmp;
 int f3_fatal_armed;

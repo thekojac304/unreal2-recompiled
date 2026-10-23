@@ -92,6 +92,54 @@ uint32_t xrt_guest_strlen16(uint32_t p) {
     return n;
 }
 
+/* FMallocWindows in the real client owns VirtualAlloc blocks separately from the CRT heap. Keep real
+ * reserve/commit/release bookkeeping, 64 KiB allocation alignment, page rounding and zero-on-recommit.
+ * This bounded pool sits between the platform DLLs and CRT heap; exhaustion is explicitly unsupported.
+ * Only NULL-address, read/write reserve+commit and whole-block release are currently exposed by the HLE. */
+typedef struct { uint32_t base, reserved, committed; int live; } VirtualBlock;
+static VirtualBlock virtual_blocks[4096];
+static uint32_t virtual_next = 0x12000000u;
+static int nvirtual;
+static SRWLOCK virtual_lock = SRWLOCK_INIT;
+uint32_t xrt_virtual_alloc(CPU* c, uint32_t size) {
+    uint64_t reserve = ((uint64_t)size + 0xFFFFu) & ~0xFFFFull;
+    uint32_t commit = (size + 0xFFFu) & ~0xFFFu;
+    int i;
+    VirtualBlock* b = NULL;
+    AcquireSRWLockExclusive(&virtual_lock);
+    for (i = 0; i < nvirtual; i++)
+        if (!virtual_blocks[i].live && virtual_blocks[i].reserved == reserve) { b = &virtual_blocks[i]; break; }
+    if (!b) {
+        uint32_t end;
+        if (!size || reserve > 0x0E000000u || nvirtual == 4096 || virtual_next + reserve > XRT_HEAP_BASE ||
+            xrt_lifted_overlap(virtual_next, (uint32_t)reserve, &end)) {
+            ReleaseSRWLockExclusive(&virtual_lock);
+            xrt_fatal(c, XRT_EXIT_UNSUPPORTED, "VirtualAlloc: bounded client pool exhausted or overlaps a lifted module (size %u)", size);
+        }
+        b = &virtual_blocks[nvirtual++];
+        b->base = virtual_next; b->reserved = (uint32_t)reserve;
+        virtual_next += (uint32_t)reserve;
+    }
+    xrt_commit(b->base, commit);
+    b->committed = commit; b->live = 1;
+    i = b->base;
+    ReleaseSRWLockExclusive(&virtual_lock);
+    return (uint32_t)i;
+}
+int xrt_virtual_free(CPU* c, uint32_t base) {
+    int i;
+    (void)c;
+    AcquireSRWLockExclusive(&virtual_lock);
+    for (i = 0; i < nvirtual; i++) if (virtual_blocks[i].live && virtual_blocks[i].base == base) {
+        xrt_decommit(base, virtual_blocks[i].committed);
+        virtual_blocks[i].live = 0;
+        ReleaseSRWLockExclusive(&virtual_lock);
+        return 1;
+    }
+    ReleaseSRWLockExclusive(&virtual_lock);
+    return 0;
+}
+
 /* ---------------------------------------------------------------- guest heap
  * Block = 16-byte header {size, cap, magic, 0} + payload (16-byte aligned).
  * Small payloads (cap <= 4096, multiples of 16) use per-class free lists; larger ones are page-rounded

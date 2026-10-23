@@ -9,6 +9,7 @@ rem outputs are deleted first and checked afterwards, so a failed compile or lin
 setlocal
 cd /d "%~dp0"
 set OUT=..\..\build\crt_diff
+if not "%XRT_CRT_BUILD_DIR%"=="" set OUT=%XRT_CRT_BUILD_DIR%
 set VCVARS="C:\Program Files\Microsoft Visual Studio\18\Community\VC\Auxiliary\Build\vcvarsall.bat"
 set R=..\..\runtime
 if "%1"=="x86" (

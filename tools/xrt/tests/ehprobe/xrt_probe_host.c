@@ -13,7 +13,7 @@ void hle_msvcr70_init(void);
 
 /* the process-level pieces xrt_main.c provides for UCC.exe */
 char xrt_sandbox_root[520];
-uint32_t xrt_cmdline_a;
+uint32_t xrt_cmdline_a, xrt_cmdline_w;
 const char* xrt_report_path;
 static volatile long report_written;
 

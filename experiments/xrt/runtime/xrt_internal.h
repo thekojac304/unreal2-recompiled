@@ -53,6 +53,8 @@ void xrt_heap_free(CPU* c, uint32_t p);
 uint32_t xrt_heap_realloc(CPU* c, uint32_t p, uint32_t size);
 uint32_t xrt_heap_msize(CPU* c, uint32_t p);
 void xrt_heap_stats(uint64_t* allocs, uint64_t* frees, uint64_t* bytes_live, uint32_t* high_water);
+uint32_t xrt_virtual_alloc(CPU* c, uint32_t size);
+int xrt_virtual_free(CPU* c, uint32_t base);
 uint32_t xrt_guest_strdup_a(const char* s);                  /* into the runtime region */
 uint32_t xrt_guest_strlen16(uint32_t p);
 
@@ -170,6 +172,7 @@ void xrt_handle_free(uint32_t h);
 /* process */
 extern char xrt_sandbox_root[520];         /* writes are only permitted below this directory */
 extern uint32_t xrt_cmdline_a;             /* guest ANSI command line */
+extern uint32_t xrt_cmdline_w;             /* guest Unicode command line, preserving raw host argument text */
 extern const char* xrt_report_path;
 void xrt_report_write(uint32_t exit_code, const char* outcome);
 const char* xrt_export_name_at(uint32_t va);   /* exact export at va, or NULL */

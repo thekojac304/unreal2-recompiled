@@ -12,6 +12,10 @@ Paths demonstrated: Core commandlets, VMProbe through Engine.dll/GlmLib.dll (gat
 (`ucc make`, Editor.dll): fresh project-owned sources compiled into a package that loads and runs in both the original
 and the translated engine (see CURRENT_STATUS.md, "Compiler milestone").
 
+The real Unreal2.exe client is now also translated, with WinDrv/D3DDrv lifts linked for its observed native path.
+**Level loading has not passed.** The original fails GetDeviceCaps(HAL) before LoadMap; the candidate stops at the
+splash bitmap's USER32!GetDC. See CURRENT_STATUS.md, "Bounded level experiment", for exact evidence and scope.
+
 ## Layout
 
 | Path | What |
@@ -46,6 +50,9 @@ and the translated engine (see CURRENT_STATUS.md, "Compiler milestone").
   `Editor.dll` at 0x02de0000, `GlmLib.dll` at 0x02f40000, `UnrImp.gpi` at 0x036d0000, `Fire.dll` at 0x03710000 (all
   rebased, see below), `Core.dll` at 0x10100000, `Engine.dll` at 0x10300000, `Window.dll` at 0x11000000, heap
   0x20000000-0x7FF00000, and at 0x7FF00000 the module handle the guest gets for kernel32.dll (never committed).
+  The optional client host also links Unreal2.exe at 0x10900000, WinDrv.dll at 0x11100000, and D3DDrv.dll rebased
+  to 0x06960000; the executable selected by --guest is mapped, never UCC in its place. Client VirtualAlloc blocks
+  occupy a separate bounded 0x12000000-0x20000000 pool with reserve/commit/release bookkeeping.
 - **Modules and the loader.** Each translated module is lifted for one base. Where the preferred base is taken the
   original loader rebases the DLL, to an address that varies between runs (`ucc make` traces: Editor.dll
   0x02de0000/0x028e0000, GlmLib.dll 0x02f40000/0x02e60000, UnrImp.gpi 0x01100000/0x036d0000, Fire.dll
@@ -141,10 +148,46 @@ None of this is a proof for other inputs; "exact" is only claimed for the IEEE b
   `IsProcessorFeaturePresent` follows the CPUID policy (SIMD features absent), answers the FDIV-erratum query from
   the host and is fatal for other features; code-page and locale services are the host's on the same arguments.
   `CoCreateGuid` returns a host GUID, recorded as an evidence event (package GUIDs are random in the original too).
-- Imports not on the measured paths are unbound and fatal when called (USER32, GDI32, SHELL32, the rest of ole32,
+- Imports not on the measured paths are unbound and fatal when called (USER32 except the launcher's FindWindowExA
+  absent-window query and RegisterWindowMessageW; GDI32, SHELL32, the rest of ole32,
   d3d8, DINPUT, WS2_32, dbghelp, vorbisfile, ...); the translated DLLs keep them as genuine imports, nothing is
   substituted.
 
 ## Build and run
 
 See [CURRENT_STATUS.md](../../CURRENT_STATUS.md#working-commands-from-the-workspace-root).
+
+### Real client experiment (currently blocked)
+
+`tools/xrt/fresh_checkpoint.py --system sandbox/System` verifies the declared eight-module generation and builds
+all its generated/runtime TUs in a new directory. Keep that accepted directory unchanged. After
+`tools/xrt/level_probe.py prepare` stages the one shared isolated content tree, generate the new client modules:
+
+```bat
+.venv\Scripts\python -I tools\xrt\xlift.py sandbox_cmp\level\System\Unreal2.exe --out experiments\xrt\gen\unreal2
+.venv\Scripts\python -I tools\xrt\xlift.py sandbox_cmp\level\System\WinDrv.dll --out experiments\xrt\gen\windrv
+.venv\Scripts\python -I tools\xrt\xlift.py sandbox_cmp\level\System\D3DDrv.dll --out experiments\xrt\gen\d3ddrv --base 0x06960000
+set XRT_BASE_BUILD=E:\Unreal2-Port-Investigation\experiments\xrt\build\fresh-20261023-015722-b7ee8987
+set XRT_CLIENT_BUILD=E:\Unreal2-Port-Investigation\experiments\xrt\build\client-bounded-level
+experiments\xrt\build_client.cmd
+```
+
+Use a new client build directory for a new experiment. `client_identity.py` verifies the unchanged base objects,
+generated-code header, new input hashes/bases and object membership, and records current sources and binary.
+`XRT_BINARY` selects this binary for run_xrt/compile_xrt/level_probe without replacing the accepted UCC build.
+
+`level_probe.py reference --minimal --timeout-ms 45000` runs the real client with milestone-only breakpoints;
+omit `--minimal` for the slower function/import census. Candidate uses `level_probe.py candidate --timeout-ms 45000`.
+These commands report process status, never gameplay PASS. Raw commands, source/input identities, writes and
+reports stay in results/raw/level. `level_summary.py` writes a structured conservative blocker comparison; a map
+open or Tick entry cannot pass world/tick completion. The original error observer stops before a modal crash UI;
+the debugger records the stop and EXIT_PROCESS. Time-limit fallback is separately labelled.
+
+Tracer controls: `UCTRACE_TIMEOUT_MS`, `UCTRACE_STOP_LABEL` and `UCTRACE_STOP_AFTER` bound execution; termination
+reason/exit/completeness are explicit. `UCTRACE_SITES` also captures bounded diagnostic argument snapshots
+(`calls_dropped` is reported). Strings at arbitrary arguments are best-effort diagnostics, not typed world state.
+
+`tests/client_startup/build.cmd` runs the focused startup/memory regressions and builds the read-only x86 graphics
+diagnostic. Run `experiments\xrt\build\client_startup\x86\graphics_boundary.exe` separately: it currently returns 1
+because GetDeviceCaps(HAL) fails on both adapters. It creates no window/device/frame. CURRENT_STATUS.md records the
+bounded result and smallest next frame experiment. No artificial headless engine or successful graphics stub exists.

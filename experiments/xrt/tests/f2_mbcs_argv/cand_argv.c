@@ -14,14 +14,20 @@
 #define RET_SENTINEL 0x0BADC0DEu
 
 __declspec(thread) XrtThread* xrt_cur;
-uint32_t xrt_cmdline_a;
+uint32_t xrt_cmdline_a, xrt_cmdline_w;
 void xrt_log(const char* fmt, ...) { (void)fmt; }
 XRT_NORETURN void xrt_fatal(CPU* c, int code, const char* fmt, ...) {
     (void)c;
     fprintf(stderr, "xrt_fatal (%d): %s\n", code, fmt);
     exit(code);
 }
-uint32_t xrt_hle_data(const char* dll, const char* name) { (void)dll; (void)name; return xrt_rt_alloc(20 * 32, 16); }
+uint32_t xrt_hle_data(const char* dll, const char* name) {
+    static uint32_t streams, command_line;
+    if (_stricmp(dll, "msvcr70.dll")) xrt_fatal(NULL, 76, "unexpected data DLL: %s", dll);
+    if (!strcmp(name, "_iob")) return streams ? streams : (streams = xrt_rt_alloc(20 * 32, 16));
+    if (!strcmp(name, "_acmdln")) return command_line ? command_line : (command_line = xrt_rt_alloc(4, 4));
+    xrt_fatal(NULL, 76, "unexpected CRT data import: %s", name);
+}
 uint32_t xrt_call_guest(CPU* c, uint32_t va, int nargs, const uint32_t* args, int stdcall) {
     (void)nargs; (void)args; (void)stdcall;
     xrt_fatal(c, 70, "xrt_call_guest(%08x) in the test harness", va);

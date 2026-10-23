@@ -1,6 +1,9 @@
-# Current status: X1 translated runtime, including Editor.dll / ucc make on Windows x64
+# Current status: compiler reproducible; real client startup blocked before level loading
 
-Updated 2026-10-22 (US Eastern), compiler recovery and acceptance gates. Details and limitations:
+Updated 2026-10-22 (US Eastern), fresh build and bounded single-player client investigation.
+**No shipped level or world tick has passed in the translation.** The original client reaches L0 but fails a
+Direct3D8 HAL capability query before LoadMap; the translation stops earlier at the splash bitmap's GetDC call.
+The compiler milestone remains passing. Details and limitations:
 [experiments/xrt/README.md](experiments/xrt/README.md). Component differential tests:
 [experiments/xrt/tests/README.md](experiments/xrt/tests/README.md).
 
@@ -349,16 +352,161 @@ Engine.dll: 16,449 functions, 3521 static traps, 2326 EH frames; GlmLib.dll (`--
 functions, 1758 static traps, 1137 EH frames, 31,885 relocation fixups at load; all EH funclets/continuations are
 translated entries. msvcr70 `_CIpow` SSE2 core: 644 instructions translated.
 
+## Bounded level experiment (2026-10-22 US Eastern)
+
+**Result: BLOCKED BEFORE LEVEL LOAD, not gameplay PASS.** No renderer, artificial headless engine, replacement
+VM/Golem implementation, server route, editor expansion or Android work was added.
+
+### Target and commands
+
+Selected **CS_Intro.un2** (2,101,877 bytes): it is the shipped `[URL] LocalMap`, exercises the real single-player
+client route, and has fewer direct package dependencies than TutA. Entry.un2 is only the bootstrap map and was
+not substituted for the single-player startup. Actual execution reaches the client/renderer prerequisite before
+any selected-map load, so choosing a still smaller map would not resolve this observed startup failure.
+
+One shared isolated tree, `sandbox_cmp/level`, contains System, CS_Intro/Entry and transitive package dependencies,
+plus external Golem/music/UI/dialogue resources. Save and Cache are new empty directories; no save/junction was
+copied. Every invocation restores the original sandbox configs and 64-byte Golem.u header. The exclusive `level`
+lock covers restoration, execution and evidence capture. Original installs are read only.
+
+The exact original guest command (cwd `E:\Unreal2-Port-Investigation\sandbox_cmp\level\System`) is:
+
+```text
+E:\Unreal2-Port-Investigation\sandbox_cmp\level\System\Unreal2.exe CS_Intro.un2 -windowed -nosound -NOMMX -NOSSE
+```
+
+`windowed` and `NOSOUND` were verified at their ParseParam call sites in WinDrv/Engine; scalar CPU flags reuse the
+measured commandlet policy. Sound is disabled on this route; full single-player initialization is **not** claimed.
+No server-only result or invented headless switch is used.
+
+Reproduce with fresh, exclusively created results (PowerShell from workspace root):
+
+```powershell
+# prepare only once; refuses to replace an existing content tree
+.venv\Scripts\python -I tools\xrt\level_probe.py prepare
+.venv\Scripts\python -I tools\xrt\level_probe.py reference --minimal --timeout-ms 45000
+$env:XRT_BINARY = 'E:\Unreal2-Port-Investigation\experiments\xrt\build\client-bounded-level\xrt_ucc.exe'
+.venv\Scripts\python -I tools\xrt\level_probe.py candidate --timeout-ms 45000
+```
+
+The translated command expands to that binary with `--guest` set to the exact Unreal2.exe above, `--log`,
+`--report` and `--run-id` set to the new invocation, `--timeout-ms 45000 --`, then exactly the five arguments above.
+The complete literal process commands, cwd, tracer environment, source/build/input hashes and written files are
+in each run's `meta.json`. Reference runs `20261023-024013-2736dab1-reference` and
+`20261023-024018-fbe40e8e-reference`, candidate runs `20261023-023958-719a52ca-candidate` and
+`20261023-024006-994893a0-candidate`, are under `experiments/xrt/results/raw/level/`.
+`bounded-summary-final.json` there retains the structured comparison and exact differences.
+
+### Observable milestones and actual evidence
+
+| State | Required evidence (same criteria on both sides) | Original | Translated |
+|---|---|---|---|
+| L0 | Enter UGameEngine::Init (Engine+8f460), real client path | reached, then UWindowsClient::Init (WinDrv+17c0) | not reached; real EXE/CRT/WinMain runs |
+| L1 | Successful selected-map/dependency opens through LoadMap/GetPackageLinker | not reached; UGameEngine::LoadMap (Engine+90f00) never entered | not reached |
+| L2 | Successful world LoadMap return and actor/game lifecycle initialization, including InitGame and Pre/Begin/PostBeginPlay | not reached | not reached |
+| L3 | One ULevel::Tick (Engine+b5be0) completes and returns, for that initialized world | not entered | not entered |
+| L4 | A short sequence of completed world ticks | not reached | not reached |
+| L5 | Documented controlled termination with matching process/evidence status | captured fatal-boundary event, then debugger TerminateProcess, exit E0000001 | explicit unsupported-import diagnostic/report, TerminateProcess, exit 75 |
+
+ULevel::PostLoad, AGameInfo::eventInitGame, actor lifecycle events, ULevel::SpawnPlayActor, UGameEngine::Tick and
+ULevel::Tick entry observers are specified in `level_probe.py`. L2-L4 completion/state observers remain to be
+implemented once startup can reach them; entry marks, object construction and map existence cannot establish
+those milestones. The summarizer leaves later reached-but-unmeasured states unverified and refuses to classify
+an advanced run with this blocker profile. There is no actor-count/transform/property/animation comparison or
+world-state digest yet: **no selected-map world exists at the observed boundaries**.
+
+Original blocker: Direct3DCreate8(120) returns non-NULL, GetAdapterCount returns 2, but
+**IDirect3D8::GetDeviceCaps(adapter 0, HAL=1) returns 0x8876086a (D3DERR_NOTAVAILABLE)**. The call is at
+D3DDrv+dab4, return observer +dab7. The original then enters the launcher error Serialize observer
+(Unreal2+2ee0) with the Direct3D-acceleration diagnostic, before LoadMap. A separate project-owned native x86
+probe, `tests/client_startup/graphics_boundary.c`, reproduces the same failure for adapters 0 and 1 without
+debugging or creating a window/device. Milestone-only tracing reproduces the full-census trace's failure, so this
+is not inferred solely from the old session log or from a heavily instrumented run. No CreateDevice/frame reached.
+
+Translated blocker: **USER32!GetDC**, Window.dll+20e21, inside exported LoadFileToBitmap (entry +20dd0), reached
+from the launcher's splash load. Full registers, stack/history, module/call target and report are preserved in
+both candidate runs. A DC/GDI bitmap/window/callback bridge is required; it is not replaced by a dummy handle.
+The native probe can obtain a desktop DC, distinguishing the missing adapter from the original HAL failure.
+
+### Translation changes, build identity and verification
+
+The existing host now selects the requested linked EXE instead of silently mapping UCC. For Unreal2 it maps and
+initializes the real static dependency tree. New lifts: Unreal2.exe (905 functions, preferred 10900000),
+WinDrv.dll (417, preferred 11100000), D3DDrv.dll (898, rebased to the observed 06960000). These are linked into the
+client host; WinDrv/D3D are **not mapped/executed by the current candidate**, which stops at the earlier splash.
+Unsupported instructions/imports remain fatal. No newly encountered DLL was required to pass all its functions.
+
+Fixed from successive real client failures: GetModuleHandleA(NULL), GetModuleFileNameA(NULL) and PEB image base
+used an inappropriate hardcoded 00400000 (the shipped client is 10900000); GUI CRT startup requires the _acmdln
+data export; GetCommandLineW needs the raw Unicode argument text; the launcher performs a real absent-window
+query; client FMallocWindows uses VirtualAlloc/VirtualFree rather than the commandlet's allocator.
+The supported virtual-memory boundary is NULL-address read/write reserve+commit and whole-block release, with
+64 KiB alignment, page rounding, decommit and zero-on-recommit, in a bounded 12000000-20000000 pool. Other modes
+and pool exhaustion fail explicitly. Existing-window interprocess handling and GUI callbacks are unsupported.
+Focused native/adapter regressions cover image handles/PEB, command-line data, missing-window last-error state,
+allocation alignment, zeroing, release and reallocation. Test-only new dependencies fail if unexpectedly called.
+
+Final client binary: `experiments/xrt/build/client-bounded-level/xrt_ucc.exe`, SHA-256
+`2585178204ff48dbd6053c70119a8a763adb7e65990be7d8c18df4328add0e23`;
+runtime digest `8c1def15cd354198228f91293ad7c803c6a3737b313906ad790c193e0597f976`, generated digest
+`f55de267cf78767e1319bb427a294d2840a915d40e8827aa84d21597eb625f49` (215 files).
+`client-identity.json` binds the build to the identified full-checkpoint objects, current generated-code header,
+new module inputs/bases, current runtime, generator and build driver. All new client/runtime TUs were compiled
+in an isolated build directory; the unchanged eight-module generated objects are SHA-checked before reuse.
+The source was `de9a7f4` plus the exact project-owned file hashes in `validation/source-manifest.json`, with the
+runtime unchanged throughout acceptance. No Git reset or lost later work.
+
+All three new modules' C/headers regenerate byte for byte. D3D metadata has a serialization-only variation in
+`discovery.seed_kinds` key order (`given`/`call`) under different Python hash seeds; JSON values, code, marks,
+relocations and traps are identical. Both metadata forms and their exact diff are retained in
+`validation/metadata-order-evidence.json`; no executable-code discrepancy was found or hidden.
+
+Final-binary acceptance: **9/9** Core/exception/VM cases (`20261023-023843-109900c6`),
+traced VMProbe **PASS** (`20261023-024006-c3f5a11c`), compiler **PASS**
+(`20261023-024054-934a7e50`: 12 successful compiles, 4 expected failures, 12 executions). Exact commands and binary
+hash are in `validation/acceptance.json`. Python tests **141 OK, 17 conditional tests skipped**; no exhaustive
+numerical corpus was rerun. Focused startup/memory regressions passed.
+
+### Repeatability, CRT priorities and preservation
+
+Final original repeats have **identical input hashes** and no boundary-state differences. The structured summary
+retains actual module-base differences (GlmLib/D3D rebasing) and differing D3D interface pointers; its digest
+summarizes that visible boundary record, not a world-state comparison. Each native start re-saves Golem.u with a
+different GUID: only bytes [36,52) differ from the restored 64-byte input. Candidate repeats differ in whether
+the FFileStream worker reached Core+5a520 before the fatal stop, visible in reports. Clock/seed were uncontrolled;
+no deterministic-world or exact multi-tick claim is made and no float tolerance/property omission was introduced.
+
+Full original dependency census `20261023-022702-1a656e3c-reference` observed GlmLib's realloc 11,130, _fullpath 2,
+_findfirst 170, _findnext 1,037, _findclose 162, fopen/fclose 227 each and fread 10,925 calls (uncapped), plus launcher
+FindFirstFileW/FindNextFileW. Native modules actually executing before failure: Unreal2, Core, Window, Engine,
+GlmLib, WinDrv and D3DDrv. U2/Legend/UI/ParticleSystems were not reached; audio/network initialization and actor
+animation are not established. Heap/file/FILE-layout/enumeration/error-state work is relevant before world loading;
+in particular fread is still unbound, and the existing fopen FILE-field differences are not excused. Census counts
+are discovery evidence, not assertions about deterministic scheduling or proof that realloc(NULL,0) was used.
+
+The expanded CRT baseline is still **110 mismatches, 1,796 pending**; fresh isolated reproductions of realloc(NULL,0),
+_fullpath, find-first, enumeration and fopen/fclose still differ, with exact ref/candidate outputs in
+`validation/crt-*.txt`. They remain failures. Fresh ACP 932 check still reports **six differences**, exit 1.
+No expectations were changed or failures suppressed. Broad formatter/numerical completeness was not pursued.
+
+The first exploratory reference `20261023-021132-edfbd62a-reference` is explicitly INVALIDATED: a candidate config
+restore was attempted before that reference stopped. No candidate executable launched in the conflicting attempt.
+Later runs use the exclusive lock and a regression proving a locked invocation cannot restore inputs. Earlier
+census runs before Golem-header restoration are used for dependency discovery, not controlled-input comparisons.
+Original-install integrity after all runs: **4757 files, zero differences**, Save junction metadata unchanged;
+before/after snapshots are local under results/raw. No original binary/asset, generated translation or private
+runtime evidence is committed.
+
 ## Next concrete task
 
-Stop editor/toolchain expansion. Trace the original headless level-load path first, selecting the smallest shipped
-level with the fewest native dependencies. Reuse the loader, translator and sandbox runner to reach
-UGameEngine::Init/LoadMap, asserting the level package opened and actor construction/initialization completed.
-Translate only native modules reached by that trace and implement the first reproducible missing import, keeping
-render/audio/network paths explicit if they are not exercised. Then drive a fixed number of ticks with a fixed
-clock and random seed, compare actor counts/transforms and a world-state digest against the original, and repeat
-for determinism. A first real frame follows only after level initialization and headless simulation are measured.
-No gameplay or graphics expansion was started during this recovery.
+Smallest native first-frame prerequisite: extend the existing x86 graphics-boundary probe in the isolated copy
+until GetDeviceCaps(HAL) succeeds, then create one small **windowed** device and present one frame. Determine the
+required D3D8 compatibility/platform boundary from that measured result; do not assume that changing adapter index,
+setting a seed or choosing another map solves the HAL failure. Both observed adapters currently fail the native probe.
+The translated path separately needs a real DC/GDI bitmap and window/callback boundary, beginning at the preserved
+GetDC failing case. Do not fabricate success or build a separate headless engine. Resume LoadMap/actor initialization
+and one completed world tick after those prerequisites; add completion/state observers before attempting 60 ticks.
+This bounded phase stops here, without renderer expansion or an asserted gameplay milestone.
 
 ## Deliberate limitations
 

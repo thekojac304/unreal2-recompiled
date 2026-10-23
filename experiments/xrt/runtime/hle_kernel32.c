@@ -339,6 +339,11 @@ static void hle_FindClose(CPU* c) {
 
 /* ---------------------------------------------------------------- process and modules */
 static void hle_GetCommandLineA(CPU* c) { RET_STD(0, xrt_cmdline_a); }
+static void hle_GetCommandLineW(CPU* c) {
+    if (!xrt_cmdline_w)
+        xrt_fatal(c, XRT_EXIT_SETUP, "GetCommandLineW: guest command line was not initialized");
+    RET_STD(0, xrt_cmdline_w);
+}
 static void hle_GetCurrentProcess(CPU* c) { RET_STD(0, 0xFFFFFFFFu); }
 static void hle_GetLastError(CPU* c) { RET_STD(0, xrt_get_last_error(c)); }
 
@@ -350,14 +355,15 @@ static int is_kernel32(const char* name) {
     return !_stricmp(b, "kernel32") || !_stricmp(b, "kernel32.dll");
 }
 
-/* GetModuleHandleA: NULL is UCC.exe; a translated module its base; kernel32.dll (which every process has) the
+/* GetModuleHandleA: NULL is the mapped executable; a translated module its base; kernel32.dll the
  * runtime's handle for it (XRT_KERNEL32_HANDLE: GetProcAddress on it resolves to host adapters; the system DLL's
  * image is not mapped). Any other name is not loaded in this process: NULL, ERROR_MOD_NOT_FOUND. */
 static void hle_GetModuleHandleA(CPU* c) {
     uint32_t n = ARG(0);
     XrtModule* m;
     if (!n) {
-        RET_STD(1, xrt_module_get(0) ? 0x00400000u : 0);
+        m = xrt_module_get(0);
+        RET_STD(1, m ? m->base : 0);
         return;
     }
     if (is_kernel32((const char*)G2H(n))) {
@@ -375,7 +381,7 @@ static void hle_GetModuleHandleA(CPU* c) {
 static XrtModule* module_of_handle(uint32_t h) {
     int i;
     if (!h)
-        h = 0x00400000u;
+        return xrt_module_get(0);
     for (i = 0; i < xrt_module_count(); i++)
         if (xrt_module_get(i)->base == h)
             return xrt_module_get(i);
@@ -1117,7 +1123,28 @@ static void hle_LCMapStringW(CPU* c) {
     RET_STD(6, (uint32_t)r);
 }
 
+static void hle_VirtualAlloc(CPU* c) {
+    uint32_t size = ARG(1), type = ARG(2), p;
+    if (ARG(0) || (type != MEM_COMMIT && type != (MEM_RESERVE | MEM_COMMIT)) || ARG(3) != PAGE_READWRITE)
+        xrt_fatal(c, XRT_EXIT_UNSUPPORTED, "VirtualAlloc: only NULL-address read/write reserve+commit is supported");
+    if (!size) { xrt_set_last_error(c, ERROR_INVALID_PARAMETER); RET_STD(4, 0); return; }
+    p = xrt_virtual_alloc(c, size);
+    xrt_event("virtual_alloc", "\"base\": \"0x%08x\", \"size\": %u, \"type\": %u", p, size, type);
+    RET_STD(4, p);
+}
+static void hle_VirtualFree(CPU* c) {
+    uint32_t p = ARG(0);
+    int ok;
+    if (ARG(1) || ARG(2) != MEM_RELEASE)
+        xrt_fatal(c, XRT_EXIT_UNSUPPORTED, "VirtualFree: only whole-block MEM_RELEASE is supported");
+    ok = xrt_virtual_free(c, p);
+    if (!ok) xrt_set_last_error(c, ERROR_INVALID_ADDRESS);
+    xrt_event("virtual_free", "\"base\": \"0x%08x\", \"ok\": %s", p, ok ? "true" : "false");
+    RET_STD(3, ok);
+}
 const XrtHle xrt_hle_kernel32[] = {
+    {"kernel32.dll", "VirtualAlloc", hle_VirtualAlloc},
+    {"kernel32.dll", "VirtualFree", hle_VirtualFree},
     {"kernel32.dll", "CreateFileW", hle_CreateFileW},
     {"kernel32.dll", "CreateFileA", hle_CreateFileA},
     {"kernel32.dll", "ReadFile", hle_ReadFile},
@@ -1134,6 +1161,7 @@ const XrtHle xrt_hle_kernel32[] = {
     {"kernel32.dll", "FindNextFileW", hle_FindNextFileW},
     {"kernel32.dll", "FindClose", hle_FindClose},
     {"kernel32.dll", "GetCommandLineA", hle_GetCommandLineA},
+    {"kernel32.dll", "GetCommandLineW", hle_GetCommandLineW},
     {"kernel32.dll", "GetCurrentProcess", hle_GetCurrentProcess},
     {"kernel32.dll", "GetLastError", hle_GetLastError},
     {"kernel32.dll", "GetModuleHandleA", hle_GetModuleHandleA},

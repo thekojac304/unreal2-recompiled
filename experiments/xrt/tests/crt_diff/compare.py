@@ -38,7 +38,7 @@ from ctypes import wintypes
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 ROOT = os.path.normpath(os.path.join(HERE, "..", "..", "..", ".."))
-BUILD = os.path.join(ROOT, "experiments", "xrt", "build", "crt_diff")
+BUILD = os.environ.get("XRT_CRT_BUILD_DIR") or os.path.join(ROOT, "experiments", "xrt", "build", "crt_diff")
 DLL = os.path.join(ROOT, "sandbox_ref", "hellofull", "System", "msvcr70.dll")
 DLL_SANDBOX = os.path.dirname(os.path.dirname(DLL))   # cand.exe loads the same DLL's tables from <this>\System
 REPRO = os.path.join(HERE, "repro")

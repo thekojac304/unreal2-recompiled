@@ -25,6 +25,11 @@ static uint32_t last_site;
 /* ---- runtime symbols referenced by generated code, xrt_cpu.c and xrt_mem.c */
 volatile long xrt_preempt_req = 0;
 __declspec(thread) XrtThread* xrt_cur;
+int xrt_lifted_overlap(uint32_t a, uint32_t size, uint32_t* end) {
+    (void)a; (void)size; (void)end;
+    fputs("test harness: unexpected module-overlap query\n", stderr);
+    exit(XRT_EXIT_UNSUPPORTED);
+}
 void xrt_preempt(CPU* c) { (void)c; }
 void xrt_log(const char* fmt, ...) { (void)fmt; }
 XRT_NORETURN void xrt_fatal(CPU* c, int code, const char* fmt, ...) {
