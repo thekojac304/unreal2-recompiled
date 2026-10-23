@@ -223,8 +223,8 @@
         76
       ],
       "results": {
-        "path": "experiments/xrt/build/module_boundary/results.json",
-        "sha256": "bec44743c18eb028c42708904815c4c3c14f98d012cfc5b120a1b601868e28e3"
+        "path": "experiments/xrt/results/raw/level-init-handoff-validation/module-boundary-results.json",
+        "sha256": "31b099449376e30bbb8dd898dd178ff82e81970426c5b3e8047e1f05e694f40c"
       }
     },
     "gui_oracle": "PASS final runtime",
