@@ -46,9 +46,11 @@ def main():
     if step("lifted x64 run", [os.path.join(BUILD, "lifted_x64.exe"), cases, os.path.join(BUILD, "out_lifted.bin"),
                                teb]):
         return 2
-    step("compare", [PY, "-I", os.path.join(HERE, "compare.py"), "--quiet"])
+    if step("compare", [PY, "-I", os.path.join(HERE, "compare.py"), "--quiet"]):
+        return 1
     if "--mutation-check" in args:
-        step("mutation check", [PY, "-I", os.path.join(HERE, "mutation_check.py")])
+        if step("mutation check", [PY, "-I", os.path.join(HERE, "mutation_check.py")]):
+            return 1
     with open(os.path.join(HERE, "results.json"), encoding="utf-8") as f:
         s = json.load(f)["summary"]
     print(f"cases {s['cases']}, failed {s['failed_cases']} (unattributed {s['failed_cases_unattributed']})")

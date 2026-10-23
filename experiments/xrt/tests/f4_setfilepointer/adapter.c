@@ -30,7 +30,7 @@ void xrt_fatal(CPU* c, int code, const char* fmt, ...) {
     va_end(ap);
     exit(code);
 }
-static void unexpected(const char* what) {
+static XRT_NORETURN void unexpected(const char* what) {
     printf("unexpected runtime call: %s\n", what);
     exit(3);
 }

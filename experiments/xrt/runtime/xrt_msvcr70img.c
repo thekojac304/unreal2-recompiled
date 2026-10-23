@@ -1,4 +1,5 @@
-/* xrt_msvcr70img.c - msvcr70.dll functions that run as translated code instead of host adapters.
+/* xrt_msvcr70img.c - msvcr70.dll functions that run as translated code instead of host adapters, and the DLL's
+ * image as data for adapters that use its tables (_dosmaperr's error table in hle_msvcr70.c).
  *
  * msvcr70's _CIpow takes its SSE2 path in the measured configuration (SSE2 present, every x87 and SSE exception
  * masked). That path is translated from the DLL by tools/xrt/lift_sse2.py into gen/msvcr70/pow_sse2.c (git-ignored);
@@ -15,7 +16,7 @@ double xrt_msvcr70_pow_sse2(double x, double y, const uint8_t* img, uint32_t* er
 
 static uint8_t* image;
 
-static const uint8_t* msvcr70_image(void) {
+const uint8_t* xrt_msvcr70_image(void) {
     char path[600], digest[65];
     FILE* f;
     uint8_t *file, h[32];
@@ -71,7 +72,7 @@ double xrt_msvcr70_pow(CPU* c, double x, double y, uint32_t* error_type) {
     if ((c->fcw & 0x7F) != 0x7F)
         xrt_fatal(c, XRT_EXIT_UNSUPPORTED, "_CIpow with x87 control word %04x: msvcr70 would take its x87 path, which "
                   "is not translated", c->fcw);
-    r = xrt_msvcr70_pow_sse2(x, y, msvcr70_image(), error_type);
+    r = xrt_msvcr70_pow_sse2(x, y, xrt_msvcr70_image(), error_type);
     switch (*error_type) {
     case 0:
     case 0x18:

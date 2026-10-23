@@ -103,7 +103,7 @@ def synth_report(case, run_id="c1", exit_code=0):
             disposition=3, ok=True)
         if engine:
             add("dll_mapped", module="Engine.dll", base="0x10300000", preferred_base="0x10300000")
-            add("dll_mapped", module="GlmLib.dll", base="0x02df0000", preferred_base="0x10000000")
+            add("dll_mapped", module="GlmLib.dll", base="0x02f40000", preferred_base="0x10000000")
             for mod in ("GlmLib.dll", "Engine.dll"):
                 add("dll_attach", module=mod)
                 add("dll_attach_returned", module=mod, result=1)
@@ -661,6 +661,25 @@ class EngineEvidence(unittest.TestCase):
         self.assertIn("worker_termination_and_wait_completion", self.failed(v), v["failures"])
         v = self.mutated(lambda rep: [e.update(module="Engine.dll") for e in rep["events"] if e["kind"] == "dll_thread_attach"])
         self.assertIn("worker_creation_and_execution", self.failed(v), v["failures"])
+
+    def test_dll_unloaded_before_exit_is_not_expected_at_exit(self):
+        def plugin(unloaded):               # a DLL loaded and freed again before process exit (UnrImp.gpi in ucc make)
+            def f(rep):
+                ev = rep["events"]
+                i = next(k for k, e in enumerate(ev) if e["kind"] == "load_library" and e["name"] == "Engine.dll") + 1
+                new = [dict(kind="dll_attach", module="Plugin.gpi"), dict(kind="dll_attach_returned", module="Plugin.gpi", result=1)]
+                if unloaded:
+                    new += [dict(kind="dll_detach", module="Plugin.gpi", reserved=0),
+                            dict(kind="dll_detach_returned", module="Plugin.gpi", result=1, reserved=0),
+                            dict(kind="dll_unloaded", module="Plugin.gpi", base="0x036d0000")]
+                ev[i:i] = [dict(e, thread=0) for e in new]
+                for k, e in enumerate(ev):
+                    e["seq"] = k + 1
+            return f
+        v = self.mutated(plugin(True))
+        self.assertEqual(v["verdict"], "PASS", v["failures"])
+        v = self.mutated(plugin(False))     # initialised, never unloaded, and no DLL_PROCESS_DETACH at exit
+        self.assertIn("engine_cleanup_and_exit", self.failed(v), v["failures"])
 
     def test_module_must_be_lifted_from_the_sandbox_input(self):
         v = self.judge(cand_meta={"inputs": {"UCC.exe": "a", "Core.dll": "b", "Engine.dll": "c", "GlmLib.dll": "other"}})

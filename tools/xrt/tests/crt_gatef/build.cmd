@@ -18,7 +18,7 @@ if "%1"=="x86" (
 )
 if "%1"=="x64" (
     call %VCVARS% x64 >nul || exit /b 1
-    cl /nologo /O2 /fp:strict /W4 /wd4100 /wd4201 /wd4127 /wd4324 /D_CRT_SECURE_NO_WARNINGS /DSTUB_EH /DSTUB_EVENT /I%RT% /Fo%OUT%\cand\ /Fe%OUT%\cand.exe cand.c %RT%\hle_msvcr70.c %RT%\xrt_fmt.c %RT%\xrt_mem.c %RT%\xrt_msvcr70img.c %GEN%\msvcr70\pow_sse2.c %STUBS% bcrypt.lib || exit /b 1
+    cl /nologo /O2 /fp:strict /W4 /wd4100 /wd4201 /wd4127 /wd4324 /D_CRT_SECURE_NO_WARNINGS /DSTUB_EH /DSTUB_EVENT /DSTUB_JSTR /DSTUB_CRTDEPS /I%RT% /Fo%OUT%\cand\ /Fe%OUT%\cand.exe cand.c %RT%\hle_msvcr70.c %RT%\xrt_fmt.c %RT%\xrt_mem.c %RT%\xrt_msvcr70img.c %GEN%\msvcr70\pow_sse2.c %STUBS% bcrypt.lib || exit /b 1
     exit /b 0
 )
 if not exist %OUT%\ref mkdir %OUT%\ref

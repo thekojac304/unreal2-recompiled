@@ -821,7 +821,13 @@ def main():
     # loader applies the same relocations when it maps the module there)
     base = int(args[args.index("--base") + 1], 16) if "--base" in args else None
     os.makedirs(out, exist_ok=True)
-    mod = Module(path, base).run()
+    if base is None:
+        mod = Module(path).run()
+    else:
+        # function entries come from discovery at the preferred base (as uctrace's entry lists do); see Module
+        pref = Module(path).run()
+        given = {e - pref.img.base for e in pref.functions if pref.img.in_image(e)}
+        mod = Module(path, base, given).run()
     stem = re.sub(r"\W", "_", mod.img.name.rsplit(".", 1)[0])
     marks, watches, marks_digest = load_marks(marks_path, mod.img)
     lifter = Lifter(mod, marks, watches, stem)

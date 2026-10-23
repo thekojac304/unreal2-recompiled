@@ -340,6 +340,8 @@ static void hle_fflush(CPU* c) {
 typedef struct StrSink { uint32_t ptr, cnt; } StrSink;
 static int str_put(void* ctx, uint16_t ch) {
     StrSink* s = (StrSink*)ctx;
+    if (!s->ptr)                      /* NULL destination: the CRT's write_char only counts (_IOSTRG, _base NULL) */
+        return 1;
     s->cnt -= 2;
     if (s->cnt & 0x80000000u)
         return 0;
@@ -349,7 +351,9 @@ static int str_put(void* ctx, uint16_t ch) {
 }
 
 /* returns the character count, or -1 when a character did not fit; the terminator is written as two
- * single bytes, each only if it still fits (so none when the output fills the buffer exactly) */
+ * single bytes, each only if it still fits (so none when the output fills the buffer exactly). With a NULL
+ * destination nothing is stored and the full length is returned - but the terminator store still happens when
+ * count*2 is a positive int, and faults, as in the DLL (measured by experiments/xrt/tests/crt_diff). */
 static void hle_vsnwprintf(CPU* c) {
     StrSink s;
     int32_t n;
@@ -1164,6 +1168,560 @@ end:
     RET_C_VOID();
 }
 
+/* ---------------------------------------------------------------- errno and the DOS-error map
+ * errno is msvcr70's per-thread int (_tiddata + 8); _errno returns its address. The adapters below set it as the DLL
+ * does; the older adapters do not touch it (their callers on the measured paths never read it). */
+static uint32_t errno_va[64];
+static uint32_t errno_addr(CPU* c) {
+    int i = c->thread->index;
+    if (!errno_va[i])
+        errno_va[i] = xrt_rt_alloc(4, 4);
+    return errno_va[i];
+}
+static void set_errno(CPU* c, uint32_t e) { wr32(errno_addr(c), e); }
+static void hle_errno(CPU* c) { RET_C(errno_addr(c)); }
+
+/* _dosmaperr: the DLL's own 45-entry {Win32 error, errno} table (msvcr70+0x4bb10, read from its SHA-checked image),
+ * then 19..36 -> EACCES, 188..202 -> ENOEXEC, else EINVAL. _doserrno is not modelled (nothing imports it). */
+static void dosmaperr(CPU* c, uint32_t oserr) {
+    const uint8_t* img = xrt_msvcr70_image();
+    uint32_t k, code, e;
+    for (k = 0; k < 45; k++) {
+        memcpy(&code, img + 0x4BB10 + 8 * k, 4);
+        if (code == oserr) {
+            memcpy(&e, img + 0x4BB14 + 8 * k, 4);
+            set_errno(c, e);
+            return;
+        }
+    }
+    set_errno(c, oserr >= 19 && oserr <= 36 ? 13u : oserr >= 188 && oserr <= 202 ? 8u : 22u);
+}
+
+/* ---------------------------------------------------------------- FILETIME -> time_t (the _finddata_t time fields)
+ * A port of the DLL's machine code: __timet_from_ft (msvcr70+0x17ee3), __loctotime_t (+0x31816), __tzset (+0x3ad5)
+ * and _tzset_lk (+0x3b05), _isindst (+0x3316, +0x3336) and cvtdate (+0x3423), with the DLL's _days/_lpdays tables
+ * and the initial _timezone/_daylight/_dstbias (28800, 1, -3600) read from its image.
+ * - A zero FILETIME -> -1. FileTimeToLocalFileTime, then FileTimeToSystemTime (either failing -> -1, the Win32 error
+ *   mirrored). FileTimeToLocalFileTime applies the bias in effect NOW, not the one at the file's date; both
+ *   processes call it on the same machine, so the host call is the DLL's.
+ * - __loctotime_t(local date, dstflag -1): a local year outside 1970..2038 -> -1; else the seconds of the local
+ *   date as if UTC + _timezone, + _dstbias when _daylight and _isindst, all in 32-bit arithmetic (no clamp: local
+ *   2038-01-18 23:14:07 with _timezone 18000 wraps to -2147480049).
+ * - __tzset runs _tzset_lk once, at the first in-range conversion; the values stay fixed for the process (nothing
+ *   else bound to the guest runs it: the DLL's time() is GetSystemTimeAsFileTime). TZ comes from the environment
+ *   as the DLL's _environ has it (the process's startup environment; the host's getenv reads the same snapshot).
+ *   TZ unset or empty: GetTimeZoneInformation; _timezone = 60 * (Bias, + StandardBias when StandardDate.wMonth);
+ *   when DaylightDate.wMonth and DaylightBias are both non-zero _daylight = 1 and _dstbias = 60 * (DaylightBias -
+ *   StandardBias), else both 0. If the call fails the DLL keeps its initial values and the USA rules.
+ *   TZ set: "AAA[-]h[:m[:s]]..." parsed as the DLL does (its atol, 32-bit wraparound), _daylight = the character
+ *   after the offset (non-zero: DST by the USA rules), _dstbias keeps -3600. A TZ shorter than 3 characters is
+ *   fatal (the DLL then parses past the end of the string).
+ * - _isindst (for the local date's year, cached per year as the DLL does): with GetTimeZoneInformation, DST starts
+ *   at DaylightDate and ends at StandardDate (standard time, moved by _dstbias to daylight time), as day-in-month
+ *   rules (wDay = week, 5 = last) when wYear is 0, else as that month and day in the converted year; the USA rules
+ *   compiled into the DLL are the first Sunday of April 02:00 to the last Sunday of October 02:00. Both orders
+ *   (southern hemisphere: start after end) as the DLL. On the start day DST from the transition's time of day on
+ *   (>=), on the end day until it (<), so a repeated local hour at the end of DST counts as standard time.
+ * Compared with the DLL's own __timet_from_ft in a 32-bit process (6.7 million FILETIMEs over 1969-12-25..2039-01-05,
+ * minute steps around each year's transitions; TZ unset, empty and 13 TZ strings): identical. Only the host's time
+ * zone (US Eastern, day-in-month rules) was exercised through GetTimeZoneInformation. */
+typedef struct {
+    int32_t yr, yd, ms;   /* the DLL's dststart/dstend: tm_year computed for (-1: none), year-day, ms of that day */
+} DstTrans;
+static SRWLOCK tz_lock = SRWLOCK_INIT;
+static int tz_done, tz_apiused;
+static int32_t tz_timezone, tz_daylight, tz_dstbias;
+static TIME_ZONE_INFORMATION tz_info;
+static DstTrans dst_start, dst_end;
+
+static int32_t img32(uint32_t rva) {
+    int32_t v;
+    memcpy(&v, xrt_msvcr70_image() + rva, 4);
+    return v;
+}
+
+/* _lpdays (rva 0x4ad40) / _days (rva 0x4ad74)[i]: the year-day of the last day of month i (0-based; [0] = -1) */
+static int32_t month_days(int leap, int32_t i) {
+    if (i < 0 || i > 12)
+        xrt_fatal(NULL, XRT_EXIT_UNSUPPORTED, "msvcr70 time conversion: month table index %d (not modelled)", i);
+    return img32((leap ? 0x4AD40u : 0x4AD74u) + 4u * (uint32_t)i);
+}
+
+static int is_leap(int32_t y) { return (y % 4 == 0 && y % 100 != 0) || (y + 1900) % 400 == 0; }   /* y: tm_year */
+
+/* atol in the "C" locale: isspace skipped, one sign, decimal digits, 32-bit wraparound */
+static int32_t crt_atol(const char* s) {
+    uint32_t t = 0;
+    int ch, sign;
+    while (*s == ' ' || (*s >= '\t' && *s <= '\r'))
+        s++;
+    ch = (unsigned char)*s++;
+    sign = ch;
+    if (ch == '-' || ch == '+')
+        ch = (unsigned char)*s++;
+    while (ch >= '0' && ch <= '9') {
+        t = 10u * t + (uint32_t)(ch - '0');
+        ch = (unsigned char)*s++;
+    }
+    return (int32_t)(sign == '-' ? 0u - t : t);
+}
+
+static void tzset_lk(void) {
+    const char* tz = getenv("TZ");
+    tz_timezone = img32(0x4903C);
+    tz_daylight = img32(0x49040);
+    tz_dstbias = img32(0x49048);
+    dst_start.yr = dst_end.yr = -1;
+    tz_apiused = 0;
+    if (tz && *tz) {
+        const char* p = tz + 3;
+        uint32_t z;
+        int neg = 0;
+        if (strlen(tz) < 3)
+            xrt_fatal(NULL, XRT_EXIT_UNSUPPORTED, "TZ=\"%s\": msvcr70's _tzset parses past a TZ shorter than 3 "
+                      "characters (not modelled)", tz);
+        if (*p == '-') {
+            neg = 1;
+            p++;
+        }
+        z = (uint32_t)crt_atol(p) * 3600u;
+        while (*p == '+' || (*p >= '0' && *p <= '9'))
+            p++;
+        if (*p == ':') {
+            z += (uint32_t)crt_atol(++p) * 60u;
+            while (*p >= '0' && *p <= '9')
+                p++;
+            if (*p == ':') {
+                z += (uint32_t)crt_atol(++p);
+                while (*p >= '0' && *p <= '9')
+                    p++;
+            }
+        }
+        tz_timezone = (int32_t)(neg ? 0u - z : z);
+        tz_daylight = (signed char)*p;
+        return;
+    }
+    if (GetTimeZoneInformation(&tz_info) == TIME_ZONE_ID_INVALID)
+        return;
+    tz_apiused = 1;
+    tz_timezone = tz_info.Bias * 60;
+    if (tz_info.StandardDate.wMonth)
+        tz_timezone += tz_info.StandardBias * 60;
+    if (tz_info.DaylightDate.wMonth && tz_info.DaylightBias) {
+        tz_daylight = 1;
+        tz_dstbias = (tz_info.DaylightBias - tz_info.StandardBias) * 60;
+    } else {
+        tz_daylight = 0;
+        tz_dstbias = 0;
+    }
+}
+
+/* trantype 1: DST start, 0: DST end; datetype 1: the week'th (5 = last) dayofweek of month, 0: day `date` of month */
+static void cvtdate(int trantype, int datetype, int32_t year, int32_t month, int32_t week, int32_t dayofweek,
+                    int32_t date, int32_t hour, int32_t min, int32_t sec, int32_t msec) {
+    int leap = is_leap(year);
+    int32_t yearday, monthdow, ms;
+    if (datetype == 1) {
+        yearday = 1 + month_days(leap, month - 1);
+        monthdow = (yearday + year * 365 + (year - 1) / 4 - (year - 1) / 100 + (year + 299) / 400 - 25563) % 7;
+        yearday += dayofweek - monthdow + (monthdow <= dayofweek ? week - 1 : week) * 7;
+        if (week == 5 && yearday > month_days(leap, month))
+            yearday -= 7;
+    } else {
+        yearday = month_days(leap, month - 1) + date;
+    }
+    ms = (hour * 60 + min) * 60;
+    if (trantype == 1) {
+        dst_start.yd = yearday;
+        dst_start.ms = (ms + sec) * 1000 + msec;
+        dst_start.yr = year;
+    } else {
+        ms = (ms + tz_dstbias + sec) * 1000 + msec;
+        if (ms < 0) {
+            ms += 86400000;
+            yearday--;
+        } else if (ms >= 86400000) {
+            ms -= 86400000;
+            yearday++;
+        }
+        dst_end.yd = yearday;
+        dst_end.ms = ms;
+        dst_end.yr = year;
+    }
+}
+
+static void cvt_api_date(int trantype, int32_t year, const SYSTEMTIME* d) {
+    if (d->wYear)
+        cvtdate(trantype, 0, year, d->wMonth, 0, 0, d->wDay, d->wHour, d->wMinute, d->wSecond, d->wMilliseconds);
+    else
+        cvtdate(trantype, 1, year, d->wMonth, d->wDay, d->wDayOfWeek, 0, d->wHour, d->wMinute, d->wSecond,
+                d->wMilliseconds);
+}
+
+static int isindst(int32_t year, int32_t yday, int32_t hour, int32_t min, int32_t sec) {
+    int32_t ms;
+    if (!tz_daylight)
+        return 0;
+    if (year != dst_start.yr || year != dst_end.yr) {
+        if (tz_apiused) {
+            cvt_api_date(1, year, &tz_info.DaylightDate);
+            cvt_api_date(0, year, &tz_info.StandardDate);
+        } else {
+            cvtdate(1, 1, year, 4, 1, 0, 0, 2, 0, 0, 0);
+            cvtdate(0, 1, year, 10, 5, 0, 0, 2, 0, 0, 0);
+        }
+    }
+    if (dst_start.yd < dst_end.yd) {
+        if (yday < dst_start.yd || yday > dst_end.yd)
+            return 0;
+        if (yday > dst_start.yd && yday < dst_end.yd)
+            return 1;
+    } else {
+        if (yday < dst_end.yd || yday > dst_start.yd)
+            return 1;
+        if (yday > dst_end.yd && yday < dst_start.yd)
+            return 0;
+    }
+    ms = ((hour * 60 + min) * 60 + sec) * 1000;
+    return yday == dst_start.yd ? ms >= dst_start.ms : ms < dst_end.ms;
+}
+
+/* __loctotime_t with dstflag -1 (its only caller here); 0x7C558180 = -2208988800 (1900-01-01 .. 1970-01-01) */
+static uint32_t loctotime(int32_t yr, int32_t mo, int32_t dy, int32_t hr, int32_t mn, int32_t sc) {
+    int32_t y = yr - 1900, yday;
+    uint32_t t;
+    if (y < 70 || y > 138)
+        return 0xFFFFFFFFu;
+    yday = month_days(0, mo - 1) + dy;
+    if (is_leap(y) && mo > 2)
+        yday++;
+    if (!tz_done) {
+        tzset_lk();
+        tz_done = 1;
+    }
+    t = (uint32_t)(y * 365 + (y - 1) / 4 - (y - 1) / 100 + (y + 299) / 400 + yday);
+    t = ((t * 24u + (uint32_t)hr) * 60u + (uint32_t)mn) * 60u + (uint32_t)tz_timezone + (uint32_t)sc + 0x7C558180u;
+    if (tz_daylight && isindst(y, yday, hr, mn, sc))
+        t += (uint32_t)tz_dstbias;
+    return t;
+}
+
+static uint32_t timet_from_ft(CPU* c, const FILETIME* ft) {
+    FILETIME lft;
+    SYSTEMTIME st;
+    uint32_t t;
+    if (!ft->dwLowDateTime && !ft->dwHighDateTime)
+        return 0xFFFFFFFFu;
+    if (!FileTimeToLocalFileTime(ft, &lft) || !FileTimeToSystemTime(&lft, &st)) {
+        xrt_set_last_error(c, GetLastError());
+        return 0xFFFFFFFFu;
+    }
+    AcquireSRWLockExclusive(&tz_lock);
+    t = loctotime(st.wYear, st.wMonth, st.wDay, st.wHour, st.wMinute, st.wSecond);
+    ReleaseSRWLockExclusive(&tz_lock);
+    return t;
+}
+
+/* ---------------------------------------------------------------- directories (GlmLib's editor-mode file scans)
+ * _findfirst/_findnext/_findclose: FindFirstFileA/FindNextFileA/FindClose and the DLL's _finddata_t {attrib (0 for
+ * FILE_ATTRIBUTE_NORMAL), time_create, time_access, time_write (timet_from_ft above, in that order), size =
+ * nFileSizeLow, name[260]}; errno: Win32 2, 3 and 18 -> ENOENT, 8 -> ENOMEM, else EINVAL. The handle is a guest
+ * handle (the DLL returns the Win32 HANDLE). */
+static void put_finddata(CPU* c, uint32_t fd, const WIN32_FIND_DATAA* w) {
+    wr32(fd, w->dwFileAttributes == FILE_ATTRIBUTE_NORMAL ? 0 : w->dwFileAttributes);
+    wr32(fd + 4, timet_from_ft(c, &w->ftCreationTime));
+    wr32(fd + 8, timet_from_ft(c, &w->ftLastAccessTime));
+    wr32(fd + 12, timet_from_ft(c, &w->ftLastWriteTime));
+    wr32(fd + 16, w->nFileSizeLow);
+    memcpy(G2H(fd + 20), w->cFileName, strlen(w->cFileName) + 1);
+}
+
+static void find_failed(CPU* c) {
+    DWORD e = GetLastError();
+    xrt_set_last_error(c, e);
+    set_errno(c, e == 2 || e == 3 || e == 18 ? 2u : e == 8 ? 12u : 22u);
+}
+
+static void hle_findfirst(CPU* c) {
+    WIN32_FIND_DATAA w;
+    HANDLE h = FindFirstFileA((LPCSTR)G2H(ARG(0)), &w);
+    xrt_log("_findfirst(\"%s\") -> %s", (const char*)G2H(ARG(0)), h == INVALID_HANDLE_VALUE ? "none" : w.cFileName);
+    if (h == INVALID_HANDLE_VALUE) {
+        find_failed(c);
+        RET_C(0xFFFFFFFFu);
+        return;
+    }
+    put_finddata(c, ARG(1), &w);
+    RET_C(xrt_handle_new(XH_FIND, h));
+}
+
+static void hle_findnext(CPU* c) {
+    WIN32_FIND_DATAA w;
+    HANDLE h = (HANDLE)xrt_handle_get(ARG(0), XH_FIND);
+    if (!h || !FindNextFileA(h, &w)) {
+        if (!h)
+            SetLastError(ERROR_INVALID_HANDLE);
+        find_failed(c);
+        RET_C(0xFFFFFFFFu);
+        return;
+    }
+    put_finddata(c, ARG(1), &w);
+    RET_C(0);
+}
+
+static void hle_findclose(CPU* c) {
+    HANDLE h = (HANDLE)xrt_handle_get(ARG(0), XH_FIND);
+    if (!h || !FindClose(h)) {
+        set_errno(c, 22);
+        RET_C(0xFFFFFFFFu);
+        return;
+    }
+    xrt_handle_free(ARG(0));
+    RET_C(0);
+}
+
+/* _getcwd (_getdcwd for the current drive): GetCurrentDirectoryA into 260 bytes; a NULL buffer is malloc'ed with
+ * max(length + 1, maxlen); a short buffer -> ERANGE; failure or a longer path -> NULL without errno, as the DLL */
+static uint32_t getcwd_impl(CPU* c, uint32_t buf, int32_t maxlen) {
+    char dir[0x104];
+    DWORD r = GetCurrentDirectoryA(0x104, dir);
+    int32_t len;
+    if (!r || r + 1 > 0x104)
+        return 0;
+    len = (int32_t)r + 1;
+    if (!buf) {
+        buf = xrt_heap_alloc((uint32_t)(len > maxlen ? len : maxlen));
+        if (!buf) {
+            set_errno(c, 12);
+            return 0;
+        }
+    } else if (len > maxlen) {
+        set_errno(c, 34);
+        return 0;
+    }
+    memcpy(G2H(buf), dir, (size_t)len);
+    return buf;
+}
+static void hle_getcwd(CPU* c) { RET_C(getcwd_impl(c, ARG(0), (int32_t)ARG(1))); }
+
+/* _fullpath: GetFullPathNameA; an empty or NULL path is _getcwd; a NULL buffer is malloc'ed (260 bytes) */
+static void hle_fullpath(CPU* c) {
+    uint32_t user = ARG(0), buf = ARG(0), rel = ARG(1), maxlen = ARG(2), r;
+    if (!rel || !rd8(rel)) {
+        RET_C(getcwd_impl(c, buf, (int32_t)maxlen));
+        return;
+    }
+    if (!buf) {
+        if (!(buf = xrt_heap_alloc(0x104))) {
+            set_errno(c, 12);
+            RET_C(0);
+            return;
+        }
+        maxlen = 0x104;
+    }
+    r = GetFullPathNameA((LPCSTR)G2H(rel), maxlen, (LPSTR)G2H(buf), NULL);
+    xrt_log("_fullpath(\"%s\") -> %u", (const char*)G2H(rel), r);
+    if (r >= maxlen || !r) {
+        DWORD e = GetLastError();
+        if (!user)
+            xrt_heap_free(c, buf);
+        if (r)
+            set_errno(c, 34);
+        else
+            dosmaperr(c, e);
+        RET_C(0);
+        return;
+    }
+    RET_C(buf);
+}
+
+/* _chdir (msvcr70+0x18c08): SetCurrentDirectoryA(path); then GetCurrentDirectoryA into 0x105 bytes and, unless that
+ * is a UNC path (two equal leading '\\' or '/'), SetEnvironmentVariableA("=X:", directory) with X its drive letter
+ * upper-cased by _mbctoupper (in the DLL's ANSI-code-page MBCS state: ASCII a-z -> A-Z, other ASCII unchanged; the
+ * per-drive current directory that drive-relative paths resolve against). Any of the three failing -> -1, errno by
+ * _dosmaperr(GetLastError()) (the Win32 error mirrored), else 0; a failure after SetCurrentDirectoryA keeps the
+ * new directory, as in the DLL. Sandbox guard: a path that resolves outside the sandbox is fatal. A path the guard
+ * cannot resolve (GetFullPathNameW fails, e.g. "" or blanks, or the path does not fit its buffers) is passed to
+ * SetCurrentDirectoryA, which resolves it the same way and fails as in the DLL ("": ERROR_INVALID_NAME -> EINVAL);
+ * should it succeed instead, that is fatal. A current directory longer than the DLL's buffer (whose contents are
+ * then undefined) or starting with a non-ASCII byte is fatal (not modelled). */
+static void chdir_failed(CPU* c) {
+    DWORD e = GetLastError();
+    xrt_set_last_error(c, e);
+    dosmaperr(c, e);
+    RET_C(0xFFFFFFFFu);
+}
+
+static void hle_chdir(CPU* c) {
+    const char* p = (const char*)G2H(ARG(0));
+    WCHAR w[MAX_PATH * 2], full[MAX_PATH * 2];
+    char q[600], dir[0x105], var[4];
+    DWORD n;
+    int resolved = MultiByteToWideChar(CP_ACP, 0, p, -1, w, MAX_PATH * 2) != 0;
+    if (resolved) {
+        n = GetFullPathNameW(w, MAX_PATH * 2, full, NULL);
+        resolved = n != 0 && n < MAX_PATH * 2;
+    }
+    if (resolved && !xrt_path_is_inside_sandbox(w))
+        xrt_fatal(c, XRT_EXIT_UNSUPPORTED, "_chdir outside the sandbox refused: \"%s\"", p);
+    xrt_event("chdir", "\"path\": %s", xrt_jstr(q, sizeof q, p));
+    if (!SetCurrentDirectoryA(p)) {
+        chdir_failed(c);
+        return;
+    }
+    if (!resolved)
+        xrt_fatal(c, XRT_EXIT_UNSUPPORTED, "_chdir(\"%.300s\"): the sandbox guard could not resolve the path but "
+                  "SetCurrentDirectoryA accepted it", p);
+    n = GetCurrentDirectoryA(sizeof dir, dir);
+    if (!n) {
+        chdir_failed(c);
+        return;
+    }
+    if (n >= sizeof dir)
+        xrt_fatal(c, XRT_EXIT_UNSUPPORTED, "_chdir: a current directory of %u bytes does not fit the DLL's buffer "
+                  "(not modelled)", n);
+    if (dir[0] & 0x80)
+        xrt_fatal(c, XRT_EXIT_UNSUPPORTED, "_chdir: current directory \"%s\" starts with a non-ASCII byte (the DLL's "
+                  "_mbctoupper of it is not modelled)", dir);
+    if ((dir[0] == '\\' || dir[0] == '/') && dir[1] == dir[0]) {
+        RET_C(0);
+        return;
+    }
+    var[0] = '=';
+    var[1] = dir[0] >= 'a' && dir[0] <= 'z' ? (char)(dir[0] - 'a' + 'A') : dir[0];
+    var[2] = ':';
+    var[3] = 0;
+    if (!SetEnvironmentVariableA(var, dir)) {
+        chdir_failed(c);
+        return;
+    }
+    RET_C(0);
+}
+
+/* ---------------------------------------------------------------- fopen/fclose
+ * msvcr70's fopen is _fsopen(.., _SH_DENYNO): a FILE from the static _iob entries 3..19 (the first free one, as
+ * _getstream takes them) on a lowio descriptor (the first free from 3; 0..2 are the standard handles). Modes r, w,
+ * a with '+', 'b', 't' as the DLL parses them; the other mode letters are not modelled (fatal). Only fopen and
+ * fclose exist for such a FILE (the measured caller, GlmLib, opens and closes); reading or writing through it
+ * reaches an unbound import (fatal). A file opened for writing must be inside the sandbox. */
+static HANDLE lowio[64];
+
+static void hle_fopen(CPU* c) {
+    const char* name = (const char*)G2H(ARG(0));
+    const char* m = (const char*)G2H(ARG(1));
+    DWORD access, disp, e;
+    uint32_t stream = 0, flag, k;
+    int fd = 0, rdwr = 0, more = 1;
+    char q[600];
+    HANDLE h;
+    switch (*m) {
+    case 'r': access = GENERIC_READ; disp = OPEN_EXISTING; flag = 0x01; break;
+    case 'w': access = GENERIC_WRITE; disp = CREATE_ALWAYS; flag = 0x02; break;
+    case 'a': access = GENERIC_WRITE; disp = OPEN_ALWAYS; flag = 0x02;
+        xrt_fatal(c, XRT_EXIT_UNSUPPORTED, "fopen(\"%s\", \"%s\"): append mode is not modelled", name, m);
+    default:
+        set_errno(c, 22);
+        RET_C(0);
+        return;
+    }
+    for (m++; *m && more; m++) {
+        if (*m == '+' && !rdwr) {
+            rdwr = 1;
+            access = GENERIC_READ | GENERIC_WRITE;
+            flag = 0x80;
+        } else if (*m == 'b' || *m == 't' || *m == '+') {
+            /* binary/text only matter for reads and writes, which are not modelled; a repeated '+' ends parsing */
+            more = *m != '+';
+        } else if (strchr("cnSRTD", *m)) {
+            xrt_fatal(c, XRT_EXIT_UNSUPPORTED, "fopen mode letter '%c' is not modelled", *m);
+        } else {
+            more = 0;
+        }
+    }
+    if (access & GENERIC_WRITE) {
+        WCHAR w[MAX_PATH * 2];
+        if (!MultiByteToWideChar(CP_ACP, 0, name, -1, w, MAX_PATH * 2) || !xrt_path_is_inside_sandbox(w))
+            xrt_fatal(c, XRT_EXIT_UNSUPPORTED, "fopen for writing outside the sandbox refused: \"%s\"", name);
+    }
+    for (k = 3; k < 20 && !stream; k++)
+        if (!(rd32(iob + 32 * k + 12) & 0x83))
+            stream = iob + 32 * k;
+    for (k = 3; k < 64 && !fd; k++)
+        if (!lowio[k])
+            fd = (int)k;
+    if (!stream || !fd)
+        xrt_fatal(c, XRT_EXIT_UNSUPPORTED, "fopen: more open FILEs than the runtime models");
+    h = CreateFileA(name, access, FILE_SHARE_READ | FILE_SHARE_WRITE, NULL, disp, FILE_ATTRIBUTE_NORMAL, NULL);
+    xrt_event("fopen", "\"path\": %s, \"mode\": \"%s\", \"ok\": %s", xrt_jstr(q, sizeof q, name),
+              (const char*)G2H(ARG(1)), h == INVALID_HANDLE_VALUE ? "false" : "true");
+    if (h == INVALID_HANDLE_VALUE) {
+        e = GetLastError();
+        xrt_set_last_error(c, e);
+        dosmaperr(c, e);
+        RET_C(0);
+        return;
+    }
+    lowio[fd] = h;
+    memset(G2H(stream), 0, 32);
+    wr32(stream + 12, flag);
+    wr32(stream + 16, (uint32_t)fd);
+    RET_C(stream);
+}
+
+static void hle_fclose(CPU* c) {
+    uint32_t f = ARG(0), fd;
+    if (f < iob + 3 * 32 || f >= iob + 20 * 32 || (f - iob) % 32 || !(rd32(f + 12) & 0x83) || (fd = rd32(f + 16)) >= 64
+        || !lowio[fd])
+        xrt_fatal(c, XRT_EXIT_UNSUPPORTED, "fclose of a FILE that fopen did not return (%08x)", f);
+    CloseHandle(lowio[fd]);
+    lowio[fd] = NULL;
+    memset(G2H(f), 0, 32);
+    RET_C(0);
+}
+
+/* ---------------------------------------------------------------- more narrow strings */
+static void hle_vsprintf(CPU* c) {                   /* _output into an unbounded string stream, then the NUL */
+    StrOut s;
+    int32_t r;
+    s.dst = ARG(0);
+    s.n = 0;
+    r = xrt_output(ARG(1), ARG(2), strout_put, &s);
+    wr8(s.dst + s.n, 0);
+    RET_C((uint32_t)r);
+}
+
+static void hle_strrchr(CPU* c) {
+    uint32_t s = ARG(0), last = 0;
+    uint8_t ch = (uint8_t)ARG(1), v;
+    do {
+        v = rd8(s);
+        if (v == ch)
+            last = s;
+        s++;
+    } while (v);
+    RET_C(last);
+}
+
+static void hle_strncpy(CPU* c) {
+    uint32_t d = ARG(0), s = ARG(1), n = ARG(2), k = 0;
+    for (; k < n && rd8(s + k); k++)
+        wr8(d + k, rd8(s + k));
+    for (; k < n; k++)
+        wr8(d + k, 0);
+    RET_C(d);
+}
+
+/* _set_se_translator: msvcr70 keeps one translator per thread (_tiddata._translator) and returns the previous one.
+ * Structured exceptions are not modelled - a hardware fault stays fatal and is never translated - so the translator
+ * is recorded (and returned by the next call), never invoked. Editor.dll installs one during its initialisation. */
+static uint32_t se_translator[64];
+static void hle_set_se_translator(CPU* c) {
+    uint32_t old = se_translator[c->thread->index];
+    se_translator[c->thread->index] = ARG(0);
+    xrt_event("se_translator", "\"translator\": \"0x%08x\"", ARG(0));
+    RET_C(old);
+}
+
 /* ---------------------------------------------------------------- unsupported paths with diagnostics */
 static void hle_purecall(CPU* c) { xrt_fatal(c, XRT_EXIT_UNSUPPORTED, "_purecall: pure virtual function called"); }
 
@@ -1207,6 +1765,19 @@ const XrtHle xrt_hle_msvcr70[] = {
     {"msvcr70.dll", "wcsstr", hle_wcsstr},
     {"msvcr70.dll", "_wcsupr", hle_wcsupr},
     {"msvcr70.dll", "_wtoi", hle_wtoi},
+    {"msvcr70.dll", "?_set_se_translator@@YAP6AXIPAU_EXCEPTION_POINTERS@@@ZP6AXI0@Z@Z", hle_set_se_translator},
+    {"msvcr70.dll", "_errno", hle_errno},
+    {"msvcr70.dll", "_findfirst", hle_findfirst},
+    {"msvcr70.dll", "_findnext", hle_findnext},
+    {"msvcr70.dll", "_findclose", hle_findclose},
+    {"msvcr70.dll", "_getcwd", hle_getcwd},
+    {"msvcr70.dll", "_fullpath", hle_fullpath},
+    {"msvcr70.dll", "_chdir", hle_chdir},
+    {"msvcr70.dll", "fopen", hle_fopen},
+    {"msvcr70.dll", "fclose", hle_fclose},
+    {"msvcr70.dll", "vsprintf", hle_vsprintf},
+    {"msvcr70.dll", "strrchr", hle_strrchr},
+    {"msvcr70.dll", "strncpy", hle_strncpy},
     {"msvcr70.dll", "toupper", hle_toupper},
     {"msvcr70.dll", "strchr", hle_strchr},
     {"msvcr70.dll", "_stricmp", hle_stricmp},

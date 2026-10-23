@@ -17,6 +17,19 @@ uint32_t xrt_cmdline_a;
 const char* xrt_report_path;
 static volatile long report_written;
 
+int xrt_lifted_overlap(uint32_t a, uint32_t size, uint32_t* end) {
+    uint64_t lo = xrt_mod_ehprobe.base, hi = lo + xrt_mod_ehprobe.size;
+    if (a < hi && lo < (uint64_t)a + size) {
+        *end = (uint32_t)hi;
+        return 1;
+    }
+    return 0;
+}
+
+void xrt_dll_thread_notify(CPU* c, uint32_t reason) {
+    xrt_fatal(c, XRT_EXIT_UNSUPPORTED, "test harness: unexpected DLL thread notification %u", reason);
+}
+
 void xrt_report_write(uint32_t exit_code, const char* outcome) {
     FILE* f;
     if (!xrt_report_path || InterlockedExchange(&report_written, 1) || !(f = fopen(xrt_report_path, "w")))

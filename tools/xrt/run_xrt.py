@@ -81,8 +81,9 @@ TRACE_SLOWDOWN = 15          # the debugger-traced original runs ~10x slower tha
 UCC_BASE, UCC_SIZE = 0x400000, 0xF000
 CORE_BASE, CORE_SIZE = 0x10100000, 0x191000
 ENGINE_BASE = 0x10300000
-GLMLIB_BASE = 0x02DF0000      # lifted for an address the original loader rebased it to (preferred 0x10000000; the
-                              # original's choice varies between runs: 0x02df0000 and 0x02dd0000 were observed)
+GLMLIB_BASE = 0x02F40000      # lifted for an address the original loader rebased it to (preferred 0x10000000; the
+                              # original's choice varies: 0x02df0000, 0x02dd0000 in vmprobe runs, 0x02f40000 in ucc make
+                              # after Editor.dll at 0x02de0000 - the layout these lifts reproduce)
 WORKER_ENTRY = "0x1015a520"
 EXIT_STATUS = {"PASS": 0, "FAIL": 1, "UNVERIFIED": 3}
 EXIT_HARNESS, EXIT_REEVALUATED = 4, 5
@@ -748,10 +749,13 @@ def ev_worker(t):
 
 
 def initialised_dlls(t, before):
-    """DLL_PROCESS_ATTACH completions (TRUE) before event `before`, in order"""
+    """DLL_PROCESS_ATTACH completions (TRUE) before event `before`, in order, without DLLs a FreeLibrary unloaded
+    again (dll_unloaded) before `before`: those got their DLL_PROCESS_DETACH then, not at process exit"""
     if before is None:
         return []
-    return [e for e in t.find("dll_attach_returned") if e.get("result") == 1 and e["seq"] < before["seq"]]
+    unloads = t.find("dll_unloaded")
+    return [e for e in t.find("dll_attach_returned") if e.get("result") == 1 and e["seq"] < before["seq"]
+            and not any(u.get("module") == e.get("module") and e["seq"] < u["seq"] < before["seq"] for u in unloads)]
 
 
 def ev_flag(t):

@@ -43,7 +43,7 @@ XrtModule* xrt_module_get(int i) { return i >= 0 && i < nmods ? &mods[i] : NULL;
 XrtModule* xrt_module_by_addr(uint32_t va) {
     int i;
     for (i = 0; i < nmods; i++)
-        if (va - mods[i].base < mods[i].size)
+        if (!mods[i].unloaded && va - mods[i].base < mods[i].size)
             return &mods[i];
     return NULL;
 }
@@ -65,6 +65,8 @@ XrtModule* xrt_module_by_name(const char* name) {
     for (i = 0; i < nmods; i++) {
         const char* have = mods[i].name;
         size_t hn = strlen(have);
+        if (mods[i].unloaded)
+            continue;
         if (!_stricmp(have, want))
             return &mods[i];
         if (hn > 4 && n == hn - 4 && !_strnicmp(have, want, n) && !_stricmp(have + n, ".dll"))
@@ -111,9 +113,14 @@ XrtModule* xrt_module_load(const char* host_path, const XrtLiftedModule* lifted)
     if (strcmp(digest, lifted->sha256))
         xrt_fatal(NULL, XRT_EXIT_SETUP, "%s has SHA-256 %s but the translated code was lifted from %s", host_path, digest,
                   lifted->sha256);
-    if (nmods == MAX_MODULES)
-        xrt_fatal(NULL, XRT_EXIT_SETUP, "too many modules");
-    m = &mods[nmods];
+    for (m = NULL, i = 0; i < (uint32_t)nmods && !m; i++)   /* loaded again after FreeLibrary: same slot */
+        if (mods[i].unloaded && !_stricmp(mods[i].name, basename_of(host_path)))
+            m = &mods[i];
+    if (!m) {
+        if (nmods == MAX_MODULES)
+            xrt_fatal(NULL, XRT_EXIT_SETUP, "too many modules");
+        m = &mods[nmods++];
+    }
     memset(m, 0, sizeof *m);
     snprintf(m->path, sizeof m->path, "%s", host_path);
     snprintf(m->name, sizeof m->name, "%s", basename_of(host_path));
@@ -156,7 +163,6 @@ XrtModule* xrt_module_load(const char* host_path, const XrtLiftedModule* lifted)
         relocate(m, rd32(m->base + opt + 136), rd32(m->base + opt + 140));
         wr32(m->base + opt + 28, m->base);   /* the mapped header names the actual base, as on Windows */
     }
-    nmods++;
     /* export names (diagnostics) */
     if (m->export_dir) {
         uint32_t ed = m->base + m->export_dir, nnames = rd32(ed + 24), funcs = m->base + rd32(ed + 28),
@@ -196,6 +202,19 @@ static void relocate(XrtModule* m, uint32_t dir, uint32_t size) {
         p += block;
     }
     xrt_log("relocated %s from %08x to %08x: %u fixups", m->name, m->preferred_base, m->base, n);
+}
+
+/* FreeLibrary's unmapping (after its DLL_PROCESS_DETACH): the image is decommitted, so a later access to it faults
+ * as on Windows; its export names leave the diagnostic table. */
+void xrt_module_unmap(XrtModule* m) {
+    int i, k;
+    for (i = k = 0; i < nexnames; i++)
+        if (exnames[i].va - m->base >= m->size)
+            exnames[k++] = exnames[i];
+    nexnames = k;
+    xrt_decommit(m->base, m->size);
+    m->unloaded = 1;
+    xrt_log("unmapped %s from %08x", m->name, m->base);
 }
 
 const char* xrt_export_name_at(uint32_t va) {
@@ -289,6 +308,15 @@ uint32_t xrt_hle_data(const char* dll, const char* name) {
     snprintf(dataobjs[ndata].key, sizeof dataobjs[ndata].key, "%s", key);
     dataobjs[ndata].va = xrt_rt_alloc(h->data_size, 16);
     return dataobjs[ndata++].va;
+}
+
+uint32_t xrt_hle_proc(const char* dll, const char* name) {
+    char key[600];
+    const XrtHle* h = hle_find(dll, name);
+    if (!h || !h->fn)
+        return 0;
+    snprintf(key, sizeof key, "%s!%s", dll, name);
+    return stub_for(key, h->fn);
 }
 
 void xrt_module_bind_imports(XrtModule* m) {

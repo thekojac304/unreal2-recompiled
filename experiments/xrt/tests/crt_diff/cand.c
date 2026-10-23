@@ -1,12 +1,15 @@
 /* cand.c - candidate side of the msvcr70 differential test (x64).
  *
- *   cand.exe <corpus.txt> <results.txt>   (stdout receives the wprintf adapter's output)
+ *   cand.exe <corpus.txt> <results.txt> [<sandbox root>]   (stdout receives the wprintf adapter's output)
  *
- * Links the runtime's xrt_fmt.c, hle_msvcr70.c and xrt_mem.c (stubs below for the rest of the runtime).
+ * Links the runtime's xrt_fmt.c, hle_msvcr70.c and xrt_mem.c, hle_kernel32.c for its handle table and sandbox guard,
+ * and xrt_msvcr70img.c, which loads <sandbox root>\System\msvcr70.dll for _dosmaperr's table (stubs below and in
+ * common\xrt_test_stubs.c for the rest of the runtime).
  * Narrow sprintf cases go through the sprintf adapter (xrt_output); their length probe calls xrt_output directly.
  * Test data, format strings and argument blocks live in guest memory; adapters from xrt_hle_msvcr70[] are
  * called with a CPU whose ESP points at [return address][args...] (cdecl) and the result is read from
- * EAX. Every unbounded _vsnwprintf call is also checked against a direct xrt_wformat call. */
+ * EAX. Every unbounded _vsnwprintf call is also checked against a direct xrt_wformat call. The qsort adapter's
+ * comparator calls (xrt_call_guest) reach the shared cmp_eval through sentinel guest addresses. */
 #include <fcntl.h>
 #include <io.h>
 #include "xrt_internal.h"
@@ -16,6 +19,7 @@ typedef uint32_t Ptr;
 #define STACK_LO 0x08000000u
 #define STACK_HI 0x08100000u
 #define RET_SENTINEL 0x0BADC0DEu
+#define TEB_VA 0x07F00000u
 static Ptr arena_lo = ARENA_LO, arena_hi = ARENA_HI;
 static void* H(Ptr p) { return G2H(p); }
 static void flush_stdout(void) { xrt_stdout_flush(); }
@@ -37,10 +41,21 @@ XRT_NORETURN void xrt_fatal(CPU* c, int code, const char* fmt, ...) {
     fputc('\n', stderr);
     exit(code);
 }
-uint32_t xrt_hle_data(const char* dll, const char* name) { (void)dll; (void)name; return xrt_rt_alloc(20 * 32, 16); }
+/* the adapters' data exports: hle_msvcr70_init asks for "_iob" only (20 FILEs of 32 bytes) */
+static Ptr iob_va;
+uint32_t xrt_hle_data(const char* dll, const char* name) {
+    if (strcmp(name, "_iob"))
+        xrt_fatal(NULL, 70, "xrt_hle_data(%s, %s) in the test harness", dll, name);
+    return iob_va = xrt_rt_alloc(20 * 32, 16);
+}
+static Ptr iob_base(void) { return iob_va; }
+/* guest calls: only the harness's qsort comparators (cmp_ptr) are guest code here; anything else is fatal */
+#define CMP_VA 0x0C000000u
+static Ptr cmp_ptr(int kind) { return CMP_VA + 16u * (uint32_t)kind; }
 uint32_t xrt_call_guest(CPU* c, uint32_t va, int nargs, const uint32_t* args, int stdcall) {
-    (void)nargs; (void)args; (void)stdcall;
-    xrt_fatal(c, 70, "xrt_call_guest(%08x) in the test harness", va);
+    if (va >= CMP_VA && va < CMP_VA + 16u * CMP_COUNT && !(va & 15u) && nargs == 2 && !stdcall)
+        return (uint32_t)cmp_eval((int)((va - CMP_VA) / 16u), args[0], args[1]);
+    xrt_fatal(c, 70, "xrt_call_guest(%08x, %d args%s) in the test harness", va, nargs, stdcall ? ", stdcall" : "");
 }
 XRT_NORETURN void xrt_process_exit(CPU* c, uint32_t code) { xrt_fatal(c, 70, "xrt_process_exit(%u) in the test harness", code); }
 /* the runtime's xrt_fldcw enforces the modelled control word; no adapter under test should reach it */
@@ -49,7 +64,7 @@ void hle_msvcr70_init(void);
 
 /* ---------------------------------------------------------------- adapter calls */
 static XrtThread thr;
-static XrtFn fns[F_COUNT], f_wprintf, f_sprintf, bfns[BF_COUNT];
+static XrtFn fns[F_COUNT], f_wprintf, f_sprintf, bfns[BF_COUNT], deps[D_COUNT];
 static unsigned long direct_mismatches;
 
 /* NULL when the runtime registers no adapter under that export name (the import stays unbound and fatal) */
@@ -145,6 +160,17 @@ static uint32_t call_bounded(int bf, Ptr buf, uint32_t count, Ptr fmt, Ptr va, c
     return call_adapter(bfns[bf], a, 4);
 }
 
+static int dep_available(int d) { return deps[d] != NULL; }
+
+static uint32_t call_dep(int d, const uint32_t* args, int nargs, uint32_t* exc) {
+    uint32_t r;
+    (void)exc;
+    wr32(TEB_VA + 0x34, LE_SENTINEL);   /* the guest's Win32 last error */
+    r = call_adapter(deps[d], args, nargs);
+    dep_last_error = rd32(TEB_VA + 0x34);
+    return r;
+}
+
 /* length probe: the runtime's narrow formatter over a sink that refuses the character after `limit`, which
  * the CRT's charsout rule turns into -1, as the real _vsnprintf's full string stream does */
 typedef struct Count { uint32_t n, limit; } Count;
@@ -168,13 +194,15 @@ static int probe_too_long(Ptr fmt, Ptr va, uint32_t limit, uint32_t* exc) {
 
 int main(int argc, char** argv) {
     int i;
-    if (argc != 3) {
-        fprintf(stderr, "usage: cand.exe corpus results\n");
+    if (argc != 3 && argc != 4) {
+        fprintf(stderr, "usage: cand.exe corpus results [sandbox root holding System\\msvcr70.dll]\n");
         return 2;
     }
     xrt_mem_init();
     xrt_commit(ARENA_LO, ARENA_HI - ARENA_LO);
     xrt_commit(STACK_LO, STACK_HI - STACK_LO);
+    xrt_commit(TEB_VA, 0x1000);
+    thr.cpu.fs_base = TEB_VA;   /* the guest last error is the TEB word at +0x34 */
     thr.cpu.thread = &thr;
     thr.cpu.fcw = 0x027F;
     thr.rand_seed = 1;          /* as xrt_thread.c initialises every guest thread */
@@ -187,6 +215,28 @@ int main(int argc, char** argv) {
     for (i = 0; i < BF_COUNT; i++) {
         bfns[i] = lookup_opt(bf_names[i]);
         fprintf(stderr, "bounded %s: %s\n", bf_names[i], bfns[i] ? "adapter" : "no adapter (PENDING)");
+    }
+    fputs("dependencies with an adapter:", stderr);
+    for (i = 0; i < D_COUNT; i++)
+        if ((deps[i] = lookup_opt(d_names[i])) != NULL)
+            fprintf(stderr, " %s", d_names[i][0] == '?' ? "_set_se_translator" : d_names[i]);
+    fputs("\ndependencies without an adapter (PENDING):", stderr);
+    for (i = 0; i < D_COUNT; i++)
+        if (!deps[i])
+            fprintf(stderr, " %s", d_names[i][0] == '?' ? "_set_se_translator" : d_names[i]);
+    fputc('\n', stderr);
+    if (argc == 4) {
+        /* _dosmaperr reads its table from the DLL image (SHA-checked), loaded once from the reference's sandbox */
+        snprintf(xrt_sandbox_root, sizeof xrt_sandbox_root, "%s", argv[3]);
+        xrt_msvcr70_image();
+    }
+    if (GetFileAttributesA(FS_MARKER) != INVALID_FILE_ATTRIBUTES) {
+        /* F lines: the scratch tree's parent is the sandbox root, as the game's System directory (the current
+         * directory of a run) sits one level below its sandbox */
+        char* slash;
+        GetCurrentDirectoryA(sizeof xrt_sandbox_root, xrt_sandbox_root);
+        if ((slash = strrchr(xrt_sandbox_root, '\\')) != NULL)
+            *slash = 0;
     }
     run_corpus(argv[1], argv[2]);
     xrt_stdout_flush();

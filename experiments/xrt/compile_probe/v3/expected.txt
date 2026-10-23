@@ -1,0 +1,7 @@
+XCP tag=charlie-3 greeting=from-defaults
+XCP shapes=square:square/4/9,triangle/3/10 total=19
+XCP history=1 last=19
+XCP sum10=55 twice=42
+XCP grades=7:C 14:C 21:A 
+XCP do=12 default=3 isa=True
+XCP done

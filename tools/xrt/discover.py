@@ -44,8 +44,12 @@ class Function:
 
 
 class Module:
-    def __init__(self, path, base=None):
+    def __init__(self, path, base=None, given_rvas=None):
+        """given_rvas: the function entries (RVAs) found at the preferred base, for a rebased image. Discovery at
+        another base is not reliable on its own: bytes that are decoded as code by mistake (pointer tables in .text)
+        change with the relocated values, and their spurious operands can make pass 2 drop real functions."""
         self.img = PEImage(path, base)
+        self.given = given_rvas
         self.md = Cs(CS_ARCH_X86, CS_MODE_32)
         self.md.detail = True
         self.relocs = self.img.reloc_vas()
@@ -74,6 +78,10 @@ class Module:
 
     def seeds(self):
         img = self.img
+        if self.given is not None:
+            for rva in self.given:
+                self.add_seed(img.base + rva, "given")
+            return
         if img.entry_rva:
             self.add_seed(img.base + img.entry_rva, "entry")
         for name, rva in img.exports.items():

@@ -202,6 +202,7 @@ static void put_wstr(uint32_t ga, const WCHAR* s) { memcpy(G2H(ga), s, (wcslen(s
 /* CreateFileW(name, GENERIC_WRITE, 0, NULL, CREATE_ALWAYS, FILE_ATTRIBUTE_NORMAL, NULL), the arguments the
  * guest's file writer (UCC.exe 0x402756) passes; returns the guest handle, or 0xDEAD0000|code on fatal */
 static CPU cpu;
+static int failures;
 __declspec(noinline) static uint32_t guest_create(XrtFn fn, uint32_t gname) {
     uint32_t sp = G_STACK;
     uint32_t args[7] = {gname, GENERIC_WRITE, 0, 0, CREATE_ALWAYS, FILE_ATTRIBUTE_NORMAL, 0};
@@ -220,10 +221,20 @@ __declspec(noinline) static uint32_t guest_create(XrtFn fn, uint32_t gname) {
     }
     fn(&cpu);
     f3_fatal_armed = 0;
+    if (cpu.rv != 0x12345678u || cpu.r[ESP] != G_STACK)
+        failures++;
     return cpu.r[EAX];
 }
 
 static void report_c(const char* label, uint32_t h, const WCHAR* target) {
+    int fatal = (h & 0xFFFF0000u) == 0xDEAD0000u;
+    int exists = exists_ext(target);
+    if (fatal && ((h & 0xFFFFu) != XRT_EXIT_UNSUPPORTED || !strstr(f3_fatal_msg, "outside the sandbox refused")))
+        failures++;
+    if (strstr(label, "OUTSIDE") && (!fatal || exists))
+        failures++;
+    if (strstr(label, "C1a") && (fatal || h == 0xFFFFFFFFu || !h || !exists))
+        failures++;
     printf("  %-52s -> ", label);
     if ((h & 0xFFFF0000u) == 0xDEAD0000u)
         printf("xrt_fatal(%u) \"%.60s...\"", h & 0xFFFF, f3_fatal_msg);
@@ -373,5 +384,6 @@ int main(int argc, char** argv) {
     part_b();
     part_c();
     part_d();
-    return 0;
+    printf("F3 checked adapter failures: %d\n", failures);
+    return failures ? 1 : 0;
 }

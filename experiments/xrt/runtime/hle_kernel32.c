@@ -243,6 +243,36 @@ static void hle_DeleteFileW(CPU* c) {
     RET_STD(1, ok);
 }
 
+/* MoveFileW (UCC's package save: temporary file, then rename): both names must be inside the sandbox. Recorded as an
+ * evidence event with both names relative to the sandbox. */
+static const char* sandbox_rel(char* out, size_t n, const uint16_t* p) {
+    char full[600];
+    size_t k = strlen(xrt_sandbox_root);
+    WCHAR w[MAX_PATH * 2];
+    if (!GetFullPathNameW((LPCWSTR)p, MAX_PATH * 2, w, NULL))
+        lstrcpynW(w, (LPCWSTR)p, MAX_PATH * 2);
+    WideCharToMultiByte(CP_ACP, 0, w, -1, full, sizeof full, NULL, NULL);
+    if (k && !_strnicmp(full, xrt_sandbox_root, k) && full[k] == '\\')
+        snprintf(out, n, "<sandbox>%s", full + k);
+    else
+        snprintf(out, n, "%s", full);
+    return out;
+}
+static void hle_MoveFileW(CPU* c) {
+    const uint16_t *from = (const uint16_t*)G2H(ARG(0)), *to = (const uint16_t*)G2H(ARG(1));
+    char a[620], b[620], j1[700], j2[700];
+    BOOL ok;
+    require_sandbox(c, from, "MoveFile (source)");
+    require_sandbox(c, to, "MoveFile (destination)");
+    ok = MoveFileW((LPCWSTR)from, (LPCWSTR)to);
+    if (!ok)
+        set_err_from_host(c);
+    xrt_log("MoveFileW(\"%s\", \"%s\") -> %d", sandbox_rel(a, sizeof a, from), sandbox_rel(b, sizeof b, to), ok);
+    xrt_event("move_file", "\"from\": %s, \"to\": %s, \"ok\": %s", xrt_jstr(j1, sizeof j1, a), xrt_jstr(j2, sizeof j2, b),
+              ok ? "true" : "false");
+    RET_STD(2, ok);
+}
+
 static void hle_SetCurrentDirectoryW(CPU* c) {
     const uint16_t* p = (const uint16_t*)G2H(ARG(0));
     BOOL ok;
@@ -312,11 +342,27 @@ static void hle_GetCommandLineA(CPU* c) { RET_STD(0, xrt_cmdline_a); }
 static void hle_GetCurrentProcess(CPU* c) { RET_STD(0, 0xFFFFFFFFu); }
 static void hle_GetLastError(CPU* c) { RET_STD(0, xrt_get_last_error(c)); }
 
+static int is_kernel32(const char* name) {
+    const char *b = name, *p;
+    for (p = name; *p; p++)
+        if (*p == '\\' || *p == '/' || *p == ':')
+            b = p + 1;
+    return !_stricmp(b, "kernel32") || !_stricmp(b, "kernel32.dll");
+}
+
+/* GetModuleHandleA: NULL is UCC.exe; a translated module its base; kernel32.dll (which every process has) the
+ * runtime's handle for it (XRT_KERNEL32_HANDLE: GetProcAddress on it resolves to host adapters; the system DLL's
+ * image is not mapped). Any other name is not loaded in this process: NULL, ERROR_MOD_NOT_FOUND. */
 static void hle_GetModuleHandleA(CPU* c) {
     uint32_t n = ARG(0);
     XrtModule* m;
     if (!n) {
         RET_STD(1, xrt_module_get(0) ? 0x00400000u : 0);
+        return;
+    }
+    if (is_kernel32((const char*)G2H(n))) {
+        xrt_log("GetModuleHandleA(\"%s\") -> %08x (kernel32.dll: host adapters)", (const char*)G2H(n), XRT_KERNEL32_HANDLE);
+        RET_STD(1, XRT_KERNEL32_HANDLE);
         return;
     }
     m = xrt_module_by_name((const char*)G2H(n));
@@ -376,13 +422,11 @@ static void loadlib_event(const char* path, uint32_t result, uint32_t site) {   
     xrt_event("load_library", "\"name\": %s, \"result\": \"0x%08x\", \"site\": \"0x%08x\"", xrt_jstr(q, sizeof q, b), result,
               site);
 }
-static void hle_LoadLibraryW(CPU* c) {
-    WCHAR w[MAX_PATH * 2], sys[MAX_PATH];
+static uint32_t load_library(CPU* c, WCHAR* w, const char* api, uint32_t site) {   /* w: MAX_PATH * 2 buffer */
+    WCHAR sys[MAX_PATH];
     char a[600];
     XrtModule* m;
     const WCHAR *base, *q;
-    uint32_t site = rd32(c->r[ESP]);
-    lstrcpynW(w, (LPCWSTR)G2H(ARG(0)), MAX_PATH);
     for (base = q = w; *q; q++)
         if (*q == L'\\' || *q == L'/' || *q == L':')
             base = q + 1;
@@ -392,32 +436,59 @@ static void hle_LoadLibraryW(CPU* c) {
     m = xrt_module_by_name(a);
     if (m) {
         xrt_load_library(c, m->path);
-        xrt_log("LoadLibraryW(\"%s\") -> translated %s at %08x", a, m->name, m->base);
+        xrt_log("%s(\"%s\") -> translated %s at %08x", api, a, m->name, m->base);
         loadlib_event(a, m->base, site);
-        RET_STD(1, m->base);
-        return;
+        return m->base;
     }
     if (GetFileAttributesW(w) != INVALID_FILE_ATTRIBUTES) {
         char full[600];
         if (!GetFullPathNameA(a, sizeof full, full, NULL) || !(m = xrt_load_library(c, full)))
-            xrt_fatal(c, XRT_EXIT_IMPORT, "LoadLibraryW(\"%s\"): the DLL exists but is not part of this translated runtime", a);
-        xrt_log("LoadLibraryW(\"%s\") -> loaded translated %s at %08x", a, m->name, m->base);
+            xrt_fatal(c, XRT_EXIT_IMPORT, "%s(\"%s\"): the DLL exists but is not part of this translated runtime", api, a);
+        xrt_log("%s(\"%s\") -> loaded translated %s at %08x", api, a, m->name, m->base);
         loadlib_event(a, m->base, site);
-        RET_STD(1, m->base);
-        return;
+        return m->base;
     }
     GetSystemDirectoryW(sys, MAX_PATH);
     if (base == w) {
         WCHAR s2[MAX_PATH * 2];
         _snwprintf(s2, MAX_PATH * 2, L"%s\\%s", sys, w);
         if (GetFileAttributesW(s2) != INVALID_FILE_ATTRIBUTES)
-            xrt_fatal(c, XRT_EXIT_IMPORT, "LoadLibraryW(\"%s\"): loading a system DLL dynamically is not supported", a);
+            xrt_fatal(c, XRT_EXIT_IMPORT, "%s(\"%s\"): loading a system DLL dynamically is not supported", api, a);
     }
     loadlib_missing++;
-    xrt_log("LoadLibraryW(\"%s\") -> NULL (no such file, ERROR_MOD_NOT_FOUND as on Windows)", a);
+    xrt_log("%s(\"%s\") -> NULL (no such file, ERROR_MOD_NOT_FOUND as on Windows)", api, a);
     loadlib_event(a, 0, site);
     xrt_set_last_error(c, ERROR_MOD_NOT_FOUND);
-    RET_STD(1, 0);
+    return 0;
+}
+
+static void hle_LoadLibraryW(CPU* c) {
+    WCHAR w[MAX_PATH * 2];
+    uint32_t site = rd32(c->r[ESP]);
+    lstrcpynW(w, (LPCWSTR)G2H(ARG(0)), MAX_PATH);
+    RET_STD(1, load_library(c, w, "LoadLibraryW", site));
+}
+
+static void hle_LoadLibraryA(CPU* c) {
+    WCHAR w[MAX_PATH * 2];
+    uint32_t site = rd32(c->r[ESP]);
+    if (!MultiByteToWideChar(CP_ACP, 0, (LPCSTR)G2H(ARG(0)), -1, w, MAX_PATH))
+        xrt_fatal(c, XRT_EXIT_UNSUPPORTED, "LoadLibraryA: name conversion failed");
+    RET_STD(1, load_library(c, w, "LoadLibraryA", site));
+}
+
+/* GetPrivateProfileStringA: the host API on the same arguments (a file name without a path is read from the
+ * Windows directory, as for the original; reading outside the sandbox is allowed, writing profile strings is not
+ * bound). Recorded as an evidence event. */
+static void hle_GetPrivateProfileStringA(CPU* c) {
+    LPCSTR app = ARG(0) ? (LPCSTR)G2H(ARG(0)) : NULL, key = ARG(1) ? (LPCSTR)G2H(ARG(1)) : NULL;
+    LPCSTR def = ARG(2) ? (LPCSTR)G2H(ARG(2)) : NULL, file = ARG(5) ? (LPCSTR)G2H(ARG(5)) : NULL;
+    DWORD r = GetPrivateProfileStringA(app, key, def, ARG(3) ? (LPSTR)G2H(ARG(3)) : NULL, ARG(4), file);
+    char q1[300], q2[300], q3[300];
+    xrt_set_last_error(c, GetLastError());
+    xrt_event("profile_read", "\"file\": %s, \"section\": %s, \"key\": %s, \"result\": %u", xrt_jstr(q1, sizeof q1, file ? file : ""),
+              xrt_jstr(q2, sizeof q2, app ? app : ""), xrt_jstr(q3, sizeof q3, key ? key : ""), r);
+    RET_STD(6, r);
 }
 
 static void hle_FreeLibrary(CPU* c) {
@@ -425,10 +496,27 @@ static void hle_FreeLibrary(CPU* c) {
     RET_STD(1, m ? xrt_free_library(c, m) : 0);
 }
 
+/* GetProcAddress: a translated module's export; on kernel32.dll's handle the stub of the host adapter of that name.
+ * A kernel32 function without an adapter (or looked up by ordinal) is fatal: whether the original's kernel32 would
+ * have returned it or NULL is not modelled. */
 static uint64_t gpa_calls, gpa_misses;
 static void hle_GetProcAddress(CPU* c) {
     XrtModule* m = module_of_handle(ARG(0));
     uint32_t n = ARG(1), r;
+    if (ARG(0) == XRT_KERNEL32_HANDLE) {
+        char q[300];
+        if (!(n >> 16))
+            xrt_fatal(c, XRT_EXIT_IMPORT, "GetProcAddress(kernel32.dll, ordinal %u) is not supported", n);
+        if (!(r = xrt_hle_proc("kernel32.dll", (const char*)G2H(n))))
+            xrt_fatal(c, XRT_EXIT_IMPORT, "GetProcAddress(kernel32.dll, \"%s\"): no host adapter for this function",
+                      (const char*)G2H(n));
+        gpa_calls++;
+        xrt_log("GetProcAddress(kernel32.dll, \"%s\") -> adapter stub %08x", (const char*)G2H(n), r);
+        xrt_event("get_proc_address", "\"module\": \"kernel32.dll\", \"name\": %s, \"result\": \"0x%08x\"",
+                  xrt_jstr(q, sizeof q, (const char*)G2H(n)), r);
+        RET_STD(2, r);
+        return;
+    }
     if (!m || !ARG(0))
         xrt_fatal(c, XRT_EXIT_IMPORT, "GetProcAddress on module handle %08x, which is not a translated module", ARG(0));
     gpa_calls++;
@@ -698,6 +786,336 @@ static void hle_LeaveCriticalSection(CPU* c) {
     LeaveCriticalSection(cs_find(c, ARG(0), 0, 0));
     RET_STD(1, 0);
 }
+static void hle_InitializeCriticalSectionAndSpinCount(CPU* c) {   /* the spin count has no observable effect here */
+    uint32_t g = ARG(0);
+    cs_find(c, g, 1, 0);
+    memset(G2H(g), 0, 24);
+    wr32(g + 4, 0xFFFFFFFFu);
+    RET_STD(2, 1);
+}
+
+/* ---------------------------------------------------------------- what a DLL's static CRT uses (UnrImp.gpi)
+ * GlmLib's plugin links its own C runtime (LIBCMT) instead of msvcr70.dll, so its startup and shutdown use these
+ * Win32 services directly. */
+static void hle_SetLastError(CPU* c) {
+    xrt_set_last_error(c, ARG(0));
+    RET_STD(1, 0);
+}
+
+/* TLS: the 64 slots of the guest TEB (offset 0xE10), as in Windows. TlsAlloc hands out the lowest free index and,
+ * like TlsFree, clears that slot in every thread. The index values differ from the original's (system DLLs hold
+ * lower ones there); the guest only uses them as keys. Expansion slots (index >= 64) are not modelled. */
+static uint64_t tls_used;
+static void tls_clear(uint32_t i) {
+    int k;
+    for (k = 0; k < xrt_thread_count(); k++)
+        wr32(xrt_thread_get(k)->teb + 0xE10 + 4 * i, 0);
+}
+static void hle_TlsAlloc(CPU* c) {
+    uint32_t i;
+    for (i = 0; i < 64 && (tls_used >> i & 1); i++)
+        ;
+    if (i == 64)
+        xrt_fatal(c, XRT_EXIT_UNSUPPORTED, "TlsAlloc: the 64 TEB slots are used up (expansion slots are not modelled)");
+    tls_used |= 1ull << i;
+    tls_clear(i);
+    xrt_event("tls_alloc", "\"index\": %u", i);
+    RET_STD(0, i);
+}
+static void hle_TlsFree(CPU* c) {
+    uint32_t i = ARG(0);
+    if (i >= 64 || !(tls_used >> i & 1)) {
+        xrt_set_last_error(c, ERROR_INVALID_PARAMETER);
+        RET_STD(1, 0);
+        return;
+    }
+    tls_used &= ~(1ull << i);
+    tls_clear(i);
+    xrt_event("tls_free", "\"index\": %u", i);
+    RET_STD(1, 1);
+}
+static void hle_TlsGetValue(CPU* c) {
+    uint32_t i = ARG(0);
+    if (i >= 64) {
+        xrt_set_last_error(c, ERROR_INVALID_PARAMETER);
+        RET_STD(1, 0);
+        return;
+    }
+    xrt_set_last_error(c, ERROR_SUCCESS);   /* as documented: success clears the last error */
+    RET_STD(1, rd32(c->fs_base + 0xE10 + 4 * i));
+}
+static void hle_TlsSetValue(CPU* c) {
+    uint32_t i = ARG(0);
+    if (i >= 64) {
+        xrt_set_last_error(c, ERROR_INVALID_PARAMETER);
+        RET_STD(2, 0);
+        return;
+    }
+    wr32(c->fs_base + 0xE10 + 4 * i, ARG(1));
+    RET_STD(2, 1);
+}
+
+/* Private heaps: a HeapCreate heap is a 16-byte runtime object (its address is the handle; the guest never reads
+ * it) whose blocks come from the guest heap and are recorded with their heap; HeapDestroy frees the blocks still
+ * live in it. Only what the plugin's CRT uses is modelled: a growable heap (maximum size 0) with flags 0 or
+ * HEAP_NO_SERIALIZE, and HEAP_ZERO_MEMORY on allocation. A block of another heap, or the process heap, is fatal. */
+typedef struct HeapBlock { uint32_t heap, p; } HeapBlock;
+static HeapBlock* hblocks;
+static int nhblocks, hblocks_cap;
+static uint32_t heaps[16];
+static int nheaps;
+static int heap_known(uint32_t h) {
+    int i;
+    for (i = 0; i < nheaps; i++)
+        if (heaps[i] == h)
+            return 1;
+    return 0;
+}
+static int heap_block(CPU* c, uint32_t h, uint32_t p, const char* api) {
+    int i;
+    if (!heap_known(h))
+        xrt_fatal(c, XRT_EXIT_UNSUPPORTED, "%s on heap %08x, which is not a HeapCreate heap of this runtime", api, h);
+    for (i = nhblocks - 1; i >= 0; i--)
+        if (hblocks[i].p == p) {
+            if (hblocks[i].heap != h)
+                break;
+            return i;
+        }
+    xrt_fatal(c, XRT_EXIT_UNSUPPORTED, "%s(%08x, %08x): not a live block of that heap", api, h, p);
+}
+static void hle_HeapCreate(CPU* c) {
+    uint32_t h;
+    if ((ARG(0) & ~(uint32_t)HEAP_NO_SERIALIZE) || ARG(2))
+        xrt_fatal(c, XRT_EXIT_UNSUPPORTED, "HeapCreate(flags %08x, maximum %08x) is not modelled", ARG(0), ARG(2));
+    if (nheaps == (int)(sizeof heaps / sizeof heaps[0]))
+        xrt_fatal(c, XRT_EXIT_UNSUPPORTED, "too many private heaps");
+    h = xrt_rt_alloc(16, 16);
+    heaps[nheaps++] = h;
+    xrt_event("heap_create", "\"heap\": \"0x%08x\"", h);
+    RET_STD(3, h);
+}
+static void hle_HeapAlloc(CPU* c) {
+    uint32_t h = ARG(0), flags = ARG(1), size = ARG(2), p;
+    if (!heap_known(h))
+        xrt_fatal(c, XRT_EXIT_UNSUPPORTED, "HeapAlloc on heap %08x, which is not a HeapCreate heap of this runtime", h);
+    if (flags & ~(uint32_t)(HEAP_ZERO_MEMORY | HEAP_NO_SERIALIZE))
+        xrt_fatal(c, XRT_EXIT_UNSUPPORTED, "HeapAlloc flags %08x are not modelled", flags);
+    if (!(p = xrt_heap_alloc(size))) {
+        RET_STD(3, 0);
+        return;
+    }
+    if (flags & HEAP_ZERO_MEMORY)
+        memset(G2H(p), 0, size);
+    if (nhblocks == hblocks_cap) {
+        hblocks_cap = hblocks_cap ? 2 * hblocks_cap : 256;
+        if (!(hblocks = (HeapBlock*)realloc(hblocks, hblocks_cap * sizeof *hblocks)))
+            xrt_fatal(c, XRT_EXIT_SETUP, "host out of memory");
+    }
+    hblocks[nhblocks].heap = h;
+    hblocks[nhblocks++].p = p;
+    RET_STD(3, p);
+}
+static void hle_HeapFree(CPU* c) {
+    int i;
+    if (!ARG(2)) {
+        RET_STD(3, 1);
+        return;
+    }
+    i = heap_block(c, ARG(0), ARG(2), "HeapFree");
+    hblocks[i] = hblocks[--nhblocks];
+    xrt_heap_free(c, ARG(2));
+    RET_STD(3, 1);
+}
+static void hle_HeapSize(CPU* c) {
+    heap_block(c, ARG(0), ARG(2), "HeapSize");
+    RET_STD(3, xrt_heap_msize(c, ARG(2)));
+}
+static void hle_HeapDestroy(CPU* c) {
+    uint32_t h = ARG(0);
+    int i, n = 0;
+    if (!heap_known(h))
+        xrt_fatal(c, XRT_EXIT_UNSUPPORTED, "HeapDestroy on heap %08x, which is not a HeapCreate heap of this runtime", h);
+    for (i = nhblocks - 1; i >= 0; i--)
+        if (hblocks[i].heap == h) {
+            xrt_heap_free(c, hblocks[i].p);
+            hblocks[i] = hblocks[--nhblocks];
+            n++;
+        }
+    for (i = 0; i < nheaps; i++)
+        if (heaps[i] == h)
+            heaps[i] = heaps[--nheaps];
+    xrt_event("heap_destroy", "\"heap\": \"0x%08x\", \"live_blocks_freed\": %d", h, n);
+    RET_STD(1, 1);
+}
+
+/* Standard handles: the host process's own, as XH_STD guest handles (the original and this host are started by the
+ * same harness with the same standard handles). Reading or writing them through kernel32 is not modelled (ReadFile
+ * and WriteFile accept only file handles); the guest's console output goes through its CRT's stdout. */
+static uint32_t std_handles[3];
+static uint32_t std_guest(DWORD which) {   /* STD_INPUT_HANDLE, STD_OUTPUT_HANDLE, STD_ERROR_HANDLE */
+    HANDLE h = GetStdHandle(which);
+    uint32_t k = (uint32_t)(-(int)which) - 10;
+    if (h == INVALID_HANDLE_VALUE)
+        return 0xFFFFFFFFu;
+    if (!h)
+        return 0;
+    if (!std_handles[k])
+        std_handles[k] = xrt_handle_new(XH_STD, h);
+    return std_handles[k];
+}
+static void hle_GetStdHandle(CPU* c) {
+    DWORD which = ARG(0);
+    uint32_t h;
+    if (which != STD_INPUT_HANDLE && which != STD_OUTPUT_HANDLE && which != STD_ERROR_HANDLE) {
+        xrt_set_last_error(c, ERROR_INVALID_HANDLE);
+        RET_STD(1, 0xFFFFFFFFu);
+        return;
+    }
+    if ((h = std_guest(which)) == 0xFFFFFFFFu)
+        set_err_from_host(c);
+    RET_STD(1, h);
+}
+static void hle_GetFileType(CPU* c) {
+    uint32_t h = ARG(0);
+    HANDLE host = xrt_handle_type(h) == XH_STD ? xrt_handle_get(h, XH_STD) : xrt_handle_get(h, XH_FILE);
+    DWORD t;
+    if (!host) {
+        xrt_set_last_error(c, ERROR_INVALID_HANDLE);
+        RET_STD(1, FILE_TYPE_UNKNOWN);
+        return;
+    }
+    t = GetFileType(host);
+    xrt_set_last_error(c, GetLastError());
+    RET_STD(1, t);
+}
+static void hle_SetHandleCount(CPU* c) { RET_STD(1, ARG(0)); }   /* Windows NT: no effect, returns its argument */
+
+/* STARTUPINFOA: the host process's (strings copied to guest memory once; standard handles as XH_STD handles). A
+ * CRT handle-inheritance block (cbReserved2) is not modelled: fatal. */
+static void hle_GetStartupInfoA(CPU* c) {
+    static uint32_t desktop, title;
+    STARTUPINFOA si;
+    uint32_t p = ARG(0);
+    GetStartupInfoA(&si);
+    if (si.cbReserved2)
+        xrt_fatal(c, XRT_EXIT_UNSUPPORTED, "GetStartupInfoA: the host was started with a CRT handle block (cbReserved2 %u)",
+                  si.cbReserved2);
+    if (si.lpDesktop && !desktop)
+        desktop = xrt_guest_strdup_a(si.lpDesktop);
+    if (si.lpTitle && !title)
+        title = xrt_guest_strdup_a(si.lpTitle);
+    memset(G2H(p), 0, 68);
+    wr32(p + 0, 68);
+    wr32(p + 8, desktop);
+    wr32(p + 12, title);
+    wr32(p + 16, si.dwX);
+    wr32(p + 20, si.dwY);
+    wr32(p + 24, si.dwXSize);
+    wr32(p + 28, si.dwYSize);
+    wr32(p + 32, si.dwXCountChars);
+    wr32(p + 36, si.dwYCountChars);
+    wr32(p + 40, si.dwFillAttribute);
+    wr32(p + 44, si.dwFlags);
+    wr16(p + 48, si.wShowWindow);
+    if (si.dwFlags & STARTF_USESTDHANDLES) {
+        const DWORD which[3] = {STD_INPUT_HANDLE, STD_OUTPUT_HANDLE, STD_ERROR_HANDLE};
+        HANDLE given[3] = {si.hStdInput, si.hStdOutput, si.hStdError};
+        int k;
+        for (k = 0; k < 3; k++) {
+            if (given[k] && given[k] != INVALID_HANDLE_VALUE && given[k] != GetStdHandle(which[k]))
+                xrt_fatal(c, XRT_EXIT_UNSUPPORTED, "GetStartupInfoA: startup handle %d is not the standard handle", k);
+            wr32(p + 56 + 4 * k, given[k] == INVALID_HANDLE_VALUE ? 0xFFFFFFFFu : given[k] ? std_guest(which[k]) : 0);
+        }
+    }
+    RET_STD(1, 0);
+}
+
+/* Environment block: empty - the same deliberate limitation as msvcr70's __getmainargs (the guest gets no
+ * environment). The block is a guest heap allocation released by FreeEnvironmentStringsW. */
+static uint32_t env_blocks[8];
+static void hle_GetEnvironmentStringsW(CPU* c) {
+    uint32_t p = xrt_heap_alloc(4);
+    int k;
+    if (!p)
+        xrt_fatal(c, XRT_EXIT_SETUP, "guest heap exhausted");
+    wr32(p, 0);
+    for (k = 0; k < 8 && env_blocks[k]; k++)
+        ;
+    if (k == 8)
+        xrt_fatal(c, XRT_EXIT_UNSUPPORTED, "too many environment blocks");
+    env_blocks[k] = p;
+    xrt_event("environment_block", "\"entries\": 0");
+    RET_STD(0, p);
+}
+static void hle_FreeEnvironmentStringsW(CPU* c) {
+    int k;
+    for (k = 0; k < 8 && env_blocks[k] != ARG(0); k++)
+        ;
+    if (k == 8 || !ARG(0))
+        xrt_fatal(c, XRT_EXIT_UNSUPPORTED, "FreeEnvironmentStringsW(%08x): not a block from GetEnvironmentStringsW", ARG(0));
+    env_blocks[k] = 0;
+    xrt_heap_free(c, ARG(0));
+    RET_STD(1, 1);
+}
+
+/* Recorded only: an unhandled guest exception is fatal in this runtime, so the filter is never called. Returns the
+ * previously recorded filter (none before the first call; the original's would be one msvcr70 installed). */
+static uint32_t unhandled_filter;
+static void hle_SetUnhandledExceptionFilter(CPU* c) {
+    uint32_t prev = unhandled_filter;
+    char d[512];
+    unhandled_filter = ARG(0);
+    xrt_describe(d, sizeof d, ARG(0));
+    xrt_log("SetUnhandledExceptionFilter(%s): recorded; never called (an unhandled guest exception is fatal)", d);
+    xrt_event("unhandled_exception_filter", "\"filter\": \"0x%08x\", \"previous\": \"0x%08x\"", ARG(0), prev);
+    RET_STD(1, prev);
+}
+
+/* IsProcessorFeaturePresent, consistent with the CPUID policy (xrt_cpu.c): SIMD features absent; the FDIV-erratum
+ * query of the CRT's startup (PF_FLOATING_POINT_PRECISION_ERRATA) is the host's answer. Other features: fatal. */
+static void hle_IsProcessorFeaturePresent(CPU* c) {
+    uint32_t f = ARG(0);
+    switch (f) {
+    case PF_FLOATING_POINT_PRECISION_ERRATA:
+        RET_STD(1, IsProcessorFeaturePresent(f) ? 1 : 0);
+        return;
+    case PF_MMX_INSTRUCTIONS_AVAILABLE:
+    case PF_XMMI_INSTRUCTIONS_AVAILABLE:
+    case PF_3DNOW_INSTRUCTIONS_AVAILABLE:
+    case PF_XMMI64_INSTRUCTIONS_AVAILABLE:
+    case PF_SSE3_INSTRUCTIONS_AVAILABLE:
+        RET_STD(1, 0);
+        return;
+    default:
+        xrt_fatal(c, XRT_EXIT_UNSUPPORTED, "IsProcessorFeaturePresent(%u) is not modelled", f);
+    }
+}
+
+/* Code-page and locale services: the host's, on the same arguments (the original ran on the same system, so the
+ * ANSI code page and the tables are the ones it saw; nothing is substituted). */
+static void hle_GetACP(CPU* c) { RET_STD(0, GetACP()); }
+static void hle_GetCPInfo(CPU* c) {
+    CPINFO ci;
+    BOOL ok = GetCPInfo(ARG(0), &ci);
+    if (ok)
+        memcpy(G2H(ARG(1)), &ci, sizeof ci);
+    else
+        set_err_from_host(c);
+    RET_STD(2, ok);
+}
+static void hle_GetStringTypeW(CPU* c) {
+    BOOL ok = GetStringTypeW(ARG(0), (LPCWCH)G2H(ARG(1)), (int)ARG(2), (LPWORD)G2H(ARG(3)));
+    if (!ok)
+        set_err_from_host(c);
+    RET_STD(4, ok);
+}
+static void hle_LCMapStringW(CPU* c) {
+    int r = LCMapStringW(ARG(0), ARG(1), (LPCWSTR)G2H(ARG(2)), (int)ARG(3), ARG(5) ? (LPWSTR)G2H(ARG(4)) : NULL,
+                         (int)ARG(5));
+    if (!r)
+        set_err_from_host(c);
+    RET_STD(6, (uint32_t)r);
+}
 
 const XrtHle xrt_hle_kernel32[] = {
     {"kernel32.dll", "CreateFileW", hle_CreateFileW},
@@ -709,6 +1127,7 @@ const XrtHle xrt_hle_kernel32[] = {
     {"kernel32.dll", "CloseHandle", hle_CloseHandle},
     {"kernel32.dll", "SetFileAttributesW", hle_SetFileAttributesW},
     {"kernel32.dll", "DeleteFileW", hle_DeleteFileW},
+    {"kernel32.dll", "MoveFileW", hle_MoveFileW},
     {"kernel32.dll", "SetCurrentDirectoryW", hle_SetCurrentDirectoryW},
     {"kernel32.dll", "GetCurrentDirectoryW", hle_GetCurrentDirectoryW},
     {"kernel32.dll", "FindFirstFileW", hle_FindFirstFileW},
@@ -720,6 +1139,8 @@ const XrtHle xrt_hle_kernel32[] = {
     {"kernel32.dll", "GetModuleHandleA", hle_GetModuleHandleA},
     {"kernel32.dll", "GetModuleFileNameA", hle_GetModuleFileNameA},
     {"kernel32.dll", "LoadLibraryW", hle_LoadLibraryW},
+    {"kernel32.dll", "LoadLibraryA", hle_LoadLibraryA},
+    {"kernel32.dll", "GetPrivateProfileStringA", hle_GetPrivateProfileStringA},
     {"kernel32.dll", "FreeLibrary", hle_FreeLibrary},
     {"kernel32.dll", "GetProcAddress", hle_GetProcAddress},
     {"kernel32.dll", "SetConsoleCtrlHandler", hle_SetConsoleCtrlHandler},
@@ -747,5 +1168,28 @@ const XrtHle xrt_hle_kernel32[] = {
     {"kernel32.dll", "DeleteCriticalSection", hle_DeleteCriticalSection},
     {"kernel32.dll", "EnterCriticalSection", hle_EnterCriticalSection},
     {"kernel32.dll", "LeaveCriticalSection", hle_LeaveCriticalSection},
+    {"kernel32.dll", "InitializeCriticalSectionAndSpinCount", hle_InitializeCriticalSectionAndSpinCount},
+    {"kernel32.dll", "SetLastError", hle_SetLastError},
+    {"kernel32.dll", "TlsAlloc", hle_TlsAlloc},
+    {"kernel32.dll", "TlsFree", hle_TlsFree},
+    {"kernel32.dll", "TlsGetValue", hle_TlsGetValue},
+    {"kernel32.dll", "TlsSetValue", hle_TlsSetValue},
+    {"kernel32.dll", "HeapCreate", hle_HeapCreate},
+    {"kernel32.dll", "HeapAlloc", hle_HeapAlloc},
+    {"kernel32.dll", "HeapFree", hle_HeapFree},
+    {"kernel32.dll", "HeapSize", hle_HeapSize},
+    {"kernel32.dll", "HeapDestroy", hle_HeapDestroy},
+    {"kernel32.dll", "GetStdHandle", hle_GetStdHandle},
+    {"kernel32.dll", "GetFileType", hle_GetFileType},
+    {"kernel32.dll", "SetHandleCount", hle_SetHandleCount},
+    {"kernel32.dll", "GetStartupInfoA", hle_GetStartupInfoA},
+    {"kernel32.dll", "GetEnvironmentStringsW", hle_GetEnvironmentStringsW},
+    {"kernel32.dll", "FreeEnvironmentStringsW", hle_FreeEnvironmentStringsW},
+    {"kernel32.dll", "SetUnhandledExceptionFilter", hle_SetUnhandledExceptionFilter},
+    {"kernel32.dll", "IsProcessorFeaturePresent", hle_IsProcessorFeaturePresent},
+    {"kernel32.dll", "GetACP", hle_GetACP},
+    {"kernel32.dll", "GetCPInfo", hle_GetCPInfo},
+    {"kernel32.dll", "GetStringTypeW", hle_GetStringTypeW},
+    {"kernel32.dll", "LCMapStringW", hle_LCMapStringW},
     {0},
 };

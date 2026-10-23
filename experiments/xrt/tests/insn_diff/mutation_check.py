@@ -75,16 +75,16 @@ def main():
                            capture_output=True, text=True)
         line = r.stdout.strip().splitlines()[-1] if r.stdout.strip() else r.stderr[-300:]
         rows.append((name, n, failed_count(r.stdout) > baseline, line))
-    survived = 0
+    incomplete = 0
     result = []
     for name, n, killed, line in rows:
         state = "killed" if killed else "SURVIVED" if killed is False else "n/a"
-        survived += killed is False
+        incomplete += killed is not True
         print(f"{state:8}  {name}  [{n} sites]  {line}")
         result.append({"mutation": name, "sites": n, "result": state, "detail": line})
     with open(os.path.join(BUILD, "mutation_check.json"), "w", encoding="utf-8", newline="\n") as f:
         json.dump(result, f, indent=1)
-    return 1 if survived else 0
+    return 1 if incomplete else 0
 
 
 if __name__ == "__main__":

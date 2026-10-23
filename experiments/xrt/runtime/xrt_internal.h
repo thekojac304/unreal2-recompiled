@@ -15,11 +15,16 @@ struct XrtModule;
  *                        committed, so reading data through a function import faults visibly
  * 0x00400000-...         UCC.exe image (preferred base)
  * 0x01000000-0x0FFFFFFF  guest thread stacks (each with an uncommitted guard region below it); stacks skip the
- *                        range of every linked translated module, mapped yet or not (GlmLib.dll is lifted for
- *                        0x02df0000, where the original loader rebased it)
- * 0x10100000-...         Core.dll image (preferred base); Engine.dll at its preferred base 0x10300000
- * 0x20000000-0x7FEFFFFF  guest heap (malloc/realloc/free); stays below 2 GB like the original
- *                        (non large-address-aware) process */
+ *                        range of every linked translated module, mapped yet or not (Editor.dll is lifted for
+ *                        0x02de0000 and GlmLib.dll for 0x02f40000, where the original's `ucc make` rebases them;
+ *                        GlmLib's plugin plugins\UnrImp.gpi for 0x036d0000 and Fire.dll for 0x03710000, where one
+ *                        of its runs loaded them)
+ * 0x10100000-...         Core.dll image (preferred base); Engine.dll at its preferred base 0x10300000;
+ *                        Window.dll at its preferred base 0x11000000
+ * 0x20000000-0x7FEFFFFF  guest heap (malloc/realloc/free, HeapAlloc); stays below 2 GB like the original
+ *                        (non large-address-aware) process
+ * 0x7FF00000             module handle of kernel32.dll (GetModuleHandle): never committed, so reading the system
+ *                        DLL's image faults visibly; GetProcAddress on it resolves to the host adapters */
 #define XRT_RT_BASE 0x00010000u
 #define XRT_RT_END 0x00300000u
 #define XRT_STUB_BASE 0x00300000u
@@ -30,6 +35,7 @@ struct XrtModule;
 #define XRT_STACK_END 0x10000000u
 #define XRT_HEAP_BASE 0x20000000u
 #define XRT_HEAP_END 0x7FF00000u
+#define XRT_KERNEL32_HANDLE 0x7FF00000u
 
 /* exit codes used by the runtime itself (guest exit codes are passed through unchanged) */
 enum { XRT_EXIT_TRAP = 71, XRT_EXIT_BADRET = 72, XRT_EXIT_DIV0 = 73, XRT_EXIT_FAULT = 74, XRT_EXIT_IMPORT = 75,
@@ -40,6 +46,7 @@ void xrt_mem_init(void);
 void xrt_commit(uint32_t a, uint32_t size);
 int xrt_is_committed(uint32_t a, uint32_t size);
 int xrt_range_is_free(uint32_t a, uint32_t size);           /* no page of the range committed */
+void xrt_decommit(uint32_t a, uint32_t size);
 uint32_t xrt_rt_alloc(uint32_t size, uint32_t align);       /* runtime region, zeroed, never freed */
 uint32_t xrt_heap_alloc(uint32_t size);                      /* 0 on exhaustion */
 void xrt_heap_free(CPU* c, uint32_t p);
@@ -104,6 +111,7 @@ typedef struct XrtModule {
     uint32_t preferred_base;       /* ImageBase in the file; differs from base for a rebased lift */
     int is_dll, attached;
     int load_count;                /* LoadLibrary references; -1: loaded with the process (never unloaded) */
+    int unloaded;                  /* unmapped by FreeLibrary (slot kept for the report; reused if loaded again) */
     const XrtLiftedModule* lifted;
     uint32_t export_dir, export_dir_size;
 } XrtModule;
@@ -129,6 +137,8 @@ uint32_t xrt_call_guest(CPU* c, uint32_t va, int nargs, const uint32_t* args, in
 uint32_t xrt_call_funclet(CPU* c, uint32_t va);   /* EH funclet call: no args, not a host boundary */
 uint32_t xrt_call_continuation(CPU* c, uint32_t va, uint32_t expected_return);  /* run code at va until it returns */
 uint32_t xrt_hle_data(const char* dll, const char* name);  /* guest address of an HLE data object */
+uint32_t xrt_hle_proc(const char* dll, const char* name);  /* stub address of a host adapter, 0 if there is none */
+void xrt_module_unmap(XrtModule* m);                       /* FreeLibrary's unmapping, after DLL_PROCESS_DETACH */
 void xrt_imports_report(FILE* f);
 void xrt_sites_enable(const char* names);   /* comma-separated substrings of "dll!function" */
 void xrt_sites_report(FILE* f);
@@ -151,7 +161,7 @@ void xrt_set_last_error(CPU* c, uint32_t e);
 uint32_t xrt_get_last_error(CPU* c);
 
 /* handles: guest handle values for host objects */
-enum { XH_FREE, XH_FILE, XH_FIND, XH_THREAD };
+enum { XH_FREE, XH_FILE, XH_FIND, XH_THREAD, XH_STD };   /* XH_STD: a host standard handle (GetStdHandle) */
 uint32_t xrt_handle_new(int type, void* host);
 void* xrt_handle_get(uint32_t h, int type);
 int xrt_handle_type(uint32_t h);
@@ -180,4 +190,5 @@ void xrt_ld12_multtenpow12(uint16_t w[6], int pw);   /* msvcr70 __multtenpow12(x
 
 /* msvcr70 code run translated (xrt_msvcr70img.c, gen/msvcr70/) */
 double xrt_msvcr70_pow(CPU* c, double x, double y, uint32_t* error_type);   /* _CIpow's SSE2 path */
+const uint8_t* xrt_msvcr70_image(void);   /* the SHA-checked msvcr70.dll image (preferred-base layout), as data */
 #endif

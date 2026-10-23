@@ -12,11 +12,20 @@ Line kinds (read by crt_diff_core.h):
   S <id> <func> <arg>*       string function (w<hex> string, b<cap>,<hex> buffer, u<hex8> integer, 0 null)
   M <id> <size> <dst> <src> <n>   memmove inside one byte buffer
   R <id> <seed hex8|-> <n>   srand(seed) (unless '-') then n x rand()
+CRT functions the original `ucc make` reaches (GlmLib.dll, Editor.dll, Core.dll), see crt_diff_core.h:
+  V <id> <fmt bytes> <arg>*  vsprintf (as A)
+  T <id> <func> <arg>*       strrchr, strchr, strncpy, _stricmp, atoi, toupper (s<off>,<hex> string at an
+                             offset, b<off>,<cap> destination, u<hex8> integer)
+  Q <id> <cmp> <width> <num> <hex>   qsort with a harness comparator; order and comparator call sequence
+  Z <id> <op>*               malloc / realloc / _msize / free sequence
+  X <id> <hex8>*             _set_se_translator sequence (separate file, one process each)
+  F <id> <op>*               file-system sequence in the scratch tree FS_* below (separate file, one process each)
 <fmt> and wide strings are hex UTF-16 code units ('~' = empty). printf arguments: i<hex8> int32,
 q<hex16> int64, d<hex16> double bits, w<hex> wide string, a<hex> narrow string, n<k> pointer to %n slot k,
 c<len>,<max>,<hex|~|!> counted string (! = NULL buffer), 0 NULL. Unused argument words are 0.
 """
 import argparse
+import datetime
 import random
 import struct
 
@@ -141,21 +150,75 @@ class Corpus:
         if f is not None:
             self.err_lines.append(" ".join(["E", self._id(cat), func, dest, "0x%X" % count, f] + list(args)))
 
+    def V(self, cat, fmt, *args):
+        """vsprintf; fmt as for A"""
+        if isinstance(fmt, str):
+            if any(ord(ch) > 0xFF for ch in fmt):
+                return
+            fmt = fmt.encode("latin-1")
+        self.lines.append(" ".join(["V", self._id(cat), fmt.hex().upper() or "~"] + list(args)))
+
+    def T(self, cat, func, *args):
+        self.lines.append(" ".join(["T", self._id(cat), func] + list(args)))
+
+    def Q(self, cat, cmp, width, num, data):
+        assert len(data) == width * num
+        self.lines.append("Q %s %s %d %d %s" % (self._id(cat), cmp, width, num, data.hex().upper() or "~"))
+
+    def Z(self, cat, *ops):
+        self.lines.append(" ".join(["Z", self._id(cat)] + list(ops)))
+
+    def X(self, cat, *values):
+        self.err_lines.append(" ".join(["X", self._id(cat)] + ["%08X" % (v & 0xFFFFFFFF) for v in values]))
+
+    def F(self, cat, *ops):
+        self.err_lines.append(" ".join(["F", self._id(cat)] + list(ops)))
+
+
+def widen_narrow_args(args):
+    """The wide printf generators type a %S argument as a narrow string (wide printf's %S reads one). In narrow
+    printf %S reads a WIDE string, which would scan a narrow string's bytes past its allocation, so the narrow
+    routes give every such argument (the only use of 'a' in those generators) a wide string of the same
+    characters."""
+    return ["w" + hx(bytes.fromhex(t[1:]).decode("latin-1")) if t.startswith("a") and t != "a~" else
+            "w~" if t == "a~" else t for t in args]
+
 
 class Narrow:
     """Routes the printf generators' cases to narrow sprintf ('A' lines, categories prefixed with 'n'). Numeric
     arguments mean the same in the narrow and the wide printf; string and character conversions do not (narrow
     %s is a narrow string), so those generators' string arguments only exercise identical bytes on both sides,
-    and gen_str_narrow types them for the narrow _output."""
+    and gen_str_narrow types them for the narrow _output. Narrow-string arguments are widened
+    (widen_narrow_args)."""
 
     def __init__(self, c):
         self.c = c
 
     def P(self, cat, fmt, *args):
-        self.c.A("n" + cat, fmt, *args)
+        self.c.A("n" + cat, fmt, *widen_narrow_args(args))
 
     def C(self, cat, counts, fmt, *args):
-        self.c.A("n" + cat, fmt, *args)
+        self.c.A("n" + cat, fmt, *widen_narrow_args(args))
+
+    def W(self, *a):
+        pass
+
+
+class Vsprintf:
+    """Routes narrow printf cases to vsprintf ('V' lines, categories prefixed with 'v'): GlmLib's formatting helper
+    (GlmLib+3e80) passes its va_list to vsprintf, the same narrow _output as sprintf"""
+
+    def __init__(self, c):
+        self.c = c
+
+    def P(self, cat, fmt, *args):
+        self.c.V("v" + cat, fmt, *widen_narrow_args(args))
+
+    def C(self, cat, counts, fmt, *args):
+        self.c.V("v" + cat, fmt, *widen_narrow_args(args))
+
+    def A(self, cat, fmt, *args):            # narrow-typed generators (gen_str_narrow, gen_narrow_text)
+        self.c.V("v" + cat, fmt, *args)
 
     def W(self, *a):
         pass
@@ -740,13 +803,294 @@ def gen_strings(c, rng):
     c.R("rand", None, 2000)
 
 
+# ---------------------------------------------------------------- CRT dependencies of `ucc make`
+# The msvcr70 functions the original `ucc make -ini=XrtCompileProbe.ini` reaches (main session's import trace):
+# without a runtime adapter yet, GlmLib.dll's vsprintf, strrchr, strncpy, fopen, fclose, _getcwd, _fullpath,
+# _findfirst, _findnext, _findclose, _errno, _chdir and Editor.dll's _set_se_translator; newly reached with an
+# adapter, qsort (Core.dll), toupper, atoi, _stricmp (GlmLib.dll) and _msize; strchr is GlmLib's partner of strrchr.
+
+def S8(b, off=0):
+    """narrow string argument at byte offset off of its region"""
+    return "s%d,%s" % (off, b.hex().upper() or "~")
+
+
+def B8(cap, off=0):
+    """destination of cap bytes at byte offset off of its region"""
+    return "b%d,%d" % (off, cap)
+
+
+def U(v):
+    return "u%08X" % (v & 0xFFFFFFFF)
+
+
+PATHS = [b"", b"a", b"\\", b".", b"Core.u", b"..\\System\\Core.u", b"C:\\UT2\\System\\Editor.int", b"a.b.c", b"noext",
+         b"dir.d\\file", b"\\\\srv\\share\\x.y", b"trailing\\", b"caf\xe9\\na\xefve.txt", b"\x81\\x\x81\\.",
+         b"x" * 300 + b"\\y.z", b"/fwd/slash.u", b"..", b"\\\\", b"a\\b\\c\\d\\e.f.g"]
+
+
+def gen_tstr(c, rng):
+    """strrchr / strchr (GlmLib looks for '.' and '\\' in paths), strncpy, _stricmp, atoi, toupper"""
+    chars = [0x5C, 0x2E, 0x2F, 0, 0x15C, 0xFFFFFF5C, 0xE9, 0xFFFFFFE9, 0x80, 0x81, 0x100, 0x78, 0x41, 0x61]
+    for func in ("strrchr", "strchr"):
+        cat = "t" + func
+        for p in PATHS:
+            for ch in chars:
+                c.T(cat, func, S8(p), U(ch))
+        for off in (1, 2, 3, 5, 15):
+            for p in (b"Core.u", b"..\\System\\Core.u", b"x" * 37 + b"\\", b"", b"\\"):
+                for ch in (0x5C, 0x2E, 0):
+                    c.T(cat, func, S8(p, off), U(ch))
+        alpha = b"ab\\.:/\xe9"
+        for _ in range(150):
+            p = bytes(rng.choice(alpha) for _ in range(rng.randint(0, 70)))
+            c.T(cat, func, S8(p, rng.randint(0, 15)), U(rng.choice(list(alpha) + [0, 0x15C, 0xFFFFFFE9])))
+    # strncpy: a destination of exactly n bytes (and of n + 7, to show where the zero padding stops)
+    srcs = [b"", b"a", b"abc", b"Core.u", b"..\\System\\Editor.int", b"x" * 259, b"y" * 260, b"z" * 300, b"\xe9\xff\x80",
+            b"0123456789abcdef"]
+    for s in srcs:
+        L = len(s)
+        for n in sorted({0, 1, 2, 3, 4, L - 1, L, L + 1, L + 2, L + 3, L + 4, L + 17, 260, 261}):
+            if n < 0:
+                continue
+            for doff, soff in ((0, 0), (1, 0), (0, 1), (3, 2), (2, 3)):
+                c.T("tstrncpy", "strncpy", B8(n, doff), S8(s, soff), U(n))
+            c.T("tstrncpy", "strncpy", B8(n + 7), S8(s), U(n))
+    for _ in range(150):
+        s = bytes(rng.randint(1, 255) for _ in range(rng.randint(0, 40)))
+        n = rng.randint(0, 50)
+        c.T("tstrncpy", "strncpy", B8(n + rng.randint(0, 3), rng.randint(0, 15)), S8(s, rng.randint(0, 15)), U(n))
+    # _stricmp: only A-Z fold (so the characters between 'Z' and 'a' order differently from strcmp); exact returns
+    pairs = [(b"", b""), (b"a", b""), (b"", b"a"), (b"abc", b"ABC"), (b"Core.u", b"CORE.U"), (b"core.u", b"core.v"),
+             (b"[", b"a"), (b"[", b"A"), (b"_", b"a"), (b"_", b"A"), (b"@", b"`"), (b"Z", b"z"), (b"z", b"{"),
+             (b"\xc0", b"\xe0"), (b"\xe9", b"\xc9"), (b"\x80", b"\x7f"), (b"abc", b"abd"), (b"abd", b"abc"),
+             (b"ab", b"abc"), (b"ABC", b"ab"), (b"Golem.u", b"golem.U"), (b"\xff", b""), (b"", b"\xff"),
+             (b"Engine.EngineVersion", b"engine.engineversion"), (b"a" * 300, b"A" * 300),
+             (b"a" * 300, b"A" * 299 + b"B")]
+    for x, y in pairs:
+        for ox, oy in ((0, 0), (1, 2), (3, 1)):
+            c.T("tstricmp", "_stricmp", S8(x, ox), S8(y, oy))
+    alpha = b"aAzZ[_`{@\xe9\xc9 .\\"
+    for _ in range(300):
+        x = bytes(rng.choice(alpha) for _ in range(rng.randint(0, 12)))
+        y = bytes(ch ^ 0x20 if rng.random() < 0.5 and chr(ch).isalpha() and ch < 0x80 else ch for ch in x)
+        if rng.random() < 0.3:
+            y = bytes(rng.choice(alpha) for _ in range(rng.randint(0, 12)))
+        c.T("tstricmp", "_stricmp", S8(x), S8(y))
+    # atoi (atol): white space by the "C" ctype table, one sign, decimal digits, wrap-around
+    nums = [b"", b"0", b"1", b"123", b"-123", b"+5", b"  42", b"\t\n\v\f\r 7", b"2147483647", b"2147483648",
+            b"-2147483648", b"-2147483649", b"4294967296", b"4294967297", b"99999999999", b"12abc", b"abc", b"0x1A",
+            b"1e5", b"--5", b"+-5", b"- 5", b"-", b"+", b" ", b"007", b"-0", b"\xa05", b"\x855", b"\x1c5", b"5\xe9",
+            b"1234567890123456789", b"9" * 40, b"3000000000", b"-3000000000", b"+2147483647", b"Version=926", b"926",
+            b" -0012x"]
+    for s in nums:
+        for off in (0, 3):
+            c.T("tatoi", "atoi", S8(s, off))
+    for ch in range(1, 256):
+        c.T("tatoiall", "atoi", S8(bytes([ch]) + b"5"))
+    # toupper (GlmLib: 11932 calls): every unsigned char value, EOF, and values outside that range
+    for v in list(range(-1, 256)) + [256, 0x161, 0x17A, 0x1E9, -2, -128, -129, -0x80000000, 0x7FFFFFFF, 0x10061,
+                                     0xFFFFFF61, 0xFFFFFFE9]:
+        c.T("ttoupper", "toupper", U(v))
+
+
+def gen_qsort(c, rng):
+    """qsort (Core.dll, GlmLib.dll): the final order and the exact sequence of comparator calls, which also fixes the
+    order of equal keys. Harness comparators: int32 ascending (i32), int32 difference with wrap-around (diff),
+    descending (desc), first byte only with a unique tag in the rest of the element (key), always equal (zero)."""
+    nums = [0, 1, 2, 3, 4, 5, 7, 8, 9, 10, 11, 16, 17, 31, 32, 33, 64, 100, 257, 1000]
+
+    def keys(pat, n, wide):
+        if pat == "sorted":
+            return list(range(n))
+        if pat == "reversed":
+            return list(range(n, 0, -1))
+        if pat == "equal":
+            return [7] * n
+        if pat == "random":
+            return [rng.randrange(1 << 32) if wide else rng.randrange(256) for _ in range(n)]
+        if pat == "few":
+            return [rng.randrange(4) for _ in range(n)]
+        if pat == "organ":
+            return [min(i, n - 1 - i) for i in range(n)]
+        if pat == "saw":
+            return [i % 7 for i in range(n)]
+        k = list(range(n))                                   # almost sorted
+        for _ in range(max(1, n // 20)):
+            if n > 1:
+                i, j = rng.randrange(n), rng.randrange(n)
+                k[i], k[j] = k[j], k[i]
+        return k
+
+    for cmp, width in [("i32", 4), ("diff", 4), ("desc", 4), ("i32", 12), ("key", 1), ("key", 3), ("key", 8),
+                       ("key", 64), ("zero", 8)]:
+        for n in nums:
+            for pat in ["sorted", "reversed", "equal", "random", "few", "organ", "saw", "almost"]:
+                data = bytearray()
+                for i, k in enumerate(keys(pat, n, cmp != "key")):
+                    tag = i.to_bytes(4, "little") * 16
+                    if cmp == "key":
+                        data += bytes([k & 0xFF]) + tag[:width - 1]
+                    else:
+                        data += (k & 0xFFFFFFFF).to_bytes(4, "little") + tag[:width - 4]
+                c.Q("q" + cmp, cmp, width, n, bytes(data))
+    c.Q("qedge", "i32", 0, 5, b"")                           # element size 0
+    c.Q("qedge", "i32", 0, 0, b"")
+
+
+def gen_heap(c, rng):
+    """malloc / realloc / _msize / free (Core.dll calls _msize 3094 times): _msize of every block, realloc growth and
+    shrinkage, realloc from NULL and to 0"""
+    sizes = [0, 1, 2, 3, 4, 5, 7, 8, 9, 12, 15, 16, 17, 24, 31, 32, 33, 63, 64, 65, 100, 255, 256, 257, 1000, 1016,
+             1017, 1023, 1024, 1025, 4080, 4081, 4096, 4097, 8192, 65536, 65537, 1 << 20, (1 << 20) + 1]
+    for n in sizes:
+        c.Z("zsize", "m0,%d" % n, "s0", "f0")
+    c.Z("zrealloc", "m0,10", "s0", "r0,5", "s0", "r0,100", "s0", "r0,4096", "s0", "r0,1", "s0", "r0,0", "f0")
+    c.Z("zrealloc", "r0,16", "s0", "r0,16", "s0", "r0,15", "s0", "r0,17", "s0", "f0")
+    c.Z("zrealloc", "r0,0", "s0", "f0")                    # realloc(NULL, 0) is malloc(0): a block
+    c.Z("zrealloc", "m0,0", "s0", "r0,1", "s0", "r0,0", "f0")
+    c.Z("zrealloc", "m0,100", "m1,100", "f0", "r1,200", "s1", "m0,50", "s0", "r0,5000", "s0", "f0", "f1")
+    for _ in range(40):
+        live, ops = [False] * 4, []
+        for _ in range(24):
+            k, op = rng.randrange(4), rng.choice("mrsf")
+            if op == "m" and not live[k]:
+                ops.append("m%d,%d" % (k, rng.choice(sizes[1:])))
+                live[k] = True
+            elif op == "r":
+                ops.append("r%d,%d" % (k, rng.choice(sizes[1:])))
+                live[k] = True
+            elif op == "s" and live[k]:
+                ops.append("s%d" % k)
+            elif op == "f":
+                ops.append("f%d" % k)
+                live[k] = False
+        ops += ["f%d" % k for k in range(4) if live[k]]
+        c.Z("zmix", *ops)
+
+
+def gen_setse(c):
+    """_set_se_translator (Editor.dll installs a translator during its initialisation)"""
+    c.X("xsetse", 0x10001234)
+    c.X("xsetse", 0x10001234, 0x20005678, 0)
+    c.X("xsetse", 0, 0)
+    c.X("xsetse", 0xFFFFFFFF, 1, 0x10001234)
+
+
+# ---------------------------------------------------------------- scratch tree of the F lines
+# compare.py builds it (experiments\xrt\build\crt_diff\fs\root) before every F process: these names, contents,
+# attributes, creation and write times; every access time is the run's start time (see compare.py).
+def ft(y, mo, d, h=0, mi=0, s=0, frac=0):
+    """FILETIME (100 ns units since 1601-01-01 UTC) of a UTC time"""
+    days = (datetime.date(y, mo, d) - datetime.date(1601, 1, 1)).days
+    return (days * 86400 + h * 3600 + mi * 60 + s) * 10 ** 7 + frac
+
+
+RO, HID, SYS, ARC, NORMAL = 0x1, 0x2, 0x4, 0x20, 0x80
+W03, S03 = ft(2003, 1, 15, 12), ft(2003, 7, 15, 12)
+FS_MARKER = "crt_diff_fs.marker"          # crt_diff_core.h runs F lines only where this file exists
+FS_ROOT_TIMES = (W03, S03)                # creation, write of the root and of its parent
+FS_DIRS = [                               # relative path, attributes, creation, write
+    ("System", 0, W03, S03), ("System\\Sub", 0, S03, W03), ("Maps", 0, W03, W03), ("dst", 0, S03, S03),
+    ("empty", 0, W03, ft(2026, 3, 8, 7)), ("w", 0, W03, S03), ("deep", 0, W03, S03), ("deep\\a", 0, W03, S03),
+    ("deep\\a\\b", 0, W03, S03), ("deep\\a\\b\\c", 0, W03, S03), ("rodir", RO, W03, S03), ("hiddir", HID, S03, W03)]
+FS_TIMES = {                              # UTC write times: time_t limits, 1970 and Eastern time zone transitions
+    "t1601.txt": ft(1601, 1, 2), "t1969.txt": ft(1969, 7, 20, 20, 17), "t1970a.txt": ft(1970, 1, 1, 3, 59, 59),
+    "t1970b.txt": ft(1970, 1, 1, 5), "t1970c.txt": ft(1970, 1, 2), "t1980.txt": ft(1980, 1, 1),
+    "t2038a.txt": ft(2038, 1, 19, 3, 14, 7), "t2038b.txt": ft(2038, 1, 19, 3, 14, 8),
+    "t2038c.txt": ft(2038, 1, 18, 20), "t2099.txt": ft(2099, 12, 31, 23, 59, 59),
+    "frac.txt": ft(2003, 1, 15, 12, 0, 0, 9999999),
+    "dst\\spring_before.txt": ft(2026, 3, 8, 6, 59, 59), "dst\\spring_after.txt": ft(2026, 3, 8, 7),
+    "dst\\fall_edt.txt": ft(2026, 11, 1, 5, 30), "dst\\fall_est.txt": ft(2026, 11, 1, 6, 30),
+    "dst\\fall_after.txt": ft(2026, 11, 1, 7), "dst\\old2006_spring.txt": ft(2006, 4, 2, 7),
+    "dst\\old2006_fall.txt": ft(2006, 10, 29, 6, 30), "dst\\new2007.txt": ft(2007, 3, 11, 7),
+    "dst\\summer.txt": ft(2025, 7, 4, 16), "dst\\winter.txt": ft(2025, 12, 25, 17),
+    "dst\\leap.txt": ft(2024, 2, 29, 12), "dst\\newyear.txt": ft(2026, 1, 1, 4, 59, 59)}
+FS_FILES = [                              # relative path (code points <= 0xFF), contents, attributes, creation, write
+    (FS_MARKER, b"crt_diff scratch tree\r\n", ARC, W03, W03),
+    ("a.txt", b"hello", ARC, W03, S03), ("B.U", bytes(range(256)) * 4, ARC, S03, W03),
+    ("Long Name With Spaces.int", b"[Engine.GameInfo]\r\nbFlag=True\r\n", ARC, W03, S03),
+    ("name.with.dots.u", b"abc", ARC, W03, S03), ("noext", b"", ARC, W03, S03), ("caf\xe9.txt", b"x" * 12, ARC, S03, S03),
+    ("ro.txt", b"read only", RO | ARC, W03, S03), ("hid.dat", b"h", HID | ARC, W03, S03),
+    ("sys.dat", b"s", SYS | ARC, W03, S03), ("plain.bin", b"\0" * 7, NORMAL, W03, S03),
+    ("System\\Core.u", b"\xc1\x83\x2a\x9e" + b"\0" * 60, ARC, W03, S03), ("System\\Engine.u", b"E" * 100, ARC, S03, W03),
+    ("System\\Editor.int", b"[Public]\r\n", ARC, W03, S03), ("System\\GlmLib.ini", b"[GlmLib]\r\n", ARC, W03, S03),
+    ("System\\golem.U", b"g", ARC, W03, S03), ("System\\Sub\\x.u", b"x", ARC, W03, S03),
+    ("Maps\\Entry.un2", b"m" * 33, ARC, W03, S03), ("Maps\\x.U", b"", ARC, W03, S03),
+    ("w\\existing.bin", b"0123456789", ARC, W03, S03), ("deep\\a\\b\\c\\leaf.txt", b"leaf", ARC, W03, S03),
+    ("rodir\\in.txt", b"in", ARC, W03, S03)]
+_SPECIAL = sorted(FS_TIMES.items())
+FS_FILES += [(name, name.encode("latin-1"), ARC, _SPECIAL[(i + 1) % len(_SPECIAL)][1], t)
+             for i, (name, t) in enumerate(_SPECIAL)]
+
+
+def gen_fs(c):
+    """the file-system calls GlmLib makes in editor mode: _getcwd(buf, 260), _fullpath(buf, path, 260), _chdir and
+    errno (2 / 13 / 17 choose its message), _findfirst existence checks (it reads attrib, time_write and size),
+    _findfirst / _findnext / _findclose listings, fopen "rb" / "wb" and fclose"""
+    def h8(b):
+        return "-" if b is None else (b.hex().upper() or "~")
+
+    def cwd(buf, size):
+        return "cwd:%s:%s" % (buf, size)
+
+    def full(buf, size, p):
+        return "full:%s:%s:%s" % (buf, size, h8(p))
+
+    def cd(p):
+        return "cd:" + h8(p)
+
+    def opn(p, m):
+        return "open:%s:%s" % (h8(p), h8(m))
+
+    for size in ["260", "L+1", "L+2", "L", "L-1", "1", "0"]:
+        c.F("fcwd", cwd("=", size))
+    for size in ["0", "1", "260", "L", "L+1"]:
+        c.F("fcwd", cwd("-", size))
+    for p in [b"System", b"System\\", b"system", b"SYSTEM/", b"deep\\a\\b\\c", b"deep/a/../a/b", b".\\Maps\\..\\System",
+              b"..", b".", b"", b"nonexist", b"a.txt", b"nonexist\\x", b"empty", b"rodir", b"hiddir", b"System\\Core.u",
+              b"caf\xe9.txt", b"deep\\a\\b\\c\\..\\..\\..\\..\\Maps", b"System\\Sub\\"]:
+        c.F("fchdir", cd(p), cwd("=", "260"))
+    c.F("fchdir", cd(b"nonexist"), cd(b"System"), cwd("=", "260"))          # a success leaves errno alone
+    c.F("fchdir", cd(b"System"), cd(b".."), cwd("=", "260"), cd(b"Maps"), cwd("=", "L+1"), cwd("=", "L"))
+    for p in [b"a.txt", b"System\\..\\a.txt", b".", b"..", b"", None, b"C:\\x\\y\\..\\z", b"c:/x//y/./", b"\\x\\y", b"/x",
+              b"\\\\srv\\share\\a\\..\\b", b"C:foo", b"a. ", b"a...", b"trailing\\", b"x" * 300, b"x" * 230,
+              b"System\\*.u", b"\\\\?\\C:\\x\\..\\y", b"caf\xe9.txt", b"..\\" * 12 + b"top", b"\\\\.\\COM1", b"NUL",
+              b"deep\\a\\b\\c\\leaf.txt"]:
+        c.F("ffull", full("=", "260", p))
+    for p in [b"a.txt", b"System\\Core.u"]:
+        for size in ["P+1", "P+2", "P", "P-1", "1", "0"]:
+            c.F("ffull", full("=", size, p))
+    for p, size in [(b"a.txt", "0"), (b"a.txt", "260"), (b"a.txt", "1"), (b"x" * 300, "0"), (None, "0"), (b"", "0")]:
+        c.F("ffull", full("-", size, p))
+    c.F("ffull", cd(b"deep\\a"), full("=", "260", b"..\\x.u"), full("=", "260", b"b\\c\\leaf.txt"))
+    names = [n.encode("latin-1") for n, *_ in FS_FILES] + [d.encode("latin-1") for d, *_ in FS_DIRS]
+    for p in names + [b"b.u", b"System\\", b"nonexist", b"nonexist\\x", b"", b".", b"..", b"*", b"System\\*.u",
+                      b"empty\\*", b"deep\\a\\..\\a"]:
+        c.F("fff", "ff:" + h8(p))
+    for p in [b"*", b"*.*", b"*.u", b"*.U", b"System\\*.u", b"System\\*", b"dst\\*", b"empty\\*", b"deep\\*", b"*.txt",
+              b"?.txt", b"nomatch*.xyz", b"nonexist\\*", b"Maps\\*.un2", b"*.", b"t*", b"System/*.int", b"hiddir\\*",
+              b"rodir\\*", b"deep\\a\\b\\c\\*"]:
+        c.F("ffind", "find:" + h8(p))
+    c.F("ffind", cd(b"System"), "find:" + h8(b"*.u"))
+    c.F("ffind", "find:" + h8(b"nomatch*"), "find:" + h8(b"System\\*.u"))
+    for p, m in [(b"a.txt", b"rb"), (b"B.U", b"rb"), (b"nonexist.txt", b"rb"), (b"System", b"rb"), (b"ro.txt", b"rb"),
+                 (b"hid.dat", b"rb"), (b"", b"rb"), (b"nonexist\\x.bin", b"rb"), (b"a.txt", b"r"), (b"w\\new.bin", b"wb"),
+                 (b"w\\existing.bin", b"wb"), (b"ro.txt", b"wb"), (b"hid.dat", b"wb"), (b"sys.dat", b"wb"),
+                 (b"System", b"wb"), (b"nonexist\\x.bin", b"wb"), (b"w\\NEW2.BIN", b"w"), (b"rodir\\new.bin", b"wb"),
+                 (b"w\\" + b"n" * 250, b"wb"), (b"w\\" + b"n" * 300, b"wb")]:
+        c.F("fopen", opn(p, m))
+    c.F("fopen", opn(b"nonexist.txt", b"rb"), opn(b"a.txt", b"rb"))      # a success leaves errno alone
+    c.F("fopen", cd(b"w"), opn(b"rel.bin", b"wb"), opn(b"rel.bin", b"rb"), opn(b"existing.bin", b"rb"))
+
+
 def main():
     ap = argparse.ArgumentParser()
     ap.add_argument("out")
     ap.add_argument("--seed", type=int, default=20261022)
     ap.add_argument("--i10", type=int, default=6000, help="cases of 8 random doubles at %%.16e")
     ap.add_argument("--narrow-i10", type=int, default=2000, help="the same for narrow sprintf")
-    ap.add_argument("--errors-out", help="write the E lines (intentional error behaviour, one process per case) here")
+    ap.add_argument("--errors-out", help="write the lines that run one process per case here: E (intentional error "
+                                         "behaviour), X (_set_se_translator), F (file system)")
     a = ap.parse_args()
     rng = random.Random(a.seed)
     c = Corpus()
@@ -776,6 +1120,16 @@ def main():
     gen_narrow_text(c, nr)
     # bounded printf, from its own random stream (the corpus above stays unchanged)
     gen_bounded(c, random.Random(a.seed + 2))
+    # CRT dependencies of `ucc make`, from their own random stream (the corpus above stays unchanged)
+    dr = random.Random(a.seed + 3)
+    v = Vsprintf(c)
+    for g in (gen_int, gen_float, gen_ptr, gen_n, gen_odd, gen_counted, gen_trunc, gen_str_narrow, gen_narrow_text):
+        g(v, dr)
+    gen_tstr(c, dr)
+    gen_qsort(c, dr)
+    gen_heap(c, dr)
+    gen_setse(c)
+    gen_fs(c)
     with open(a.out, "w", encoding="ascii", newline="\n") as f:
         f.write("\n".join(c.lines) + "\n")
     if a.errors_out:

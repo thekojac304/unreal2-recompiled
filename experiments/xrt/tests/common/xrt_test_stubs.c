@@ -4,8 +4,13 @@
  *   STUB_JSTR   xrt_jstr: a real JSON quoting, since callers use its result as text
  *   STUB_EH     xrt_eh_throw (C++ exception dispatch, xrt_eh.c): fatal, because no harness throws
  *   STUB_LOADLIB xrt_load_library / xrt_free_library (module loading, xrt_main.c): fatal, no harness loads DLLs
- *   STUB_POW    xrt_msvcr70_pow (_CIpow's translated SSE2 core, xrt_msvcr70img.c): fatal, no harness calls _CIpow
- *               (tools/xrt/tests/crt_gatef tests it) */
+ *   STUB_POW    xrt_msvcr70_pow / xrt_msvcr70_image (xrt_msvcr70img.c): fatal, no harness calls _CIpow or uses its image
+ *               (tools/xrt/tests/crt_gatef tests it)
+ *   STUB_K32DEPS what hle_kernel32.c needs from the rest of the runtime, for a harness that links it for its handle
+ *               table and sandbox guard: threads, modules, the baton and diagnostics are fatal; the guest last error
+ *               is the TEB word (as xrt_thread.c); xrt_sandbox_root and xrt_exiting are plain variables
+ *   STUB_CRTDEPS unexercised file/handle/error dependencies of a CRT-only harness: fatal
+ *   STUB_K32EXTRA new heap/thread/procedure dependencies of the F3/F4 kernel32 harnesses: fatal */
 #include "xrt_internal.h"
 
 #ifdef STUB_EVENT
@@ -43,11 +48,56 @@ void xrt_eh_throw(CPU* c) { xrt_fatal(c, XRT_EXIT_UNSUPPORTED, "test harness: _C
 #endif
 
 #ifdef STUB_POW
+const uint8_t* xrt_msvcr70_image(void) {
+    xrt_fatal(NULL, XRT_EXIT_UNSUPPORTED, "test harness: xrt_msvcr70_image reached");
+}
 double xrt_msvcr70_pow(CPU* c, double x, double y, uint32_t* error_type) {
     (void)x;
     (void)y;
     (void)error_type;
     xrt_fatal(c, XRT_EXIT_UNSUPPORTED, "test harness: xrt_msvcr70_pow reached");
+}
+#endif
+
+#ifdef STUB_CRTDEPS
+void xrt_set_last_error(CPU* c, uint32_t e) {
+    xrt_fatal(c, XRT_EXIT_UNSUPPORTED, "test harness: xrt_set_last_error(%u) reached", e);
+}
+uint32_t xrt_handle_new(int type, void* host) {
+    (void)host;
+    xrt_fatal(NULL, XRT_EXIT_UNSUPPORTED, "test harness: xrt_handle_new(%d) reached", type);
+}
+void* xrt_handle_get(uint32_t h, int type) {
+    (void)type;
+    xrt_fatal(NULL, XRT_EXIT_UNSUPPORTED, "test harness: xrt_handle_get(%08x) reached", h);
+}
+void xrt_handle_free(uint32_t h) {
+    xrt_fatal(NULL, XRT_EXIT_UNSUPPORTED, "test harness: xrt_handle_free(%08x) reached", h);
+}
+int xrt_path_is_inside_sandbox(const uint16_t* p) {
+    (void)p;
+    xrt_fatal(NULL, XRT_EXIT_UNSUPPORTED, "test harness: xrt_path_is_inside_sandbox reached");
+}
+#endif
+
+#ifdef STUB_K32EXTRA
+uint32_t xrt_guest_strdup_a(const char* s) {
+    (void)s;
+    xrt_fatal(NULL, XRT_EXIT_UNSUPPORTED, "test harness: xrt_guest_strdup_a reached");
+}
+int xrt_thread_count(void) { xrt_fatal(NULL, XRT_EXIT_UNSUPPORTED, "test harness: xrt_thread_count reached"); }
+XrtThread* xrt_thread_get(int i) { xrt_fatal(NULL, XRT_EXIT_UNSUPPORTED, "test harness: xrt_thread_get(%d) reached", i); }
+uint32_t xrt_hle_proc(const char* dll, const char* name) {
+    xrt_fatal(NULL, XRT_EXIT_UNSUPPORTED, "test harness: xrt_hle_proc(%s, %s) reached", dll, name);
+}
+uint32_t xrt_heap_alloc(uint32_t n) { xrt_fatal(NULL, XRT_EXIT_UNSUPPORTED, "test harness: xrt_heap_alloc(%u) reached", n); }
+void xrt_heap_free(CPU* c, uint32_t p) { xrt_fatal(c, XRT_EXIT_UNSUPPORTED, "test harness: xrt_heap_free(%08x) reached", p); }
+uint32_t xrt_heap_msize(CPU* c, uint32_t p) {
+    xrt_fatal(c, XRT_EXIT_UNSUPPORTED, "test harness: xrt_heap_msize(%08x) reached", p);
+}
+uint32_t xrt_rt_alloc(uint32_t n, uint32_t align) {
+    (void)align;
+    xrt_fatal(NULL, XRT_EXIT_UNSUPPORTED, "test harness: xrt_rt_alloc(%u) reached", n);
 }
 #endif
 
@@ -58,5 +108,41 @@ XrtModule* xrt_load_library(CPU* c, const char* host_path) {
 int xrt_free_library(CPU* c, XrtModule* m) {
     (void)m;
     xrt_fatal(c, XRT_EXIT_UNSUPPORTED, "test harness: xrt_free_library reached");
+}
+#endif
+
+#ifdef STUB_K32DEPS
+char xrt_sandbox_root[520];
+volatile long xrt_exiting;
+void xrt_set_last_error(CPU* c, uint32_t e) { wr32(c->fs_base + 0x34, e); }
+uint32_t xrt_get_last_error(CPU* c) { return rd32(c->fs_base + 0x34); }
+void xrt_describe(char* out, size_t n, uint32_t va) {
+    (void)out;
+    (void)n;
+    xrt_fatal(NULL, XRT_EXIT_UNSUPPORTED, "test harness: xrt_describe(%08x) reached", va);
+}
+void xrt_baton_acquire(void) { xrt_fatal(NULL, XRT_EXIT_UNSUPPORTED, "test harness: xrt_baton_acquire reached"); }
+void xrt_baton_release(void) { xrt_fatal(NULL, XRT_EXIT_UNSUPPORTED, "test harness: xrt_baton_release reached"); }
+uint32_t xrt_thread_create(CPU* c, uint32_t stack_size, uint32_t start, uint32_t param, uint32_t* tid) {
+    (void)stack_size;
+    (void)param;
+    (void)tid;
+    xrt_fatal(c, XRT_EXIT_UNSUPPORTED, "test harness: xrt_thread_create(%08x) reached", start);
+}
+void xrt_thread_exit(CPU* c, uint32_t code) { xrt_fatal(c, XRT_EXIT_UNSUPPORTED, "test harness: xrt_thread_exit(%u) reached", code); }
+int xrt_thread_count(void) { xrt_fatal(NULL, XRT_EXIT_UNSUPPORTED, "test harness: xrt_thread_count reached"); }
+XrtThread* xrt_thread_get(int i) { xrt_fatal(NULL, XRT_EXIT_UNSUPPORTED, "test harness: xrt_thread_get(%d) reached", i); }
+int xrt_module_count(void) { xrt_fatal(NULL, XRT_EXIT_UNSUPPORTED, "test harness: xrt_module_count reached"); }
+XrtModule* xrt_module_get(int i) { xrt_fatal(NULL, XRT_EXIT_UNSUPPORTED, "test harness: xrt_module_get(%d) reached", i); }
+XrtModule* xrt_module_by_name(const char* name) {
+    xrt_fatal(NULL, XRT_EXIT_UNSUPPORTED, "test harness: xrt_module_by_name(\"%s\") reached", name);
+}
+uint32_t xrt_module_export(XrtModule* m, const char* name, uint32_t ordinal) {
+    (void)m;
+    (void)ordinal;
+    xrt_fatal(NULL, XRT_EXIT_UNSUPPORTED, "test harness: xrt_module_export(\"%s\") reached", name ? name : "");
+}
+uint32_t xrt_hle_proc(const char* dll, const char* name) {
+    xrt_fatal(NULL, XRT_EXIT_UNSUPPORTED, "test harness: xrt_hle_proc(%s, %s) reached", dll, name);
 }
 #endif

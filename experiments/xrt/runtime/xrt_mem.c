@@ -28,6 +28,14 @@ void xrt_commit(uint32_t a, uint32_t size) {
     }
 }
 
+void xrt_decommit(uint32_t a, uint32_t size) {   /* an unloaded module's image: later accesses fault */
+    uint64_t lo = a & ~0xFFFull, hi = ((uint64_t)a + size + 0xFFF) & ~0xFFFull;
+    if (size && !VirtualFree(xrt_g + lo, (SIZE_T)(hi - lo), MEM_DECOMMIT)) {
+        fprintf(stderr, "xrt: decommit of guest %08x+%x failed (error %lu)\n", a, size, GetLastError());
+        exit(XRT_EXIT_SETUP);
+    }
+}
+
 int xrt_is_committed(uint32_t a, uint32_t size) {
     uint64_t p = a, end = (uint64_t)a + size;
     while (p < end) {

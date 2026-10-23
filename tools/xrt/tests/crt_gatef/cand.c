@@ -33,7 +33,7 @@ XRT_NORETURN void xrt_fatal(CPU* c, int code, const char* fmt, ...) {
 }
 uint32_t xrt_hle_data(const char* dll, const char* name) { (void)dll; (void)name; return xrt_rt_alloc(20 * 32, 16); }
 XRT_NORETURN void xrt_process_exit(CPU* c, uint32_t code) { xrt_fatal(c, 70, "xrt_process_exit(%u) in the test harness", code); }
-void xrt_fldcw(CPU* c, uint16_t cw) { c->fcw = cw; }
+void xrt_fldcw(CPU* c, uint16_t cw) { xrt_fatal(c, 70, "test harness: unexpected xrt_fldcw(%04x)", cw); }
 void hle_msvcr70_init(void);
 
 uint32_t xrt_call_guest(CPU* c, uint32_t va, int nargs, const uint32_t* args, int stdcall) {

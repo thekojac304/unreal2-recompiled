@@ -99,6 +99,7 @@ def main():
             diffs += not same
     trail_census()
     print("differences: %d" % diffs)
+    return 1 if diffs else 0
 
 
 if __name__ == "__main__":

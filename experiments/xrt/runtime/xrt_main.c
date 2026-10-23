@@ -17,13 +17,20 @@
 #include <stdlib.h>
 #include "xrt_internal.h"
 
-extern const XrtLiftedModule xrt_mod_UCC, xrt_mod_Core, xrt_mod_Engine, xrt_mod_GlmLib;
+extern const XrtLiftedModule xrt_mod_UCC, xrt_mod_Core, xrt_mod_Engine, xrt_mod_GlmLib, xrt_mod_Editor, xrt_mod_Window,
+    xrt_mod_UnrImp, xrt_mod_Fire;
 void hle_msvcr70_init(void);
 
 /* Every translated module linked into this host. UCC.exe and Core.dll are mapped at start (Core is UCC's static
  * import); the others only when the guest loads them (LoadLibrary), together with their translated static
- * imports, as the Windows loader does. A DLL that exists but is not in this list cannot be loaded (fatal). */
-static const XrtLiftedModule* const lifted_all[] = {&xrt_mod_UCC, &xrt_mod_Core, &xrt_mod_Engine, &xrt_mod_GlmLib};
+ * imports, as the Windows loader does. A DLL that exists but is not in this list cannot be loaded (fatal).
+ * Bases are those of the original's `ucc make` process: Editor.dll rebased to 0x02de0000 (its preferred range
+ * overlaps Engine.dll's), GlmLib.dll to 0x02f40000, Engine.dll and Window.dll at their preferred bases. GlmLib's
+ * editor-mode initialisation loads its plugin plugins\UnrImp.gpi (a DLL with its own static CRT) and frees it again;
+ * Editor.u imports the Fire package, whose native classes are in Fire.dll. The original placed these two differently
+ * from run to run; this host uses the bases of one observed run, UnrImp.gpi 0x036d0000 and Fire.dll 0x03710000. */
+static const XrtLiftedModule* const lifted_all[] = {&xrt_mod_UCC, &xrt_mod_Core, &xrt_mod_Engine, &xrt_mod_GlmLib,
+                                                    &xrt_mod_Editor, &xrt_mod_Window, &xrt_mod_UnrImp, &xrt_mod_Fire};
 #define NLIFTED ((int)(sizeof lifted_all / sizeof lifted_all[0]))
 static XrtModule* init_order[16];   /* DLLs whose DLL_PROCESS_ATTACH completed, in that order */
 static int ninit;
@@ -74,9 +81,10 @@ void xrt_report_write(uint32_t exit_code, const char* outcome) {
         uint32_t k, n = 0;
         for (k = 0; k < l->nfuncs; k++)
             n += l->hits[k] != 0;
-        fprintf(f, "%s\n  {\"name\": \"%s\", \"base\": \"0x%08x\", \"sha256\": \"%s\", \"marks_sha256\": \"%s\", "
-                   "\"lifted_functions\": %u, \"static_traps\": %u, \"functions_executed\": %u, \"hit_rvas\": [",
-                i ? "," : "", m->name, m->base, l->sha256, l->marks_sha256 ? l->marks_sha256 : "", l->nfuncs, l->ntraps, n);
+        fprintf(f, "%s\n  {\"name\": \"%s\", \"base\": \"0x%08x\", \"unloaded\": %s, \"sha256\": \"%s\", \"marks_sha256\": "
+                   "\"%s\", \"lifted_functions\": %u, \"static_traps\": %u, \"functions_executed\": %u, \"hit_rvas\": [",
+                i ? "," : "", m->name, m->base, m->unloaded ? "true" : "false", l->sha256,
+                l->marks_sha256 ? l->marks_sha256 : "", l->nfuncs, l->ntraps, n);
         for (k = 0, n = 0; k < l->nfuncs; k++)
             if (l->hits[k])
                 fprintf(f, "%s\"%x\"", n++ ? ", " : "", l->funcs[k].va - m->base);
@@ -222,6 +230,41 @@ XrtModule* xrt_load_library(CPU* c, const char* host_path) {
     return list[n - 1];
 }
 
+/* The last reference of a dynamically loaded DLL: DllMain(DLL_PROCESS_DETACH) with lpReserved NULL (FreeLibrary,
+ * not process termination) under the loader lock, then the references it holds on the translated DLLs it imports
+ * are released (a dependency whose count reaches zero is unloaded the same way), then it is unmapped. */
+static void unload(CPU* c, XrtModule* m) {
+    uint8_t* hdr = (uint8_t*)G2H(m->base);
+    uint32_t pe = *(uint32_t*)(hdr + 0x3C), dir = *(uint32_t*)(hdr + pe + 24 + 104), d;
+    int i, k;
+    c->thread->loader_lock++;
+    if (m->attached && m->entry) {
+        uint32_t args[3] = {m->base, 0 /* DLL_PROCESS_DETACH */, 0 /* FreeLibrary */}, rc;
+        xrt_log("DllMain(%s, DLL_PROCESS_DETACH) on FreeLibrary", m->name);
+        xrt_event("dll_detach", "\"module\": \"%s\", \"reserved\": 0", m->name);
+        rc = xrt_call_guest(c, m->entry, 3, args, 1);
+        xrt_event("dll_detach_returned", "\"module\": \"%s\", \"result\": %u, \"reserved\": 0", m->name, rc);
+    }
+    m->attached = 0;
+    for (i = k = 0; i < ninit; i++)
+        if (init_order[i] != m)
+            init_order[k++] = init_order[i];
+    ninit = k;
+    for (d = dir ? m->base + dir : 0; d && rd32(d + 12); d += 20) {
+        XrtModule* dep = xrt_module_by_name((const char*)G2H(m->base + rd32(d + 12)));
+        if (!dep || dep->load_count < 0)
+            continue;                             /* system DLL (host adapters) or loaded with the process */
+        if (dep->load_count > 1)
+            dep->load_count--;
+        else
+            unload(c, dep);
+    }
+    m->load_count = 0;
+    xrt_module_unmap(m);
+    xrt_event("dll_unloaded", "\"module\": \"%s\", \"base\": \"0x%08x\"", m->name, m->base);
+    c->thread->loader_lock--;
+}
+
 int xrt_free_library(CPU* c, XrtModule* m) {
     if (m->load_count < 0)
         return 1;                                 /* loaded with the process: stays mapped */
@@ -229,8 +272,8 @@ int xrt_free_library(CPU* c, XrtModule* m) {
         m->load_count--;
         return 1;
     }
-    xrt_fatal(c, XRT_EXIT_UNSUPPORTED, "FreeLibrary(%s) would unload a translated module: DLL_PROCESS_DETACH on "
-              "unload and unmapping are not modelled", m->name);
+    unload(c, m);
+    return 1;
 }
 
 /* DLL_THREAD_ATTACH (initialisation order) when a guest thread starts, DLL_THREAD_DETACH (reverse order) when it
