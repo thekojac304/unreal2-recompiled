@@ -13,7 +13,7 @@ static void expect(int value, int wanted) {
 __declspec(dllexport) int probe_modules(void) {
     HMODULE k, s, a, b, self;
     FARPROC p;
-    char path[600];
+    char path[600];WCHAR wide[600];
     k = GetModuleHandleA("KERNEL32");
     expect(k != NULL, 1);
     expect(k == GetModuleHandleW(L"kernel32.DLL"), 1);
@@ -34,6 +34,14 @@ __declspec(dllexport) int probe_modules(void) {
     expect(GetLastError(), ERROR_PROC_NOT_FOUND);
     self = GetModuleHandleA("moduleprobe.dll");
     expect(self != NULL, 1);
+    SetLastError(0x5555);
+    expect(GetModuleFileNameW(self,wide,600)>0,1);expect(GetLastError(),ERROR_SUCCESS);
+    expect(GetModuleHandleW(wide)==self,1);
+    expect(GetModuleFileNameW(NULL,wide,600)>0,1);
+    expect(GetModuleHandleW(wide)==GetModuleHandleW(NULL),1);
+    expect(GetModuleFileNameW(self,wide,2),2);expect(wide[1],0);expect(GetLastError(),ERROR_INSUFFICIENT_BUFFER);
+    expect(GetModuleFileNameW(self,wide,0),0);expect(GetLastError(),ERROR_INSUFFICIENT_BUFFER);
+    expect(GetModuleFileNameW((HMODULE)0x111,wide,600),0);expect(GetLastError(),ERROR_MOD_NOT_FOUND);
     expect(GetModuleFileNameA(self, path, sizeof path) > 0, 1);
     expect(self == GetModuleHandleA(path), 1);
     expect(GetModuleHandleA("C:\\no-such-directory\\moduleprobe.dll") == NULL, 1);

@@ -115,6 +115,7 @@ XRT_NORETURN void xrt_fatal(CPU* c, int code, const char* fmt, ...) {
     if (log_file)
         fflush(log_file);
     xrt_report_write((uint32_t)code, msg);
+    xrt_cleanup_atoms();
     TerminateProcess(GetCurrentProcess(), (UINT)code);
     for (;;) {}
 }

@@ -99,6 +99,7 @@ static int cmp_exname(const void* a, const void* b) {
 }
 
 static void relocate(XrtModule* m, uint32_t dir, uint32_t size);
+static uint32_t module_generation;
 
 XrtModule* xrt_module_load(const char* host_path, const XrtLiftedModule* lifted) {
     FILE* f = fopen(host_path, "rb");
@@ -129,6 +130,7 @@ XrtModule* xrt_module_load(const char* host_path, const XrtLiftedModule* lifted)
         m = &mods[nmods++];
     }
     memset(m, 0, sizeof *m);
+    m->generation=++module_generation;
     snprintf(m->path, sizeof m->path, "%s", host_path);
     snprintf(m->name, sizeof m->name, "%s", basename_of(host_path));
     m->lifted = lifted;

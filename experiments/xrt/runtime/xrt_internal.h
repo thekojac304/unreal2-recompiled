@@ -112,6 +112,7 @@ typedef struct XrtModule {
     int is_dll, attached;
     int load_count;                /* LoadLibrary references; -1: loaded with the process (never unloaded) */
     int unloaded;                  /* unmapped by FreeLibrary (slot kept for the report; reused if loaded again) */
+    uint32_t generation;           /* distinguish successive mappings in the same slot/base */
     const XrtLiftedModule* lifted;
     uint32_t export_dir, export_dir_size;
 } XrtModule;
@@ -164,11 +165,17 @@ void xrt_set_last_error(CPU* c, uint32_t e);
 uint32_t xrt_get_last_error(CPU* c);
 
 /* handles: guest handle values for host objects */
-enum { XH_FREE, XH_FILE, XH_FIND, XH_THREAD, XH_STD, XH_DC, XH_BITMAP, XH_WINDOW, XH_FONT, XH_MODULE }; /* host objects behind guest tokens */
+enum { XH_FREE, XH_FILE, XH_FIND, XH_THREAD, XH_STD, XH_DC, XH_BITMAP, XH_WINDOW, XH_FONT, XH_MODULE, XH_MUTEX }; /* host objects behind guest tokens */
 uint32_t xrt_handle_new(int type, void* host);
 void* xrt_handle_get(uint32_t h, int type);
 int xrt_handle_type(uint32_t h);
 void xrt_handle_free(uint32_t h);
+/* GUI module identity conversion: system tokens only, never guest PE execution. */
+void* xrt_system_module_host(CPU* c, uint32_t token);
+uint32_t xrt_system_module_guest(CPU* c, void* host);
+uint32_t xrt_system_gui_owner(CPU* c, const char* name);
+uint32_t xrt_system_module_generation(CPU* c,uint32_t token);
+void xrt_cleanup_atoms(void);
 
 /* process */
 extern char xrt_sandbox_root[520];         /* writes are only permitted below this directory */

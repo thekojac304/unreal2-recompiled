@@ -212,9 +212,11 @@ static void hle_CloseHandle(CPU* c) {
         RET_STD(1, 1);
         return;
     }
-    if (t == XH_FILE || t == XH_THREAD) {
+    if (t == XH_FILE || t == XH_THREAD || t == XH_MUTEX) {
+        if(t==XH_MUTEX) SetLastError(xrt_get_last_error(c));
         ok = CloseHandle((HANDLE)xrt_handle_get(h, t));
-        xrt_handle_free(h);
+        if(t==XH_MUTEX) xrt_set_last_error(c,GetLastError());
+        if(ok) xrt_handle_free(h);
         if (t == XH_THREAD)
             xrt_log("CloseHandle(thread handle %x): handle closed, the thread itself keeps running", h);
     } else {
@@ -347,6 +349,73 @@ static void hle_GetCommandLineW(CPU* c) {
 }
 static void hle_GetCurrentProcess(CPU* c) { RET_STD(0, 0xFFFFFFFFu); }
 static void hle_GetLastError(CPU* c) { RET_STD(0, xrt_get_last_error(c)); }
+static void create_mutex(CPU* c,int wide) {
+    HANDLE h;uint32_t token=0;
+    if(ARG(0)) xrt_fatal(c,XRT_EXIT_UNSUPPORTED,"CreateMutex security attributes require marshalling");
+    SetLastError(xrt_get_last_error(c));
+    h=wide?CreateMutexW(NULL,ARG(1),ARG(2)?G2H(ARG(2)):NULL):CreateMutexA(NULL,ARG(1),ARG(2)?G2H(ARG(2)):NULL);
+    xrt_set_last_error(c,GetLastError());
+    if(h) token=xrt_handle_new(XH_MUTEX,h);
+    xrt_event("mutex_create","\"wide\": %d, \"handle\": %u, \"error\": %u",wide,token,xrt_get_last_error(c));
+    RET_STD(3,token);
+}
+static void hle_CreateMutexW(CPU* c){create_mutex(c,1);}
+static void hle_CreateMutexA(CPU* c){create_mutex(c,0);}
+static void get_os_directory(CPU* c,int wide,int windows) {
+    UINT result;
+    SetLastError(xrt_get_last_error(c));
+    if(windows) result=wide?GetWindowsDirectoryW(ARG(0)?G2H(ARG(0)):NULL,ARG(1)):GetWindowsDirectoryA(ARG(0)?G2H(ARG(0)):NULL,ARG(1));
+    else result=wide?GetSystemDirectoryW(ARG(0)?G2H(ARG(0)):NULL,ARG(1)):GetSystemDirectoryA(ARG(0)?G2H(ARG(0)):NULL,ARG(1));
+    xrt_set_last_error(c,GetLastError());RET_STD(2,result);
+}
+static void hle_GetSystemDirectoryW(CPU* c){get_os_directory(c,1,0);}
+static void hle_GetSystemDirectoryA(CPU* c){get_os_directory(c,0,0);}
+static void hle_GetWindowsDirectoryW(CPU* c){get_os_directory(c,1,1);}
+static void hle_GetWindowsDirectoryA(CPU* c){get_os_directory(c,0,1);}
+static void get_drive_type(CPU* c,int wide) {
+    UINT result;SetLastError(xrt_get_last_error(c));
+    result=wide?GetDriveTypeW(ARG(0)?G2H(ARG(0)):NULL):GetDriveTypeA(ARG(0)?G2H(ARG(0)):NULL);
+    xrt_set_last_error(c,GetLastError());RET_STD(1,result);
+}
+static void hle_GetDriveTypeA(CPU* c){get_drive_type(c,0);}
+static void hle_GetDriveTypeW(CPU* c){get_drive_type(c,1);}
+/* Global atoms are numeric 16-bit identities. Track only references acquired by
+ * this guest, so bounded/fatal stops can release their real host references. */
+static struct {ATOM atom;unsigned refs;} global_atoms[256];
+void xrt_cleanup_atoms(void) {
+    unsigned i;for(i=0;i<256;i++) while(global_atoms[i].refs) {
+        GlobalDeleteAtom(global_atoms[i].atom);global_atoms[i].refs--;
+    }
+}
+static void global_add_atom(CPU* c,int wide) {
+    ATOM atom;unsigned i;uint32_t p=ARG(0);
+    const void* name=p<0x10000?(void*)(uintptr_t)p:G2H(p);
+    SetLastError(xrt_get_last_error(c));atom=wide?GlobalAddAtomW(name):GlobalAddAtomA(name);xrt_set_last_error(c,GetLastError());
+    if(atom>=0xc000) {
+        for(i=0;i<256;i++) if(global_atoms[i].atom==atom)break;
+        if(i==256) for(i=0;i<256;i++) if(!global_atoms[i].refs)break;
+        if(i==256) {GlobalDeleteAtom(atom);xrt_fatal(c,XRT_EXIT_SETUP,"global atom ownership table full");}
+        global_atoms[i].atom=atom;global_atoms[i].refs++;
+    }
+    xrt_event("global_atom_add","\"atom\": %u, \"wide\": %d",atom,wide);RET_STD(1,atom);
+}
+static void hle_GlobalDeleteAtom(CPU* c) {
+    ATOM atom=(ATOM)ARG(0),result;unsigned i;
+    for(i=0;i<256;i++) if(global_atoms[i].atom==atom && global_atoms[i].refs)break;
+    if(atom>=0xc000 && i==256) xrt_fatal(c,XRT_EXIT_UNSUPPORTED,"GlobalDeleteAtom without a guest-owned reference");
+    SetLastError(xrt_get_last_error(c));result=GlobalDeleteAtom(atom);xrt_set_last_error(c,GetLastError());
+    if(i<256 && !result) global_atoms[i].refs--;
+    RET_STD(1,result);
+}
+static void global_atom_name(CPU* c,int wide) {
+    UINT result;SetLastError(xrt_get_last_error(c));
+    result=wide?GlobalGetAtomNameW((ATOM)ARG(0),ARG(1)?G2H(ARG(1)):NULL,(int)ARG(2)):GlobalGetAtomNameA((ATOM)ARG(0),ARG(1)?G2H(ARG(1)):NULL,(int)ARG(2));
+    xrt_set_last_error(c,GetLastError());RET_STD(3,result);
+}
+static void hle_GlobalAddAtomW(CPU* c){global_add_atom(c,1);}
+static void hle_GlobalAddAtomA(CPU* c){global_add_atom(c,0);}
+static void hle_GlobalGetAtomNameW(CPU* c){global_atom_name(c,1);}
+static void hle_GlobalGetAtomNameA(CPU* c){global_atom_name(c,0);}
 
 /* Guest import membership is independent of incidental DLLs loaded by this x64 host.
  * Each identity owns one real host loader reference while guest imports/LoadLibrary references
@@ -358,10 +427,12 @@ typedef struct SystemModule {
     HMODULE image32;               /* non-executable WOW64 export metadata */
     char path[600];
     uint32_t token;
+    uint32_t generation;
     int imports, loads;
 } SystemModule;
 static SystemModule system_modules[32];
 static int nsystem;
+static uint32_t system_generation;
 
 static void module_name(const char* name, char out[64]) {
     const char *b = name, *p;
@@ -442,9 +513,35 @@ static uint32_t system_back(CPU* c, SystemModule* m) {
         nt->OptionalHeader.Magic != IMAGE_NT_OPTIONAL_HDR32_MAGIC)
         xrt_fatal(c, XRT_EXIT_SETUP, "system export metadata is not PE32: %s", m->name);
     m->token = xrt_handle_new(XH_MODULE, m);
+    m->generation=++system_generation;
     xrt_event("system_module_backed", "\"module\": %s, \"handle\": \"0x%08x\"",
               xrt_jstr(q, sizeof q, m->name), m->token);
     return m->token;
+}
+void* xrt_system_module_host(CPU* c, uint32_t token) {
+    SystemModule* m = (SystemModule*)xrt_handle_get(token, XH_MODULE);
+    if (!m || !m->host || !(m->imports || m->loads))
+        xrt_fatal(c, XRT_EXIT_UNSUPPORTED, "GUI system module %08x has no live backing", token);
+    return m->host;
+}
+uint32_t xrt_system_module_guest(CPU* c, void* host) {
+    int i;
+    if (!host) return 0;
+    for (i = 0; i < nsystem; i++)
+        if (system_modules[i].host == host && (system_modules[i].imports || system_modules[i].loads))
+            return system_modules[i].token;
+    xrt_fatal(c, XRT_EXIT_UNSUPPORTED, "GUI class owner has no live guest module identity");
+}
+uint32_t xrt_system_gui_owner(CPU* c, const char* name) {
+    SystemModule* m=system_named(name,0);
+    if(!m || !(m->imports || m->loads))
+        xrt_fatal(c,XRT_EXIT_UNSUPPORTED,"class provider %s has no live guest module reference",name);
+    return system_back(c,m);
+}
+uint32_t xrt_system_module_generation(CPU* c,uint32_t token) {
+    SystemModule* m=(SystemModule*)xrt_handle_get(token,XH_MODULE);
+    xrt_system_module_host(c,token);
+    return m->generation;
 }
 
 static const char* system_export_name(CPU* c, SystemModule* m, const char* name, uint32_t ordinal) {
@@ -548,6 +645,22 @@ static void hle_GetModuleFileNameA(CPU* c) {
     memcpy(G2H(buf), path, len + 1);
     xrt_set_last_error(c, ERROR_SUCCESS);
     RET_STD(3, len);
+}
+static void hle_GetModuleFileNameW(CPU* c) {
+    XrtModule* m=module_of_handle(ARG(0));
+    SystemModule* sm=(SystemModule*)xrt_handle_get(ARG(0),XH_MODULE);
+    const char* path=sm?sm->path:m?m->path:NULL;
+    WCHAR full[1040];uint32_t len,n=ARG(2),buf=ARG(1);
+    if(!path) {xrt_set_last_error(c,ERROR_MOD_NOT_FOUND);RET_STD(3,0);return;}
+    len=MultiByteToWideChar(CP_ACP,0,path,-1,full,1040);
+    if(!len) xrt_fatal(c,XRT_EXIT_UNSUPPORTED,"GetModuleFileNameW path conversion failed");
+    len--;
+    if(!n) {xrt_set_last_error(c,ERROR_INSUFFICIENT_BUFFER);RET_STD(3,0);return;}
+    if(len>=n) {
+        memcpy(G2H(buf),full,(n-1)*2);wr16(buf+2*(n-1),0);
+        xrt_set_last_error(c,ERROR_INSUFFICIENT_BUFFER);RET_STD(3,n);return;
+    }
+    memcpy(G2H(buf),full,(len+1)*2);xrt_set_last_error(c,ERROR_SUCCESS);RET_STD(3,len);
 }
 
 /* LoadLibrary: a mapped translated module returns its base (one more reference). An existing DLL that is a
@@ -1307,6 +1420,19 @@ const XrtHle xrt_hle_kernel32[] = {
     {"kernel32.dll", "SetFilePointer", hle_SetFilePointer},
     {"kernel32.dll", "GetFileSize", hle_GetFileSize},
     {"kernel32.dll", "CloseHandle", hle_CloseHandle},
+    {"kernel32.dll", "CreateMutexW", hle_CreateMutexW},
+    {"kernel32.dll", "CreateMutexA", hle_CreateMutexA},
+    {"kernel32.dll", "GetSystemDirectoryW", hle_GetSystemDirectoryW},
+    {"kernel32.dll", "GetSystemDirectoryA", hle_GetSystemDirectoryA},
+    {"kernel32.dll", "GetWindowsDirectoryW", hle_GetWindowsDirectoryW},
+    {"kernel32.dll", "GetWindowsDirectoryA", hle_GetWindowsDirectoryA},
+    {"kernel32.dll", "GetDriveTypeA", hle_GetDriveTypeA},
+    {"kernel32.dll", "GetDriveTypeW", hle_GetDriveTypeW},
+    {"kernel32.dll", "GlobalAddAtomW", hle_GlobalAddAtomW},
+    {"kernel32.dll", "GlobalAddAtomA", hle_GlobalAddAtomA},
+    {"kernel32.dll", "GlobalGetAtomNameW", hle_GlobalGetAtomNameW},
+    {"kernel32.dll", "GlobalGetAtomNameA", hle_GlobalGetAtomNameA},
+    {"kernel32.dll", "GlobalDeleteAtom", hle_GlobalDeleteAtom},
     {"kernel32.dll", "SetFileAttributesW", hle_SetFileAttributesW},
     {"kernel32.dll", "DeleteFileW", hle_DeleteFileW},
     {"kernel32.dll", "MoveFileW", hle_MoveFileW},
@@ -1322,6 +1448,7 @@ const XrtHle xrt_hle_kernel32[] = {
     {"kernel32.dll", "GetModuleHandleA", hle_GetModuleHandleA},
     {"kernel32.dll", "GetModuleHandleW", hle_GetModuleHandleW},
     {"kernel32.dll", "GetModuleFileNameA", hle_GetModuleFileNameA},
+    {"kernel32.dll", "GetModuleFileNameW", hle_GetModuleFileNameW},
     {"kernel32.dll", "LoadLibraryW", hle_LoadLibraryW},
     {"kernel32.dll", "LoadLibraryA", hle_LoadLibraryA},
     {"kernel32.dll", "GetPrivateProfileStringA", hle_GetPrivateProfileStringA},

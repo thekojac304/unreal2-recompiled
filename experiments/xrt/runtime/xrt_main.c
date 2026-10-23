@@ -343,6 +343,7 @@ XRT_NORETURN void xrt_process_exit(CPU* c, uint32_t code) {
     xrt_event("process_exit_complete", "\"code\": %u", code);
     xrt_report_write(code, "exited");
     fflush(NULL);
+    xrt_cleanup_atoms();
     ExitProcess(code);
 }
 

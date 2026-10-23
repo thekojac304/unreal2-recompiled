@@ -9,6 +9,12 @@ typedef struct GuiDC
     HWND window;
     DWORD thread;
 } GuiDC;
+static BOOL delete_class_object(uint32_t token, int* handled);
+static HINSTANCE class_module(CPU* c,uint32_t guest);
+static uint32_t class_owner(CPU* c,HINSTANCE host);
+static uint32_t copy_class_string(const void* p,int wide);
+static uint32_t known_font_token(HFONT host);
+static void forget_window_properties(HWND host);
 static void begin(CPU *c)
 {
     SetLastError(xrt_get_last_error(c));
@@ -78,15 +84,27 @@ static void hle_CreateDIBitmap(CPU *c)
     xrt_event("gui_create_dibitmap", "\"handle\": %u", result);
     RET_STD(6, result);
 }
+static void hle_CreateBitmap(CPU* c)
+{
+    HBITMAP bitmap; uint32_t token=0;
+    begin(c);
+    bitmap=CreateBitmap((int)ARG(0),(int)ARG(1),ARG(2),ARG(3),ARG(4)?G2H(ARG(4)):NULL);
+    end(c);
+    if(bitmap) token=xrt_handle_new(XH_BITMAP,bitmap);
+    xrt_event("gui_create_bitmap","\"width\": %d, \"height\": %d, \"handle\": %u",(int)ARG(0),(int)ARG(1),token);
+    RET_STD(5,token);
+}
 static void hle_DeleteObject(CPU *c)
 {
     uint32_t token = ARG(0);
     HGDIOBJ obj = (HGDIOBJ)xrt_handle_get(token, XH_BITMAP);
     BOOL ok;
+    int handled=0;
     begin(c);
-    ok = DeleteObject(obj);
+    ok=delete_class_object(token,&handled);
+    if(!handled) ok=DeleteObject(obj);
     end(c);
-    if (ok)
+    if (ok && handled!=2)
         xrt_handle_free(token);
     xrt_event("gui_delete_object", "\"handle\": %u, \"result\": %d", token, ok);
     RET_STD(1, ok);
@@ -110,12 +128,20 @@ typedef struct GuiWindow
 {
     HWND host;
     uint32_t token, proc, font;
+    int font_local;
     HFONT host_font;
     DWORD thread;
 } GuiWindow;
 static GuiWindow windows[1024];
 static __declspec(thread) CPU *callback_cpu;
 static __declspec(thread) uint32_t creating_proc;
+typedef struct GuiCallbackFrame {
+    struct GuiCallbackFrame* previous;
+    HWND window; UINT message; WPARAM host_wp; LPARAM host_lp;
+    uint32_t guest_wp,guest_lp;
+    const uint32_t* create_words;
+} GuiCallbackFrame;
+static __declspec(thread) GuiCallbackFrame* callback_frame;
 static HWND window_host(uint32_t h)
 {
     return (HWND)xrt_handle_get(h, XH_WINDOW);
@@ -144,7 +170,8 @@ static void forget_dead_windows(void)
     for (i = 0; i < 1024; i++)
         if (windows[i].host && !IsWindow(windows[i].host))
         {
-            if (windows[i].font)
+            forget_window_properties(windows[i].host);
+            if (windows[i].font && windows[i].font_local)
                 xrt_handle_free(windows[i].font);
             xrt_handle_free(windows[i].token);
             memset(&windows[i], 0, sizeof windows[i]);
@@ -182,14 +209,16 @@ static void unpack_windowpos(WINDOWPOS *w, uint32_t p)
     w->cy = (int)rd32(p + 20);
     w->flags = rd32(p + 24);
 }
-static INT_PTR CALLBACK dialog_bridge(HWND h, UINT msg, WPARAM wp, LPARAM lp)
+static INT_PTR invoke_gui_proc(HWND h, UINT msg, WPARAM wp, LPARAM lp, uint32_t explicit_proc)
 {
     CPU nested;
-    uint32_t args[4], proc = 0, scratch = 0;
+    uint32_t args[4], proc = explicit_proc, scratch = 0;
     unsigned i;
     INT_PTR result;
     GuiWindow *window = NULL;
     DWORD error = GetLastError();
+    GuiCallbackFrame frame;
+    uint32_t create_words[12];
     if (!callback_cpu)
         xrt_fatal(NULL, XRT_EXIT_UNSUPPORTED, "GUI callback outside an active guest host call");
     args[0] = window_token(h);
@@ -200,9 +229,9 @@ static INT_PTR CALLBACK dialog_bridge(HWND h, UINT msg, WPARAM wp, LPARAM lp)
         if (windows[i].host == h)
         {
             window = &windows[i];
-            if (!window->proc)
+            if (!window->proc && !explicit_proc)
                 window->proc = creating_proc;
-            proc = window->proc;
+            if (!explicit_proc) proc = window->proc;
             break;
         }
     if (!proc)
@@ -214,6 +243,34 @@ static INT_PTR CALLBACK dialog_bridge(HWND h, UINT msg, WPARAM wp, LPARAM lp)
     nested.r[ESP] = scratch;
     switch (msg)
     {
+    case WM_SETTEXT:
+        args[3]=copy_class_string((void*)lp,IsWindowUnicode(h));
+        break;
+    case WM_CREATE:
+    case WM_NCCREATE:
+        {
+            CREATESTRUCTW* s=(CREATESTRUCTW*)lp;
+            if((uintptr_t)s->lpCreateParams>0xffffffffu)
+                xrt_fatal(&nested,XRT_EXIT_UNSUPPORTED,"CREATESTRUCT contains a non-guest creation parameter");
+            if(s->hMenu && !(s->style&WS_CHILD))
+                xrt_fatal(&nested,XRT_EXIT_UNSUPPORTED,"CREATESTRUCT menu requires typed mapping");
+            wr32(scratch,(uint32_t)(uintptr_t)s->lpCreateParams);
+            wr32(scratch+4,class_owner(&nested,s->hInstance));
+            wr32(scratch+8,(uint32_t)(uintptr_t)s->hMenu);
+            wr32(scratch+12,window_token(s->hwndParent));
+            wr32(scratch+16,s->cy);wr32(scratch+20,s->cx);wr32(scratch+24,s->y);wr32(scratch+28,s->x);
+            wr32(scratch+32,s->style);
+            wr32(scratch+36,copy_class_string(s->lpszName,IsWindowUnicode(h)));
+            wr32(scratch+40,copy_class_string(s->lpszClass,IsWindowUnicode(h)));
+            wr32(scratch+44,s->dwExStyle);
+            args[3]=scratch;
+            memcpy(create_words,G2H(scratch),48);
+        }
+        break;
+    case WM_USER + 77: /* Class oracle's explicitly scalar nested callback. */
+        if (h || wp > 100 || lp > 100)
+            xrt_fatal(&nested, XRT_EXIT_UNSUPPORTED, "class oracle scalar message outside measured range");
+        break;
     case 0x90: /* Observed Windows theme destruction notification: both arguments zero. */
         if (wp || lp)
             xrt_fatal(&nested, XRT_EXIT_UNSUPPORTED, "theme destruction notification has nonzero arguments");
@@ -250,10 +307,12 @@ static INT_PTR CALLBACK dialog_bridge(HWND h, UINT msg, WPARAM wp, LPARAM lp)
     case WM_SETFONT:
         if (window->host_font != (HFONT)wp)
         {
-            if (window->font)
+            if (window->font && window->font_local)
                 xrt_handle_free(window->font);
             window->host_font = (HFONT)wp;
-            window->font = wp ? xrt_handle_new(XH_FONT, (void *)wp) : 0;
+            window->font = known_font_token((HFONT)wp);
+            window->font_local=wp && !window->font;
+            if(window->font_local) window->font=xrt_handle_new(XH_FONT,(void*)wp);
         }
         args[2] = window->font;
         break;
@@ -288,6 +347,11 @@ static INT_PTR CALLBACK dialog_bridge(HWND h, UINT msg, WPARAM wp, LPARAM lp)
     case WM_COMMAND:
         args[3] = window_token((HWND)lp);
         break;
+    case WM_PARENTNOTIFY:
+        if(LOWORD(wp)!=WM_CREATE && LOWORD(wp)!=WM_DESTROY)
+            xrt_fatal(&nested,XRT_EXIT_UNSUPPORTED,"WM_PARENTNOTIFY event %u unsupported",LOWORD(wp));
+        args[3]=window_token((HWND)lp);
+        break;
     case WM_PALETTECHANGED:
         args[2] = window_token((HWND)wp);
         break;
@@ -296,11 +360,8 @@ static INT_PTR CALLBACK dialog_bridge(HWND h, UINT msg, WPARAM wp, LPARAM lp)
     case WM_MEASUREITEM:
     case WM_COMPAREITEM:
     case WM_DELETEITEM:
-    case WM_CREATE:
-    case WM_NCCREATE:
     case WM_SETTINGCHANGE:
     case WM_GETTEXT:
-    case WM_SETTEXT:
         xrt_fatal(&nested, XRT_EXIT_UNSUPPORTED, "dialog callback pointer message 0x%x requires marshalling", msg);
     default:
         /* Only measured scalar messages may cross unmodified. */
@@ -309,12 +370,19 @@ static INT_PTR CALLBACK dialog_bridge(HWND h, UINT msg, WPARAM wp, LPARAM lp)
               msg == WM_NCDESTROY || msg == WM_CANCELMODE || msg == WM_GETDLGCODE || msg == WM_GETFONT ||
               msg == WM_CHANGEUISTATE || msg == WM_UPDATEUISTATE || msg == WM_QUERYUISTATE ||
               msg == WM_QUERYNEWPALETTE || msg == WM_PALETTECHANGED || msg == WM_DWMNCRENDERINGCHANGED ||
-              msg == WM_ACTIVATEAPP || msg == WM_IME_SETCONTEXT || msg == WM_IME_NOTIFY))
+              msg == WM_ACTIVATEAPP || msg == WM_IME_SETCONTEXT || msg == WM_IME_NOTIFY || msg==WM_GETTEXTLENGTH))
             xrt_fatal(&nested, XRT_EXIT_UNSUPPORTED, "dialog callback message 0x%x unsupported (wp=%llx lp=%llx)",
                       msg, (unsigned long long)wp, (unsigned long long)lp);
     }
     xrt_event("gui_callback", "\"message\": %u, \"proc\": %u", msg, proc);
+    frame.previous=callback_frame; frame.window=h; frame.message=msg;
+    frame.host_wp=wp; frame.host_lp=lp; frame.guest_wp=args[2];frame.guest_lp=args[3];
+    frame.create_words=(msg==WM_CREATE || msg==WM_NCCREATE)?create_words:NULL;
+    callback_frame=&frame;
     result = (INT_PTR)(int32_t)xrt_call_guest(&nested, proc, 4, args, 1);
+    callback_frame=frame.previous;
+    if(frame.create_words && memcmp(create_words,G2H(scratch),48))
+        xrt_fatal(&nested,XRT_EXIT_UNSUPPORTED,"CREATESTRUCT field mutation requires marshalling");
     if (msg == WM_WINDOWPOSCHANGING || msg == WM_WINDOWPOSCHANGED)
         unpack_windowpos((WINDOWPOS *)lp, scratch);
     if (msg == WM_GETMINMAXINFO)
@@ -347,6 +415,10 @@ static INT_PTR CALLBACK dialog_bridge(HWND h, UINT msg, WPARAM wp, LPARAM lp)
     }
     SetLastError(xrt_get_last_error(&nested));
     return result;
+}
+static INT_PTR CALLBACK dialog_bridge(HWND h, UINT msg, WPARAM wp, LPARAM lp)
+{
+    return invoke_gui_proc(h, msg, wp, lp, 0);
 }
 static HMODULE resource_module(CPU *c, uint32_t module)
 {
@@ -446,6 +518,28 @@ static void hle_GetWindowRect(CPU *c)
         memcpy(G2H(ARG(1)), &rect, 16);
     RET_STD(2, ok);
 }
+static void hle_GetDesktopWindow(CPU* c)
+{
+    HWND h; begin(c); h=GetDesktopWindow(); end(c);
+    RET_STD(0,window_token(h));
+}
+static void hle_GetClientRect(CPU* c)
+{
+    RECT rect; BOOL ok;
+    begin(c); ok=GetClientRect(window_host(ARG(0)),ARG(1)?&rect:NULL); end(c);
+    if(ok) memcpy(G2H(ARG(1)),&rect,16);
+    RET_STD(2,ok);
+}
+static void hle_IsWindow(CPU* c)
+{
+    BOOL ok;begin(c);ok=IsWindow(window_host(ARG(0)));end(c);RET_STD(1,ok);
+}
+static void hle_ShowWindow(CPU* c)
+{
+    BOOL previous_visible;CPU* previous=callback_cpu;
+    callback_cpu=c;begin(c);previous_visible=ShowWindow(window_host(ARG(0)),(int)ARG(1));end(c);callback_cpu=previous;
+    RET_STD(2,previous_visible);
+}
 static void hle_SetWindowPos(CPU *c)
 {
     BOOL ok;
@@ -465,6 +559,29 @@ static void send_message(CPU *c, int wide)
     LPARAM lp;
     WPARAM wp = ARG(2);
     CPU *prev = callback_cpu;
+    if(msg==WM_SETTEXT || msg==WM_GETTEXTLENGTH) {
+        if(msg==WM_SETTEXT && ARG(3) && ARG(3)<0x10000)
+            xrt_fatal(c,XRT_EXIT_UNSUPPORTED,"WM_SETTEXT invalid guest string");
+        lp=msg==WM_SETTEXT && ARG(3) ? (LPARAM)G2H(ARG(3)) : (LPARAM)(int32_t)ARG(3);
+        callback_cpu=c;begin(c);
+        result=wide?SendMessageW(window_host(ARG(0)),msg,wp,lp):SendMessageA(window_host(ARG(0)),msg,wp,lp);
+        end(c);callback_cpu=prev;RET_STD(4,(uint32_t)result);return;
+    }
+    if(msg==WM_SETFONT || msg==WM_GETFONT) {
+        if(msg==WM_SETFONT) {
+            wp=(WPARAM)xrt_handle_get(ARG(2),XH_FONT);
+            if(ARG(2) && !wp) xrt_fatal(c,XRT_EXIT_UNSUPPORTED,"WM_SETFONT unknown guest font");
+        }
+        callback_cpu=c;begin(c);
+        result=wide?SendMessageW(window_host(ARG(0)),msg,wp,(LPARAM)(int32_t)ARG(3)):SendMessageA(window_host(ARG(0)),msg,wp,(LPARAM)(int32_t)ARG(3));
+        end(c);callback_cpu=prev;
+        if(msg==WM_GETFONT && result) {
+            uint32_t font=known_font_token((HFONT)result);
+            if(!font) xrt_fatal(c,XRT_EXIT_UNSUPPORTED,"WM_GETFONT returned a font without guest ownership");
+            RET_STD(4,font);return;
+        }
+        RET_STD(4,(uint32_t)result);return;
+    }
     if (msg != STM_SETIMAGE)
         xrt_fatal(c, XRT_EXIT_UNSUPPORTED, "SendMessage 0x%x requires message marshalling", msg);
     if (wp != IMAGE_BITMAP)
@@ -532,7 +649,40 @@ static void hle_InitCommonControls(CPU *c)
     xrt_event("gui_init_common_controls", NULL);
     c->rv = pop32(c); /* void function: preserve guest EAX */
 }
+#include "hle_gui_classes.inc"
 const XrtHle xrt_hle_gui[] = {{"comctl32.dll", "#17", hle_InitCommonControls},
+                              {"user32.dll", "GetClassInfoExW", hle_GetClassInfoExW},
+                              {"user32.dll", "GetClassInfoExA", hle_GetClassInfoExA},
+                              {"user32.dll", "RegisterClassExW", hle_RegisterClassExW},
+                              {"user32.dll", "RegisterClassExA", hle_RegisterClassExA},
+                              {"user32.dll", "UnregisterClassW", hle_UnregisterClassW},
+                              {"user32.dll", "UnregisterClassA", hle_UnregisterClassA},
+                              {"user32.dll", "CallWindowProcW", hle_CallWindowProcW},
+                              {"user32.dll", "CallWindowProcA", hle_CallWindowProcA},
+                              {"user32.dll", "LoadIconW", hle_LoadIconW},
+                              {"user32.dll", "LoadIconA", hle_LoadIconA},
+                              {"user32.dll", "LoadCursorW", hle_LoadCursorW},
+                              {"user32.dll", "LoadCursorA", hle_LoadCursorA},
+                              {"gdi32.dll", "CreateSolidBrush", hle_CreateSolidBrush},
+                              {"gdi32.dll", "CreateBitmap", hle_CreateBitmap},
+                              {"gdi32.dll", "CreatePatternBrush", hle_CreatePatternBrush},
+                              {"gdi32.dll", "GetStockObject", hle_GetStockObject},
+                              {"user32.dll", "GetDesktopWindow", hle_GetDesktopWindow},
+                              {"user32.dll", "GetClientRect", hle_GetClientRect},
+                              {"user32.dll", "CreateWindowExW", hle_CreateWindowExW},
+                              {"user32.dll", "CreateWindowExA", hle_CreateWindowExA},
+                              {"user32.dll", "DefWindowProcW", hle_DefWindowProcW},
+                              {"user32.dll", "DefWindowProcA", hle_DefWindowProcA},
+                              {"user32.dll", "GetWindowLongW", hle_GetWindowLongW},
+                              {"user32.dll", "GetWindowLongA", hle_GetWindowLongA},
+                              {"user32.dll", "IsWindow", hle_IsWindow},
+                              {"user32.dll", "ShowWindow", hle_ShowWindow},
+                              {"user32.dll", "SetPropW", hle_SetPropW},
+                              {"user32.dll", "SetPropA", hle_SetPropA},
+                              {"user32.dll", "GetPropW", hle_GetPropW},
+                              {"user32.dll", "GetPropA", hle_GetPropA},
+                              {"user32.dll", "RemovePropW", hle_RemovePropW},
+                              {"user32.dll", "RemovePropA", hle_RemovePropA},
                               {"comctl32.dll", "InitCommonControls", hle_InitCommonControls},
                               {"user32.dll", "GetDC", hle_GetDC},
                               {"user32.dll", "ReleaseDC", hle_ReleaseDC},
