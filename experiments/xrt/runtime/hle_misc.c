@@ -116,6 +116,7 @@ const XrtHle xrt_hle_misc[] = {
     XRT_DINPUT_BINDINGS
     XRT_D3D8_BINDINGS
     XRT_DMUSIC_BINDINGS
+    XRT_DMIPC_BINDINGS
     {"user32.dll","SystemParametersInfoA",hle_SystemParametersInfoA},
     {"user32.dll","SystemParametersInfoW",hle_SystemParametersInfoW},
     {"user32.dll", "FindWindowExA", hle_FindWindowExA},

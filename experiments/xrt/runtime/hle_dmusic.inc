@@ -17,6 +17,8 @@ typedef struct {
 struct DmLoader8 {const DmLoader8Vtbl*lpVtbl;};
 typedef struct {uint32_t guest,refs;DWORD owner;DmLoader8*host;} DmObject;
 static DmObject dm_objects[128];static uint32_t dm_vtable;
+static void dmipc_thread_cleanup(CPU*c);
+static int dmipc_factory(CPU*c,const GUID*cls,const GUID*iid);
 static int dm_equal(const GUID*a,const GUID*b){return !memcmp(a,b,16);}
 static void dm_owner(CPU*c,DWORD owner) {
     if(owner!=GetCurrentThreadId() || !c->thread || c->thread->host_tid!=owner)
@@ -26,6 +28,7 @@ void xrt_com_thread_cleanup(CPU*c) {
     unsigned i,released=0,balanced=0;
     if(!c || !c->thread)return;
     dm_owner(c,c->thread->host_tid);
+    dmipc_thread_cleanup(c);
     for(i=0;i<128;i++)if(dm_objects[i].owner==GetCurrentThreadId()) {
         DmObject*o=&dm_objects[i];
         while(o->refs){o->host->lpVtbl->Release(o->host);o->refs--;released++;}
@@ -100,6 +103,7 @@ static void hle_CoCreateInstance(CPU*c) {
     com_memory(c,ARG(0),16,"CoCreateInstance");com_memory(c,ARG(3),16,"CoCreateInstance");com_memory(c,ARG(4),4,"CoCreateInstance");
     memcpy(&cls,G2H(ARG(0)),16);memcpy(&iid,G2H(ARG(3)),16);
     if(ARG(1) || ARG(2)!=3)xrt_fatal(c,XRT_EXIT_UNSUPPORTED,"CoCreateInstance: unmeasured aggregation or class context");
+    if(dmipc_factory(c,&cls,&iid))return;
     performance=dm_equal(&cls,&dm_clsid_performance) && dm_equal(&iid,&dm_iid_performance8);
     if(!performance && !(dm_equal(&cls,&dm_clsid_loader) && dm_equal(&iid,&dm_iid_loader8)))
         xrt_fatal(c,XRT_EXIT_UNSUPPORTED,"CoCreateInstance: unsupported CLSID %08lx / IID %08lx",cls.Data1,iid.Data1);
@@ -133,3 +137,6 @@ static void hle_CoCreateInstance(CPU*c) {
     {"xrt.com","DM.ClearCache",dm_ClearCache}, {"xrt.com","DM.EnableCache",dm_EnableCache}, \
     {"xrt.com","DM.EnumObject",dm_EnumObject}, {"xrt.com","DM.CollectGarbage",dm_CollectGarbage}, \
     {"xrt.com","DM.ReleaseObjectByUnknown",dm_ReleaseObjectByUnknown}, {"xrt.com","DM.LoadObjectFromFile",dm_LoadObjectFromFile},
+
+#include "dmusic_backend_pipe.inc"
+#include "hle_dmusic_guest.inc"

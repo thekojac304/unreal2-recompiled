@@ -1,0 +1,1222 @@
+{
+  "date": "2026-10-23",
+  "starting_head": "39da6de",
+  "status": "STOPPED_REQUIRED_INSTALLATION_INTEGRITY_ESCALATION",
+  "scope": "Approved bounded x86 DirectMusic IPC; no input or renderer expansion",
+  "milestone": {
+    "directmusic_native_session_matches": true,
+    "translated_game_uses_helper": true,
+    "cs_intro_loadmap_returns_nonnull": true,
+    "highest_verified_milestone": 2,
+    "selected_world": "0x12f52800",
+    "actor_lifecycle_functions_executed": true,
+    "actor_lifecycle_completion_separately_verified": false,
+    "selected_world_ticks_completed": 0,
+    "any_level_tick_entered": false,
+    "engine_init_completed": false,
+    "translated_device_or_present": false
+  },
+  "blocker": "IDirectInput8W::CreateDevice, WinDrv.dll+0x3153, caller +0x3156, during UWindowsViewport construction",
+  "protocol": {
+    "magic": "31424d44",
+    "version": 1,
+    "frame_bytes": 2000,
+    "sha256": "a9538e02b6e2c74b3883d513f6e71ee85a99747ed7d4e33b35ad50274d22331d"
+  },
+  "tested_binaries": {
+    "dmusic_helper.exe": {
+      "sha256": "a141ffe197f3eb14ed5908c946bd3cb541fdf456175b5a602b52df1b64484d22",
+      "path": "experiments\\xrt\\results\\raw\\directmusic\\ipc-3fb42bf9e393\\dmusic_helper.exe"
+    },
+    "ipc_session.exe": {
+      "sha256": "6534dd309abbc58711fa2edb44385a182949639595ff56221a611e144acbd1f7",
+      "path": "experiments\\xrt\\results\\raw\\directmusic\\ipc-3fb42bf9e393\\ipc_session.exe"
+    },
+    "native_session.exe": {
+      "sha256": "a1e062eb4828654068b04fc1318710fd528e3aca16b32acf257101e977c87c54",
+      "path": "experiments\\xrt\\results\\raw\\directmusic\\ipc-3fb42bf9e393\\native_session.exe"
+    }
+  },
+  "ipc_acceptance": {
+    "path": "experiments/xrt/results/raw/directmusic/ipc-3fb42bf9e393/result.json",
+    "passed": true,
+    "native_stdout_exactly_matches_ipc": true,
+    "fault_diagnostics_match": true,
+    "cases": [
+      {
+        "mode": "native",
+        "exit": 0,
+        "elapsed": 0.5507603000005474
+      },
+      {
+        "mode": "session",
+        "exit": 0,
+        "elapsed": 0.8632595999952173
+      },
+      {
+        "mode": "lifetime",
+        "exit": 0,
+        "elapsed": 0.09079850000125589
+      },
+      {
+        "mode": "malformed",
+        "exit": 0,
+        "elapsed": 0.04045639999822015
+      },
+      {
+        "mode": "badsize",
+        "exit": 0,
+        "elapsed": 0.04584869999962393
+      },
+      {
+        "mode": "badsequence",
+        "exit": 0,
+        "elapsed": 0.04748639999888837
+      },
+      {
+        "mode": "badkind",
+        "exit": 0,
+        "elapsed": 0.04695750000246335
+      },
+      {
+        "mode": "truncated",
+        "exit": 0,
+        "elapsed": 0.04569449999689823
+      },
+      {
+        "mode": "invalid",
+        "exit": 0,
+        "elapsed": 0.03496860000450397
+      },
+      {
+        "mode": "unsupported",
+        "exit": 0,
+        "elapsed": 0.062452999998640735
+      },
+      {
+        "mode": "crash",
+        "exit": 0,
+        "elapsed": 0.04598529999930179
+      },
+      {
+        "mode": "timeout",
+        "exit": 0,
+        "elapsed": 0.206917199997406
+      },
+      {
+        "mode": "disconnect",
+        "exit": 0,
+        "elapsed": 0.05674469999939902
+      },
+      {
+        "mode": "host-exit",
+        "exit": 0,
+        "elapsed": 0.06177600000228267
+      },
+      {
+        "mode": "guard",
+        "exit": 0,
+        "elapsed": 0.10942770000110613
+      },
+      {
+        "mode": "routine-block",
+        "exit": 0,
+        "elapsed": 0.4986346000005142
+      },
+      {
+        "mode": "processpmsg",
+        "exit": 0,
+        "elapsed": 0.5606011999989278
+      },
+      {
+        "mode": "callback",
+        "exit": 0,
+        "elapsed": 0.4934939000013401
+      }
+    ]
+  },
+  "client": {
+    "path": "experiments/xrt/build/dmusic-client-final/xrt_ucc.exe",
+    "sha256": "414bdec39c84023eb018348b6ec1e59c42304df680bc6c28fe164dff5f45016b",
+    "identity": "experiments/xrt/build/dmusic-client-final/client-identity.json"
+  },
+  "candidate_runs": [
+    {
+      "path": "experiments/xrt/results/raw/level/20261023-134136-ee6b8487-candidate",
+      "report_sha256": "c783307299d49e1f36e6e29d2182da06073b7e5c60c947d00cf5ae0ff7a75526",
+      "events": 24186,
+      "dropped": 0,
+      "outcome": "IDirectInput8W::CreateDevice is unmeasured (interface 0001504c, caller 11103156)",
+      "milestone_events": [
+        {
+          "seq": 23206,
+          "thread": 0,
+          "kind": "engine_loadmap_call",
+          "target": 272174848,
+          "esp": 18928808,
+          "return": 272168548,
+          "this": 304460416,
+          "arg0": 18937032
+        },
+        {
+          "seq": 23295,
+          "thread": 0,
+          "kind": "level_postload_return",
+          "target": 272339296,
+          "esp_before": 18924264,
+          "esp_after": 18924268,
+          "return": 269772740,
+          "actual_return": 269772740,
+          "this": 302665728
+        },
+        {
+          "seq": 23395,
+          "thread": 0,
+          "kind": "engine_loadmap_return",
+          "target": 272174848,
+          "result": 302665728,
+          "actual_return": 272168548,
+          "esp_before": 18928808,
+          "esp_after": 18928828,
+          "return": 272168548,
+          "this": 304460416
+        },
+        {
+          "seq": 23400,
+          "thread": 0,
+          "kind": "engine_loadmap_call",
+          "target": 272174848,
+          "esp": 18927512,
+          "return": 272173943,
+          "this": 304460416,
+          "arg0": 18928752
+        },
+        {
+          "seq": 23933,
+          "thread": 0,
+          "kind": "level_postload_return",
+          "target": 272339296,
+          "esp_before": 18922968,
+          "esp_after": 18922972,
+          "return": 269772740,
+          "actual_return": 269772740,
+          "this": 318056448
+        },
+        {
+          "seq": 24133,
+          "thread": 0,
+          "kind": "dmusic_backend_start",
+          "version": 1,
+          "frame_bytes": 2000,
+          "child_pid": 45212,
+          "timeout_ms": 10000
+        },
+        {
+          "seq": 24158,
+          "thread": 0,
+          "kind": "engine_loadmap_return",
+          "target": 272174848,
+          "result": 318056448,
+          "actual_return": 272173943,
+          "esp_before": 18927512,
+          "esp_after": 18927532,
+          "return": 272173943,
+          "this": 304460416
+        },
+        {
+          "seq": 24175,
+          "thread": 0,
+          "kind": "fatal",
+          "code": 76,
+          "message": "IDirectInput8W::CreateDevice is unmeasured (interface 0001504c, caller 11103156)"
+        },
+        {
+          "seq": 24182,
+          "thread": 0,
+          "kind": "dmusic_backend_cleanup",
+          "references_released": 5
+        }
+      ],
+      "music_events": [
+        {
+          "seq": 24134,
+          "thread": 0,
+          "kind": "dmusic_backend",
+          "version": 1,
+          "sequence": 2,
+          "op": 2,
+          "id": 0,
+          "result": 0,
+          "out_id": 1,
+          "type": 1
+        },
+        {
+          "seq": 24136,
+          "thread": 0,
+          "kind": "dmusic_backend",
+          "version": 1,
+          "sequence": 3,
+          "op": 2,
+          "id": 0,
+          "result": 0,
+          "out_id": 2,
+          "type": 2
+        },
+        {
+          "seq": 24138,
+          "thread": 0,
+          "kind": "dmusic_backend",
+          "version": 1,
+          "sequence": 4,
+          "op": 6,
+          "id": 2,
+          "result": 0,
+          "out_id": 3,
+          "type": 3
+        },
+        {
+          "seq": 24139,
+          "thread": 0,
+          "kind": "dmusic_backend",
+          "version": 1,
+          "sequence": 5,
+          "op": 7,
+          "id": 1,
+          "result": 0,
+          "out_id": 0,
+          "type": 0
+        },
+        {
+          "seq": 24140,
+          "thread": 0,
+          "kind": "dmusic_backend",
+          "version": 1,
+          "sequence": 6,
+          "op": 8,
+          "id": 2,
+          "result": 0,
+          "out_id": 4,
+          "type": 4
+        },
+        {
+          "seq": 24141,
+          "thread": 0,
+          "kind": "dmusic_backend",
+          "version": 1,
+          "sequence": 7,
+          "op": 9,
+          "id": 4,
+          "result": 0,
+          "out_id": 5,
+          "type": 5
+        },
+        {
+          "seq": 24142,
+          "thread": 0,
+          "kind": "dmusic_tool_callback",
+          "id": 1,
+          "slot": 1,
+          "result": 2,
+          "value1": 0,
+          "value2": 0
+        },
+        {
+          "seq": 24143,
+          "thread": 0,
+          "kind": "dmusic_tool_callback",
+          "id": 1,
+          "slot": 3,
+          "result": 2147500033,
+          "value1": 0,
+          "value2": 0
+        },
+        {
+          "seq": 24144,
+          "thread": 0,
+          "kind": "dmusic_tool_callback",
+          "id": 1,
+          "slot": 0,
+          "result": 2147500034,
+          "value1": 0,
+          "value2": 0
+        },
+        {
+          "seq": 24145,
+          "thread": 0,
+          "kind": "dmusic_tool_callback",
+          "id": 1,
+          "slot": 0,
+          "result": 2147500034,
+          "value1": 0,
+          "value2": 0
+        },
+        {
+          "seq": 24146,
+          "thread": 0,
+          "kind": "dmusic_tool_callback",
+          "id": 1,
+          "slot": 4,
+          "result": 0,
+          "value1": 16,
+          "value2": 0
+        },
+        {
+          "seq": 24147,
+          "thread": 0,
+          "kind": "dmusic_tool_callback",
+          "id": 1,
+          "slot": 5,
+          "result": 0,
+          "value1": 2,
+          "value2": 0
+        },
+        {
+          "seq": 24148,
+          "thread": 0,
+          "kind": "dmusic_tool_callback",
+          "id": 1,
+          "slot": 6,
+          "result": 0,
+          "value1": 13,
+          "value2": 14
+        },
+        {
+          "seq": 24149,
+          "thread": 0,
+          "kind": "dmusic_backend",
+          "version": 1,
+          "sequence": 8,
+          "op": 10,
+          "id": 5,
+          "result": 0,
+          "out_id": 0,
+          "type": 0
+        },
+        {
+          "seq": 24150,
+          "thread": 0,
+          "kind": "dmusic_backend",
+          "version": 1,
+          "sequence": 9,
+          "op": 5,
+          "id": 5,
+          "result": 1,
+          "out_id": 0,
+          "type": 0
+        },
+        {
+          "seq": 24151,
+          "thread": 0,
+          "kind": "dmusic_backend",
+          "version": 1,
+          "sequence": 10,
+          "op": 11,
+          "id": 1,
+          "result": 0,
+          "out_id": 6,
+          "type": 6
+        },
+        {
+          "seq": 24152,
+          "thread": 0,
+          "kind": "dmusic_backend",
+          "version": 1,
+          "sequence": 11,
+          "op": 12,
+          "id": 1,
+          "result": 0,
+          "out_id": 7,
+          "type": 7
+        },
+        {
+          "seq": 24153,
+          "thread": 0,
+          "kind": "dmusic_backend",
+          "version": 1,
+          "sequence": 12,
+          "op": 13,
+          "id": 7,
+          "result": 0,
+          "out_id": 0,
+          "type": 0
+        },
+        {
+          "seq": 24154,
+          "thread": 0,
+          "kind": "dmusic_backend",
+          "version": 1,
+          "sequence": 13,
+          "op": 17,
+          "id": 1,
+          "result": 0,
+          "out_id": 0,
+          "type": 0
+        },
+        {
+          "seq": 24155,
+          "thread": 0,
+          "kind": "dmusic_backend",
+          "version": 1,
+          "sequence": 14,
+          "op": 5,
+          "id": 6,
+          "result": 0,
+          "out_id": 0,
+          "type": 0
+        },
+        {
+          "seq": 24156,
+          "thread": 0,
+          "kind": "dmusic_backend",
+          "version": 1,
+          "sequence": 15,
+          "op": 14,
+          "id": 2,
+          "result": 0,
+          "out_id": 0,
+          "type": 0
+        },
+        {
+          "seq": 24157,
+          "thread": 0,
+          "kind": "dmusic_backend",
+          "version": 1,
+          "sequence": 16,
+          "op": 15,
+          "id": 7,
+          "result": 2289570331,
+          "out_id": 0,
+          "type": 0
+        },
+        {
+          "seq": 24176,
+          "thread": 0,
+          "kind": "dmusic_backend",
+          "version": 1,
+          "sequence": 17,
+          "op": 5,
+          "id": 7,
+          "result": 15,
+          "out_id": 0,
+          "type": 0
+        },
+        {
+          "seq": 24177,
+          "thread": 0,
+          "kind": "dmusic_backend",
+          "version": 1,
+          "sequence": 18,
+          "op": 5,
+          "id": 4,
+          "result": 1,
+          "out_id": 0,
+          "type": 0
+        },
+        {
+          "seq": 24178,
+          "thread": 0,
+          "kind": "dmusic_backend",
+          "version": 1,
+          "sequence": 19,
+          "op": 5,
+          "id": 3,
+          "result": 3,
+          "out_id": 0,
+          "type": 0
+        },
+        {
+          "seq": 24179,
+          "thread": 0,
+          "kind": "dmusic_backend",
+          "version": 1,
+          "sequence": 20,
+          "op": 5,
+          "id": 2,
+          "result": 35,
+          "out_id": 0,
+          "type": 0
+        },
+        {
+          "seq": 24180,
+          "thread": 0,
+          "kind": "dmusic_backend",
+          "version": 1,
+          "sequence": 21,
+          "op": 5,
+          "id": 1,
+          "result": 0,
+          "out_id": 0,
+          "type": 0
+        },
+        {
+          "seq": 24181,
+          "thread": 0,
+          "kind": "dmusic_backend",
+          "version": 1,
+          "sequence": 22,
+          "op": 20,
+          "id": 0,
+          "result": 0,
+          "out_id": 0,
+          "type": 0
+        },
+        {
+          "seq": 24183,
+          "thread": 0,
+          "kind": "com_cleanup",
+          "references_released": 0,
+          "apartment_references_balanced": 1
+        }
+      ]
+    },
+    {
+      "path": "experiments/xrt/results/raw/level/20261023-134708-45cf0e57-candidate",
+      "report_sha256": "99ce60048aaefb64a1a92a25f3814ec393ce06d36c706bbb905bfd483b022a1d",
+      "events": 24186,
+      "dropped": 0,
+      "outcome": "IDirectInput8W::CreateDevice is unmeasured (interface 0001504c, caller 11103156)",
+      "milestone_events": [
+        {
+          "seq": 23206,
+          "thread": 0,
+          "kind": "engine_loadmap_call",
+          "target": 272174848,
+          "esp": 18928808,
+          "return": 272168548,
+          "this": 304460416,
+          "arg0": 18937032
+        },
+        {
+          "seq": 23295,
+          "thread": 0,
+          "kind": "level_postload_return",
+          "target": 272339296,
+          "esp_before": 18924264,
+          "esp_after": 18924268,
+          "return": 269772740,
+          "actual_return": 269772740,
+          "this": 302665728
+        },
+        {
+          "seq": 23395,
+          "thread": 0,
+          "kind": "engine_loadmap_return",
+          "target": 272174848,
+          "result": 302665728,
+          "actual_return": 272168548,
+          "esp_before": 18928808,
+          "esp_after": 18928828,
+          "return": 272168548,
+          "this": 304460416
+        },
+        {
+          "seq": 23400,
+          "thread": 0,
+          "kind": "engine_loadmap_call",
+          "target": 272174848,
+          "esp": 18927512,
+          "return": 272173943,
+          "this": 304460416,
+          "arg0": 18928752
+        },
+        {
+          "seq": 23933,
+          "thread": 0,
+          "kind": "level_postload_return",
+          "target": 272339296,
+          "esp_before": 18922968,
+          "esp_after": 18922972,
+          "return": 269772740,
+          "actual_return": 269772740,
+          "this": 318056448
+        },
+        {
+          "seq": 24133,
+          "thread": 0,
+          "kind": "dmusic_backend_start",
+          "version": 1,
+          "frame_bytes": 2000,
+          "child_pid": 42004,
+          "timeout_ms": 10000
+        },
+        {
+          "seq": 24158,
+          "thread": 0,
+          "kind": "engine_loadmap_return",
+          "target": 272174848,
+          "result": 318056448,
+          "actual_return": 272173943,
+          "esp_before": 18927512,
+          "esp_after": 18927532,
+          "return": 272173943,
+          "this": 304460416
+        },
+        {
+          "seq": 24175,
+          "thread": 0,
+          "kind": "fatal",
+          "code": 76,
+          "message": "IDirectInput8W::CreateDevice is unmeasured (interface 0001504c, caller 11103156)"
+        },
+        {
+          "seq": 24182,
+          "thread": 0,
+          "kind": "dmusic_backend_cleanup",
+          "references_released": 5
+        }
+      ],
+      "music_events": [
+        {
+          "seq": 24134,
+          "thread": 0,
+          "kind": "dmusic_backend",
+          "version": 1,
+          "sequence": 2,
+          "op": 2,
+          "id": 0,
+          "result": 0,
+          "out_id": 1,
+          "type": 1
+        },
+        {
+          "seq": 24136,
+          "thread": 0,
+          "kind": "dmusic_backend",
+          "version": 1,
+          "sequence": 3,
+          "op": 2,
+          "id": 0,
+          "result": 0,
+          "out_id": 2,
+          "type": 2
+        },
+        {
+          "seq": 24138,
+          "thread": 0,
+          "kind": "dmusic_backend",
+          "version": 1,
+          "sequence": 4,
+          "op": 6,
+          "id": 2,
+          "result": 0,
+          "out_id": 3,
+          "type": 3
+        },
+        {
+          "seq": 24139,
+          "thread": 0,
+          "kind": "dmusic_backend",
+          "version": 1,
+          "sequence": 5,
+          "op": 7,
+          "id": 1,
+          "result": 0,
+          "out_id": 0,
+          "type": 0
+        },
+        {
+          "seq": 24140,
+          "thread": 0,
+          "kind": "dmusic_backend",
+          "version": 1,
+          "sequence": 6,
+          "op": 8,
+          "id": 2,
+          "result": 0,
+          "out_id": 4,
+          "type": 4
+        },
+        {
+          "seq": 24141,
+          "thread": 0,
+          "kind": "dmusic_backend",
+          "version": 1,
+          "sequence": 7,
+          "op": 9,
+          "id": 4,
+          "result": 0,
+          "out_id": 5,
+          "type": 5
+        },
+        {
+          "seq": 24142,
+          "thread": 0,
+          "kind": "dmusic_tool_callback",
+          "id": 1,
+          "slot": 1,
+          "result": 2,
+          "value1": 0,
+          "value2": 0
+        },
+        {
+          "seq": 24143,
+          "thread": 0,
+          "kind": "dmusic_tool_callback",
+          "id": 1,
+          "slot": 3,
+          "result": 2147500033,
+          "value1": 0,
+          "value2": 0
+        },
+        {
+          "seq": 24144,
+          "thread": 0,
+          "kind": "dmusic_tool_callback",
+          "id": 1,
+          "slot": 0,
+          "result": 2147500034,
+          "value1": 0,
+          "value2": 0
+        },
+        {
+          "seq": 24145,
+          "thread": 0,
+          "kind": "dmusic_tool_callback",
+          "id": 1,
+          "slot": 0,
+          "result": 2147500034,
+          "value1": 0,
+          "value2": 0
+        },
+        {
+          "seq": 24146,
+          "thread": 0,
+          "kind": "dmusic_tool_callback",
+          "id": 1,
+          "slot": 4,
+          "result": 0,
+          "value1": 16,
+          "value2": 0
+        },
+        {
+          "seq": 24147,
+          "thread": 0,
+          "kind": "dmusic_tool_callback",
+          "id": 1,
+          "slot": 5,
+          "result": 0,
+          "value1": 2,
+          "value2": 0
+        },
+        {
+          "seq": 24148,
+          "thread": 0,
+          "kind": "dmusic_tool_callback",
+          "id": 1,
+          "slot": 6,
+          "result": 0,
+          "value1": 13,
+          "value2": 14
+        },
+        {
+          "seq": 24149,
+          "thread": 0,
+          "kind": "dmusic_backend",
+          "version": 1,
+          "sequence": 8,
+          "op": 10,
+          "id": 5,
+          "result": 0,
+          "out_id": 0,
+          "type": 0
+        },
+        {
+          "seq": 24150,
+          "thread": 0,
+          "kind": "dmusic_backend",
+          "version": 1,
+          "sequence": 9,
+          "op": 5,
+          "id": 5,
+          "result": 1,
+          "out_id": 0,
+          "type": 0
+        },
+        {
+          "seq": 24151,
+          "thread": 0,
+          "kind": "dmusic_backend",
+          "version": 1,
+          "sequence": 10,
+          "op": 11,
+          "id": 1,
+          "result": 0,
+          "out_id": 6,
+          "type": 6
+        },
+        {
+          "seq": 24152,
+          "thread": 0,
+          "kind": "dmusic_backend",
+          "version": 1,
+          "sequence": 11,
+          "op": 12,
+          "id": 1,
+          "result": 0,
+          "out_id": 7,
+          "type": 7
+        },
+        {
+          "seq": 24153,
+          "thread": 0,
+          "kind": "dmusic_backend",
+          "version": 1,
+          "sequence": 12,
+          "op": 13,
+          "id": 7,
+          "result": 0,
+          "out_id": 0,
+          "type": 0
+        },
+        {
+          "seq": 24154,
+          "thread": 0,
+          "kind": "dmusic_backend",
+          "version": 1,
+          "sequence": 13,
+          "op": 17,
+          "id": 1,
+          "result": 0,
+          "out_id": 0,
+          "type": 0
+        },
+        {
+          "seq": 24155,
+          "thread": 0,
+          "kind": "dmusic_backend",
+          "version": 1,
+          "sequence": 14,
+          "op": 5,
+          "id": 6,
+          "result": 0,
+          "out_id": 0,
+          "type": 0
+        },
+        {
+          "seq": 24156,
+          "thread": 0,
+          "kind": "dmusic_backend",
+          "version": 1,
+          "sequence": 15,
+          "op": 14,
+          "id": 2,
+          "result": 0,
+          "out_id": 0,
+          "type": 0
+        },
+        {
+          "seq": 24157,
+          "thread": 0,
+          "kind": "dmusic_backend",
+          "version": 1,
+          "sequence": 16,
+          "op": 15,
+          "id": 7,
+          "result": 2289570331,
+          "out_id": 0,
+          "type": 0
+        },
+        {
+          "seq": 24176,
+          "thread": 0,
+          "kind": "dmusic_backend",
+          "version": 1,
+          "sequence": 17,
+          "op": 5,
+          "id": 7,
+          "result": 15,
+          "out_id": 0,
+          "type": 0
+        },
+        {
+          "seq": 24177,
+          "thread": 0,
+          "kind": "dmusic_backend",
+          "version": 1,
+          "sequence": 18,
+          "op": 5,
+          "id": 4,
+          "result": 1,
+          "out_id": 0,
+          "type": 0
+        },
+        {
+          "seq": 24178,
+          "thread": 0,
+          "kind": "dmusic_backend",
+          "version": 1,
+          "sequence": 19,
+          "op": 5,
+          "id": 3,
+          "result": 3,
+          "out_id": 0,
+          "type": 0
+        },
+        {
+          "seq": 24179,
+          "thread": 0,
+          "kind": "dmusic_backend",
+          "version": 1,
+          "sequence": 20,
+          "op": 5,
+          "id": 2,
+          "result": 35,
+          "out_id": 0,
+          "type": 0
+        },
+        {
+          "seq": 24180,
+          "thread": 0,
+          "kind": "dmusic_backend",
+          "version": 1,
+          "sequence": 21,
+          "op": 5,
+          "id": 1,
+          "result": 0,
+          "out_id": 0,
+          "type": 0
+        },
+        {
+          "seq": 24181,
+          "thread": 0,
+          "kind": "dmusic_backend",
+          "version": 1,
+          "sequence": 22,
+          "op": 20,
+          "id": 0,
+          "result": 0,
+          "out_id": 0,
+          "type": 0
+        },
+        {
+          "seq": 24183,
+          "thread": 0,
+          "kind": "com_cleanup",
+          "references_released": 0,
+          "apartment_references_balanced": 1
+        }
+      ]
+    }
+  ],
+  "fresh_original": {
+    "path": "experiments/xrt/results/raw/graphics-startup/dc9cc5ddd1c5-dxvk",
+    "world": {
+      "observer_complete_without_drops": true,
+      "selected_map": {
+        "entry_seq": 127,
+        "open_seq": 128,
+        "return_seq": 4730,
+        "world": "0x10812800",
+        "actors": {
+          "AActor.eventPreBeginPlay": 268,
+          "AActor.eventBeginPlay": 268,
+          "AActor.eventPostBeginPlay": 268
+        }
+      },
+      "selected_level_initialized": true,
+      "completed_selected_world_ticks": [
+        {
+          "entry_seq": 18471,
+          "ret_seq": 18710,
+          "caller_seq": 18711
+        },
+        {
+          "entry_seq": 20917,
+          "ret_seq": 20918,
+          "caller_seq": 20919
+        },
+        {
+          "entry_seq": 20926,
+          "ret_seq": 20927,
+          "caller_seq": 20928
+        },
+        {
+          "entry_seq": 20946,
+          "ret_seq": 20947,
+          "caller_seq": 20948
+        }
+      ],
+      "game_create_device": [
+        {
+          "call_seq": 18180,
+          "return_seq": 18349,
+          "hresult": "0x00000000"
+        }
+      ],
+      "game_present": [
+        {
+          "call_seq": 18724,
+          "return_seq": 18725,
+          "hresult": "0x00000000"
+        },
+        {
+          "call_seq": 20933,
+          "return_seq": 20936,
+          "hresult": "0x00000000"
+        },
+        {
+          "call_seq": 20953,
+          "return_seq": 20954,
+          "hresult": "0x00000000"
+        }
+      ],
+      "interactive_play_verified": false
+    }
+  },
+  "regressions": {
+    "passed": false,
+    "complete": false,
+    "binary": "E:\\Unreal2-Port-Investigation\\experiments\\xrt\\build\\dmusic-client-final\\xrt_ucc.exe",
+    "binary_sha256": "414bdec39c84023eb018348b6ec1e59c42304df680bc6c28fe164dff5f45016b",
+    "runs": [
+      {
+        "name": "input_boundary",
+        "command": [
+          "cmd",
+          "/d",
+          "/c",
+          "experiments\\xrt\\tests\\input_boundary\\build.cmd"
+        ],
+        "exit": 0,
+        "seconds": 4.496460100002878
+      },
+      {
+        "name": "d3d8_boundary",
+        "command": [
+          "cmd",
+          "/d",
+          "/c",
+          "experiments\\xrt\\tests\\d3d8_boundary\\build.cmd"
+        ],
+        "exit": 0,
+        "seconds": 6.2932861000008415
+      },
+      {
+        "name": "gui_boundary",
+        "command": [
+          "cmd",
+          "/d",
+          "/c",
+          "experiments\\xrt\\tests\\gui_boundary\\build.cmd"
+        ],
+        "exit": 0,
+        "seconds": 4.3963737999947625
+      },
+      {
+        "name": "class_boundary",
+        "command": [
+          "cmd",
+          "/d",
+          "/c",
+          "experiments\\xrt\\tests\\class_boundary\\build.cmd"
+        ],
+        "exit": 0,
+        "seconds": 7.378625099998317
+      },
+      {
+        "name": "module_boundary",
+        "command": [
+          "cmd",
+          "/d",
+          "/c",
+          "experiments\\xrt\\tests\\module_boundary\\build.cmd"
+        ],
+        "exit": 0,
+        "seconds": 4.4396990000022925
+      }
+    ],
+    "status": "INTERRUPTED_REQUIRED_INTEGRITY_STOP",
+    "completed_suites_passed": true,
+    "not_completed": [
+      "file_boundary",
+      "client_startup",
+      "com final rerun",
+      "exceptions",
+      "CRT",
+      "commandlet/VM",
+      "compiler",
+      "traced VM",
+      "final Python rerun"
+    ]
+  },
+  "earlier_this_phase": {
+    "com": "six positives/four negatives passed; com-d6b407b8217c",
+    "python": "149 tests OK; 17 expected skips"
+  },
+  "integrity": {
+    "before_census": "experiments/xrt/results/raw/dmusic-ipc-install-before.json",
+    "stop_census": "experiments/xrt/results/raw/dmusic-ipc-install-mid.json",
+    "predevelopment_matches_prior": true,
+    "files": 4757,
+    "differing_files": [
+      "singleplayer\\Music\\M03_fite_loop2.ogg"
+    ],
+    "other_files_unchanged": 4756,
+    "save_metadata_unchanged": true,
+    "before_ogg_sha256": "413bccc0468b2fa9716e927037646e4c7fc29c699395495d95780a0d3bfce2b4",
+    "new_observation": {
+      "installed": "E:\\Launchbox\\Games\\PC Games\\Unreal 2 - The Awakening\\singleplayer\\Music\\M03_fite_loop2.ogg",
+      "preserved": "sandbox_cmp\\level\\Music\\M03_fite_loop2.ogg",
+      "installed_read_hashes": [
+        "7ab03f8502a91390cb54c94ed345b16ce21eae484e0b082394e9b3f6f81cff8d",
+        "7ab03f8502a91390cb54c94ed345b16ce21eae484e0b082394e9b3f6f81cff8d",
+        "7ab03f8502a91390cb54c94ed345b16ce21eae484e0b082394e9b3f6f81cff8d"
+      ],
+      "preserved_sha256": "b6261e7e09ca82b48361702d09ea6d24c7d24a85b4073dd1ff1920f1317318bb",
+      "sizes": [
+        3677906,
+        3677906,
+        3677906
+      ],
+      "differences": [
+        {
+          "offset": 487591,
+          "snapshot": "96",
+          "installed": "d6"
+        },
+        {
+          "offset": 489527,
+          "snapshot": "6e",
+          "installed": "2e"
+        },
+        {
+          "offset": 489791,
+          "snapshot": "6a",
+          "installed": "2a"
+        }
+      ],
+      "preserved_current_bytes": "experiments\\xrt\\results\\raw\\dmusic-ipc-ogg-at-stop.ogg",
+      "current_bytes_sha256": "7ab03f8502a91390cb54c94ed345b16ce21eae484e0b082394e9b3f6f81cff8d",
+      "invalid_pages": [
+        {
+          "offset": 484765,
+          "body_offset": 484812,
+          "end": 488957,
+          "sequence": 115,
+          "granule": 721344,
+          "stored_crc": "9c2729c1",
+          "computed_crc": "0eca77c8",
+          "valid_crc": false
+        },
+        {
+          "offset": 488957,
+          "body_offset": 489003,
+          "end": 493160,
+          "sequence": 116,
+          "granule": 727488,
+          "stored_crc": "6b159d5a",
+          "computed_crc": "375940cb",
+          "valid_crc": false
+        }
+      ]
+    },
+    "action": "All experiment execution stopped. No repair. Cause/timing unestablished."
+  },
+  "windows_dependencies": [
+    "Installed x86 Microsoft DirectMusic Performance/Loader/Container/Script COM",
+    "VBScript and native DirectSound/audio output",
+    "Windows STA/COM, private inherited pipes and Job objects",
+    "Existing Win32 GUI, DirectInput and pinned DXVK D3D8/D3D9/Vulkan backend"
+  ],
+  "portability": "A future backend may replace measured operations beneath the guest COM layer. No portable backend implemented. Current helper and file guard require Windows x86 components and the verified WoW64 NT stubs."
+}

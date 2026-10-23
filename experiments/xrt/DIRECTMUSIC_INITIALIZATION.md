@@ -1,5 +1,8 @@
 # DirectMusic characterization and owned COM boundary — 2026-10-23
 
+This is the preceding checkpoint. The subsequent owner-approved helper, genuine CS_Intro LoadMap return
+and required new installation integrity stop are recorded in [DIRECTMUSIC_IPC.md](DIRECTMUSIC_IPC.md).
+
 The translated client now executes real `CoInitialize(NULL)` and creates a native x64 Loader8 through
 the typed guest COM boundary. It stops explicitly at native x64 Performance8 `80040154`, NULL output.
 **CS_Intro LoadMap has not returned, its selected world is not established, and no translated world tick

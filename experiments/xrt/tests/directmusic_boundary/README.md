@@ -1,5 +1,11 @@
 # DirectMusic COM/session oracles
 
+The approved bounded IPC implementation and required integrity stop are recorded in
+[DIRECTMUSIC_IPC.md](../../DIRECTMUSIC_IPC.md). Native session plus 17 IPC cases pass; the real game
+returns a non-null CS_Intro world, then stops at unimplemented DirectInput CreateDevice. No tick is claimed.
+Further execution is stopped pending the additional source Ogg integrity escalation. After owner clearance,
+the focused IPC reproducer is `dmusic_helper/build.cmd` followed by `compare_ipc.py` in this directory.
+
 The [current report](../../DIRECTMUSIC_INITIALIZATION.md) records full original initialization, normal
 cleanup, the sound/no-sound comparison, native x86 child feasibility and the explicit translated x64 gate.
 

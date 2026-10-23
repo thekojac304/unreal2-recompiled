@@ -33,6 +33,9 @@ static XRT_NORETURN void unexpected(const char* what) {
     printf("unexpected runtime call: %s\n", what);
     exit(3);
 }
+uint32_t xrt_call_guest(CPU*c,uint32_t va,int nargs,const uint32_t*args,int stdcall){
+    (void)c;(void)va;(void)nargs;(void)args;(void)stdcall;unexpected("xrt_call_guest");
+}
 void xrt_baton_acquire(void) { unexpected("xrt_baton_acquire"); }
 void xrt_baton_release(void) { unexpected("xrt_baton_release"); }
 void xrt_describe(char* out, size_t n, uint32_t va) { (void)out; (void)n; (void)va; unexpected("xrt_describe"); }

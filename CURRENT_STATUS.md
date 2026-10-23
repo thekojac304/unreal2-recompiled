@@ -1,4 +1,35 @@
-# Current status: owned COM/Loader8 works; authentic Performance8 strategy awaits owner decision
+# Current status: bounded DirectMusic IPC works; required installation integrity stop
+
+Updated 2026-10-23. The owner-approved project x86 helper matches the measured native DirectMusic
+session exactly and is used by the translated game. Actual Script.Init succeeds, the real empty routine
+returns `8878121b`, and **CS_Intro LoadMap returns non-null world 0x12f52800**. The first new boundary is
+`IDirectInput8W::CreateDevice` during viewport construction. **No selected-world tick completed.**
+Actor lifecycle functions execute, but per-actor completion is not independently paired; highest verified
+requested milestone is 2. No input/renderer expansion occurred.
+
+**Execution stopped on an additional unexplained Ogg byte difference**, as required. Offset 487591 is now
+`96 -> d6`, in addition to the two prior differences. Three reads agree on installed SHA-256
+`7ab03f8502a91390cb54c94ed345b16ce21eae484e0b082394e9b3f6f81cff8d`; size/recorded mtime are unchanged.
+Other 4,756 files and Save metadata match. Current bytes and both full censuses are preserved; no repair.
+Cause/timing remain unknown. Further execution requires an owner decision on this escalation.
+
+Final independent IPC acceptance: native session plus 17 IPC cases pass, including exact session equality,
+identity/lifetimes, malformed/stale requests, crash/timeout, disconnect/host-exit Job termination, file guard
+and explicit unexpected routine/ProcessPMsg/callback rejection. Final client runs reproduce with 24,186
+events, zero drops. A fresh serialized original still completes four selected-world ticks/three Presents.
+
+Final-source DirectInput, D3D8, GUI, class and module suites pass. The broader sweep was **interrupted**:
+file/startup, final COM, exceptions, CRT, commandlet/VM, compiler and final Python reruns remain incomplete.
+Earlier this phase COM six positives/four negatives and Python 149 tests (17 skips) pass; prior baselines
+remain preserved. This checkpoint does **not** claim full final regression acceptance.
+
+[Full handoff, identities and limits](experiments/xrt/DIRECTMUSIC_IPC.md),
+[structured evidence](experiments/xrt/results/compare/directmusic_ipc.json),
+[integrity escalation](experiments/xrt/INSTALLATION_INTEGRITY.md).
+
+---
+
+# Historical status: owned COM/Loader8 works; authentic Performance8 strategy awaits owner decision
 
 Updated 2026-10-23. Starting clean HEAD `936dcb7` (after `0fcd8b0`) is preserved. The translated client
 executes real STA CoInitialize and native x64 Loader8 creation, then stops explicitly at native x64

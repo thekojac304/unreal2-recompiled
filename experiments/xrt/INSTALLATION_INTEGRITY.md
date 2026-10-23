@@ -1,5 +1,30 @@
 # Unexplained Ogg byte differences — read-only findings, 2026-10-23
 
+## Required stop during the approved IPC phase
+
+Pre-development census `results/raw/dmusic-ipc-install-before.json` exactly matches the preceding
+`directmusic-install-final.json`: 4,757 files and Save metadata, with the known two-byte discrepancy.
+Later census `dmusic-ipc-install-mid.json` detects another differing read of the same installed file.
+All further experiment execution was stopped and the regression sweep interrupted, as the owner required.
+
+Three repeated reads now give installed SHA-256
+`7ab03f8502a91390cb54c94ed345b16ce21eae484e0b082394e9b3f6f81cff8d`. New offset **487591** is
+snapshot **96**, installed **d6**; the two earlier differences remain. Size 3,677,906 and recorded mtime
+1511068956 are unchanged. Page 115 now fails CRC: stored `9c2729c1`, computed `0eca77c8`; page 116
+retains the prior `375940cb` versus stored `6b159d5a` failure. No new decode/listening claim is made.
+
+The other **4,756 installed files and Save entry metadata match**. The preserved sandbox Ogg remains
+`b6261e7e09ca82b48361702d09ea6d24c7d24a85b4073dd1ff1920f1317318bb`. Current observed bytes are
+preserved at `results/raw/dmusic-ipc-ogg-at-stop.ogg`; offsets, repeated hashes and page records are in
+`results/raw/dmusic-ipc-ogg-escalation.json`. Neither input was repaired or overwritten.
+
+Timing and cause remain unestablished. Cached read differences alone do not prove a physical disk write
+or identify an actor. The helper's own source-installation open was explicitly denied by its file guard;
+accepted game asset opens used the isolated sandbox. This does not establish the cause of this separate
+finding. See the [stopped phase handoff](DIRECTMUSIC_IPC.md). Further execution needs an owner decision.
+
+The earlier two-byte and one-byte observations follow as history.
+
 ## Additional read-only observation during the DirectMusic phase
 
 The current installed hash is now `413bccc0468b2fa9716e927037646e4c7fc29c699395495d95780a0d3bfce2b4`.
