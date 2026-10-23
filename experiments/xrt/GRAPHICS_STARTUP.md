@@ -1,4 +1,152 @@
-# Level initialization checkpoint — 2026-10-22 (US Eastern)
+# Class registration / engine initialization checkpoint — 2026-10-23 (US Eastern)
+
+**Translated G4 is reached.** The real Unreal2.exe client enters `UGameEngine::Init`
+(`Engine.dll+0x8f460`), executes Golem workspace file initialization, and enters
+`UWindowsClient::Init` (`WinDrv.dll+0x17c0`). The first remaining blocker is
+`dinput8.dll!DirectInput8Create`, called at `WinDrv.dll+0x184b` through its `+0x7bac` import thunk.
+The translated client has not entered LoadMap or executed a selected-world tick.
+
+Starting HEAD was clean at `27d1fa1dfff56c4e9cbbccb3cf40dee3fcfdb843`, on
+`codex/level-initialization`. Both reported commits were present; no subsequent work was reset.
+Runtime changes are committed as `66dc5d2` and `7b5ce8b`. No remote push, renderer adapter,
+Android, adaptive audio, animation implementation or editor feature was added.
+
+| Gate | Original reference | Translated final binary |
+|---|---|---|
+| G4: UGameEngine::Init entered | Yes, native event at the same Engine RVA | **Yes**, actual lifted function hit `8f460`; also WinDrv Init hit `17c0` |
+| G5: genuine LoadMap entered | Yes | No; Engine `90f00` has not executed |
+| G6: CS_Intro opened inside LoadMap | Yes, paired native file-open events | No |
+| G7: LoadMap returns a non-null selected world | Yes, matched entry/return and selected world | No |
+| G8: selected-world actor lifecycle completes | Yes, 268 PreBeginPlay/BeginPlay/PostBeginPlay events each | No |
+| G9: selected-world Tick returns to its caller | Yes, four completed ticks | No |
+
+Public identities and comparisons: `results/compare/class_initialization.json`.
+The earlier original evidence and `results/compare/level_initialization.json` remain intact.
+
+## Exact translated evidence
+
+Final build: `build/class-init-final/xrt_ucc.exe`, SHA-256
+`31ac96a685798b4c351b0e7619aaea3cd09d4922e5a915937381b0064e11744a`.
+`client-identity.json` binds every newly compiled runtime/client object to its source and verifies
+the unchanged generated objects against the preserved full checkpoint. `xrt.h` and generated code
+are unchanged. The complete runtime tree, including the new class-marshalling include, matches
+the build identity. The final client build has no compiler warnings.
+
+Two final invocations reproduce the same DirectInput blocker with **23,080 recorded events, zero
+dropped events**, G4/Windows-client Init entered, and G5 unreached:
+
+- `results/raw/level/20261023-043932-5b948cd4-candidate/`
+- `results/raw/level/20261023-043941-b56b1873-candidate/`
+
+Each reads 2,185,122 actual binary file bytes through the measured FILE bridge. These are workspace
+and mesh initialization reads, not a map-open or world-initialization milestone. Engine function hits,
+the actual loaded PE identities, API events, registers, callback history and the WinDrv return address
+are retained. Native and translated paths execute the same Engine input and Init RVA; no equality of
+heap addresses, clocks or world state is claimed at this boundary.
+
+```powershell
+$env:XRT_BINARY = 'E:\Unreal2-Port-Investigation\experiments\xrt\build\class-init-final\xrt_ucc.exe'
+.venv/Scripts/python -I tools/xrt/level_probe.py candidate --timeout-ms 45000
+cmd /d /c experiments\xrt\tests\class_boundary\build.cmd
+cmd /d /c experiments\xrt\tests\file_boundary\build.cmd
+```
+
+Use a new client build directory for further changes; preserve this identified final binary.
+
+## Class, callback and startup comparison
+
+The same project-owned PE32 fixture executes natively and through the real lifter/runtime.
+Six positive probes produce **464 identical logged values**, and five deliberate unsupported
+cases retain their fatal diagnostics. Final fixture binaries, reports and comparisons are pinned
+under `results/raw/class-initialization-final-20261023/oracles/`; later fixture rebuilds cannot
+overwrite that evidence.
+
+- `GetClassInfoExA/W`, `RegisterClassExA/W`, `UnregisterClassA/W`, `CallWindowProcA/W` use real USER32
+  classes/procedures. The 48-byte guest WNDCLASSEX is marshalled field by field. Native GetClassInfoEx
+  returns a class atom in its BOOL result and leaves the input cbSize unchanged, including the measured
+  cbSize=4 query. Duplicate registration, missing class, wrong module, invalid registration size, and
+  unregister-with-live-windows errors match (1410, 1411, 87, 1412).
+- All thirteen engine-queried controls are compared: LISTBOX, BUTTON, SysTabControl32, STATIC,
+  SysListView32, EDIT, RICHEDIT, COMBOBOX, tooltips_class32, SCROLLBAR, SysTreeView32,
+  msctls_trackbar32 and msctls_progress32. The seven controls with a 4-byte x86 / 8-byte host
+  pointer slot have an explicit measured layout conversion. Superclass registration validates the
+  queried structure's provenance and retains sufficient host storage; querying it returns guest sizes.
+  Unmeasured system classes/layouts fail explicitly.
+- Each registered guest class has a static host thunk, guest procedure VA, owning module and mapping
+  generation. Real host/system and A/W-conversion WNDPROCs receive non-recycled prior-procedure IDs.
+  CallWindowProc validates those mappings and executes the real procedure. An ANSI class queried
+  through the W API correctly has a different prior-procedure identity. Unloaded/reloaded provider
+  identities, invalid guest callbacks and unsupported pointer messages are deliberate negative cases.
+  No host WNDPROC or host vtable pointer enters guest memory.
+- Real A/W CreateWindowEx, CREATESTRUCT marshalling, DefWindowProc, scalar GetWindowLong, IsWindow,
+  ShowWindow, desktop/client rectangles, child creation and WM_PARENTNOTIFY execute through the
+  established nested guest callback bridge. CREATESTRUCT carries the original guest creation parameter;
+  unmodelled field mutations fail explicitly. WINDOWPOS, MINMAXINFO and NCCALCSIZE mutations are
+  synchronized before and after default/prior-procedure calls.
+- Shared A/W icon/cursor resources, CreateBitmap, solid/pattern brushes and stock fonts retain typed
+  ownership. WM_SETFONT/WM_GETFONT preserve font identity; WM_SETTEXT and text length reach real controls.
+  A/W SetProp/GetProp/RemoveProp store opaque guest values in owned host boxes, with no host-pointer
+  truncation. Unsupported messages, menus, subclass-pointer indices, brush callback results and layouts
+  remain diagnostics. This is a measured startup subset, not full USER32 or callback exception support.
+- Additional encountered launcher/WinDrv prerequisites use real Windows operations: A/W mutex creation,
+  system/Windows directories, drive type, GlobalAddAtom and related atom lookup/release, plus
+  GetModuleFileNameW. Atom references owned by this guest are released at normal exit and handled fatal
+  stops. The module oracle now has **50 matching values plus three deliberate negatives**, including W
+  filename success/error/truncation behavior. The public JSON lists all 48 added API bindings.
+
+Binary fread and read-only binary fseek are separately checked against the actual msvcr70 DLL:
+two positive probes have **188 identical values**, including actual bytes, item counts, buffer offsets,
+counts, flags, capacity, EOF, seek origins and invalid-seek errno/last-error values. The measured CRT
+temporarily reduces the next fill to 512 bytes after seeking, then restores the normal 4096-byte size.
+Text/update/write-only reads, large/overflow transfers and invalid streams remain unsupported diagnostics.
+Existing fopen/fclose initial/closed-FILE discrepancies remain visible; this oracle does not classify
+those known failures as fixed.
+
+## Preserved original reference and bounded capture
+
+Preferred reference remains `results/raw/graphics-startup/d1f7f7ddff9e-dgvoodoo/`. Three fresh bounded runs
+(`c2738819c688`, `7106dd80afc7`, `675a513ad94c`, each with `-dgvoodoo`) reproduce completed CS_Intro
+initialization, four returned selected-world ticks, game CreateDevice S_OK and three normal Presents S_OK.
+Every final trace is complete without dropped events or exceptions. The pinned dgVoodoo2 2.87.5 x86
+DLL/configuration and four staged package dependencies are unchanged. No native renderer investigation
+or configuration changes were needed.
+
+**No valid game-pixel capture is claimed.** Two manually inspected window-DC captures contained
+stale/unrelated application content. Window ownership checks alone did not establish a D3D image.
+A final DPI-aware composed-desktop client crop, after DwmFlush and PID/visibility checks, failed with
+Win32 error 5 (`675a513ad94c-dgvoodoo/host-output.txt`); it produced no BMP. The optional
+`graphics_reference.py --capture-client --stop-after-present 3` records this separately from the trace.
+An isolated tracer build was used while acceptance tracers were active. Capture failure does not
+invalidate the already established world/tick/Present evidence. Visual scene content and interaction
+remain unverified.
+
+## Final acceptance, integrity and next step
+
+- Nine commandlet/VM cases PASS: `20261023-043953-d321c5cc`.
+- Traced VMProbe PASS: `20261023-044339-3dbf9d0b`.
+- Compiler PASS: `20261023-043953-a1791a3c` (16 compiles, including four expected invalid-source failures;
+  12 execution cross-checks).
+- Existing GUI (53 values), module, exception (six positives/two negatives), startup/memory and new
+  class/file oracles PASS. Python: **149 tests OK, 17 expected skips**.
+- Expanded CRT baseline remains **110 mismatches / 1,796 pending**; the fopen.0 reproducer freshly
+  still differs, exit 1. Fresh ACP 932 comparison still has **six differences**, exit 1. No expectations
+  were weakened and no exhaustive numerical corpus was repeated.
+- Read-only installation census: 4,757 files match the preceding audit, with no additional difference;
+  Save entry census matches. The previously unexplained Ogg difference is **not resolved**. Its changed
+  compressed-data byte fails one Ogg page CRC and changes decoded PCM. Details and reproduction are
+  separate in [INSTALLATION_INTEGRITY.md](INSTALLATION_INTEGRITY.md), outside porting acceptance.
+
+The smallest next step is a focused native-x86/translated **DirectInput8Create / IDirectInput8W** oracle.
+The observed call requests version `0x0800`, IID `bf798031-483a-4da2-aa99-5d64ed369700`, NULL outer, and
+the Window module's HINSTANCE. Measure the real HRESULT and module-identity requirement, then implement
+an owned host COM interface behind a guest object/vtable with real QueryInterface/AddRef/Release.
+Advance only the next observed method, preserving data layouts and callback identity. Do not insert
+host COM pointers into the guest output slot, invent a DirectInput failure, or bypass input initialization.
+The D3D8 ABI and genuine LoadMap path remain subsequent prerequisites to a translated real game frame.
+
+---
+
+# Historical level initialization checkpoint — 2026-10-22 (US Eastern)
 
 Starting Git state was clean at `280b25e8f4e8b8c81bf55413e9d50e920cac005b`. The earlier checkpoint and
 all raw runs remain preserved. No pushes, renderer rewrite, Android, audio implementation, editor features,

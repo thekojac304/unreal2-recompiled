@@ -1,0 +1,633 @@
+{
+  "schema": 1,
+  "updated_eastern": "2026-10-23",
+  "starting_head": "27d1fa1dfff56c4e9cbbccb3cf40dee3fcfdb843",
+  "runtime_source_commit": "7b5ce8b",
+  "binary": {
+    "path": "experiments/xrt/build/class-init-final/xrt_ucc.exe",
+    "sha256": "31ac96a685798b4c351b0e7619aaea3cd09d4922e5a915937381b0064e11744a"
+  },
+  "runtime": {
+    "path": "experiments/xrt/runtime",
+    "files": 16,
+    "sha256": "92c7da8a67d31440f15e79e249255c4b61c0e5b3e47908167ce1b87d70612a57"
+  },
+  "build_identity": {
+    "path": "experiments/xrt/build/class-init-final/client-identity.json",
+    "sha256": "08e12f63bfb02163d664b3500ebee6514a31b6b7eaa86ee21463e88903f5ea80"
+  },
+  "translated": [
+    {
+      "directory": "experiments/xrt/results/raw/level/20261023-043932-5b948cd4-candidate",
+      "report": {
+        "path": "experiments/xrt/results/raw/level/20261023-043932-5b948cd4-candidate/report.json",
+        "sha256": "570f4bf1b83cf10d31ca16752a3487844c486e76220e753a28474ced16f3fd97"
+      },
+      "metadata": {
+        "path": "experiments/xrt/results/raw/level/20261023-043932-5b948cd4-candidate/meta.json",
+        "sha256": "dabed6fceded1a81438b42a49ebaf508626094cd697453ff2404eaaaaea33c15"
+      },
+      "g4_ugameengine_init": true,
+      "uwindowsclient_init": true,
+      "g5_loadmap": false,
+      "g6_selected_map_open_through_loadmap": false,
+      "g7_selected_world_return": false,
+      "g8_selected_actor_lifecycle": false,
+      "g9_selected_tick_return": false,
+      "events_recorded": 23080,
+      "events_dropped": 0,
+      "event_counts": {
+        "exe_mapped": 1,
+        "dll_mapped": 6,
+        "watch_initial": 1,
+        "dll_attach": 6,
+        "dll_attach_returned": 6,
+        "get_module_handle": 53,
+        "exe_entry": 1,
+        "se_translator": 1,
+        "find_window": 1,
+        "mark": 35,
+        "virtual_alloc": 122,
+        "virtual_free": 42,
+        "file_open": 221,
+        "load_library": 42,
+        "get_proc_address": 314,
+        "thread_create": 1,
+        "gui_get_dc": 2,
+        "gui_create_dibitmap": 1,
+        "gui_release_dc": 2,
+        "gui_callback": 45,
+        "thread_start": 1,
+        "dll_thread_attach": 4,
+        "gui_create_dialog": 1,
+        "gui_init_common_controls": 1,
+        "system_module_backed": 5,
+        "gui_class_query": 24,
+        "gui_class_register": 41,
+        "gui_load_class_image": 34,
+        "gui_create_brush": 10,
+        "gui_create_bitmap": 1,
+        "gui_delete_object": 1,
+        "gui_stock_object": 5,
+        "gui_call_window_proc": 9,
+        "gui_create_window": 2,
+        "mutex_create": 1,
+        "heap_create": 1,
+        "tls_alloc": 1,
+        "environment_block": 1,
+        "unhandled_exception_filter": 1,
+        "fopen": 227,
+        "profile_read": 7,
+        "chdir": 168,
+        "fread": 10925,
+        "fseek": 10699,
+        "create_guid": 1,
+        "move_file": 1,
+        "global_atom_add": 4,
+        "fatal": 1
+      },
+      "fread_bytes": 2185122,
+      "blocker": "call to import dinput8.dll!DirectInput8Create, which has no host implementation (from 11107bac (WinDrv.dll+7bac))"
+    },
+    {
+      "directory": "experiments/xrt/results/raw/level/20261023-043941-b56b1873-candidate",
+      "report": {
+        "path": "experiments/xrt/results/raw/level/20261023-043941-b56b1873-candidate/report.json",
+        "sha256": "289344b3c29b9a42833d2945dd7cf3acc36f577e42a5baae630e48e3b98a1b27"
+      },
+      "metadata": {
+        "path": "experiments/xrt/results/raw/level/20261023-043941-b56b1873-candidate/meta.json",
+        "sha256": "6672923730c57a13ca129b6a323db9846e3b6e5b7e190566da95d16f8871df60"
+      },
+      "g4_ugameengine_init": true,
+      "uwindowsclient_init": true,
+      "g5_loadmap": false,
+      "g6_selected_map_open_through_loadmap": false,
+      "g7_selected_world_return": false,
+      "g8_selected_actor_lifecycle": false,
+      "g9_selected_tick_return": false,
+      "events_recorded": 23080,
+      "events_dropped": 0,
+      "event_counts": {
+        "exe_mapped": 1,
+        "dll_mapped": 6,
+        "watch_initial": 1,
+        "dll_attach": 6,
+        "dll_attach_returned": 6,
+        "get_module_handle": 53,
+        "exe_entry": 1,
+        "se_translator": 1,
+        "find_window": 1,
+        "mark": 35,
+        "virtual_alloc": 122,
+        "virtual_free": 42,
+        "file_open": 221,
+        "load_library": 42,
+        "get_proc_address": 314,
+        "thread_create": 1,
+        "gui_get_dc": 2,
+        "gui_create_dibitmap": 1,
+        "gui_release_dc": 2,
+        "gui_callback": 45,
+        "thread_start": 1,
+        "dll_thread_attach": 4,
+        "gui_create_dialog": 1,
+        "gui_init_common_controls": 1,
+        "system_module_backed": 5,
+        "gui_class_query": 24,
+        "gui_class_register": 41,
+        "gui_load_class_image": 34,
+        "gui_create_brush": 10,
+        "gui_create_bitmap": 1,
+        "gui_delete_object": 1,
+        "gui_stock_object": 5,
+        "gui_call_window_proc": 9,
+        "gui_create_window": 2,
+        "mutex_create": 1,
+        "heap_create": 1,
+        "tls_alloc": 1,
+        "environment_block": 1,
+        "unhandled_exception_filter": 1,
+        "fopen": 227,
+        "profile_read": 7,
+        "chdir": 168,
+        "fread": 10925,
+        "fseek": 10699,
+        "create_guid": 1,
+        "move_file": 1,
+        "global_atom_add": 4,
+        "fatal": 1
+      },
+      "fread_bytes": 2185122,
+      "blocker": "call to import dinput8.dll!DirectInput8Create, which has no host implementation (from 11107bac (WinDrv.dll+7bac))"
+    }
+  ],
+  "added_api_bindings": {
+    "user32.dll": [
+      "CallWindowProcA",
+      "CallWindowProcW",
+      "CreateWindowExA",
+      "CreateWindowExW",
+      "DefWindowProcA",
+      "DefWindowProcW",
+      "GetClassInfoExA",
+      "GetClassInfoExW",
+      "GetClientRect",
+      "GetDesktopWindow",
+      "GetPropA",
+      "GetPropW",
+      "GetWindowLongA",
+      "GetWindowLongW",
+      "IsWindow",
+      "LoadCursorA",
+      "LoadCursorW",
+      "LoadIconA",
+      "LoadIconW",
+      "RegisterClassExA",
+      "RegisterClassExW",
+      "RemovePropA",
+      "RemovePropW",
+      "SetPropA",
+      "SetPropW",
+      "ShowWindow",
+      "UnregisterClassA",
+      "UnregisterClassW"
+    ],
+    "gdi32.dll": [
+      "CreateBitmap",
+      "CreatePatternBrush",
+      "CreateSolidBrush",
+      "GetStockObject"
+    ],
+    "kernel32.dll": [
+      "CreateMutexA",
+      "CreateMutexW",
+      "GetDriveTypeA",
+      "GetDriveTypeW",
+      "GetModuleFileNameW",
+      "GetSystemDirectoryA",
+      "GetSystemDirectoryW",
+      "GetWindowsDirectoryA",
+      "GetWindowsDirectoryW",
+      "GlobalAddAtomA",
+      "GlobalAddAtomW",
+      "GlobalDeleteAtom",
+      "GlobalGetAtomNameA",
+      "GlobalGetAtomNameW"
+    ],
+    "msvcr70.dll": [
+      "fread",
+      "fseek"
+    ]
+  },
+  "oracles": {
+    "class_boundary": {
+      "status": "PASS",
+      "evidence": {
+        "path": "experiments/xrt/results/raw/class-initialization-final-20261023/oracles/class_boundary/results.json",
+        "sha256": "717d13e8131fa1164ac7344eedc333c8c7c971840dc08a14363bec342ee6c979"
+      },
+      "runs": 7,
+      "native_log_values": 464
+    },
+    "file_boundary": {
+      "status": "PASS",
+      "evidence": {
+        "path": "experiments/xrt/results/raw/class-initialization-final-20261023/oracles/file_boundary/results.json",
+        "sha256": "423d2e1ad264f586f1f719bc66c7b198d446f678e0672c4bb5d68f7477cd7bfd"
+      },
+      "runs": 5,
+      "native_log_values": 188
+    },
+    "gui_boundary": {
+      "status": "PASS",
+      "evidence": {
+        "path": "experiments/xrt/results/raw/class-initialization-final-20261023/oracles/gui_boundary/results.json",
+        "sha256": "126f5d79e8d14c328e54f244c8ec43061fab1ec55ba55fb2bf01712f0e60d215"
+      },
+      "runs": 2,
+      "native_log_values": 53
+    },
+    "module_boundary": {
+      "status": "PASS",
+      "evidence": {
+        "path": "experiments/xrt/results/raw/class-initialization-final-20261023/oracles/module_boundary/results.json",
+        "sha256": "43f5a1ae653a2bb13dce5099b59b8ba491fb6ca159067e3a8c0cb4bb40cf369e"
+      },
+      "runs": 5,
+      "native_log_values": 50
+    },
+    "ehprobe": {
+      "status": "PASS",
+      "evidence": {
+        "path": "experiments/xrt/results/raw/class-initialization-final-20261023/oracles/ehprobe/results.json",
+        "sha256": "23a31b9055ccb37f99e5ec81dd3fa32d412cc2bacc82e110aa2c3302dba426a8"
+      }
+    }
+  },
+  "acceptance": {
+    "commandlets": {
+      "invocation_id": "20261023-043953-d321c5cc",
+      "cases": {
+        "arraytest": "PASS",
+        "badclass": "PASS",
+        "hello": "PASS",
+        "hellofull": "PASS",
+        "hellofull_nosse": "PASS",
+        "hellonew": "PASS",
+        "hello_noargs": "PASS",
+        "simple": "PASS",
+        "vmprobe": "PASS"
+      }
+    },
+    "vmprobe_trace": {
+      "invocation_id": "20261023-044339-3dbf9d0b",
+      "verdict": "PASS"
+    },
+    "compiler": {
+      "invocation_id": "20261023-043953-a1791a3c",
+      "verdict": "PASS",
+      "compiles": 16,
+      "executions": 12
+    },
+    "python": {
+      "tests": 149,
+      "skipped": 17,
+      "status": "OK"
+    },
+    "startup": "PASS"
+  },
+  "original": {
+    "d1f7f7ddff9e-dgvoodoo": {
+      "trace": {
+        "path": "experiments/xrt/results/raw/graphics-startup/d1f7f7ddff9e-dgvoodoo/trace.json",
+        "sha256": "0e43544c3981dc74148ae96b856fbaa5c1e903d71e3b0ad6d0bb0617c4567a34"
+      },
+      "world_evidence": {
+        "observer_complete_without_drops": true,
+        "selected_map": {
+          "entry_seq": 111,
+          "open_seq": 112,
+          "return_seq": 1040,
+          "world": "0x0ff52800",
+          "actors": {
+            "AActor.eventPreBeginPlay": 268,
+            "AActor.eventBeginPlay": 268,
+            "AActor.eventPostBeginPlay": 268
+          }
+        },
+        "selected_level_initialized": true,
+        "completed_selected_world_ticks": [
+          {
+            "entry_seq": 12327,
+            "ret_seq": 12334,
+            "caller_seq": 12335
+          },
+          {
+            "entry_seq": 12343,
+            "ret_seq": 12344,
+            "caller_seq": 12345
+          },
+          {
+            "entry_seq": 12350,
+            "ret_seq": 12351,
+            "caller_seq": 12352
+          },
+          {
+            "entry_seq": 12360,
+            "ret_seq": 12361,
+            "caller_seq": 12362
+          }
+        ],
+        "game_create_device": [
+          {
+            "call_seq": 12322,
+            "return_seq": 12323,
+            "hresult": "0x00000000"
+          }
+        ],
+        "game_present": [
+          {
+            "call_seq": 12340,
+            "return_seq": 12341,
+            "hresult": "0x00000000"
+          },
+          {
+            "call_seq": 12357,
+            "return_seq": 12358,
+            "hresult": "0x00000000"
+          },
+          {
+            "call_seq": 12367,
+            "return_seq": 12368,
+            "hresult": "0x00000000"
+          }
+        ],
+        "interactive_play_verified": false
+      },
+      "ugameengine_init_entry": {
+        "seq": 29,
+        "thread": 0,
+        "ecx": "0x0253b280"
+      }
+    },
+    "c2738819c688-dgvoodoo": {
+      "trace": {
+        "path": "experiments/xrt/results/raw/graphics-startup/c2738819c688-dgvoodoo/trace.json",
+        "sha256": "83f5685e6f51f9e0f0ddcad3deca2e2c596b3cce54ce1d0a4bcfacbd902dd386"
+      },
+      "world_evidence": {
+        "observer_complete_without_drops": true,
+        "selected_map": {
+          "entry_seq": 111,
+          "open_seq": 112,
+          "return_seq": 1040,
+          "world": "0x0ff32800",
+          "actors": {
+            "AActor.eventPreBeginPlay": 268,
+            "AActor.eventBeginPlay": 268,
+            "AActor.eventPostBeginPlay": 268
+          }
+        },
+        "selected_level_initialized": true,
+        "completed_selected_world_ticks": [
+          {
+            "entry_seq": 12327,
+            "ret_seq": 12334,
+            "caller_seq": 12335
+          },
+          {
+            "entry_seq": 12343,
+            "ret_seq": 12344,
+            "caller_seq": 12345
+          },
+          {
+            "entry_seq": 12350,
+            "ret_seq": 12351,
+            "caller_seq": 12352
+          },
+          {
+            "entry_seq": 12360,
+            "ret_seq": 12361,
+            "caller_seq": 12362
+          }
+        ],
+        "game_create_device": [
+          {
+            "call_seq": 12322,
+            "return_seq": 12323,
+            "hresult": "0x00000000"
+          }
+        ],
+        "game_present": [
+          {
+            "call_seq": 12340,
+            "return_seq": 12341,
+            "hresult": "0x00000000"
+          },
+          {
+            "call_seq": 12357,
+            "return_seq": 12358,
+            "hresult": "0x00000000"
+          },
+          {
+            "call_seq": 12367,
+            "return_seq": 12368,
+            "hresult": "0x00000000"
+          }
+        ],
+        "interactive_play_verified": false
+      },
+      "ugameengine_init_entry": {
+        "seq": 29,
+        "thread": 0,
+        "ecx": "0x0254b280"
+      }
+    },
+    "7106dd80afc7-dgvoodoo": {
+      "trace": {
+        "path": "experiments/xrt/results/raw/graphics-startup/7106dd80afc7-dgvoodoo/trace.json",
+        "sha256": "6fd7e0792d0f0c5b75aef6645a4a4d879fb9fc3e9eda7aa4d8ffe6a3da5ae1b7"
+      },
+      "world_evidence": {
+        "observer_complete_without_drops": true,
+        "selected_map": {
+          "entry_seq": 111,
+          "open_seq": 112,
+          "return_seq": 1040,
+          "world": "0x0ff22800",
+          "actors": {
+            "AActor.eventPreBeginPlay": 268,
+            "AActor.eventBeginPlay": 268,
+            "AActor.eventPostBeginPlay": 268
+          }
+        },
+        "selected_level_initialized": true,
+        "completed_selected_world_ticks": [
+          {
+            "entry_seq": 12327,
+            "ret_seq": 12334,
+            "caller_seq": 12335
+          },
+          {
+            "entry_seq": 12343,
+            "ret_seq": 12344,
+            "caller_seq": 12345
+          },
+          {
+            "entry_seq": 12350,
+            "ret_seq": 12351,
+            "caller_seq": 12352
+          },
+          {
+            "entry_seq": 12360,
+            "ret_seq": 12361,
+            "caller_seq": 12362
+          }
+        ],
+        "game_create_device": [
+          {
+            "call_seq": 12322,
+            "return_seq": 12323,
+            "hresult": "0x00000000"
+          }
+        ],
+        "game_present": [
+          {
+            "call_seq": 12340,
+            "return_seq": 12341,
+            "hresult": "0x00000000"
+          },
+          {
+            "call_seq": 12357,
+            "return_seq": 12358,
+            "hresult": "0x00000000"
+          },
+          {
+            "call_seq": 12367,
+            "return_seq": 12368,
+            "hresult": "0x00000000"
+          }
+        ],
+        "interactive_play_verified": false
+      },
+      "ugameengine_init_entry": {
+        "seq": 29,
+        "thread": 0,
+        "ecx": "0x0253b280"
+      }
+    },
+    "675a513ad94c-dgvoodoo": {
+      "trace": {
+        "path": "experiments/xrt/results/raw/graphics-startup/675a513ad94c-dgvoodoo/trace.json",
+        "sha256": "c0aa7f96f156f545d770a527fd2f4832a2dc5323c333aa06a08906df675d7921"
+      },
+      "world_evidence": {
+        "observer_complete_without_drops": true,
+        "selected_map": {
+          "entry_seq": 111,
+          "open_seq": 112,
+          "return_seq": 1040,
+          "world": "0x0fe42800",
+          "actors": {
+            "AActor.eventPreBeginPlay": 268,
+            "AActor.eventBeginPlay": 268,
+            "AActor.eventPostBeginPlay": 268
+          }
+        },
+        "selected_level_initialized": true,
+        "completed_selected_world_ticks": [
+          {
+            "entry_seq": 12327,
+            "ret_seq": 12334,
+            "caller_seq": 12335
+          },
+          {
+            "entry_seq": 12343,
+            "ret_seq": 12344,
+            "caller_seq": 12345
+          },
+          {
+            "entry_seq": 12350,
+            "ret_seq": 12351,
+            "caller_seq": 12352
+          },
+          {
+            "entry_seq": 12360,
+            "ret_seq": 12361,
+            "caller_seq": 12362
+          }
+        ],
+        "game_create_device": [
+          {
+            "call_seq": 12322,
+            "return_seq": 12323,
+            "hresult": "0x00000000"
+          }
+        ],
+        "game_present": [
+          {
+            "call_seq": 12340,
+            "return_seq": 12341,
+            "hresult": "0x00000000"
+          },
+          {
+            "call_seq": 12357,
+            "return_seq": 12358,
+            "hresult": "0x00000000"
+          },
+          {
+            "call_seq": 12367,
+            "return_seq": 12368,
+            "hresult": "0x00000000"
+          }
+        ],
+        "interactive_play_verified": false
+      },
+      "ugameengine_init_entry": {
+        "seq": 29,
+        "thread": 0,
+        "ecx": "0x0253b280"
+      }
+    }
+  },
+  "capture": {
+    "validated_game_pixels": false,
+    "interactive_play_verified": false,
+    "window_dc_attempts": [
+      "c2738819c688-dgvoodoo",
+      "7106dd80afc7-dgvoodoo"
+    ],
+    "window_dc_findings": "Manually inspected: stale/unrelated application content, not verified game pixels.",
+    "composed_desktop_attempt": "675a513ad94c-dgvoodoo",
+    "composed_desktop_ok": false,
+    "win32_error": 5
+  },
+  "known_failures": {
+    "expanded_crt_baseline_mismatches": 110,
+    "expanded_crt_baseline_pending": 1796,
+    "fopen_reproducer": "still differs, exit 1",
+    "acp932_differences": 6,
+    "acp932_exit": 1
+  },
+  "installation": {
+    "files": 4757,
+    "additional_differences_from_previous_audit": 0,
+    "save_entry_census_matches": true,
+    "unresolved_ogg_finding": "experiments/xrt/results/compare/ogg_integrity.json",
+    "final_audit": {
+      "path": "experiments/xrt/results/raw/class-init-install-final.json",
+      "sha256": "744d7ce27a6b83be166830c4ea12dbd6017702e5ae090f6524f3cb0d1ce9db82"
+    }
+  },
+  "next_step": {
+    "api": "dinput8!DirectInput8Create",
+    "caller": "WinDrv.dll+0x184b",
+    "thunk": "WinDrv.dll+0x7bac",
+    "version": "0x0800",
+    "iid": "bf798031-483a-4da2-aa99-5d64ed369700",
+    "interface": "IDirectInput8W",
+    "outer": null,
+    "scope": "Native/translated create, HRESULT, HINSTANCE identity and real IUnknown lifetime; typed guest COM object/vtable, then only the next reached method."
+  }
+}

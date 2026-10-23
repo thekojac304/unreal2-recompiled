@@ -1,4 +1,28 @@
-# Current status: original CS_Intro world ticks and presents; translated module boundary passes
+# Current status: translated UGameEngine::Init and UWindowsClient::Init reached
+
+Updated 2026-10-23 (US Eastern). **G4 passes** in two fresh runs of the identified translated client.
+Real class registration, window creation, nested/default/prior WNDPROCs, launcher prerequisites and binary
+Golem file reads/seeks now execute. The next reproducible blocker is `dinput8!DirectInput8Create` in
+`WinDrv.dll+0x7bac`, called from `UWindowsClient::Init+0x8b`. **Translated LoadMap, CS_Intro world initialization
+and world ticks remain unreached.** No custom renderer or input bypass was added.
+
+The original reference remains preserved: CS_Intro LoadMap returns a selected world, actor initialization
+completes, four ticks return to the caller and three game Presents succeed through the pinned dgVoodoo/D3D11
+configuration. Fresh repeats confirm it. Pixel-capture attempts do not verify game content; input/play is untested.
+
+[Current checkpoint and commands](experiments/xrt/GRAPHICS_STARTUP.md),
+[identified results](experiments/xrt/results/compare/class_initialization.json).
+The class oracle has 464 identical native/translated values; the binary FILE oracle has 188. Existing GUI,
+module, EH and startup checks pass. Final acceptance: 9 commandlet/VM cases, traced VMProbe, 16 compiler
+invocations/12 execution comparisons, and 149 Python tests (17 expected skips).
+
+Known CRT baseline (110 mismatches, 1,796 pending) and six freshly reproduced ACP 932 differences remain open.
+The Ogg byte discrepancy fails a page CRC and changes decoded PCM; cause/timing remain unknown and both
+files are untouched. This is a separate [installation integrity finding](experiments/xrt/INSTALLATION_INTEGRITY.md).
+
+---
+
+## Historical status: original CS_Intro world ticks and presents; translated module boundary passes
 
 Updated 2026-10-22 (US Eastern), level-initialization checkpoint. The original **completes CS_Intro LoadMap
 and actor initialization**, executes ticks on that exact returned world and creates/presents a game D3D8 device

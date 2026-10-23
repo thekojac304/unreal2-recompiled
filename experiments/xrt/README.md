@@ -1,7 +1,8 @@
-**Level checkpoint (2026-10-22 Eastern):** the original completes CS_Intro LoadMap and actor initialization,
-executes selected-world ticks and successfully creates/presents through dgVoodoo2/D3D11. Visual/input play is
-unverified. The translated splash and SHELL32/RICHED32 module path pass; GetClassInfoExW is the next explicit
-blocker before UGameEngine::Init. See [evidence, adapter limits, audit caveat and commands](GRAPHICS_STARTUP.md).
+**Engine initialization checkpoint (2026-10-23 Eastern):** the translated client enters UGameEngine::Init
+and UWindowsClient::Init after measured class/window/callback and binary FILE bridges. It stops at
+DirectInput8Create before LoadMap. The original completes CS_Intro initialization, four selected-world ticks
+and three game Presents through the preserved dgVoodoo2/D3D11 configuration. Visual/input play remains
+unverified. See [evidence, adapter limits, integrity finding and commands](GRAPHICS_STARTUP.md).
 Older observations below are retained as history.
 
 # X1 translated runtime (`xrt`): UCC.exe and its DLLs as translated code on Windows x64
@@ -19,8 +20,9 @@ Paths demonstrated: Core commandlets, VMProbe through Engine.dll/GlmLib.dll (gat
 and the translated engine (see CURRENT_STATUS.md, "Compiler milestone").
 
 The real Unreal2.exe client is now also translated, with WinDrv/D3DDrv lifts linked for its observed native path.
-**Level loading has not passed.** The original fails GetDeviceCaps(HAL) before LoadMap; the candidate stops at the
-splash bitmap's USER32!GetDC. See CURRENT_STATUS.md, "Bounded level experiment", for exact evidence and scope.
+**Translated level loading has not passed.** The original's working dgVoodoo reference and the translated
+DirectInput8Create blocker are documented in GRAPHICS_STARTUP.md. Earlier bounded-level observations remain
+in CURRENT_STATUS.md as history.
 
 ## Layout
 

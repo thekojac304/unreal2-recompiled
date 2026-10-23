@@ -10,6 +10,12 @@ The original installation was treated as **read-only** throughout, and so was th
 
 ## Status
 
+**Recompilation checkpoint, 2026-10-23:** the translated real client enters `UGameEngine::Init` and
+`UWindowsClient::Init`, then stops at the unimplemented DirectInput8 COM boundary before LoadMap. The original
+reference completes CS_Intro initialization, four world ticks and three game Presents; visual/input gameplay
+remains unverified. See [current status](CURRENT_STATUS.md) and [execution evidence](experiments/xrt/GRAPHICS_STARTUP.md).
+The initial feasibility results follow.
+
 Reconnaissance and seven proof-of-concept experiments are done (E1–E7 in [POC_RESULTS.md](POC_RESULTS.md)). The headline results were all validated against the **original game binaries and data**:
 
 | # | Experiment | Result |
