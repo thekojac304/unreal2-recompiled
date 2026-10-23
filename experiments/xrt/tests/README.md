@@ -15,7 +15,7 @@ with `STUB_*` defines.
 | Test | Checks | Run | Result (2026-10-22, runtime `xrt_cpu.c` a39bf8c8) |
 |---|---|---|---|
 | `insn_diff` | Every non-control-flow operand form of the Core.dll + UCC.exe census (203 forms, 294 encoding classes), plus 179 forms the lifter implements but these modules don't use: native 32-bit execution vs lifted C on x64, defined outputs only. `mutation_check.py` proves sensitivity with 13 injected lifter bugs. | `.venv\Scripts\python -I experiments\xrt\tests\insn_diff\run.py` (about 1 min); `--seed 7 --scale 3` | 432,304 cases, 0 failures; seed 7 ×3: 1,293,592 cases, 0 failures; 13/13 mutations killed. `results.before.json` is the run against the pre-pi66 trig model (20 failures, all fsin/fcos/fptan on NaN/inf). |
-| `crt_diff` | `xrt_fmt.c` (wide printf, and since gate F the narrow `xrt_output` behind the `sprintf` adapter) and the string/number adapters in `hle_msvcr70.c` vs the real msvcr70.dll | `crt_diff\build.cmd`, then `compare.py --json ...\results.json`; extended: `compare.py --i10 60000 --seed 7` | Wide: 178,398 cases, 0 mismatches. Narrow sprintf: 31,175 cases, 0 mismatches (extended corpus: 312,985 cases, 0). The first narrow run found 17 mismatches, now fixed: narrow `%s`/`%hs` with a negative precision other than -1 (`%.*5s`, `*` = -1), where the real CRT prints the whole string. **Bounded printf** (runtime `bfb8118`): `_vsnwprintf` 878 cases with the whole destination plus guards, 0 mismatches. **Open:** 4 isolated NULL-destination cases, where msvcr70 returns the length and the adapter returns -1 (`crt_diff/repro/`). `_snprintf`/`_vsnprintf`: 1,796 cases PENDING (no adapter). |
+| `crt_diff` | Wide/narrow printf and the compiler's CRT dependencies against msvcr70, with guards, isolated faults, qsort traces and filesystem reference self-checks | `crt_diff\build.cmd`, then `compare.py --json experiments\xrt\tests\crt_diff\results.json` | Recovery: 244,110 cases, **110 mismatches, 1,796 PENDING**, exit 1. Former four NULL-destination wide printf failures fixed; missing narrow bounded adapters remain pending. See crt_diff/README.md and repro/ for the open heap/filesystem cases. |
 | `x87` | Runtime x87 helpers vs the hardware x87 (i7-14700K), at the engine's storage precision: engine inputs (FGlobalMath tables, timing loop, `_ftol2`), random/edge records, exhaustive float32 sin/cos/tan/atan/sqrt/exp/loge | `.venv\Scripts\python -I experiments\xrt\tests\x87\run_x87.py --build` (about 1 h; `--skip-exhaustive`, `--quick`) | See below |
 | `f1_wtoi` | `_wtoi` adapter vs msvcr70 `_wtol` (review finding F1: long inputs, NBSP, Unicode digits, wrap) | `f1_wtoi\build.cmd`, then compare `build\f1_wtoi\ref.txt` with `cand.txt` (ignoring CR) | 21/21 identical (F1 fixed) |
 | `f2_mbcs_argv` | `__getmainargs` command-line splitting vs msvcr70 under the system ANSI code page and a per-process ACP 932 (review finding F2: MBCS lead bytes) | `f2_mbcs_argv\build.cmd`, then `run_f2.py` | **Open**: 6 differences, all under DBCS code pages; identical under the system code page 1252 |
@@ -39,3 +39,17 @@ a39bf8c8.
 
 The nine lifted helpers are byte-identical under the current lifter, and `xrt_cpu.c` is unchanged since the
 measurement, so these results are current.
+
+## Recovery harness gates (2026-10-22)
+
+F1/F2, F3/F4 and the EH/Gate-F harnesses now link the new runtime dependencies. Unused dependencies fail explicitly
+instead of providing successful dummy results. F3 checks the expected sandbox diagnostic, the short-path control,
+file absence outside the sandbox and adapter stack discipline, with a failing exit status on violation. F4 build
+commands propagate each test process's failure. F2 returns 1 for its six known DBCS differences.
+
+`insn_diff/run.py` propagates comparison and mutation-check failures. `mutation_check.py` also fails when a pattern
+is absent or a mutant cannot build. `tools/xrt/tests/test_validation_gates.py` injects these failures to check that
+stale successful results cannot hide them. Recovery measurements: 432,304 instruction cases, 0 failures, 13/13
+mutations detected; Gate-F CRT 51,536 cases, 0 mismatches; EH probe 6 positive/2 negative expectations met;
+FGlobalMath 16,384 float32 entries and 13 fsin edge cases matched. The exhaustive x87 run was not repeated because
+`xrt_cpu.c` and its relevant helpers are unchanged; its documented double/exponent/tag-word limitations still apply.

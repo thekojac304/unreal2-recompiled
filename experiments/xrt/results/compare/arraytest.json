@@ -1,7 +1,7 @@
 {
  "runner_schema": 4,
- "invocation_id": "20261022-203729-b7c9f142",
- "invocation_dir": "experiments/xrt/results/raw/runs/20261022-203729-b7c9f142",
+ "invocation_id": "20261023-013525-de49eb02",
+ "invocation_dir": "experiments/xrt/results/raw/runs/20261023-013525-de49eb02",
  "case": "arraytest",
  "args": [
   "Core.ArrayTest"
@@ -33,29 +33,40 @@
  "reference": "fresh-original",
  "identity": {
   "git": {
-   "head": "ad0d60082a50525586334bba9ce09e8b65a3fdde",
+   "head": "1c7aef2fd39e8348c16368449285259114bba0d7",
    "tracked_files_modified": true,
    "modified": [
-    "M experiments/xrt/build_xrt.cmd",
+    "M experiments/xrt/README.md",
+    " M experiments/xrt/build_xrt.cmd",
     " M experiments/xrt/runtime/hle_kernel32.c",
+    " M experiments/xrt/runtime/hle_misc.c",
     " M experiments/xrt/runtime/hle_msvcr70.c",
-    " M experiments/xrt/runtime/xrt_events.c",
-    " M experiments/xrt/runtime/xrt_fmt.c",
     " M experiments/xrt/runtime/xrt_internal.h",
     " M experiments/xrt/runtime/xrt_loader.c",
     " M experiments/xrt/runtime/xrt_main.c",
     " M experiments/xrt/runtime/xrt_mem.c",
-    " M experiments/xrt/runtime/xrt_thread.c",
-    " M experiments/xrt/tracer/uctrace.c",
-    " M tools/xrt/cases.py",
-    " M tools/xrt/make_sandbox.py",
+    " M experiments/xrt/runtime/xrt_msvcr70img.c",
+    " M experiments/xrt/tests/common/xrt_test_stubs.c",
+    " M experiments/xrt/tests/crt_diff/README.md",
+    " M experiments/xrt/tests/crt_diff/build.cmd",
+    " M experiments/xrt/tests/crt_diff/cand.c",
+    " M experiments/xrt/tests/crt_diff/compare.py",
+    " M experiments/xrt/tests/crt_diff/crt_diff_core.h",
+    " M experiments/xrt/tests/crt_diff/gen_corpus.py",
+    " M experiments/xrt/tests/crt_diff/ref.c",
+    " D experiments/xrt/tests/crt_diff/repro/bvsnwerr.1.txt",
+    " D experiments/xrt/tests/crt_diff/repro/bvsnwerr.2.txt",
+    " D experiments/xrt/tests/crt_diff/repro/bvsnwerr.5.txt",
+    " D experiments/xrt/tests/crt_diff/repro/bvsnwerr.6.txt",
+    " M tools/xrt/discover.py",
     " M tools/xrt/run_xrt.py",
-    " M tools/xrt/tests/test_run_xrt.py"
+    " M tools/xrt/tests/test_run_xrt.py",
+    " M tools/xrt/xlift.py"
    ]
   },
   "runner": {
    "path": "tools/xrt/run_xrt.py",
-   "sha256": "09e60bbbed9b6d1f6aeb7f06b379aac7c3d449b2c66b7afa154e111636f221ee"
+   "sha256": "7c252c44807f06a4944f5406cbbac5e91416d299caae5059b667550bd20ac2a4"
   },
   "cases_registry": {
    "path": "tools/xrt/cases.py",
@@ -67,21 +78,21 @@
   },
   "lifter": {
    "path": "tools/xrt/xlift.py",
-   "sha256": "eb677d2eb0ab7824ff77161ae4045d2bec9e4235f00569328d85e6527bff8131"
+   "sha256": "aa07ad797c33217420b775ec6fb0035892c24ad7ac7314261d1bf55f2817c027"
   },
   "runtime_sources": {
    "path": "experiments/xrt/runtime",
    "files": 15,
-   "sha256": "5fcc4c9c1906c6bfe7d2acbcd64c5f059f0f1c4f5077868d62dc03ae83ddfa42"
+   "sha256": "0a8bb57ecb631b0faeeccdba791885c7900514db5662e9bfada5414e5210948e"
   },
   "generated_code": {
    "path": "experiments/xrt/gen",
-   "files": 148,
-   "sha256": "dcb0bb01c589d96d31ed94268951f4f20cdef90e2d8b437d3a990297b21270ba"
+   "files": 196,
+   "sha256": "ac5b6a3b266600efb8e7da389e82aae12791d3b4033f961f6e85e822b4c9d784"
   },
   "candidate": {
    "path": "experiments/xrt/build/xrt_ucc.exe",
-   "sha256": "e21eaf00f7b89104c8fc248af363462dc8228b4b6935954348d4053ab70273fc"
+   "sha256": "99d8e9a4023f90c3d8372d0c478d7787dac0ac2405029c997c657638866a6697"
   },
   "tracer": {
    "path": "experiments/xrt/build/tracer/uctrace.exe",
@@ -101,12 +112,12 @@
  "runs": [
   {
    "run": 0,
-   "dir": "experiments/xrt/results/raw/runs/20261022-203729-b7c9f142/arraytest/run0",
+   "dir": "experiments/xrt/results/raw/runs/20261023-013525-de49eb02/arraytest/run0",
    "verdict": "PASS",
    "candidate": {
     "exit_code": 0,
-    "seconds": 1.739,
-    "stdout_sha256": "29eaa2a4981d2111f25075f42da893869358b33392254edd441c61b8aa4be8f0",
+    "seconds": 1.747,
+    "stdout_sha256": "85873df9093ba48d20da61d84ba11b207db3f804d22d1b5006191d8ab05bcfca",
     "command_line": "E:\\Unreal2-Port-Investigation\\sandbox_cmp\\arraytest\\System\\UCC.exe Core.ArrayTest",
     "inputs": {
      "UCC.exe": "84326806545670efdf1e1675d86da438751de2223a578a65f3764edb5a5fb1ab",
@@ -126,8 +137,8 @@
    "original": {
     "tool": "direct",
     "exit_code": 0,
-    "seconds": 1.736,
-    "stdout_sha256": "fddfad416dc564c1ce9f0964024d9c558d9a4235eed7a41412c2d341b106b043",
+    "seconds": 1.728,
+    "stdout_sha256": "5f45cd2350f07019921a4122356e448e15d65389e49961172c7b1fd0897c290b",
     "command_line": "E:\\Unreal2-Port-Investigation\\sandbox_cmp\\arraytest\\System\\UCC.exe Core.ArrayTest",
     "written": [
      "UCC.log"
@@ -203,12 +214,12 @@
   },
   {
    "run": 1,
-   "dir": "experiments/xrt/results/raw/runs/20261022-203729-b7c9f142/arraytest/run1",
+   "dir": "experiments/xrt/results/raw/runs/20261023-013525-de49eb02/arraytest/run1",
    "verdict": "PASS",
    "candidate": {
     "exit_code": 0,
-    "seconds": 1.743,
-    "stdout_sha256": "216a1df0fddacbffbfdc293bc90ecb57738adceb6fc5b8d2821c9d2d9bf64cf6",
+    "seconds": 1.732,
+    "stdout_sha256": "7a71145fbd5977e8e6008ba1df02796e11ad798d0125c44eab58b2b8d70adcd2",
     "command_line": "E:\\Unreal2-Port-Investigation\\sandbox_cmp\\arraytest\\System\\UCC.exe Core.ArrayTest",
     "inputs": {
      "UCC.exe": "84326806545670efdf1e1675d86da438751de2223a578a65f3764edb5a5fb1ab",
@@ -228,8 +239,8 @@
    "original": {
     "tool": "direct",
     "exit_code": 0,
-    "seconds": 1.73,
-    "stdout_sha256": "5bb85df332d57c3171b24eed1133c3d90da489d37de06697978aecfe5c05c306",
+    "seconds": 1.728,
+    "stdout_sha256": "25bcd0cfa4df9b775ac42c7387b37999aacd8740af1bf7f81c07e3ed89af24cc",
     "command_line": "E:\\Unreal2-Port-Investigation\\sandbox_cmp\\arraytest\\System\\UCC.exe Core.ArrayTest",
     "written": [
      "UCC.log"
@@ -305,12 +316,12 @@
   },
   {
    "run": 2,
-   "dir": "experiments/xrt/results/raw/runs/20261022-203729-b7c9f142/arraytest/run2",
+   "dir": "experiments/xrt/results/raw/runs/20261023-013525-de49eb02/arraytest/run2",
    "verdict": "PASS",
    "candidate": {
     "exit_code": 0,
-    "seconds": 1.742,
-    "stdout_sha256": "05965c769448e960b8567cc5b2e96098a435aebb47414f0606db15e07b38f58d",
+    "seconds": 1.735,
+    "stdout_sha256": "0c2a94c0b7dae37b66d8dc7416b24904e152941f2b636ef2f6d136e9aee11d8e",
     "command_line": "E:\\Unreal2-Port-Investigation\\sandbox_cmp\\arraytest\\System\\UCC.exe Core.ArrayTest",
     "inputs": {
      "UCC.exe": "84326806545670efdf1e1675d86da438751de2223a578a65f3764edb5a5fb1ab",
@@ -330,8 +341,8 @@
    "original": {
     "tool": "direct",
     "exit_code": 0,
-    "seconds": 1.74,
-    "stdout_sha256": "c9804f7e457e4318be4124c33e3150fc8b755bce860bd754e1edb4e30972b0e8",
+    "seconds": 1.741,
+    "stdout_sha256": "14350c4506c96ac4a0e3656718a0a04bcae08077e9bcbf55e3e02bc2f4f88d63",
     "command_line": "E:\\Unreal2-Port-Investigation\\sandbox_cmp\\arraytest\\System\\UCC.exe Core.ArrayTest",
     "written": [
      "UCC.log"

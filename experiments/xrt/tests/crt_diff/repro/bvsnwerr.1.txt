@@ -1,6 +1,0 @@
-# crt_diff reproducer for bvsnwerr.1 (2026-10-22, runtime bfb8118ccda84e40d0768f3349ba1d1d9352164e); error case: run it in its own processes
-#   experiments\xrt\build\crt_diff\ref.exe sandbox_ref\hellofull\System\msvcr70.dll <this file> ref_out.txt
-#   experiments\xrt\build\crt_diff\cand.exe <this file> cand_out.txt
-# ref:  ret R=3
-# cand: ret R=-1
-E bvsnwerr.1 _vsnwprintf null 0x0 006100620063

@@ -1136,8 +1136,8 @@
    "de_cases": 0,
    "failed_cases": 0,
    "categories": {
-    "x87-exception-flags": 520,
-    "x87-c1": 240
+    "x87-c1": 240,
+    "x87-exception-flags": 520
    }
   },
   "fcomp m32": {
@@ -1192,8 +1192,8 @@
    "de_cases": 0,
    "failed_cases": 0,
    "categories": {
-    "x87-exception-flags": 471,
     "x87-c1": 197,
+    "x87-exception-flags": 471,
     "x87-nan-payload": 1
    }
   },
@@ -1406,8 +1406,8 @@
    "de_cases": 0,
    "failed_cases": 0,
    "categories": {
-    "x87-exception-flags": 1475,
     "x87-c1": 647,
+    "x87-exception-flags": 1475,
     "x87-not-a-double": 99,
     "x87-nan-payload": 1
    }
@@ -1707,8 +1707,8 @@
    "de_cases": 0,
    "failed_cases": 0,
    "categories": {
-    "x87-exception-flags": 860,
     "x87-c1": 384,
+    "x87-exception-flags": 860,
     "x87-not-a-double": 76
    }
   },
@@ -2591,8 +2591,8 @@
    "de_cases": 0,
    "failed_cases": 0,
    "categories": {
-    "x87-exception-flags": 866,
     "x87-c1": 406,
+    "x87-exception-flags": 866,
     "x87-not-a-double": 19,
     "x87-nan-payload": 1
    }
@@ -2758,8 +2758,8 @@
    "de_cases": 0,
    "failed_cases": 0,
    "categories": {
-    "x87-exception-flags": 276,
     "x87-c1": 141,
+    "x87-exception-flags": 276,
     "x87-not-a-double": 9
    }
   },
@@ -3141,8 +3141,8 @@
    "de_cases": 0,
    "failed_cases": 0,
    "categories": {
-    "x87-exception-flags": 267,
     "x87-c1": 136,
+    "x87-exception-flags": 267,
     "x87-not-a-double": 13
    }
   },
@@ -3415,8 +3415,8 @@
    "de_cases": 0,
    "failed_cases": 0,
    "categories": {
-    "x87-exception-flags": 299,
     "x87-c1": 183,
+    "x87-exception-flags": 299,
     "x87-transcendental": 2
    }
   },
@@ -3579,8 +3579,8 @@
    "de_cases": 0,
    "failed_cases": 0,
    "categories": {
-    "x87-exception-flags": 262,
-    "x87-c1": 114
+    "x87-c1": 114,
+    "x87-exception-flags": 262
    }
   },
   "f2xm1": {
@@ -3597,8 +3597,8 @@
    "de_cases": 0,
    "failed_cases": 0,
    "categories": {
-    "x87-exception-flags": 307,
     "x87-c1": 153,
+    "x87-exception-flags": 307,
     "x87-transcendental": 140
    }
   },
@@ -3652,8 +3652,8 @@
    "de_cases": 0,
    "failed_cases": 0,
    "categories": {
-    "x87-exception-flags": 300,
     "x87-c1": 148,
+    "x87-exception-flags": 300,
     "x87-transcendental": 67
    }
   },
@@ -3709,8 +3709,8 @@
    "de_cases": 0,
    "failed_cases": 0,
    "categories": {
-    "x87-transcendental": 107,
     "x87-exception-flags": 303,
+    "x87-transcendental": 107,
     "x87-c1": 124
    }
   },
@@ -3728,8 +3728,8 @@
    "de_cases": 0,
    "failed_cases": 0,
    "categories": {
-    "x87-exception-flags": 289,
-    "x87-c1": 139
+    "x87-c1": 139,
+    "x87-exception-flags": 289
    }
   },
   "repe cmpsb m8,m8": {
@@ -6745,8 +6745,8 @@
    "de_cases": 0,
    "failed_cases": 0,
    "categories": {
-    "x87-exception-flags": 1074,
-    "x87-c1": 159
+    "x87-c1": 159,
+    "x87-exception-flags": 1074
    }
   },
   "fiadd m32": {
@@ -6809,8 +6809,8 @@
    "de_cases": 0,
    "failed_cases": 0,
    "categories": {
-    "x87-exception-flags": 708,
-    "x87-c1": 342
+    "x87-c1": 342,
+    "x87-exception-flags": 708
    }
   },
   "fisubr m32": {
@@ -6830,8 +6830,8 @@
    "de_cases": 0,
    "failed_cases": 0,
    "categories": {
-    "x87-exception-flags": 673,
-    "x87-c1": 322
+    "x87-c1": 322,
+    "x87-exception-flags": 673
    }
   },
   "fidivr m16": {
@@ -6910,8 +6910,8 @@
    "de_cases": 0,
    "failed_cases": 0,
    "categories": {
-    "x87-exception-flags": 213,
-    "x87-c1": 100
+    "x87-c1": 100,
+    "x87-exception-flags": 213
    }
   },
   "fadd sti,st0": {
@@ -6946,8 +6946,8 @@
    "de_cases": 0,
    "failed_cases": 0,
    "categories": {
-    "x87-exception-flags": 214,
-    "x87-c1": 104
+    "x87-c1": 104,
+    "x87-exception-flags": 214
    }
   },
   "fsubr sti,st0": {
@@ -6964,8 +6964,8 @@
    "de_cases": 0,
    "failed_cases": 0,
    "categories": {
-    "x87-exception-flags": 227,
-    "x87-c1": 106
+    "x87-c1": 106,
+    "x87-exception-flags": 227
    }
   },
   "fdiv sti,st0": {
@@ -7021,8 +7021,8 @@
    "failed_cases": 0,
    "categories": {
     "x87-exception-flags": 223,
-    "x87-not-a-double": 19,
-    "x87-c1": 90
+    "x87-c1": 90,
+    "x87-not-a-double": 19
    }
   },
   "fsubr sti": {
@@ -7039,8 +7039,8 @@
    "de_cases": 0,
    "failed_cases": 0,
    "categories": {
-    "x87-exception-flags": 221,
-    "x87-c1": 100
+    "x87-c1": 100,
+    "x87-exception-flags": 221
    }
   },
   "fdivr sti": {

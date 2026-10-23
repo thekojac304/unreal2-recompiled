@@ -1,22 +1,22 @@
 {
  "seed": 20261022,
  "scale": 1,
- "inputs": true,
+ "inputs": false,
  "summary": {
   "pow": {
-   "cases": 15108,
+   "cases": 12035,
    "mismatches": 0
   },
   "fmod": {
-   "cases": 6499,
+   "cases": 6498,
    "mismatches": 0
   },
   "isnan": {
-   "cases": 6103,
+   "cases": 3031,
    "mismatches": 0
   },
   "atof": {
-   "cases": 20304,
+   "cases": 20279,
    "mismatches": 0
   },
   "toupper": {

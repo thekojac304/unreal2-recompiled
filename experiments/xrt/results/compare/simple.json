@@ -1,7 +1,7 @@
 {
  "runner_schema": 4,
- "invocation_id": "20261022-203729-b7c9f142",
- "invocation_dir": "experiments/xrt/results/raw/runs/20261022-203729-b7c9f142",
+ "invocation_id": "20261023-013525-de49eb02",
+ "invocation_dir": "experiments/xrt/results/raw/runs/20261023-013525-de49eb02",
  "case": "simple",
  "args": [
   "Core.SimpleCommandlet"
@@ -33,29 +33,40 @@
  "reference": "fresh-original",
  "identity": {
   "git": {
-   "head": "ad0d60082a50525586334bba9ce09e8b65a3fdde",
+   "head": "1c7aef2fd39e8348c16368449285259114bba0d7",
    "tracked_files_modified": true,
    "modified": [
-    "M experiments/xrt/build_xrt.cmd",
+    "M experiments/xrt/README.md",
+    " M experiments/xrt/build_xrt.cmd",
     " M experiments/xrt/runtime/hle_kernel32.c",
+    " M experiments/xrt/runtime/hle_misc.c",
     " M experiments/xrt/runtime/hle_msvcr70.c",
-    " M experiments/xrt/runtime/xrt_events.c",
-    " M experiments/xrt/runtime/xrt_fmt.c",
     " M experiments/xrt/runtime/xrt_internal.h",
     " M experiments/xrt/runtime/xrt_loader.c",
     " M experiments/xrt/runtime/xrt_main.c",
     " M experiments/xrt/runtime/xrt_mem.c",
-    " M experiments/xrt/runtime/xrt_thread.c",
-    " M experiments/xrt/tracer/uctrace.c",
-    " M tools/xrt/cases.py",
-    " M tools/xrt/make_sandbox.py",
+    " M experiments/xrt/runtime/xrt_msvcr70img.c",
+    " M experiments/xrt/tests/common/xrt_test_stubs.c",
+    " M experiments/xrt/tests/crt_diff/README.md",
+    " M experiments/xrt/tests/crt_diff/build.cmd",
+    " M experiments/xrt/tests/crt_diff/cand.c",
+    " M experiments/xrt/tests/crt_diff/compare.py",
+    " M experiments/xrt/tests/crt_diff/crt_diff_core.h",
+    " M experiments/xrt/tests/crt_diff/gen_corpus.py",
+    " M experiments/xrt/tests/crt_diff/ref.c",
+    " D experiments/xrt/tests/crt_diff/repro/bvsnwerr.1.txt",
+    " D experiments/xrt/tests/crt_diff/repro/bvsnwerr.2.txt",
+    " D experiments/xrt/tests/crt_diff/repro/bvsnwerr.5.txt",
+    " D experiments/xrt/tests/crt_diff/repro/bvsnwerr.6.txt",
+    " M tools/xrt/discover.py",
     " M tools/xrt/run_xrt.py",
-    " M tools/xrt/tests/test_run_xrt.py"
+    " M tools/xrt/tests/test_run_xrt.py",
+    " M tools/xrt/xlift.py"
    ]
   },
   "runner": {
    "path": "tools/xrt/run_xrt.py",
-   "sha256": "09e60bbbed9b6d1f6aeb7f06b379aac7c3d449b2c66b7afa154e111636f221ee"
+   "sha256": "7c252c44807f06a4944f5406cbbac5e91416d299caae5059b667550bd20ac2a4"
   },
   "cases_registry": {
    "path": "tools/xrt/cases.py",
@@ -67,21 +78,21 @@
   },
   "lifter": {
    "path": "tools/xrt/xlift.py",
-   "sha256": "eb677d2eb0ab7824ff77161ae4045d2bec9e4235f00569328d85e6527bff8131"
+   "sha256": "aa07ad797c33217420b775ec6fb0035892c24ad7ac7314261d1bf55f2817c027"
   },
   "runtime_sources": {
    "path": "experiments/xrt/runtime",
    "files": 15,
-   "sha256": "5fcc4c9c1906c6bfe7d2acbcd64c5f059f0f1c4f5077868d62dc03ae83ddfa42"
+   "sha256": "0a8bb57ecb631b0faeeccdba791885c7900514db5662e9bfada5414e5210948e"
   },
   "generated_code": {
    "path": "experiments/xrt/gen",
-   "files": 148,
-   "sha256": "dcb0bb01c589d96d31ed94268951f4f20cdef90e2d8b437d3a990297b21270ba"
+   "files": 196,
+   "sha256": "ac5b6a3b266600efb8e7da389e82aae12791d3b4033f961f6e85e822b4c9d784"
   },
   "candidate": {
    "path": "experiments/xrt/build/xrt_ucc.exe",
-   "sha256": "e21eaf00f7b89104c8fc248af363462dc8228b4b6935954348d4053ab70273fc"
+   "sha256": "99d8e9a4023f90c3d8372d0c478d7787dac0ac2405029c997c657638866a6697"
   },
   "tracer": {
    "path": "experiments/xrt/build/tracer/uctrace.exe",
@@ -101,11 +112,11 @@
  "runs": [
   {
    "run": 0,
-   "dir": "experiments/xrt/results/raw/runs/20261022-203729-b7c9f142/simple/run0",
+   "dir": "experiments/xrt/results/raw/runs/20261023-013525-de49eb02/simple/run0",
    "verdict": "PASS",
    "candidate": {
     "exit_code": 0,
-    "seconds": 1.741,
+    "seconds": 1.733,
     "stdout_sha256": "8b1619e9af247ab87cc8d80e24e1a8a1f456bfacd08519df44d6101feaa5e8da",
     "command_line": "E:\\Unreal2-Port-Investigation\\sandbox_cmp\\simple\\System\\UCC.exe Core.SimpleCommandlet",
     "inputs": {
@@ -126,7 +137,7 @@
    "original": {
     "tool": "direct",
     "exit_code": 0,
-    "seconds": 1.824,
+    "seconds": 1.716,
     "stdout_sha256": "8b1619e9af247ab87cc8d80e24e1a8a1f456bfacd08519df44d6101feaa5e8da",
     "command_line": "E:\\Unreal2-Port-Investigation\\sandbox_cmp\\simple\\System\\UCC.exe Core.SimpleCommandlet",
     "written": [
@@ -203,11 +214,11 @@
   },
   {
    "run": 1,
-   "dir": "experiments/xrt/results/raw/runs/20261022-203729-b7c9f142/simple/run1",
+   "dir": "experiments/xrt/results/raw/runs/20261023-013525-de49eb02/simple/run1",
    "verdict": "PASS",
    "candidate": {
     "exit_code": 0,
-    "seconds": 1.74,
+    "seconds": 1.738,
     "stdout_sha256": "8b1619e9af247ab87cc8d80e24e1a8a1f456bfacd08519df44d6101feaa5e8da",
     "command_line": "E:\\Unreal2-Port-Investigation\\sandbox_cmp\\simple\\System\\UCC.exe Core.SimpleCommandlet",
     "inputs": {
@@ -228,7 +239,7 @@
    "original": {
     "tool": "direct",
     "exit_code": 0,
-    "seconds": 1.722,
+    "seconds": 1.723,
     "stdout_sha256": "8b1619e9af247ab87cc8d80e24e1a8a1f456bfacd08519df44d6101feaa5e8da",
     "command_line": "E:\\Unreal2-Port-Investigation\\sandbox_cmp\\simple\\System\\UCC.exe Core.SimpleCommandlet",
     "written": [
@@ -305,11 +316,11 @@
   },
   {
    "run": 2,
-   "dir": "experiments/xrt/results/raw/runs/20261022-203729-b7c9f142/simple/run2",
+   "dir": "experiments/xrt/results/raw/runs/20261023-013525-de49eb02/simple/run2",
    "verdict": "PASS",
    "candidate": {
     "exit_code": 0,
-    "seconds": 1.798,
+    "seconds": 1.737,
     "stdout_sha256": "8b1619e9af247ab87cc8d80e24e1a8a1f456bfacd08519df44d6101feaa5e8da",
     "command_line": "E:\\Unreal2-Port-Investigation\\sandbox_cmp\\simple\\System\\UCC.exe Core.SimpleCommandlet",
     "inputs": {
@@ -330,7 +341,7 @@
    "original": {
     "tool": "direct",
     "exit_code": 0,
-    "seconds": 1.722,
+    "seconds": 1.715,
     "stdout_sha256": "8b1619e9af247ab87cc8d80e24e1a8a1f456bfacd08519df44d6101feaa5e8da",
     "command_line": "E:\\Unreal2-Port-Investigation\\sandbox_cmp\\simple\\System\\UCC.exe Core.SimpleCommandlet",
     "written": [

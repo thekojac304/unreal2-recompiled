@@ -7,7 +7,28 @@ Independent validation of the runtime's MSVCR70 adapters against the real `msvcr
 - `runtime/hle_msvcr70.c`: `_vsnwprintf` (return value, truncation, terminator), `wprintf`, `wcslen wcscpy wcscat
   wcsncpy wcscmp wcsncmp _wcsicmp _wcsnicmp wcschr wcsrchr wcsstr _wcsupr _wtoi rand srand memmove`.
 
-Result (2026-10-22): **178,398 cases, 0 mismatches** with the default corpus, and 281,898 cases, 0 mismatches
+**Recovery validation (2026-10-22, compiler integration working tree).** The expanded suite runs 244,110 cases:
+110 mismatches, 1,796 PENDING, exit 1; all 189 filesystem reference self-checks reproduce. This is a failing
+component result, separate from the passing compiler acceptance. Exact runtime/harness/binary hashes, outcomes
+and environment are in [results.json](results.json). The earlier narrow/wide/float measurements remain in that
+file's historical sections.
+
+| Open category | Cases differing | Finding |
+|---|---:|---|
+| `zrealloc` | 1 | `realloc(NULL,0)` succeeds, but `_msize` is 1 in msvcr70 and 0 in the adapter |
+| `ffull` | 3 | last-error state on `_fullpath` buffer/path failures |
+| `fff` | 64 | `_findfirst` last-error state (the recorded data match in the representative case) |
+| `ffind` | 20 | directory enumeration last-error state |
+| `fopen` | 22 | last-error state and `_iob` FILE descriptor fields on failure/close |
+
+Every mismatch has a one-line reproducer under `repro/`; the runner continues to fail on them.
+The four former NULL-destination `_vsnwprintf` mismatches are resolved: all 887 bounded wide cases, including
+nine isolated errors, match. `_snprintf` and `_vsnprintf` still lack adapters, so their 1,796 cases remain
+PENDING rather than passing. All other compared categories have zero mismatches, including the 31,175 new
+`vsprintf` cases and the qsort comparator-call traces. No optional filesystem/time-zone expansion was used
+to assert broader CRT compatibility or to delay the completed compiler milestone.
+
+Earlier formatter-only result (2026-10-22): **178,398 cases, 0 mismatches** with the default corpus, and 281,898 cases, 0 mismatches
 with the extended float corpus. The adapters as they were before this test (commit `edb955c`) disagreed with the
 real DLL on 4,452 of the 172,412 cases they could run at all, and crashed or aborted on the rest. Details in
 [results.json](results.json) and below.
@@ -71,7 +92,7 @@ candidate side. Its reference results are still recorded, and it compares automa
 registered. PENDING is never counted as passed: `compare.py` exits 3 when cases are pending and nothing
 mismatched.
 
-**Results**, runtime commit `bfb8118` (runtime sources clean; provenance with source and binary SHA-256 in
+**Historical results**, runtime commit `bfb8118` (runtime sources clean; provenance with source and binary SHA-256 in
 `results.json`):
 - Default corpus (seed 20261022): 212,250 cases plus 27 isolated, **4 mismatches**, **1,796 PENDING**.
 - Extended corpus (seed 7): 315,662 cases, the same 4 mismatches and 1,796 PENDING.
@@ -95,6 +116,122 @@ Each reproducer in `repro/` is a one-line corpus with both results in comment li
 Rerun one with `ref.exe <dll> <file> out.txt` and `cand.exe <file> out.txt`, in their own processes for `E` lines.
 `compare.py` rewrites `repro/` on every run.
 
+## CRT dependencies of `ucc make` (V, T, Q, Z, X, F lines)
+
+**Scope.** The main session traced the original `ucc make -ini=XrtCompileProbe.ini` with entries for Editor.dll
+and Window.dll. These lines cover the msvcr70 functions that trace reaches.
+
+Reached without a runtime adapter at the time of the trace:
+- GlmLib.dll: `vsprintf`, `strrchr`, `strncpy`, `fopen`, `fclose`, `_getcwd`, `_fullpath`, `_findfirst`, `_findnext`,
+  `_findclose`, `_errno`, `_chdir`;
+- Editor.dll: `_set_se_translator`.
+
+Newly reached, with an adapter already:
+- `qsort` (Core.dll);
+- `toupper`, `atoi`, `_stricmp` (GlmLib.dll);
+- `_msize` with `malloc`/`realloc`/`free`.
+
+`strchr` is included as GlmLib's partner of `strrchr`. `swscanf`, `swprintf`, `_snprintf` and `_vsnprintf` are not
+reached on this path, so no new lines were added for them. The test cases follow what GlmLib actually does, read from
+its call sites:
+- `vsprintf(buf ? buf : static, fmt, va)` at GlmLib+3e80;
+- `strrchr(s, '.')` and `strrchr(s, '\\')`;
+- `_getcwd(buf, 260)` and `_fullpath(buf, path, 260)`;
+- `_chdir` followed by a switch on errno 2/13/17;
+- an existence check at GlmLib+0x72d30 that reads `attrib`, `time_write` and `size`;
+- the `_findfirst`/`_findnext`/`_findclose` listing loop of DISK_FindFiles at GlmLib+0x73760;
+- `fopen` with "rb" and "wb", then `fclose`.
+
+**Method.** All lines use the same arena, guards and PENDING rule as the printf lines.
+- **V `vsprintf`.** The narrow printf generators (integers, floats, pointers, `%n`, odd specifications, counted
+  strings, truncation, narrow-typed strings, narrow text and mixes) are routed through `vsprintf` with a `va_list`,
+  about 31,000 cases. Each case records the whole buffer up to the terminator plus 8 guard bytes, and the `%n` targets.
+- **T string and character functions.** Strings are placed at byte offsets 0-15 inside guarded regions (this
+  exercises the alignment paths of msvcr70's assembly routines). Each case records the whole region and any returned
+  pointer as a buffer-relative offset.
+  - `strrchr`/`strchr`: path-like strings, with character arguments including 0, high-bit values (both sign
+    extensions) and values above 0xFF.
+  - `strncpy`: n = 0..4, len-1..len+17, 260 and 261, into destinations of exactly n bytes and of n+7 bytes (which
+    shows where the zero padding stops).
+  - `_stricmp`: exact return values, including the characters between 'Z' and 'a', high bytes and long strings.
+  - `atoi`: whitespace by the C-locale table, signs, overflow, and every byte as a leading character.
+  - `toupper`: -1..255 and values outside that range.
+- **Q `qsort`.** Element widths 0, 1, 3, 4, 8, 12 and 64; 0 to 1,000 elements; sorted, reversed, equal, random,
+  few-distinct, organ-pipe, sawtooth and almost-sorted inputs.
+  - Comparators: int32, a wrapping difference, descending, first byte only (the rest of each element is a unique tag,
+    so the order of equal keys is visible), and constant 0.
+  - Recorded: the array with guards, the number of comparator calls, a hash of the full sequence of (a, b) element
+    offsets, and the first 256 pairs. So the test fixes the algorithm itself, not only a sorted result.
+  - The reference passes native comparators. The candidate's adapter calls guest code through `xrt_call_guest`; the
+    harness answers only its own sentinel addresses and is fatal for anything else.
+- **Z heap.** `malloc` of 0 to 1 MiB+1 bytes, `realloc` growth and shrinkage, `realloc` from NULL and to 0, and 40
+  random sequences.
+  - Every block is filled with a pattern, and `realloc` checks every kept byte.
+  - Recorded: success, whether `realloc` kept the content, and `_msize` values. Addresses are never recorded.
+  - `_msize` of a slot left empty by a NULL result is recorded as `s:null` and never called, since that would be an
+    invalid input.
+- **X `_set_se_translator`.** Sequences of values, each line in a fresh process (the translator is per-thread
+  state), recording each returned previous value. No structured exception is raised, so no translator runs.
+- **F file system.** Sequences of `_getcwd`, `_fullpath`, `_chdir`, `_findfirst` (existence check), the
+  `_findfirst`/`_findnext`/`_findclose` listing loop and `fopen`/`fclose`, with errno read through `_errno` after
+  every call. Each line runs in a fresh pair of processes whose current directory is a scratch tree,
+  `experiments/xrt/build/crt_diff/fs/root`.
+  - **Tree contents** (defined in `gen_corpus.py` `FS_*`): attributes R/H/S/normal, a Latin-1 name, a long name with
+    spaces, read-only and hidden directories, and an empty directory.
+  - **Tree times:** creation and write times are fixed historical values covering the `time_t` limits (1601, 1969,
+    the first local hour of 1970, 2038-01-19 03:14:07/08Z, 2099) and US Eastern DST transitions (2006 and 2026 rules,
+    the ambiguous hour of 2026-11-01, a leap day, a new year).
+  - **Rebuild:** `compare.py` rebuilds the tree before every process: it deletes the old tree, writes every file,
+    sets times bottom-up with `SetFileTime` (root and its parent included), then sets attributes.
+  - **Access times** are the run's start time. NTFS refreshes a last-access time that is more than an hour old when
+    the file is opened, so a historical access time would not stay fixed.
+  - **Snapshot:** after each process, `compare.py` takes a snapshot of the tree (names, attributes, sizes, content
+    hashes) and compares it too, which shows what "wb" created or truncated.
+  - **Self-check:** the reference runs every F line a second time later in the run. A reference that does not
+    reproduce itself fails the case.
+  - **Recorded values:** after every call, the thread's Win32 last error (`le=`, set to 0x5555 just before the
+    call, so a call that never sets it shows) and errno, read through `_errno`.
+    - `_finddata_t` (280 bytes: `attrib`, `time_create`, `time_access`, `time_write`, `size`, `name[260]`) is
+      recorded whole, pre-filled with 0xCC, guarded, and reused across a listing as GlmLib does.
+    - Find handles are recorded only as valid/-1.
+    - `fopen` records which `_iob` entry it returned. `fopen` and `fclose` both record the `FILE` records
+      `_iob[3..5]` (`_flag`, `_file`, `_cnt`, `_charbuf`, `_bufsiz`; pointers as 0/P).
+  - **Partial output:** both drivers flush the result line before every call. A process that dies in a call leaves
+    the ops before it.
+  - **Safety:** the harness refuses F lines in a directory without the tree's marker file.
+  - **Sandbox root:** the candidate uses the tree's parent as its sandbox root, the same shape as a run, whose
+    current directory `System` sits one level below the sandbox.
+  - **Environment:** every process (the generator, both sides, every isolated run) runs without `TZ` and
+    `__MSVCRT_HEAP_SELECT`. So the CRT uses the system time zone and its default heap (the system heap; the variable
+    would select a small-block heap and change `_msize`).
+  - **Recorded run conditions** (`results.json`, `fs`): the system time zone from `GetTimeZoneInformation` (names,
+    biases, whether DST was in effect at the start, and whether that changed during the run), and the ANSI code page.
+- **Outcomes of isolated lines.**
+  - A reference fault matches only a candidate that dies with the same exception code, after the same partial
+    output (and, for F lines, the same tree).
+  - A candidate `xrt_fatal` is its own outcome, `fatal`. A harness stub or a harness exit is `harness-error`.
+    Neither ever matches a reference fault.
+- **Rerunning a case.** `compare.py --repro repro\<id>.txt` (or `--repro <id>`) reruns one case on both sides the
+  way the full run ran it:
+  - for an F line, the tree is rebuilt with the reproducer's `t0` before each process;
+  - the reference runs twice;
+  - it prints both outcomes, the decoded F results and the tree differences.
+- **Narrow routes.** The wide-printf generators type a `%S` argument as a narrow string, which is what wide printf's
+  `%S` reads. In narrow printf `%S` reads a wide string, so the A and V routes give those arguments a wide string with
+  the same characters (`widen_narrow_args`).
+  - This corrected five pre-existing A lines: `noddB.2`, `noddB.16`, `noddB.17`, `noddB.19`, `ntrunc.7`. Before
+    the correction, their `%S` scanned past the narrow string's allocation; no result depended on it.
+- **Candidate build.** The candidate links `hle_kernel32.c`, for the handle table and the sandbox guard the
+  file-system adapters use, and `xrt_msvcr70img.c`, for `_dosmaperr`'s table read from the DLL image.
+  - The image is loaded once from `sandbox_ref/hellofull/System/msvcr70.dll`, the same file as the reference, and
+    SHA-checked against the DLL the runtime was translated from.
+  - It also links the translated `_CIpow` core (`gen/msvcr70/pow_sse2.c`, generated by `build_xrt.cmd`, never
+    committed).
+  - The rest of the runtime is replaced by `STUB_K32DEPS` stubs, which are fatal for threads, modules, the baton and
+    diagnostics. The guest last error is the TEB word.
+
+<!-- results of the committed runtime run go here -->
+
 ## Files
 
 | File | What |
@@ -102,10 +239,10 @@ Rerun one with `ref.exe <dll> <file> out.txt` and `cand.exe <file> out.txt`, in 
 | `gen_corpus.py` | deterministic corpus generator (seeded); writes `corpus.txt` (line format in its docstring) |
 | `crt_diff_core.h` | shared driver: parses the corpus, places strings/argument blocks in the test arena, runs each case, writes results |
 | `ref.c` | reference side, x86: `LoadLibrary` of the sandbox `msvcr70.dll`, functions via `GetProcAddress`, every call under SEH |
-| `cand.c` | candidate side, x64: links `runtime/xrt_fmt.c`, `hle_msvcr70.c`, `xrt_mem.c` (stubs for the rest); calls the adapters from `xrt_hle_msvcr70[]` |
-| `compare.py` | generates the corpus, runs both sides, compares, prints a summary, optionally writes JSON |
+| `cand.c` | candidate side, x64: links `runtime/xrt_fmt.c`, `hle_msvcr70.c`, `xrt_mem.c`, `hle_kernel32.c`, `xrt_msvcr70img.c` (stubs for the rest); calls the adapters from `xrt_hle_msvcr70[]`; optional third argument: the sandbox holding `System\msvcr70.dll` |
+| `compare.py` | generates the corpus, runs both sides, compares, runs E/X/F lines one process each (F in the rebuilt scratch tree, reference twice), prints a summary, optionally writes JSON |
 | `i10_model.py` | Python model of msvcr70's double-to-digits code (`__dtold` + `$I10_OUTPUT`); generates the power-of-ten tables used in `xrt_fmt.c` |
-| `build.cmd` | builds `ref.exe` (x86) and `cand.exe` (x64) into `experiments/xrt/build/crt_diff/` |
+| `build.cmd` | builds `ref.exe` (x86) and `cand.exe` (x64) into `experiments/xrt/build/crt_diff/`; deletes both first and fails unless both exist afterwards |
 | `results.json` | summary of the last runs (default, extended, and the before-fix measurement), with provenance: commit, dirty files, SHA-256 of the runtime sources and of `ref.exe`/`cand.exe`, commands, seed, counts, adapters present, exclusions |
 | `repro/` | one reproducer per mismatch of the latest run (one-line corpus plus both results) |
 

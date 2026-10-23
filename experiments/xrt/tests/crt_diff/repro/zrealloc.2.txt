@@ -1,0 +1,7 @@
+# crt_diff reproducer for zrealloc.2 (2026-10-22, commit 1c7aef2fd39e8348c16368449285259114bba0d7)
+# rerun (both sides, the same way compare.py ran it): .venv\Scripts\python.exe -I experiments\xrt\tests\crt_diff\compare.py --repro experiments\xrt\tests\crt_diff\repro\zrealloc.2.txt
+#   E:\Unreal2-Port-Investigation\experiments\xrt\build\crt_diff\ref.exe E:\Unreal2-Port-Investigation\sandbox_ref\hellofull\System\msvcr70.dll <this file> ref_out.txt
+#   E:\Unreal2-Port-Investigation\experiments\xrt\build\crt_diff\cand.exe <this file> cand_out.txt E:\Unreal2-Port-Investigation\sandbox_ref\hellofull
+# ref:  r:1:1 s:1 f
+# cand: r:1:1 s:0 f
+Z zrealloc.2 r0,0 s0 f0

@@ -1,11 +1,16 @@
-# X1 translated runtime (`xrt`): UCC.exe, Core.dll, Engine.dll and GlmLib.dll as translated code on Windows x64
+# X1 translated runtime (`xrt`): UCC.exe and its DLLs as translated code on Windows x64
 
-The original 32-bit `UCC.exe`, `Core.dll`, `Engine.dll` and `GlmLib.dll` are statically translated to C by
-`tools/xrt/xlift.py` (whole modules, every discovered function), compiled for x64, and run by a small host runtime
-(`runtime/`). UCC.exe and Core.dll are mapped at start; Engine.dll and its static import GlmLib.dll when the guest
-loads Engine.dll (LoadLibraryW), as the Windows loader does. The original PE files are read from the sandbox only as
-data (sections, constant tables); none of their code is executed. Execution goes through translated functions and
-explicit host adapters only; one msvcr70 routine (the SSE2 path of `_CIpow`) is translated as well.
+The original 32-bit `UCC.exe`, `Core.dll`, `Engine.dll`, `GlmLib.dll`, `Editor.dll`, `Window.dll`, `Fire.dll` and
+GlmLib's plugin `plugins\UnrImp.gpi` are statically translated to C by `tools/xrt/xlift.py` (whole modules, every
+discovered function), compiled for x64, and run by a small host runtime (`runtime/`). UCC.exe and Core.dll are mapped
+at start; the others when the guest loads them (LoadLibraryW/LoadLibraryA), together with their translated static
+imports, as the Windows loader does. The original PE files are read from the sandbox only as data (sections, constant
+tables); none of their code is executed. Execution goes through translated functions and explicit host adapters only;
+one msvcr70 routine (the SSE2 path of `_CIpow`) is translated as well.
+
+Paths demonstrated: Core commandlets, VMProbe through Engine.dll/GlmLib.dll (gate F), and the UnrealScript compiler
+(`ucc make`, Editor.dll): fresh project-owned sources compiled into a package that loads and runs in both the original
+and the translated engine (see CURRENT_STATUS.md, "Compiler milestone").
 
 ## Layout
 
@@ -26,9 +31,11 @@ explicit host adapters only; one msvcr70 routine (the SSE2 path of `_CIpow`) is 
 | `runtime/xrt_events.c` | ordered evidence timeline (marks, watches, process and thread events) for the report |
 | `runtime/xrt_diag.c` | fatal diagnostics (module+RVA, registers, history, guest backtrace), event log, fault handler |
 | `runtime/xrt_fmt.c` | msvcr70 `_woutput` (wide printf engine) over guest varargs |
-| `runtime/hle_*.c` | host adapters for KERNEL32, MSVCR70, WINMM, ADVAPI32 imports |
-| `runtime/xrt_main.c` | host entry point: process model, DllMain/entry sequencing, exit protocol, report |
+| `runtime/hle_*.c` | host adapters for KERNEL32, MSVCR70, WINMM, ADVAPI32 and ole32 (`CoCreateGuid`) imports |
+| `runtime/xrt_main.c` | host entry point: process model, DllMain/entry sequencing, FreeLibrary unloading, exit protocol, report |
 | `tools/xrt/run_xrt.py` | acceptance runner: original and translated in the same fresh sandbox path, four-way verdict |
+| `tools/xrt/compile_xrt.py` | compiler-milestone driver: `ucc make` with both compilers, package comparison, the four compiler/engine combinations |
+| `compile_probe/<variant>/` | project-owned UnrealScript probe sources (v1, v2 = changed constants, v3 = extended, invalid) and expected output |
 | `tracer/uctrace.c` | debugger-based tracer of the original (functions hit, imports, sites, ordered event points, exceptions) |
 
 ## Model
@@ -36,15 +43,24 @@ explicit host adapters only; one msvcr70 routine (the SSE2 path of `_CIpow`) is 
 - **Addresses.** Guest address `a` is host `xrt_g + a` inside one 4 GB reservation; host pointers are never narrowed.
   Guest handles are table indices, never host `HANDLE` values. Layout: null guard below 64 KB, runtime data,
   uncommitted import-stub region, `UCC.exe` at 0x400000, guest stacks (skipping every linked module's range),
-  `GlmLib.dll` at 0x02df0000 (rebased, see below), `Core.dll` at 0x10100000, `Engine.dll` at 0x10300000, heap
-  0x20000000-0x7FF00000.
-- **Modules and the loader.** Each translated module is lifted for one base. GlmLib.dll's preferred base 0x10000000
-  is taken, so the original loader rebases it (0x02df0000 and 0x02dd0000 were observed); it is lifted with
-  `--base 0x02df0000` and the runtime applies the same base relocations to the mapped image. `LoadLibraryW` of a
-  linked translated module maps it and, depth first, its translated static imports from the application directory,
-  binds imports, then runs `DllMain(DLL_PROCESS_ATTACH)` in dependency order (GlmLib before Engine) under a loader
-  lock. Guest threads get `DLL_THREAD_ATTACH`/`DETACH` for every initialised DLL (none of the modules calls
-  `DisableThreadLibraryCalls`); process exit detaches in reverse initialisation order.
+  `Editor.dll` at 0x02de0000, `GlmLib.dll` at 0x02f40000, `UnrImp.gpi` at 0x036d0000, `Fire.dll` at 0x03710000 (all
+  rebased, see below), `Core.dll` at 0x10100000, `Engine.dll` at 0x10300000, `Window.dll` at 0x11000000, heap
+  0x20000000-0x7FF00000, and at 0x7FF00000 the module handle the guest gets for kernel32.dll (never committed).
+- **Modules and the loader.** Each translated module is lifted for one base. Where the preferred base is taken the
+  original loader rebases the DLL, to an address that varies between runs (`ucc make` traces: Editor.dll
+  0x02de0000/0x028e0000, GlmLib.dll 0x02f40000/0x02e60000, UnrImp.gpi 0x01100000/0x036d0000, Fire.dll
+  0x03670000/0x03710000); the lift uses one observed base (`xlift.py --base`, function entries discovered at the
+  preferred base so the function set does not depend on the base) and the runtime applies the same base relocations
+  to the mapped image. `LoadLibraryW`/`LoadLibraryA` of a linked translated module maps it and, depth first, its
+  translated static imports from the application directory, binds imports, then runs `DllMain(DLL_PROCESS_ATTACH)` in
+  dependency order (GlmLib before Engine) under a loader lock. Guest threads get `DLL_THREAD_ATTACH`/`DETACH` for
+  every initialised DLL (none of the modules calls `DisableThreadLibraryCalls`); process exit detaches in reverse
+  initialisation order. `FreeLibrary` to a zero count unloads: `DllMain(DLL_PROCESS_DETACH)` with lpReserved NULL
+  under the loader lock, the references it holds on its translated imports are released (a dependency reaching zero
+  is unloaded the same way), then the image is decommitted (a later access faults) and the module leaves the lookup
+  tables (GlmLib loads and frees its plugin UnrImp.gpi during editor-mode initialisation). `GetModuleHandleA` of
+  kernel32 returns the runtime's kernel32 handle; `GetProcAddress` on it resolves only to host adapters (anything
+  else is fatal).
 - **Functions.** Each discovered function is `void f_<va>(CPU*)`. Calls push the guest return address; every call
   site checks the address the callee's `ret` popped (`xrt_badret` on mismatch). Indirect calls/jumps and all import
   calls go through the dispatcher; an unknown target is fatal with a diagnostic.
@@ -100,23 +116,34 @@ None of this is a proof for other inputs; "exact" is only claimed for the IEEE b
 - Threads: preemption only at translated function entries and import calls; a guest loop with neither cannot be
   preempted. Guest `CRITICAL_SECTION` contents are initialised but not updated (host critical sections are used).
 - CRT: empty guest environment (`envp`); no wildcard expansion in `__getmainargs` (and no MBCS lead-byte handling,
-  which only matters under a DBCS ANSI code page); only stdout/stderr `FILE`s; wide stdout stops at characters the
+  which only matters under a DBCS ANSI code page); stdout/stderr plus limited `fopen`/`fclose` (`r`/`w`, no stream I/O); wide stdout stops at characters the
   "C" locale cannot convert (as msvcr70 does); `SetConsoleCtrlHandler` is recorded but console events are not forwarded.
-  errno is not modelled (`_errno` is unbound). `qsort`, `atof` (`__strgtold12`/`_ld12tod`) and narrow `sprintf`
+  New file/directory adapters maintain per-thread errno through `_errno`; older adapters do not generally set it. `qsort`, `atof` (`__strgtold12`/`_ld12tod`) and narrow `sprintf`
   (`_output`) are ports of the DLL's own code; `_CIpow` runs the DLL's SSE2 code translated and is fatal if the guest
   control word would select msvcr70's x87 path; `_CIfmod` follows the DLL's measured special-operand rules (not C99).
-  Measured against the real msvcr70: `tools/xrt/tests/crt_gatef` (0 mismatches, incl. VMProbe's recorded inputs) and
+  Expanded filesystem/heap validation still reports 110 differences (last-error state, FILE fields, realloc(NULL,0) size); `_snprintf`/`_vsnprintf` remain unbound (1,796 pending cases). Measured against the real msvcr70: `tools/xrt/tests/crt_gatef` (0 mismatches, incl. VMProbe's recorded inputs) and
   the parallel session's `experiments/xrt/tests/crt_diff` (narrow and wide printf).
-- Loader: unloading a translated module (FreeLibrary to a zero count) is fatal; LoadLibrary of a DLL that is not a
-  linked translated module is fatal (a missing file fails as on Windows); a blocking call inside DllMain is fatal;
-  loader notifications of threads the original process gets from the system are not modelled (only guest threads);
-  GlmLib.dll always sits at 0x02df0000 while the original's choice varies between runs. `FreeConsole` is recorded only:
-  correct while the guest's stdout is a file (as in every measured run), not for a console.
-- Win32: `GlobalMemoryStatus`/`GetSystemInfo` return WOW64-style 32-bit values; file writes, directory changes and
-  attribute changes outside the run's sandbox are refused (fatal); dynamic loading of DLLs other than the translated
-  modules is fatal unless the file does not exist (then NULL, as on Windows).
-- Imports not on the measured paths are unbound and fatal when called (USER32, GDI32, SHELL32, ole32, d3d8, DINPUT,
-  WS2_32, dbghelp, vorbisfile, ...); Engine.dll and GlmLib.dll keep them as genuine imports, nothing is substituted.
+- Loader: LoadLibrary of a DLL that is not a linked translated module is fatal (a missing file fails as on Windows);
+  a blocking call inside DllMain is fatal; loader notifications of threads the original process gets from the system
+  are not modelled (only guest threads; e.g. UnrImp.gpi's CRT thread attach for a system thread in one original
+  trace); every rebased DLL sits at one fixed base while the original's choice varies between runs; `GetProcAddress`
+  on kernel32 resolves only functions that have a host adapter (anything else, and lookups by ordinal, are fatal);
+  reading kernel32's image through its module handle faults. `FreeConsole` is recorded only: correct while the
+  guest's stdout is a file (as in every measured run), not for a console.
+- Win32: `GlobalMemoryStatus`/`GetSystemInfo` return WOW64-style 32-bit values; file writes, moves, directory changes
+  and attribute changes outside the run's sandbox are refused (fatal); dynamic loading of DLLs other than the
+  translated modules is fatal unless the file does not exist (then NULL, as on Windows). For a DLL's own static CRT
+  (UnrImp.gpi, VC7 LIBCMT): TLS uses the 64 TEB slots (index values differ from the original's, expansion slots are
+  fatal); `HeapCreate` heaps are growable heaps on the guest heap (flags other than `HEAP_NO_SERIALIZE`, a maximum
+  size, `HeapReAlloc` and the process heap are fatal); standard handles are the host's (reading or writing them
+  through kernel32 is not modelled); the environment block is empty (the same limitation as `__getmainargs`);
+  `SetUnhandledExceptionFilter` is recorded but never called (an unhandled guest exception is fatal);
+  `IsProcessorFeaturePresent` follows the CPUID policy (SIMD features absent), answers the FDIV-erratum query from
+  the host and is fatal for other features; code-page and locale services are the host's on the same arguments.
+  `CoCreateGuid` returns a host GUID, recorded as an evidence event (package GUIDs are random in the original too).
+- Imports not on the measured paths are unbound and fatal when called (USER32, GDI32, SHELL32, the rest of ole32,
+  d3d8, DINPUT, WS2_32, dbghelp, vorbisfile, ...); the translated DLLs keep them as genuine imports, nothing is
+  substituted.
 
 ## Build and run
 

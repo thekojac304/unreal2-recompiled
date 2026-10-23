@@ -1,27 +1,54 @@
 {
  "date": "2026-10-22",
  "provenance": {
-  "commit": "bfb8118ccda84e40d0768f3349ba1d1d9352164e",
-  "runtime_dirty": "M tools/xrt/discover.py\n M tools/xrt/xlift.py",
+  "commit": "1c7aef2fd39e8348c16368449285259114bba0d7",
+  "runtime_dirty": "M experiments/xrt/runtime/hle_kernel32.c\n M experiments/xrt/runtime/hle_misc.c\n M experiments/xrt/runtime/hle_msvcr70.c\n M experiments/xrt/runtime/xrt_internal.h\n M experiments/xrt/runtime/xrt_loader.c\n M experiments/xrt/runtime/xrt_main.c\n M experiments/xrt/runtime/xrt_mem.c\n M experiments/xrt/runtime/xrt_msvcr70img.c\n M tools/xrt/discover.py\n M tools/xrt/run_xrt.py\n M tools/xrt/tests/crt_gatef/build.cmd\n M tools/xrt/tests/crt_gatef/cand.c\n M tools/xrt/tests/crt_gatef/results.json\n M tools/xrt/tests/ehprobe/build_and_run.cmd\n M tools/xrt/tests/ehprobe/xrt_probe_host.c\n M tools/xrt/tests/test_run_xrt.py\n M tools/xrt/xlift.py\n?? tools/xrt/compile_xrt.py\n?? tools/xrt/tests/test_compile_xrt.py\n?? tools/xrt/tests/test_validation_gates.py",
+  "harness_dirty": "M experiments/xrt/tests/common/xrt_test_stubs.c\n M experiments/xrt/tests/crt_diff/README.md\n M experiments/xrt/tests/crt_diff/build.cmd\n M experiments/xrt/tests/crt_diff/cand.c\n M experiments/xrt/tests/crt_diff/compare.py\n M experiments/xrt/tests/crt_diff/crt_diff_core.h\n M experiments/xrt/tests/crt_diff/gen_corpus.py\n M experiments/xrt/tests/crt_diff/ref.c\n D experiments/xrt/tests/crt_diff/repro/bvsnwerr.1.txt\n D experiments/xrt/tests/crt_diff/repro/bvsnwerr.2.txt\n D experiments/xrt/tests/crt_diff/repro/bvsnwerr.5.txt\n D experiments/xrt/tests/crt_diff/repro/bvsnwerr.6.txt\n M experiments/xrt/tests/f1_wtoi/build.cmd\n M experiments/xrt/tests/f2_mbcs_argv/build.cmd\n M experiments/xrt/tests/f2_mbcs_argv/run_f2.py\n M experiments/xrt/tests/f3_sandbox_guard/build.cmd\n M experiments/xrt/tests/f3_sandbox_guard/f3_test.c\n M experiments/xrt/tests/f3_sandbox_guard/stubs.c\n M experiments/xrt/tests/f4_setfilepointer/adapter.c\n M experiments/xrt/tests/f4_setfilepointer/build.cmd\n M experiments/xrt/tests/insn_diff/mutation_check.py\n M experiments/xrt/tests/insn_diff/results.json\n M experiments/xrt/tests/insn_diff/run.py\n?? experiments/xrt/tests/crt_diff/repro/fff.0.txt\n?? experiments/xrt/tests/crt_diff/repro/fff.1.txt\n?? experiments/xrt/tests/crt_diff/repro/fff.10.txt\n?? experiments/xrt/tests/crt_diff/repro/fff.11.txt\n?? experiments/xrt/tests/crt_diff/repro/fff.12.txt\n?? experiments/xrt/tests/crt_diff/repro/fff.13.txt\n?? experiments/xrt/tests/crt_diff/repro/fff.14.txt\n?? experiments/xrt/tests/crt_diff/repro/fff.15.txt\n?? experiments/xrt/tests/crt_diff/repro/fff.16.txt\n?? experiments/xrt/tests/crt_diff/repro/fff.17.txt\n?? experiments/xrt/tests/crt_diff/repro/fff.18.txt\n?? experiments/xrt/tests/crt_diff/repro/fff.19.txt\n?? experiments/xrt/tests/crt_diff/repro/fff.2.txt\n?? experiments/xrt/tests/crt_diff/repro/fff.20.txt\n?? experiments/xrt/tests/crt_diff/repro/fff.21.txt\n?? experiments/xrt/tests/crt_diff/repro/fff.22.txt\n?? experiments/xrt/tests/crt_diff/repro/fff.23.txt\n?? experiments/xrt/tests/crt_diff/repro/fff.24.txt\n?? experiments/xrt/tests/crt_diff/repro/fff.25.txt\n?? experiments/xrt/tests/crt_diff/repro/fff.26.txt\n?? experiments/xrt/tests/crt_diff/repro/fff.27.txt\n?? experiments/xrt/tests/crt_diff/repro/fff.28.txt\n?? experiments/xrt/tests/crt_diff/repro/fff.29.txt\n?? experiments/xrt/tests/crt_diff/repro/fff.3.txt\n?? experiments/xrt/tests/crt_diff/repro/fff.30.txt\n?? experiments/xrt/tests/crt_diff/repro/fff.31.txt\n?? experiments/xrt/tests/crt_diff/repro/fff.32.txt\n?? experiments/xrt/tests/crt_diff/repro/fff.33.txt\n?? experiments/xrt/tests/crt_diff/repro/fff.34.txt\n?? experiments/xrt/tests/crt_diff/repro/fff.35.txt\n?? experiments/xrt/tests/crt_diff/repro/fff.36.txt\n?? experiments/xrt/tests/crt_diff/repro/fff.37.txt\n?? experiments/xrt/tests/crt_diff/repro/fff.38.txt\n?? experiments/xrt/tests/crt_diff/repro/fff.39.txt\n?? experiments/xrt/tests/crt_diff/repro/fff.4.txt\n?? experiments/xrt/tests/crt_diff/repro/fff.40.txt\n?? experiments/xrt/tests/crt_diff/repro/fff.41.txt\n?? experiments/xrt/tests/crt_diff/repro/fff.42.txt\n?? experiments/xrt/tests/crt_diff/repro/fff.43.txt\n?? experiments/xrt/tests/crt_diff/repro/fff.44.txt\n?? experiments/xrt/tests/crt_diff/repro/fff.45.txt\n?? experiments/xrt/tests/crt_diff/repro/fff.46.txt\n?? experiments/xrt/tests/crt_diff/repro/fff.47.txt\n?? experiments/xrt/tests/crt_diff/repro/fff.48.txt\n?? experiments/xrt/tests/crt_diff/repro/fff.49.txt\n?? experiments/xrt/tests/crt_diff/repro/fff.5.txt\n?? experiments/xrt/tests/crt_diff/repro/fff.50.txt\n?? experiments/xrt/tests/crt_diff/repro/fff.51.txt\n?? experiments/xrt/tests/crt_diff/repro/fff.52.txt\n?? experiments/xrt/tests/crt_diff/repro/fff.53.txt\n?? experiments/xrt/tests/crt_diff/repro/fff.54.txt\n?? experiments/xrt/tests/crt_diff/repro/fff.55.txt\n?? experiments/xrt/tests/crt_diff/repro/fff.56.txt\n?? experiments/xrt/tests/crt_diff/repro/fff.57.txt\n?? experiments/xrt/tests/crt_diff/repro/fff.6.txt\n?? experiments/xrt/tests/crt_diff/repro/fff.62.txt\n?? experiments/xrt/tests/crt_diff/repro/fff.63.txt\n?? experiments/xrt/tests/crt_diff/repro/fff.64.txt\n?? experiments/xrt/tests/crt_diff/repro/fff.65.txt\n?? experiments/xrt/tests/crt_diff/repro/fff.66.txt\n?? experiments/xrt/tests/crt_diff/repro/fff.67.txt\n?? experiments/xrt/tests/crt_diff/repro/fff.7.txt\n?? experiments/xrt/tests/crt_diff/repro/fff.8.txt\n?? experiments/xrt/tests/crt_diff/repro/fff.9.txt\n?? experiments/xrt/tests/crt_diff/repro/ffind.0.txt\n?? experiments/xrt/tests/crt_diff/repro/ffind.1.txt\n?? experiments/xrt/tests/crt_diff/repro/ffind.10.txt\n?? experiments/xrt/tests/crt_diff/repro/ffind.13.txt\n?? experiments/xrt/tests/crt_diff/repro/ffind.14.txt\n?? experiments/xrt/tests/crt_diff/repro/ffind.15.txt\n?? experiments/xrt/tests/crt_diff/repro/ffind.16.txt\n?? experiments/xrt/tests/crt_diff/repro/ffind.17.txt\n?? experiments/xrt/tests/crt_diff/repro/ffind.18.txt\n?? experiments/xrt/tests/crt_diff/repro/ffind.19.txt\n?? experiments/xrt/tests/crt_diff/repro/ffind.2.txt\n?? experiments/xrt/tests/crt_diff/repro/ffind.20.txt\n?? experiments/xrt/tests/crt_diff/repro/ffind.21.txt\n?? experiments/xrt/tests/crt_diff/repro/ffind.3.txt\n?? experiments/xrt/tests/crt_diff/repro/ffind.4.txt\n?? experiments/xrt/tests/crt_diff/repro/ffind.5.txt\n?? experiments/xrt/tests/crt_diff/repro/ffind.6.txt\n?? experiments/xrt/tests/crt_diff/repro/ffind.7.txt\n?? experiments/xrt/tests/crt_diff/repro/ffind.8.txt\n?? experiments/xrt/tests/crt_diff/repro/ffind.9.txt\n?? experiments/xrt/tests/crt_diff/repro/ffull.15.txt\n?? experiments/xrt/tests/crt_diff/repro/ffull.16.txt\n?? experiments/xrt/tests/crt_diff/repro/ffull.39.txt\n?? experiments/xrt/tests/crt_diff/repro/fopen.0.txt\n?? experiments/xrt/tests/crt_diff/repro/fopen.1.txt\n?? experiments/xrt/tests/crt_diff/repro/fopen.10.txt\n?? experiments/xrt/tests/crt_diff/repro/fopen.11.txt\n?? experiments/xrt/tests/crt_diff/repro/fopen.12.txt\n?? experiments/xrt/tests/crt_diff/repro/fopen.13.txt\n?? experiments/xrt/tests/crt_diff/repro/fopen.14.txt\n?? experiments/xrt/tests/crt_diff/repro/fopen.15.txt\n?? experiments/xrt/tests/crt_diff/repro/fopen.16.txt\n?? experiments/xrt/tests/crt_diff/repro/fopen.17.txt\n?? experiments/xrt/tests/crt_diff/repro/fopen.18.txt\n?? experiments/xrt/tests/crt_diff/repro/fopen.19.txt\n?? experiments/xrt/tests/crt_diff/repro/fopen.2.txt\n?? experiments/xrt/tests/crt_diff/repro/fopen.20.txt\n?? experiments/xrt/tests/crt_diff/repro/fopen.21.txt\n?? experiments/xrt/tests/crt_diff/repro/fopen.3.txt\n?? experiments/xrt/tests/crt_diff/repro/fopen.4.txt\n?? experiments/xrt/tests/crt_diff/repro/fopen.5.txt\n?? experiments/xrt/tests/crt_diff/repro/fopen.6.txt\n?? experiments/xrt/tests/crt_diff/repro/fopen.7.txt\n?? experiments/xrt/tests/crt_diff/repro/fopen.8.txt\n?? experiments/xrt/tests/crt_diff/repro/fopen.9.txt\n?? experiments/xrt/tests/crt_diff/repro/zrealloc.2.txt",
   "runtime_sources_sha256": {
    "xrt_fmt.c": "7a1003e73a95b78dea1b243c106c4df5b452c66032a35623cf10a0a7f9a99178",
-   "hle_msvcr70.c": "5735fbc3d9198c87df1b4f7fd0cbd7c710dd3324b2cb472dcf2d752cbd7eb61d",
-   "xrt_mem.c": "8b188bd8ea56b64c3e9079a272496635ac88f93b56aa76d29e5db38c1e2a3d95",
+   "hle_msvcr70.c": "0fc4150931ede6ff6b0272a37d65a787e2f60bad454830a30686cd55fe621618",
+   "xrt_mem.c": "c8df54a118b29e00d73ecdc1e61e066748b64e3049f63cbea5f5ae3ec4ccc27b",
+   "hle_kernel32.c": "f8c901bbffc483b65d43035fdac2441ceeefdf389627c797fe6b9be45336dd14",
+   "xrt_msvcr70img.c": "17c060c3109fa60acd550ffaa260d5299c19a2e99bf9af2f2fe229e4a3431f05",
    "xrt.h": "8cf3867a876d3888af8d4cb55c7ad9c9f7d11b29286cb82d9fe268215abf623e",
-   "xrt_internal.h": "c7e96675cd920814f7d0cbadbc80728b8353ce8b3e712f94b181d57eac235a94"
+   "xrt_internal.h": "f829390f222b4d4de586220d0c7a58e824be831ec0a840fcd7aa5f4118bc40de"
   },
-  "ref_exe_sha256": "4389c6d4c76aa41e57c94d44a26b59c53639dfb5bd96bdd2d3bbeca69a7d1584",
-  "cand_exe_sha256": "ffecb58b44d659dd04f2074b8a9430042bd008f947d8cc84e0e3282363696814",
+  "generated_sources_sha256 (git-ignored)": {
+   "experiments/xrt/gen/msvcr70/pow_sse2.c": "0ef7e49f3c7da995994d0269cf0cd1418f54a5008414014f73745ff1be81d111"
+  },
+  "harness_sources_sha256": {
+   "crt_diff_core.h": "8c3b82343dda8b379982fd7eebafd774f04818dc1ae5ec88a3a516fed2115f4e",
+   "ref.c": "8ab597c4660331f865ac2e249d4ff295cdc93cf43adee188aa09adee586722fb",
+   "cand.c": "1ae3138586ed4cd86dd3460f2b403208335be48c8c0f2a2dd6cd37f196e418fc",
+   "gen_corpus.py": "1864429487c5e06589b378f540d8669165adbe99902d36565d47ec9ae6a16f70",
+   "compare.py": "74a5836b4bf1c3ae10281379c5f0f989b6f528021cfb182c60be14c6988a3c83",
+   "build.cmd": "4e862e462e7e74d4d1bcf4bfd63caa628c319cbb0a9cdfea87297d0c179bcd9e",
+   "../common/xrt_test_stubs.c": "21f5c524ac0f046d68f0b7766620cd9697d33556eaa0481ab08dc7ffea232c14"
+  },
+  "corpus_sha256": {
+   "corpus.txt": "fbf73dd058e2335c648a2b7915dff8f4cbeea04bbd380a213027fa7e117fe16d",
+   "errors.txt": "06dd49b003dc57b49977364dfce3730aca68fd0a7a79c8ed76a54b48f1f7dcdf"
+  },
+  "environment_removed": [
+   "TZ",
+   "__MSVCRT_HEAP_SELECT"
+  ],
+  "environment_removed_were_set": [],
+  "ref_exe_sha256": "d5490ddf547521dea09bb2ed66852bc8bfd73415142d4eb99cd30f5106215b12",
+  "cand_exe_sha256": "3313736538ed0d9ff1d6cd291d25908952b290171c345016e40861ba081d2db3",
   "candidate_adapters": [
    "bounded _snprintf: no adapter (PENDING)",
    "bounded _vsnprintf: no adapter (PENDING)",
-   "bounded _vsnwprintf: adapter"
+   "bounded _vsnwprintf: adapter",
+   "dependencies with an adapter: vsprintf strrchr strchr strncpy _stricmp atoi toupper qsort malloc realloc _msize free _set_se_translator _getcwd _fullpath _chdir _findfirst _findnext _findclose fopen fclose _errno",
+   "dependencies without an adapter (PENDING):"
   ],
   "commands": [
    ".venv\\Scripts\\python.exe -I experiments\\xrt\\tests\\crt_diff\\gen_corpus.py experiments\\xrt\\build\\crt_diff\\corpus.txt --seed 20261022 --i10 6000 --errors-out experiments\\xrt\\build\\crt_diff\\errors.txt",
    "build\\crt_diff\\ref.exe <dll> corpus.txt ref_results.txt",
-   "build\\crt_diff\\cand.exe corpus.txt cand_results.txt",
-   "per E line: ref.exe and cand.exe on a one-line corpus"
+   "build\\crt_diff\\cand.exe corpus.txt cand_results.txt sandbox_ref\\hellofull",
+   "per E/X/F line: ref.exe and cand.exe on a one-line corpus (F: current directory build\\crt_diff\\fs\\root, rebuilt before each process; reference run twice)",
+   "environment of every process: compare.py's without TZ and __MSVCRT_HEAP_SELECT"
   ]
  },
  "reference": {
@@ -31,8 +58,31 @@
  "corpus": {
   "seed": 20261022,
   "i10_cases": 6000,
-  "cases": 212250,
+  "cases": 244110,
+  "isolated_cases": {
+   "E": 27,
+   "X": 4,
+   "F": 189
+  },
   "isolated_error_cases": 27
+ },
+ "fs": {
+  "root": "experiments/xrt/build/crt_diff/fs/root",
+  "tree_spec_sha256": "d37eb4a7e4bec3d43ed321c5b68268b8059a2d4d19536b8c1e8519eebcc09358",
+  "access_time_t0_filetime": 134371932550000000,
+  "system_time_zone_at_start": {
+   "standard_name": "Eastern Standard Time",
+   "daylight_name": "Eastern Daylight Time",
+   "bias_minutes": 300,
+   "daylight_bias_minutes": -60,
+   "dst_in_effect": true
+  },
+  "system_time_zone_changed_during_run": false,
+  "acp": 1252,
+  "reference_self_check": {
+   "f_lines": 189,
+   "reproducible": 189
+  }
  },
  "categories": {
   "int": {
@@ -485,6 +535,171 @@
    "mismatches": 0,
    "pending": 0
   },
+  "vint": {
+   "cases": 9504,
+   "mismatches": 0,
+   "pending": 0
+  },
+  "vintsweep": {
+   "cases": 2592,
+   "mismatches": 0,
+   "pending": 0
+  },
+  "vflt": {
+   "cases": 6460,
+   "mismatches": 0,
+   "pending": 0
+  },
+  "vfltsweep": {
+   "cases": 4800,
+   "mismatches": 0,
+   "pending": 0
+  },
+  "vfltfix": {
+   "cases": 31,
+   "mismatches": 0,
+   "pending": 0
+  },
+  "vptr": {
+   "cases": 192,
+   "mismatches": 0,
+   "pending": 0
+  },
+  "vn": {
+   "cases": 26,
+   "mismatches": 0,
+   "pending": 0
+  },
+  "vodd": {
+   "cases": 258,
+   "mismatches": 0,
+   "pending": 0
+  },
+  "voddB": {
+   "cases": 20,
+   "mismatches": 0,
+   "pending": 0
+  },
+  "vfuzz": {
+   "cases": 1559,
+   "mismatches": 0,
+   "pending": 0
+  },
+  "vcstr": {
+   "cases": 104,
+   "mismatches": 0,
+   "pending": 0
+  },
+  "vtrunc": {
+   "cases": 47,
+   "mismatches": 0,
+   "pending": 0
+  },
+  "vcount": {
+   "cases": 4,
+   "mismatches": 0,
+   "pending": 0
+  },
+  "vnstr": {
+   "cases": 768,
+   "mismatches": 0,
+   "pending": 0
+  },
+  "vnchr": {
+   "cases": 288,
+   "mismatches": 0,
+   "pending": 0
+  },
+  "vntext": {
+   "cases": 62,
+   "mismatches": 0,
+   "pending": 0
+  },
+  "vnmix": {
+   "cases": 600,
+   "mismatches": 0,
+   "pending": 0
+  },
+  "tstrrchr": {
+   "cases": 491,
+   "mismatches": 0,
+   "pending": 0
+  },
+  "tstrchr": {
+   "cases": 491,
+   "mismatches": 0,
+   "pending": 0
+  },
+  "tstrncpy": {
+   "cases": 864,
+   "mismatches": 0,
+   "pending": 0
+  },
+  "tstricmp": {
+   "cases": 378,
+   "mismatches": 0,
+   "pending": 0
+  },
+  "tatoi": {
+   "cases": 78,
+   "mismatches": 0,
+   "pending": 0
+  },
+  "tatoiall": {
+   "cases": 255,
+   "mismatches": 0,
+   "pending": 0
+  },
+  "ttoupper": {
+   "cases": 269,
+   "mismatches": 0,
+   "pending": 0
+  },
+  "qi32": {
+   "cases": 320,
+   "mismatches": 0,
+   "pending": 0
+  },
+  "qdiff": {
+   "cases": 160,
+   "mismatches": 0,
+   "pending": 0
+  },
+  "qdesc": {
+   "cases": 160,
+   "mismatches": 0,
+   "pending": 0
+  },
+  "qkey": {
+   "cases": 640,
+   "mismatches": 0,
+   "pending": 0
+  },
+  "qzero": {
+   "cases": 160,
+   "mismatches": 0,
+   "pending": 0
+  },
+  "qedge": {
+   "cases": 2,
+   "mismatches": 0,
+   "pending": 0
+  },
+  "zsize": {
+   "cases": 39,
+   "mismatches": 0,
+   "pending": 0
+  },
+  "zrealloc": {
+   "cases": 5,
+   "mismatches": 1,
+   "pending": 0
+  },
+  "zmix": {
+   "cases": 40,
+   "mismatches": 0,
+   "pending": 0
+  },
   "bsnerr": {
    "cases": 9,
    "mismatches": 0,
@@ -493,90 +708,108 @@
     "bsnerr.0": {
      "ref": [
       "ret",
-      "R=0"
+      "R=0",
+      ""
      ],
      "cand": [
       "pending",
+      "",
       ""
      ]
     },
     "bsnerr.1": {
      "ref": [
       "ret",
-      "R=3"
+      "R=3",
+      ""
      ],
      "cand": [
       "pending",
+      "",
       ""
      ]
     },
     "bsnerr.2": {
      "ref": [
       "ret",
-      "R=5"
+      "R=5",
+      ""
      ],
      "cand": [
       "pending",
+      "",
       ""
      ]
     },
     "bsnerr.3": {
      "ref": [
       "ret",
-      "R=3"
+      "R=3",
+      ""
      ],
      "cand": [
       "pending",
+      "",
       ""
      ]
     },
     "bsnerr.4": {
      "ref": [
       "ret",
-      "R=3"
+      "R=3",
+      ""
      ],
      "cand": [
       "pending",
+      "",
       ""
      ]
     },
     "bsnerr.5": {
      "ref": [
       "ret",
-      "R=3"
+      "R=3",
+      ""
      ],
      "cand": [
       "pending",
+      "",
       ""
      ]
     },
     "bsnerr.6": {
      "ref": [
       "ret",
-      "R=3"
+      "R=3",
+      ""
      ],
      "cand": [
       "pending",
+      "",
       ""
      ]
     },
     "bsnerr.7": {
      "ref": [
       "fault",
-      "EXC=C0000005"
+      "EXC=C0000005",
+      ""
      ],
      "cand": [
       "pending",
+      "",
       ""
      ]
     },
     "bsnerr.8": {
      "ref": [
       "fault",
-      "EXC=C0000005"
+      "EXC=C0000005",
+      ""
      ],
      "cand": [
       "pending",
+      "",
       ""
      ]
     }
@@ -590,90 +823,108 @@
     "bvsnerr.0": {
      "ref": [
       "ret",
-      "R=0"
+      "R=0",
+      ""
      ],
      "cand": [
       "pending",
+      "",
       ""
      ]
     },
     "bvsnerr.1": {
      "ref": [
       "ret",
-      "R=3"
+      "R=3",
+      ""
      ],
      "cand": [
       "pending",
+      "",
       ""
      ]
     },
     "bvsnerr.2": {
      "ref": [
       "ret",
-      "R=5"
+      "R=5",
+      ""
      ],
      "cand": [
       "pending",
+      "",
       ""
      ]
     },
     "bvsnerr.3": {
      "ref": [
       "ret",
-      "R=3"
+      "R=3",
+      ""
      ],
      "cand": [
       "pending",
+      "",
       ""
      ]
     },
     "bvsnerr.4": {
      "ref": [
       "ret",
-      "R=3"
+      "R=3",
+      ""
      ],
      "cand": [
       "pending",
+      "",
       ""
      ]
     },
     "bvsnerr.5": {
      "ref": [
       "ret",
-      "R=3"
+      "R=3",
+      ""
      ],
      "cand": [
       "pending",
+      "",
       ""
      ]
     },
     "bvsnerr.6": {
      "ref": [
       "ret",
-      "R=3"
+      "R=3",
+      ""
      ],
      "cand": [
       "pending",
+      "",
       ""
      ]
     },
     "bvsnerr.7": {
      "ref": [
       "fault",
-      "EXC=C0000005"
+      "EXC=C0000005",
+      ""
      ],
      "cand": [
       "pending",
+      "",
       ""
      ]
     },
     "bvsnerr.8": {
      "ref": [
       "fault",
-      "EXC=C0000005"
+      "EXC=C0000005",
+      ""
      ],
      "cand": [
       "pending",
+      "",
       ""
      ]
     }
@@ -681,162 +932,2978 @@
   },
   "bvsnwerr": {
    "cases": 9,
-   "mismatches": 4,
+   "mismatches": 0,
    "pending": 0,
    "outcomes": {
     "bvsnwerr.0": {
      "ref": [
       "ret",
-      "R=0"
+      "R=0",
+      ""
      ],
      "cand": [
       "ret",
-      "R=0"
+      "R=0",
+      ""
      ]
     },
     "bvsnwerr.1": {
      "ref": [
       "ret",
-      "R=3"
+      "R=3",
+      ""
      ],
      "cand": [
       "ret",
-      "R=-1"
+      "R=3",
+      ""
      ]
     },
     "bvsnwerr.2": {
      "ref": [
       "ret",
-      "R=5"
+      "R=5",
+      ""
      ],
      "cand": [
       "ret",
-      "R=-1"
+      "R=5",
+      ""
      ]
     },
     "bvsnwerr.3": {
      "ref": [
       "fault",
-      "EXC=C0000005"
+      "EXC=C0000005",
+      ""
      ],
      "cand": [
       "fault",
-      "process exit 0xC0000005"
+      "EXC=C0000005",
+      ""
      ]
     },
     "bvsnwerr.4": {
      "ref": [
       "fault",
-      "EXC=C0000005"
+      "EXC=C0000005",
+      ""
      ],
      "cand": [
       "fault",
-      "process exit 0xC0000005"
+      "EXC=C0000005",
+      ""
      ]
     },
     "bvsnwerr.5": {
      "ref": [
       "ret",
-      "R=3"
+      "R=3",
+      ""
      ],
      "cand": [
       "ret",
-      "R=-1"
+      "R=3",
+      ""
      ]
     },
     "bvsnwerr.6": {
      "ref": [
       "ret",
-      "R=3"
+      "R=3",
+      ""
      ],
      "cand": [
       "ret",
-      "R=-1"
+      "R=3",
+      ""
      ]
     },
     "bvsnwerr.7": {
      "ref": [
       "fault",
-      "EXC=C0000005"
+      "EXC=C0000005",
+      ""
      ],
      "cand": [
       "fault",
-      "process exit 0xC0000005"
+      "EXC=C0000005",
+      ""
      ]
     },
     "bvsnwerr.8": {
      "ref": [
       "fault",
-      "EXC=C0000005"
+      "EXC=C0000005",
+      ""
      ],
      "cand": [
       "fault",
-      "process exit 0xC0000005"
+      "EXC=C0000005",
+      ""
      ]
+    }
+   }
+  },
+  "xsetse": {
+   "cases": 4,
+   "mismatches": 0,
+   "pending": 0,
+   "outcomes": {
+    "xsetse.0": {
+     "ref": [
+      "ret",
+      "R=00000000",
+      ""
+     ],
+     "cand": [
+      "ret",
+      "R=00000000",
+      ""
+     ]
+    },
+    "xsetse.1": {
+     "ref": [
+      "ret",
+      "R=00000000,10001234,20005678",
+      ""
+     ],
+     "cand": [
+      "ret",
+      "R=00000000,10001234,20005678",
+      ""
+     ]
+    },
+    "xsetse.2": {
+     "ref": [
+      "ret",
+      "R=00000000,00000000",
+      ""
+     ],
+     "cand": [
+      "ret",
+      "R=00000000,00000000",
+      ""
+     ]
+    },
+    "xsetse.3": {
+     "ref": [
+      "ret",
+      "R=00000000,FFFFFFFF,00000001",
+      ""
+     ],
+     "cand": [
+      "ret",
+      "R=00000000,FFFFFFFF,00000001",
+      ""
+     ]
+    }
+   }
+  },
+  "fcwd": {
+   "cases": 12,
+   "mismatches": 0,
+   "pending": 0,
+   "outcomes": {
+    "fcwd.0": {
+     "ref": [
+      "ret",
+      "sha256:fe41d06427c06d3e (611 chars)",
+      ""
+     ],
+     "cand": [
+      "ret",
+      "sha256:fe41d06427c06d3e (611 chars)",
+      ""
+     ],
+     "reference_reproducible": true
+    },
+    "fcwd.1": {
+     "ref": [
+      "ret",
+      "; cwd le=21845 e=0 R=b+0 B=A5A5A5A5A5A5A5A5A5A5A5A5A5A5A5A5453A5C556E7265616C322D506F72742D496E7665737469676174696F6E5C6578706572696D656E74735C7872745C6275696C645C6372745F646966665C66735C726F6F74005A5A5A5A5A5A5A5A5A5A5A5A5A5A5A5A",
+      ""
+     ],
+     "cand": [
+      "ret",
+      "; cwd le=21845 e=0 R=b+0 B=A5A5A5A5A5A5A5A5A5A5A5A5A5A5A5A5453A5C556E7265616C322D506F72742D496E7665737469676174696F6E5C6578706572696D656E74735C7872745C6275696C645C6372745F646966665C66735C726F6F74005A5A5A5A5A5A5A5A5A5A5A5A5A5A5A5A",
+      ""
+     ],
+     "reference_reproducible": true
+    },
+    "fcwd.2": {
+     "ref": [
+      "ret",
+      "; cwd le=21845 e=0 R=b+0 B=A5A5A5A5A5A5A5A5A5A5A5A5A5A5A5A5453A5C556E7265616C322D506F72742D496E7665737469676174696F6E5C6578706572696D656E74735C7872745C6275696C645C6372745F646966665C66735C726F6F7400CC5A5A5A5A5A5A5A5A5A5A5A5A5A5A5A5A",
+      ""
+     ],
+     "cand": [
+      "ret",
+      "; cwd le=21845 e=0 R=b+0 B=A5A5A5A5A5A5A5A5A5A5A5A5A5A5A5A5453A5C556E7265616C322D506F72742D496E7665737469676174696F6E5C6578706572696D656E74735C7872745C6275696C645C6372745F646966665C66735C726F6F7400CC5A5A5A5A5A5A5A5A5A5A5A5A5A5A5A5A",
+      ""
+     ],
+     "reference_reproducible": true
+    },
+    "fcwd.3": {
+     "ref": [
+      "ret",
+      "; cwd le=21845 e=34 R=0 B=A5A5A5A5A5A5A5A5A5A5A5A5A5A5A5A5CCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCC5A5A5A5A5A5A5A5A5A5A5A5A5A5A5A5A",
+      ""
+     ],
+     "cand": [
+      "ret",
+      "; cwd le=21845 e=34 R=0 B=A5A5A5A5A5A5A5A5A5A5A5A5A5A5A5A5CCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCC5A5A5A5A5A5A5A5A5A5A5A5A5A5A5A5A",
+      ""
+     ],
+     "reference_reproducible": true
+    },
+    "fcwd.4": {
+     "ref": [
+      "ret",
+      "; cwd le=21845 e=34 R=0 B=A5A5A5A5A5A5A5A5A5A5A5A5A5A5A5A5CCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCC5A5A5A5A5A5A5A5A5A5A5A5A5A5A5A5A",
+      ""
+     ],
+     "cand": [
+      "ret",
+      "; cwd le=21845 e=34 R=0 B=A5A5A5A5A5A5A5A5A5A5A5A5A5A5A5A5CCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCC5A5A5A5A5A5A5A5A5A5A5A5A5A5A5A5A",
+      ""
+     ],
+     "reference_reproducible": true
+    },
+    "fcwd.5": {
+     "ref": [
+      "ret",
+      "; cwd le=21845 e=34 R=0 B=A5A5A5A5A5A5A5A5A5A5A5A5A5A5A5A5CC5A5A5A5A5A5A5A5A5A5A5A5A5A5A5A5A",
+      ""
+     ],
+     "cand": [
+      "ret",
+      "; cwd le=21845 e=34 R=0 B=A5A5A5A5A5A5A5A5A5A5A5A5A5A5A5A5CC5A5A5A5A5A5A5A5A5A5A5A5A5A5A5A5A",
+      ""
+     ],
+     "reference_reproducible": true
+    },
+    "fcwd.6": {
+     "ref": [
+      "ret",
+      "; cwd le=21845 e=34 R=0 B=A5A5A5A5A5A5A5A5A5A5A5A5A5A5A5A55A5A5A5A5A5A5A5A5A5A5A5A5A5A5A5A",
+      ""
+     ],
+     "cand": [
+      "ret",
+      "; cwd le=21845 e=34 R=0 B=A5A5A5A5A5A5A5A5A5A5A5A5A5A5A5A55A5A5A5A5A5A5A5A5A5A5A5A5A5A5A5A",
+      ""
+     ],
+     "reference_reproducible": true
+    },
+    "fcwd.7": {
+     "ref": [
+      "ret",
+      "; cwd le=21845 e=0 R=m S=453A5C556E7265616C322D506F72742D496E7665737469676174696F6E5C6578706572696D656E74735C7872745C6275696C645C6372745F646966665C66735C726F6F74 M=69",
+      ""
+     ],
+     "cand": [
+      "ret",
+      "; cwd le=21845 e=0 R=m S=453A5C556E7265616C322D506F72742D496E7665737469676174696F6E5C6578706572696D656E74735C7872745C6275696C645C6372745F646966665C66735C726F6F74 M=69",
+      ""
+     ],
+     "reference_reproducible": true
+    },
+    "fcwd.8": {
+     "ref": [
+      "ret",
+      "; cwd le=21845 e=0 R=m S=453A5C556E7265616C322D506F72742D496E7665737469676174696F6E5C6578706572696D656E74735C7872745C6275696C645C6372745F646966665C66735C726F6F74 M=69",
+      ""
+     ],
+     "cand": [
+      "ret",
+      "; cwd le=21845 e=0 R=m S=453A5C556E7265616C322D506F72742D496E7665737469676174696F6E5C6578706572696D656E74735C7872745C6275696C645C6372745F646966665C66735C726F6F74 M=69",
+      ""
+     ],
+     "reference_reproducible": true
+    },
+    "fcwd.9": {
+     "ref": [
+      "ret",
+      "; cwd le=21845 e=0 R=m S=453A5C556E7265616C322D506F72742D496E7665737469676174696F6E5C6578706572696D656E74735C7872745C6275696C645C6372745F646966665C66735C726F6F74 M=260",
+      ""
+     ],
+     "cand": [
+      "ret",
+      "; cwd le=21845 e=0 R=m S=453A5C556E7265616C322D506F72742D496E7665737469676174696F6E5C6578706572696D656E74735C7872745C6275696C645C6372745F646966665C66735C726F6F74 M=260",
+      ""
+     ],
+     "reference_reproducible": true
+    },
+    "fcwd.10": {
+     "ref": [
+      "ret",
+      "; cwd le=21845 e=0 R=m S=453A5C556E7265616C322D506F72742D496E7665737469676174696F6E5C6578706572696D656E74735C7872745C6275696C645C6372745F646966665C66735C726F6F74 M=69",
+      ""
+     ],
+     "cand": [
+      "ret",
+      "; cwd le=21845 e=0 R=m S=453A5C556E7265616C322D506F72742D496E7665737469676174696F6E5C6578706572696D656E74735C7872745C6275696C645C6372745F646966665C66735C726F6F74 M=69",
+      ""
+     ],
+     "reference_reproducible": true
+    },
+    "fcwd.11": {
+     "ref": [
+      "ret",
+      "; cwd le=21845 e=0 R=m S=453A5C556E7265616C322D506F72742D496E7665737469676174696F6E5C6578706572696D656E74735C7872745C6275696C645C6372745F646966665C66735C726F6F74 M=69",
+      ""
+     ],
+     "cand": [
+      "ret",
+      "; cwd le=21845 e=0 R=m S=453A5C556E7265616C322D506F72742D496E7665737469676174696F6E5C6578706572696D656E74735C7872745C6275696C645C6372745F646966665C66735C726F6F74 M=69",
+      ""
+     ],
+     "reference_reproducible": true
+    }
+   }
+  },
+  "fchdir": {
+   "cases": 22,
+   "mismatches": 0,
+   "pending": 0,
+   "outcomes": {
+    "fchdir.0": {
+     "ref": [
+      "ret",
+      "sha256:372f4b2d66dced02 (633 chars)",
+      ""
+     ],
+     "cand": [
+      "ret",
+      "sha256:372f4b2d66dced02 (633 chars)",
+      ""
+     ],
+     "reference_reproducible": true
+    },
+    "fchdir.1": {
+     "ref": [
+      "ret",
+      "sha256:372f4b2d66dced02 (633 chars)",
+      ""
+     ],
+     "cand": [
+      "ret",
+      "sha256:372f4b2d66dced02 (633 chars)",
+      ""
+     ],
+     "reference_reproducible": true
+    },
+    "fchdir.2": {
+     "ref": [
+      "ret",
+      "sha256:1697231732aa4800 (633 chars)",
+      ""
+     ],
+     "cand": [
+      "ret",
+      "sha256:1697231732aa4800 (633 chars)",
+      ""
+     ],
+     "reference_reproducible": true
+    },
+    "fchdir.3": {
+     "ref": [
+      "ret",
+      "sha256:202d0a4c49410765 (633 chars)",
+      ""
+     ],
+     "cand": [
+      "ret",
+      "sha256:202d0a4c49410765 (633 chars)",
+      ""
+     ],
+     "reference_reproducible": true
+    },
+    "fchdir.4": {
+     "ref": [
+      "ret",
+      "sha256:cd5451f671b02d1f (633 chars)",
+      ""
+     ],
+     "cand": [
+      "ret",
+      "sha256:cd5451f671b02d1f (633 chars)",
+      ""
+     ],
+     "reference_reproducible": true
+    },
+    "fchdir.5": {
+     "ref": [
+      "ret",
+      "sha256:792653f609002153 (633 chars)",
+      ""
+     ],
+     "cand": [
+      "ret",
+      "sha256:792653f609002153 (633 chars)",
+      ""
+     ],
+     "reference_reproducible": true
+    },
+    "fchdir.6": {
+     "ref": [
+      "ret",
+      "sha256:372f4b2d66dced02 (633 chars)",
+      ""
+     ],
+     "cand": [
+      "ret",
+      "sha256:372f4b2d66dced02 (633 chars)",
+      ""
+     ],
+     "reference_reproducible": true
+    },
+    "fchdir.7": {
+     "ref": [
+      "ret",
+      "sha256:1a2875cb943bf315 (633 chars)",
+      ""
+     ],
+     "cand": [
+      "ret",
+      "sha256:1a2875cb943bf315 (633 chars)",
+      ""
+     ],
+     "reference_reproducible": true
+    },
+    "fchdir.8": {
+     "ref": [
+      "ret",
+      "sha256:6375b366523ce5d8 (633 chars)",
+      ""
+     ],
+     "cand": [
+      "ret",
+      "sha256:6375b366523ce5d8 (633 chars)",
+      ""
+     ],
+     "reference_reproducible": true
+    },
+    "fchdir.9": {
+     "ref": [
+      "ret",
+      "sha256:5f9f392ce02df61b (634 chars)",
+      ""
+     ],
+     "cand": [
+      "ret",
+      "sha256:5f9f392ce02df61b (634 chars)",
+      ""
+     ],
+     "reference_reproducible": true
+    },
+    "fchdir.10": {
+     "ref": [
+      "ret",
+      "sha256:b3c6eec65ae27109 (630 chars)",
+      ""
+     ],
+     "cand": [
+      "ret",
+      "sha256:b3c6eec65ae27109 (630 chars)",
+      ""
+     ],
+     "reference_reproducible": true
+    },
+    "fchdir.11": {
+     "ref": [
+      "ret",
+      "sha256:9c59b31b146429c7 (634 chars)",
+      ""
+     ],
+     "cand": [
+      "ret",
+      "sha256:9c59b31b146429c7 (634 chars)",
+      ""
+     ],
+     "reference_reproducible": true
+    },
+    "fchdir.12": {
+     "ref": [
+      "ret",
+      "sha256:8edd1dbe1a5d2fc6 (630 chars)",
+      ""
+     ],
+     "cand": [
+      "ret",
+      "sha256:8edd1dbe1a5d2fc6 (630 chars)",
+      ""
+     ],
+     "reference_reproducible": true
+    },
+    "fchdir.13": {
+     "ref": [
+      "ret",
+      "sha256:969ddbbcd79fa371 (633 chars)",
+      ""
+     ],
+     "cand": [
+      "ret",
+      "sha256:969ddbbcd79fa371 (633 chars)",
+      ""
+     ],
+     "reference_reproducible": true
+    },
+    "fchdir.14": {
+     "ref": [
+      "ret",
+      "sha256:dd315a802675f157 (633 chars)",
+      ""
+     ],
+     "cand": [
+      "ret",
+      "sha256:dd315a802675f157 (633 chars)",
+      ""
+     ],
+     "reference_reproducible": true
+    },
+    "fchdir.15": {
+     "ref": [
+      "ret",
+      "sha256:95d08ba9886d73cb (633 chars)",
+      ""
+     ],
+     "cand": [
+      "ret",
+      "sha256:95d08ba9886d73cb (633 chars)",
+      ""
+     ],
+     "reference_reproducible": true
+    },
+    "fchdir.16": {
+     "ref": [
+      "ret",
+      "sha256:9c59b31b146429c7 (634 chars)",
+      ""
+     ],
+     "cand": [
+      "ret",
+      "sha256:9c59b31b146429c7 (634 chars)",
+      ""
+     ],
+     "reference_reproducible": true
+    },
+    "fchdir.17": {
+     "ref": [
+      "ret",
+      "sha256:9c59b31b146429c7 (634 chars)",
+      ""
+     ],
+     "cand": [
+      "ret",
+      "sha256:9c59b31b146429c7 (634 chars)",
+      ""
+     ],
+     "reference_reproducible": true
+    },
+    "fchdir.18": {
+     "ref": [
+      "ret",
+      "sha256:aa7bd17cf28b5fca (633 chars)",
+      ""
+     ],
+     "cand": [
+      "ret",
+      "sha256:aa7bd17cf28b5fca (633 chars)",
+      ""
+     ],
+     "reference_reproducible": true
+    },
+    "fchdir.19": {
+     "ref": [
+      "ret",
+      "sha256:81226bd3201dd2ee (633 chars)",
+      ""
+     ],
+     "cand": [
+      "ret",
+      "sha256:81226bd3201dd2ee (633 chars)",
+      ""
+     ],
+     "reference_reproducible": true
+    },
+    "fchdir.20": {
+     "ref": [
+      "ret",
+      "sha256:2fa51daa3bc1f6f9 (652 chars)",
+      ""
+     ],
+     "cand": [
+      "ret",
+      "sha256:2fa51daa3bc1f6f9 (652 chars)",
+      ""
+     ],
+     "reference_reproducible": true
+    },
+    "fchdir.21": {
+     "ref": [
+      "ret",
+      "sha256:d450ee0199fded35 (1154 chars)",
+      ""
+     ],
+     "cand": [
+      "ret",
+      "sha256:d450ee0199fded35 (1154 chars)",
+      ""
+     ],
+     "reference_reproducible": true
+    }
+   }
+  },
+  "ffull": {
+   "cases": 43,
+   "mismatches": 3,
+   "pending": 0,
+   "outcomes": {
+    "ffull.0": {
+     "ref": [
+      "ret",
+      "sha256:33c1bb65ac1054bf (612 chars)",
+      ""
+     ],
+     "cand": [
+      "ret",
+      "sha256:33c1bb65ac1054bf (612 chars)",
+      ""
+     ],
+     "reference_reproducible": true
+    },
+    "ffull.1": {
+     "ref": [
+      "ret",
+      "sha256:33c1bb65ac1054bf (612 chars)",
+      ""
+     ],
+     "cand": [
+      "ret",
+      "sha256:33c1bb65ac1054bf (612 chars)",
+      ""
+     ],
+     "reference_reproducible": true
+    },
+    "ffull.2": {
+     "ref": [
+      "ret",
+      "sha256:15fa011bb053db55 (612 chars)",
+      ""
+     ],
+     "cand": [
+      "ret",
+      "sha256:15fa011bb053db55 (612 chars)",
+      ""
+     ],
+     "reference_reproducible": true
+    },
+    "ffull.3": {
+     "ref": [
+      "ret",
+      "sha256:3334e8d9f5abbff3 (612 chars)",
+      ""
+     ],
+     "cand": [
+      "ret",
+      "sha256:3334e8d9f5abbff3 (612 chars)",
+      ""
+     ],
+     "reference_reproducible": true
+    },
+    "ffull.4": {
+     "ref": [
+      "ret",
+      "sha256:15fa011bb053db55 (612 chars)",
+      ""
+     ],
+     "cand": [
+      "ret",
+      "sha256:15fa011bb053db55 (612 chars)",
+      ""
+     ],
+     "reference_reproducible": true
+    },
+    "ffull.5": {
+     "ref": [
+      "ret",
+      "sha256:15fa011bb053db55 (612 chars)",
+      ""
+     ],
+     "cand": [
+      "ret",
+      "sha256:15fa011bb053db55 (612 chars)",
+      ""
+     ],
+     "reference_reproducible": true
+    },
+    "ffull.6": {
+     "ref": [
+      "ret",
+      "sha256:f05f148c45b8cd69 (612 chars)",
+      ""
+     ],
+     "cand": [
+      "ret",
+      "sha256:f05f148c45b8cd69 (612 chars)",
+      ""
+     ],
+     "reference_reproducible": true
+    },
+    "ffull.7": {
+     "ref": [
+      "ret",
+      "sha256:6c9a3e011e601f89 (612 chars)",
+      ""
+     ],
+     "cand": [
+      "ret",
+      "sha256:6c9a3e011e601f89 (612 chars)",
+      ""
+     ],
+     "reference_reproducible": true
+    },
+    "ffull.8": {
+     "ref": [
+      "ret",
+      "sha256:c30a3004adb6addf (612 chars)",
+      ""
+     ],
+     "cand": [
+      "ret",
+      "sha256:c30a3004adb6addf (612 chars)",
+      ""
+     ],
+     "reference_reproducible": true
+    },
+    "ffull.9": {
+     "ref": [
+      "ret",
+      "sha256:2c0c7fcb77cd1572 (612 chars)",
+      ""
+     ],
+     "cand": [
+      "ret",
+      "sha256:2c0c7fcb77cd1572 (612 chars)",
+      ""
+     ],
+     "reference_reproducible": true
+    },
+    "ffull.10": {
+     "ref": [
+      "ret",
+      "sha256:845cf431ff0d916c (612 chars)",
+      ""
+     ],
+     "cand": [
+      "ret",
+      "sha256:845cf431ff0d916c (612 chars)",
+      ""
+     ],
+     "reference_reproducible": true
+    },
+    "ffull.11": {
+     "ref": [
+      "ret",
+      "sha256:ef22c9fb6063e7e8 (612 chars)",
+      ""
+     ],
+     "cand": [
+      "ret",
+      "sha256:ef22c9fb6063e7e8 (612 chars)",
+      ""
+     ],
+     "reference_reproducible": true
+    },
+    "ffull.12": {
+     "ref": [
+      "ret",
+      "sha256:9946fbe08355e767 (612 chars)",
+      ""
+     ],
+     "cand": [
+      "ret",
+      "sha256:9946fbe08355e767 (612 chars)",
+      ""
+     ],
+     "reference_reproducible": true
+    },
+    "ffull.13": {
+     "ref": [
+      "ret",
+      "sha256:9946fbe08355e767 (612 chars)",
+      ""
+     ],
+     "cand": [
+      "ret",
+      "sha256:9946fbe08355e767 (612 chars)",
+      ""
+     ],
+     "reference_reproducible": true
+    },
+    "ffull.14": {
+     "ref": [
+      "ret",
+      "sha256:2bf19fba184ecb2a (612 chars)",
+      ""
+     ],
+     "cand": [
+      "ret",
+      "sha256:2bf19fba184ecb2a (612 chars)",
+      ""
+     ],
+     "reference_reproducible": true
+    },
+    "ffull.15": {
+     "ref": [
+      "ret",
+      "sha256:ea3f9dd92aac9380 (608 chars)",
+      ""
+     ],
+     "cand": [
+      "ret",
+      "sha256:ff2cfd346e7f8e12 (610 chars)",
+      ""
+     ],
+     "reference_reproducible": true
+    },
+    "ffull.16": {
+     "ref": [
+      "ret",
+      "sha256:ea3f9dd92aac9380 (608 chars)",
+      ""
+     ],
+     "cand": [
+      "ret",
+      "sha256:ff2cfd346e7f8e12 (610 chars)",
+      ""
+     ],
+     "reference_reproducible": true
+    },
+    "ffull.17": {
+     "ref": [
+      "ret",
+      "sha256:158d12fbd559db57 (612 chars)",
+      ""
+     ],
+     "cand": [
+      "ret",
+      "sha256:158d12fbd559db57 (612 chars)",
+      ""
+     ],
+     "reference_reproducible": true
+    },
+    "ffull.18": {
+     "ref": [
+      "ret",
+      "sha256:ce7a11f2cdc37c8a (612 chars)",
+      ""
+     ],
+     "cand": [
+      "ret",
+      "sha256:ce7a11f2cdc37c8a (612 chars)",
+      ""
+     ],
+     "reference_reproducible": true
+    },
+    "ffull.19": {
+     "ref": [
+      "ret",
+      "sha256:33cc9d33bc912988 (612 chars)",
+      ""
+     ],
+     "cand": [
+      "ret",
+      "sha256:33cc9d33bc912988 (612 chars)",
+      ""
+     ],
+     "reference_reproducible": true
+    },
+    "ffull.20": {
+     "ref": [
+      "ret",
+      "sha256:cc3b9663235122b3 (612 chars)",
+      ""
+     ],
+     "cand": [
+      "ret",
+      "sha256:cc3b9663235122b3 (612 chars)",
+      ""
+     ],
+     "reference_reproducible": true
+    },
+    "ffull.21": {
+     "ref": [
+      "ret",
+      "sha256:9fd747131d20d372 (612 chars)",
+      ""
+     ],
+     "cand": [
+      "ret",
+      "sha256:9fd747131d20d372 (612 chars)",
+      ""
+     ],
+     "reference_reproducible": true
+    },
+    "ffull.22": {
+     "ref": [
+      "ret",
+      "sha256:5ce4c1b852444e77 (612 chars)",
+      ""
+     ],
+     "cand": [
+      "ret",
+      "sha256:5ce4c1b852444e77 (612 chars)",
+      ""
+     ],
+     "reference_reproducible": true
+    },
+    "ffull.23": {
+     "ref": [
+      "ret",
+      "sha256:8df36f3af4ccf95a (612 chars)",
+      ""
+     ],
+     "cand": [
+      "ret",
+      "sha256:8df36f3af4ccf95a (612 chars)",
+      ""
+     ],
+     "reference_reproducible": true
+    },
+    "ffull.24": {
+     "ref": [
+      "ret",
+      "sha256:ca5e8fdf615963fc (242 chars)",
+      ""
+     ],
+     "cand": [
+      "ret",
+      "sha256:ca5e8fdf615963fc (242 chars)",
+      ""
+     ],
+     "reference_reproducible": true
+    },
+    "ffull.25": {
+     "ref": [
+      "ret",
+      "sha256:74d56fd34675e340 (244 chars)",
+      ""
+     ],
+     "cand": [
+      "ret",
+      "sha256:74d56fd34675e340 (244 chars)",
+      ""
+     ],
+     "reference_reproducible": true
+    },
+    "ffull.26": {
+     "ref": [
+      "ret",
+      "; full le=21845 e=34 R=0 B=A5A5A5A5A5A5A5A5A5A5A5A5A5A5A5A5CCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCC5A5A5A5A5A5A5A5A5A5A5A5A5A5A5A5A",
+      ""
+     ],
+     "cand": [
+      "ret",
+      "; full le=21845 e=34 R=0 B=A5A5A5A5A5A5A5A5A5A5A5A5A5A5A5A5CCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCC5A5A5A5A5A5A5A5A5A5A5A5A5A5A5A5A",
+      ""
+     ],
+     "reference_reproducible": true
+    },
+    "ffull.27": {
+     "ref": [
+      "ret",
+      "; full le=21845 e=34 R=0 B=A5A5A5A5A5A5A5A5A5A5A5A5A5A5A5A5CCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCC5A5A5A5A5A5A5A5A5A5A5A5A5A5A5A5A",
+      ""
+     ],
+     "cand": [
+      "ret",
+      "; full le=21845 e=34 R=0 B=A5A5A5A5A5A5A5A5A5A5A5A5A5A5A5A5CCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCC5A5A5A5A5A5A5A5A5A5A5A5A5A5A5A5A",
+      ""
+     ],
+     "reference_reproducible": true
+    },
+    "ffull.28": {
+     "ref": [
+      "ret",
+      "; full le=21845 e=34 R=0 B=A5A5A5A5A5A5A5A5A5A5A5A5A5A5A5A5CC5A5A5A5A5A5A5A5A5A5A5A5A5A5A5A5A",
+      ""
+     ],
+     "cand": [
+      "ret",
+      "; full le=21845 e=34 R=0 B=A5A5A5A5A5A5A5A5A5A5A5A5A5A5A5A5CC5A5A5A5A5A5A5A5A5A5A5A5A5A5A5A5A",
+      ""
+     ],
+     "reference_reproducible": true
+    },
+    "ffull.29": {
+     "ref": [
+      "ret",
+      "; full le=21845 e=34 R=0 B=A5A5A5A5A5A5A5A5A5A5A5A5A5A5A5A55A5A5A5A5A5A5A5A5A5A5A5A5A5A5A5A",
+      ""
+     ],
+     "cand": [
+      "ret",
+      "; full le=21845 e=34 R=0 B=A5A5A5A5A5A5A5A5A5A5A5A5A5A5A5A55A5A5A5A5A5A5A5A5A5A5A5A5A5A5A5A",
+      ""
+     ],
+     "reference_reproducible": true
+    },
+    "ffull.30": {
+     "ref": [
+      "ret",
+      "sha256:69a7eabf56bb1ee2 (258 chars)",
+      ""
+     ],
+     "cand": [
+      "ret",
+      "sha256:69a7eabf56bb1ee2 (258 chars)",
+      ""
+     ],
+     "reference_reproducible": true
+    },
+    "ffull.31": {
+     "ref": [
+      "ret",
+      "sha256:bf5a81a7403e9c16 (260 chars)",
+      ""
+     ],
+     "cand": [
+      "ret",
+      "sha256:bf5a81a7403e9c16 (260 chars)",
+      ""
+     ],
+     "reference_reproducible": true
+    },
+    "ffull.32": {
+     "ref": [
+      "ret",
+      "sha256:c5ef9d1ed7af75d8 (255 chars)",
+      ""
+     ],
+     "cand": [
+      "ret",
+      "sha256:c5ef9d1ed7af75d8 (255 chars)",
+      ""
+     ],
+     "reference_reproducible": true
+    },
+    "ffull.33": {
+     "ref": [
+      "ret",
+      "sha256:9dbe2ab686a05a6f (253 chars)",
+      ""
+     ],
+     "cand": [
+      "ret",
+      "sha256:9dbe2ab686a05a6f (253 chars)",
+      ""
+     ],
+     "reference_reproducible": true
+    },
+    "ffull.34": {
+     "ref": [
+      "ret",
+      "; full le=21845 e=34 R=0 B=A5A5A5A5A5A5A5A5A5A5A5A5A5A5A5A5CC5A5A5A5A5A5A5A5A5A5A5A5A5A5A5A5A",
+      ""
+     ],
+     "cand": [
+      "ret",
+      "; full le=21845 e=34 R=0 B=A5A5A5A5A5A5A5A5A5A5A5A5A5A5A5A5CC5A5A5A5A5A5A5A5A5A5A5A5A5A5A5A5A",
+      ""
+     ],
+     "reference_reproducible": true
+    },
+    "ffull.35": {
+     "ref": [
+      "ret",
+      "; full le=21845 e=34 R=0 B=A5A5A5A5A5A5A5A5A5A5A5A5A5A5A5A55A5A5A5A5A5A5A5A5A5A5A5A5A5A5A5A",
+      ""
+     ],
+     "cand": [
+      "ret",
+      "; full le=21845 e=34 R=0 B=A5A5A5A5A5A5A5A5A5A5A5A5A5A5A5A55A5A5A5A5A5A5A5A5A5A5A5A5A5A5A5A",
+      ""
+     ],
+     "reference_reproducible": true
+    },
+    "ffull.36": {
+     "ref": [
+      "ret",
+      "; full le=21845 e=0 R=m S=453A5C556E7265616C322D506F72742D496E7665737469676174696F6E5C6578706572696D656E74735C7872745C6275696C645C6372745F646966665C66735C726F6F745C612E747874 M=260",
+      ""
+     ],
+     "cand": [
+      "ret",
+      "; full le=21845 e=0 R=m S=453A5C556E7265616C322D506F72742D496E7665737469676174696F6E5C6578706572696D656E74735C7872745C6275696C645C6372745F646966665C66735C726F6F745C612E747874 M=260",
+      ""
+     ],
+     "reference_reproducible": true
+    },
+    "ffull.37": {
+     "ref": [
+      "ret",
+      "; full le=21845 e=0 R=m S=453A5C556E7265616C322D506F72742D496E7665737469676174696F6E5C6578706572696D656E74735C7872745C6275696C645C6372745F646966665C66735C726F6F745C612E747874 M=260",
+      ""
+     ],
+     "cand": [
+      "ret",
+      "; full le=21845 e=0 R=m S=453A5C556E7265616C322D506F72742D496E7665737469676174696F6E5C6578706572696D656E74735C7872745C6275696C645C6372745F646966665C66735C726F6F745C612E747874 M=260",
+      ""
+     ],
+     "reference_reproducible": true
+    },
+    "ffull.38": {
+     "ref": [
+      "ret",
+      "; full le=21845 e=0 R=m S=453A5C556E7265616C322D506F72742D496E7665737469676174696F6E5C6578706572696D656E74735C7872745C6275696C645C6372745F646966665C66735C726F6F745C612E747874 M=260",
+      ""
+     ],
+     "cand": [
+      "ret",
+      "; full le=21845 e=0 R=m S=453A5C556E7265616C322D506F72742D496E7665737469676174696F6E5C6578706572696D656E74735C7872745C6275696C645C6372745F646966665C66735C726F6F745C612E747874 M=260",
+      ""
+     ],
+     "reference_reproducible": true
+    },
+    "ffull.39": {
+     "ref": [
+      "ret",
+      "; full le=206 e=2 R=0",
+      ""
+     ],
+     "cand": [
+      "ret",
+      "; full le=21845 e=2 R=0",
+      ""
+     ],
+     "reference_reproducible": true
+    },
+    "ffull.40": {
+     "ref": [
+      "ret",
+      "; full le=21845 e=0 R=m S=453A5C556E7265616C322D506F72742D496E7665737469676174696F6E5C6578706572696D656E74735C7872745C6275696C645C6372745F646966665C66735C726F6F74 M=69",
+      ""
+     ],
+     "cand": [
+      "ret",
+      "; full le=21845 e=0 R=m S=453A5C556E7265616C322D506F72742D496E7665737469676174696F6E5C6578706572696D656E74735C7872745C6275696C645C6372745F646966665C66735C726F6F74 M=69",
+      ""
+     ],
+     "reference_reproducible": true
+    },
+    "ffull.41": {
+     "ref": [
+      "ret",
+      "; full le=21845 e=0 R=m S=453A5C556E7265616C322D506F72742D496E7665737469676174696F6E5C6578706572696D656E74735C7872745C6275696C645C6372745F646966665C66735C726F6F74 M=69",
+      ""
+     ],
+     "cand": [
+      "ret",
+      "; full le=21845 e=0 R=m S=453A5C556E7265616C322D506F72742D496E7665737469676174696F6E5C6578706572696D656E74735C7872745C6275696C645C6372745F646966665C66735C726F6F74 M=69",
+      ""
+     ],
+     "reference_reproducible": true
+    },
+    "ffull.42": {
+     "ref": [
+      "ret",
+      "sha256:cc67a912a781e714 (1247 chars)",
+      ""
+     ],
+     "cand": [
+      "ret",
+      "sha256:cc67a912a781e714 (1247 chars)",
+      ""
+     ],
+     "reference_reproducible": true
+    }
+   }
+  },
+  "fff": {
+   "cases": 68,
+   "mismatches": 64,
+   "pending": 0,
+   "outcomes": {
+    "fff.0": {
+     "ref": [
+      "ret",
+      "sha256:037dd96a37fb54e9 (661 chars)",
+      ""
+     ],
+     "cand": [
+      "ret",
+      "sha256:0ac99484b14e6843 (665 chars)",
+      ""
+     ],
+     "reference_reproducible": true
+    },
+    "fff.1": {
+     "ref": [
+      "ret",
+      "sha256:865e2ae3cf9b978a (661 chars)",
+      ""
+     ],
+     "cand": [
+      "ret",
+      "sha256:97835c6d1da3b52b (665 chars)",
+      ""
+     ],
+     "reference_reproducible": true
+    },
+    "fff.2": {
+     "ref": [
+      "ret",
+      "sha256:b17d62c240d00326 (661 chars)",
+      ""
+     ],
+     "cand": [
+      "ret",
+      "sha256:2998930ddbbc0c95 (665 chars)",
+      ""
+     ],
+     "reference_reproducible": true
+    },
+    "fff.3": {
+     "ref": [
+      "ret",
+      "sha256:1d3a1012b3ae5e27 (661 chars)",
+      ""
+     ],
+     "cand": [
+      "ret",
+      "sha256:81cf97a0e9d5c2fa (665 chars)",
+      ""
+     ],
+     "reference_reproducible": true
+    },
+    "fff.4": {
+     "ref": [
+      "ret",
+      "sha256:69bd5b908456c122 (661 chars)",
+      ""
+     ],
+     "cand": [
+      "ret",
+      "sha256:654541fdd07afdc3 (665 chars)",
+      ""
+     ],
+     "reference_reproducible": true
+    },
+    "fff.5": {
+     "ref": [
+      "ret",
+      "sha256:afa0962f36af6774 (661 chars)",
+      ""
+     ],
+     "cand": [
+      "ret",
+      "sha256:09be7be0bd942ca9 (665 chars)",
+      ""
+     ],
+     "reference_reproducible": true
+    },
+    "fff.6": {
+     "ref": [
+      "ret",
+      "sha256:c07b637afbb41a8b (661 chars)",
+      ""
+     ],
+     "cand": [
+      "ret",
+      "sha256:27bb96b1ea374236 (665 chars)",
+      ""
+     ],
+     "reference_reproducible": true
+    },
+    "fff.7": {
+     "ref": [
+      "ret",
+      "sha256:e630f9eba6437df1 (661 chars)",
+      ""
+     ],
+     "cand": [
+      "ret",
+      "sha256:6b99e36011a33f0e (665 chars)",
+      ""
+     ],
+     "reference_reproducible": true
+    },
+    "fff.8": {
+     "ref": [
+      "ret",
+      "sha256:26eb4b15330ff81d (661 chars)",
+      ""
+     ],
+     "cand": [
+      "ret",
+      "sha256:48d5073561f02ffa (665 chars)",
+      ""
+     ],
+     "reference_reproducible": true
+    },
+    "fff.9": {
+     "ref": [
+      "ret",
+      "sha256:d49abc3f4079a004 (661 chars)",
+      ""
+     ],
+     "cand": [
+      "ret",
+      "sha256:35040044877332af (665 chars)",
+      ""
+     ],
+     "reference_reproducible": true
+    },
+    "fff.10": {
+     "ref": [
+      "ret",
+      "sha256:6040eef98b767c2c (661 chars)",
+      ""
+     ],
+     "cand": [
+      "ret",
+      "sha256:3e65c07e57d77207 (665 chars)",
+      ""
+     ],
+     "reference_reproducible": true
+    },
+    "fff.11": {
+     "ref": [
+      "ret",
+      "sha256:d4a9f81091000c78 (661 chars)",
+      ""
+     ],
+     "cand": [
+      "ret",
+      "sha256:754128657cdb984e (665 chars)",
+      ""
+     ],
+     "reference_reproducible": true
+    },
+    "fff.12": {
+     "ref": [
+      "ret",
+      "sha256:256e16c1afe68f0b (661 chars)",
+      ""
+     ],
+     "cand": [
+      "ret",
+      "sha256:526888e9137b5468 (665 chars)",
+      ""
+     ],
+     "reference_reproducible": true
+    },
+    "fff.13": {
+     "ref": [
+      "ret",
+      "sha256:a037fe6adb9a8ba9 (661 chars)",
+      ""
+     ],
+     "cand": [
+      "ret",
+      "sha256:d853942da9554c3b (665 chars)",
+      ""
+     ],
+     "reference_reproducible": true
+    },
+    "fff.14": {
+     "ref": [
+      "ret",
+      "sha256:77e5bc220596764d (661 chars)",
+      ""
+     ],
+     "cand": [
+      "ret",
+      "sha256:462c7fe0171ec012 (665 chars)",
+      ""
+     ],
+     "reference_reproducible": true
+    },
+    "fff.15": {
+     "ref": [
+      "ret",
+      "sha256:580e943d90d1c020 (661 chars)",
+      ""
+     ],
+     "cand": [
+      "ret",
+      "sha256:5772c0e7fdeb5f99 (665 chars)",
+      ""
+     ],
+     "reference_reproducible": true
+    },
+    "fff.16": {
+     "ref": [
+      "ret",
+      "sha256:9bbb67c1dbbcd187 (661 chars)",
+      ""
+     ],
+     "cand": [
+      "ret",
+      "sha256:ead91fc4de72b480 (665 chars)",
+      ""
+     ],
+     "reference_reproducible": true
+    },
+    "fff.17": {
+     "ref": [
+      "ret",
+      "sha256:573bee19cf104e45 (661 chars)",
+      ""
+     ],
+     "cand": [
+      "ret",
+      "sha256:1fd81ca7c3a0d731 (665 chars)",
+      ""
+     ],
+     "reference_reproducible": true
+    },
+    "fff.18": {
+     "ref": [
+      "ret",
+      "sha256:0d4b4feb3c5bf719 (661 chars)",
+      ""
+     ],
+     "cand": [
+      "ret",
+      "sha256:287b01c8d822ca63 (665 chars)",
+      ""
+     ],
+     "reference_reproducible": true
+    },
+    "fff.19": {
+     "ref": [
+      "ret",
+      "sha256:1beae4875dae133a (661 chars)",
+      ""
+     ],
+     "cand": [
+      "ret",
+      "sha256:0c612cd1a1cd4035 (665 chars)",
+      ""
+     ],
+     "reference_reproducible": true
+    },
+    "fff.20": {
+     "ref": [
+      "ret",
+      "sha256:a105765ee2cb483c (661 chars)",
+      ""
+     ],
+     "cand": [
+      "ret",
+      "sha256:a2a936add4a6834a (665 chars)",
+      ""
+     ],
+     "reference_reproducible": true
+    },
+    "fff.21": {
+     "ref": [
+      "ret",
+      "sha256:7503eec6dbb79be3 (661 chars)",
+      ""
+     ],
+     "cand": [
+      "ret",
+      "sha256:bae1d1f6c6fdb4a6 (665 chars)",
+      ""
+     ],
+     "reference_reproducible": true
+    },
+    "fff.22": {
+     "ref": [
+      "ret",
+      "sha256:e616d9aa589b3bc8 (661 chars)",
+      ""
+     ],
+     "cand": [
+      "ret",
+      "sha256:81e8afa4bfcf6596 (665 chars)",
+      ""
+     ],
+     "reference_reproducible": true
+    },
+    "fff.23": {
+     "ref": [
+      "ret",
+      "sha256:34e1c4558c200387 (661 chars)",
+      ""
+     ],
+     "cand": [
+      "ret",
+      "sha256:870f9ff85d8e7ed4 (665 chars)",
+      ""
+     ],
+     "reference_reproducible": true
+    },
+    "fff.24": {
+     "ref": [
+      "ret",
+      "sha256:2ea1c78156e5d92e (661 chars)",
+      ""
+     ],
+     "cand": [
+      "ret",
+      "sha256:6b6e5660cd3b3661 (665 chars)",
+      ""
+     ],
+     "reference_reproducible": true
+    },
+    "fff.25": {
+     "ref": [
+      "ret",
+      "sha256:8b4ad3301d140226 (661 chars)",
+      ""
+     ],
+     "cand": [
+      "ret",
+      "sha256:74117d624819c94f (665 chars)",
+      ""
+     ],
+     "reference_reproducible": true
+    },
+    "fff.26": {
+     "ref": [
+      "ret",
+      "sha256:9480ad4927787aa8 (661 chars)",
+      ""
+     ],
+     "cand": [
+      "ret",
+      "sha256:233c77b2b1446728 (665 chars)",
+      ""
+     ],
+     "reference_reproducible": true
+    },
+    "fff.27": {
+     "ref": [
+      "ret",
+      "sha256:69c70af8b305a3bf (661 chars)",
+      ""
+     ],
+     "cand": [
+      "ret",
+      "sha256:25901d10556f50b8 (665 chars)",
+      ""
+     ],
+     "reference_reproducible": true
+    },
+    "fff.28": {
+     "ref": [
+      "ret",
+      "sha256:326dcb1a840316a8 (661 chars)",
+      ""
+     ],
+     "cand": [
+      "ret",
+      "sha256:106fab0335bc67d0 (665 chars)",
+      ""
+     ],
+     "reference_reproducible": true
+    },
+    "fff.29": {
+     "ref": [
+      "ret",
+      "sha256:404bf8c0ada4be48 (661 chars)",
+      ""
+     ],
+     "cand": [
+      "ret",
+      "sha256:0c618beafef9e0e6 (665 chars)",
+      ""
+     ],
+     "reference_reproducible": true
+    },
+    "fff.30": {
+     "ref": [
+      "ret",
+      "sha256:0840b445654005d6 (661 chars)",
+      ""
+     ],
+     "cand": [
+      "ret",
+      "sha256:931396a30e374a8b (665 chars)",
+      ""
+     ],
+     "reference_reproducible": true
+    },
+    "fff.31": {
+     "ref": [
+      "ret",
+      "sha256:7c53bd6638311200 (661 chars)",
+      ""
+     ],
+     "cand": [
+      "ret",
+      "sha256:5c32c4c8f54a6362 (665 chars)",
+      ""
+     ],
+     "reference_reproducible": true
+    },
+    "fff.32": {
+     "ref": [
+      "ret",
+      "sha256:afbf460b64c7e2e1 (661 chars)",
+      ""
+     ],
+     "cand": [
+      "ret",
+      "sha256:8b7a5b398987d885 (665 chars)",
+      ""
+     ],
+     "reference_reproducible": true
+    },
+    "fff.33": {
+     "ref": [
+      "ret",
+      "sha256:4afc32054c8012a7 (661 chars)",
+      ""
+     ],
+     "cand": [
+      "ret",
+      "sha256:2aab6eb2d72bb624 (665 chars)",
+      ""
+     ],
+     "reference_reproducible": true
+    },
+    "fff.34": {
+     "ref": [
+      "ret",
+      "sha256:12bbe2f794e767bc (661 chars)",
+      ""
+     ],
+     "cand": [
+      "ret",
+      "sha256:e761e505a3eda357 (665 chars)",
+      ""
+     ],
+     "reference_reproducible": true
+    },
+    "fff.35": {
+     "ref": [
+      "ret",
+      "sha256:37d762af47b5b45d (661 chars)",
+      ""
+     ],
+     "cand": [
+      "ret",
+      "sha256:db769cd95f49dda6 (665 chars)",
+      ""
+     ],
+     "reference_reproducible": true
+    },
+    "fff.36": {
+     "ref": [
+      "ret",
+      "sha256:fd362fba299e69cf (661 chars)",
+      ""
+     ],
+     "cand": [
+      "ret",
+      "sha256:a3f4343efe988e00 (665 chars)",
+      ""
+     ],
+     "reference_reproducible": true
+    },
+    "fff.37": {
+     "ref": [
+      "ret",
+      "sha256:ac253690c6dd5432 (661 chars)",
+      ""
+     ],
+     "cand": [
+      "ret",
+      "sha256:1fe39c467dd0bf4e (665 chars)",
+      ""
+     ],
+     "reference_reproducible": true
+    },
+    "fff.38": {
+     "ref": [
+      "ret",
+      "sha256:e36b536e6fd537b0 (661 chars)",
+      ""
+     ],
+     "cand": [
+      "ret",
+      "sha256:ca0094c2578a3109 (665 chars)",
+      ""
+     ],
+     "reference_reproducible": true
+    },
+    "fff.39": {
+     "ref": [
+      "ret",
+      "sha256:7758bcb52942fc09 (661 chars)",
+      ""
+     ],
+     "cand": [
+      "ret",
+      "sha256:f5810bf83313ce34 (665 chars)",
+      ""
+     ],
+     "reference_reproducible": true
+    },
+    "fff.40": {
+     "ref": [
+      "ret",
+      "sha256:7639e4042ecc25d3 (661 chars)",
+      ""
+     ],
+     "cand": [
+      "ret",
+      "sha256:917246ce4c3b92df (665 chars)",
+      ""
+     ],
+     "reference_reproducible": true
+    },
+    "fff.41": {
+     "ref": [
+      "ret",
+      "sha256:8c0ad7bb1009a353 (661 chars)",
+      ""
+     ],
+     "cand": [
+      "ret",
+      "sha256:92b6c9b75a4c87ab (665 chars)",
+      ""
+     ],
+     "reference_reproducible": true
+    },
+    "fff.42": {
+     "ref": [
+      "ret",
+      "sha256:7f2fc07c3000c147 (661 chars)",
+      ""
+     ],
+     "cand": [
+      "ret",
+      "sha256:d66de78a11abac72 (665 chars)",
+      ""
+     ],
+     "reference_reproducible": true
+    },
+    "fff.43": {
+     "ref": [
+      "ret",
+      "sha256:182de621d589e45f (661 chars)",
+      ""
+     ],
+     "cand": [
+      "ret",
+      "sha256:f19a14b7f5403337 (665 chars)",
+      ""
+     ],
+     "reference_reproducible": true
+    },
+    "fff.44": {
+     "ref": [
+      "ret",
+      "sha256:fb2e507d3360cb5a (661 chars)",
+      ""
+     ],
+     "cand": [
+      "ret",
+      "sha256:fc4c3a021da690b6 (665 chars)",
+      ""
+     ],
+     "reference_reproducible": true
+    },
+    "fff.45": {
+     "ref": [
+      "ret",
+      "sha256:4477f76674f3215a (661 chars)",
+      ""
+     ],
+     "cand": [
+      "ret",
+      "sha256:09f86a2f1acf5430 (665 chars)",
+      ""
+     ],
+     "reference_reproducible": true
+    },
+    "fff.46": {
+     "ref": [
+      "ret",
+      "sha256:d41615f6a29af637 (661 chars)",
+      ""
+     ],
+     "cand": [
+      "ret",
+      "sha256:75e7bf2f3d564160 (665 chars)",
+      ""
+     ],
+     "reference_reproducible": true
+    },
+    "fff.47": {
+     "ref": [
+      "ret",
+      "sha256:1e1921041d4268bd (661 chars)",
+      ""
+     ],
+     "cand": [
+      "ret",
+      "sha256:b5a104c244da6493 (665 chars)",
+      ""
+     ],
+     "reference_reproducible": true
+    },
+    "fff.48": {
+     "ref": [
+      "ret",
+      "sha256:7ab109a90e21e907 (661 chars)",
+      ""
+     ],
+     "cand": [
+      "ret",
+      "sha256:5e7808201e1823ec (665 chars)",
+      ""
+     ],
+     "reference_reproducible": true
+    },
+    "fff.49": {
+     "ref": [
+      "ret",
+      "sha256:aac4e50bb4d453d9 (661 chars)",
+      ""
+     ],
+     "cand": [
+      "ret",
+      "sha256:5e24591ccb879229 (665 chars)",
+      ""
+     ],
+     "reference_reproducible": true
+    },
+    "fff.50": {
+     "ref": [
+      "ret",
+      "sha256:9cb5776f87ee09dc (661 chars)",
+      ""
+     ],
+     "cand": [
+      "ret",
+      "sha256:2430ab74f81a3667 (665 chars)",
+      ""
+     ],
+     "reference_reproducible": true
+    },
+    "fff.51": {
+     "ref": [
+      "ret",
+      "sha256:bb819b3587fe51d5 (661 chars)",
+      ""
+     ],
+     "cand": [
+      "ret",
+      "sha256:f29a9f4c84f46c80 (665 chars)",
+      ""
+     ],
+     "reference_reproducible": true
+    },
+    "fff.52": {
+     "ref": [
+      "ret",
+      "sha256:f5624dc726de8655 (661 chars)",
+      ""
+     ],
+     "cand": [
+      "ret",
+      "sha256:a811e4656d001ade (665 chars)",
+      ""
+     ],
+     "reference_reproducible": true
+    },
+    "fff.53": {
+     "ref": [
+      "ret",
+      "sha256:8e83655ae9bf0c1c (661 chars)",
+      ""
+     ],
+     "cand": [
+      "ret",
+      "sha256:987d42b633bc9249 (665 chars)",
+      ""
+     ],
+     "reference_reproducible": true
+    },
+    "fff.54": {
+     "ref": [
+      "ret",
+      "sha256:d69bf3cef8555f12 (661 chars)",
+      ""
+     ],
+     "cand": [
+      "ret",
+      "sha256:79bdaa940ee11ba6 (665 chars)",
+      ""
+     ],
+     "reference_reproducible": true
+    },
+    "fff.55": {
+     "ref": [
+      "ret",
+      "sha256:f14a4e66242d1211 (661 chars)",
+      ""
+     ],
+     "cand": [
+      "ret",
+      "sha256:7a55dca818ea8b81 (665 chars)",
+      ""
+     ],
+     "reference_reproducible": true
+    },
+    "fff.56": {
+     "ref": [
+      "ret",
+      "sha256:95c30707eeac9ecd (661 chars)",
+      ""
+     ],
+     "cand": [
+      "ret",
+      "sha256:2217d7926d25ce82 (665 chars)",
+      ""
+     ],
+     "reference_reproducible": true
+    },
+    "fff.57": {
+     "ref": [
+      "ret",
+      "sha256:b17d62c240d00326 (661 chars)",
+      ""
+     ],
+     "cand": [
+      "ret",
+      "sha256:2998930ddbbc0c95 (665 chars)",
+      ""
+     ],
+     "reference_reproducible": true
+    },
+    "fff.58": {
+     "ref": [
+      "ret",
+      "sha256:ce64b934b2649761 (647 chars)",
+      ""
+     ],
+     "cand": [
+      "ret",
+      "sha256:ce64b934b2649761 (647 chars)",
+      ""
+     ],
+     "reference_reproducible": true
+    },
+    "fff.59": {
+     "ref": [
+      "ret",
+      "sha256:beb3f87fc9466981 (645 chars)",
+      ""
+     ],
+     "cand": [
+      "ret",
+      "sha256:beb3f87fc9466981 (645 chars)",
+      ""
+     ],
+     "reference_reproducible": true
+    },
+    "fff.60": {
+     "ref": [
+      "ret",
+      "sha256:939faaee1a766a43 (645 chars)",
+      ""
+     ],
+     "cand": [
+      "ret",
+      "sha256:939faaee1a766a43 (645 chars)",
+      ""
+     ],
+     "reference_reproducible": true
+    },
+    "fff.61": {
+     "ref": [
+      "ret",
+      "sha256:939faaee1a766a43 (645 chars)",
+      ""
+     ],
+     "cand": [
+      "ret",
+      "sha256:939faaee1a766a43 (645 chars)",
+      ""
+     ],
+     "reference_reproducible": true
+    },
+    "fff.62": {
+     "ref": [
+      "ret",
+      "sha256:40bd595dcc370577 (661 chars)",
+      ""
+     ],
+     "cand": [
+      "ret",
+      "sha256:e7125fcbdc875c2e (665 chars)",
+      ""
+     ],
+     "reference_reproducible": true
+    },
+    "fff.63": {
+     "ref": [
+      "ret",
+      "sha256:4c93441e7c477450 (661 chars)",
+      ""
+     ],
+     "cand": [
+      "ret",
+      "sha256:5f1406d27e48e6e5 (665 chars)",
+      ""
+     ],
+     "reference_reproducible": true
+    },
+    "fff.64": {
+     "ref": [
+      "ret",
+      "sha256:a4976eec8ccdc06e (661 chars)",
+      ""
+     ],
+     "cand": [
+      "ret",
+      "sha256:614c4bfc3f3064e7 (665 chars)",
+      ""
+     ],
+     "reference_reproducible": true
+    },
+    "fff.65": {
+     "ref": [
+      "ret",
+      "sha256:d4a9f81091000c78 (661 chars)",
+      ""
+     ],
+     "cand": [
+      "ret",
+      "sha256:754128657cdb984e (665 chars)",
+      ""
+     ],
+     "reference_reproducible": true
+    },
+    "fff.66": {
+     "ref": [
+      "ret",
+      "sha256:3c72030a17492483 (661 chars)",
+      ""
+     ],
+     "cand": [
+      "ret",
+      "sha256:822e29e72c9c1e24 (665 chars)",
+      ""
+     ],
+     "reference_reproducible": true
+    },
+    "fff.67": {
+     "ref": [
+      "ret",
+      "sha256:f5624dc726de8655 (661 chars)",
+      ""
+     ],
+     "cand": [
+      "ret",
+      "sha256:a811e4656d001ade (665 chars)",
+      ""
+     ],
+     "reference_reproducible": true
+    }
+   }
+  },
+  "ffind": {
+   "cases": 22,
+   "mismatches": 20,
+   "pending": 0,
+   "outcomes": {
+    "ffind.0": {
+     "ref": [
+      "ret",
+      "sha256:e84b78436fad6aed (21269 chars)",
+      ""
+     ],
+     "cand": [
+      "ret",
+      "sha256:6639a89c9172fc98 (21273 chars)",
+      ""
+     ],
+     "reference_reproducible": true
+    },
+    "ffind.1": {
+     "ref": [
+      "ret",
+      "sha256:e84b78436fad6aed (21269 chars)",
+      ""
+     ],
+     "cand": [
+      "ret",
+      "sha256:6639a89c9172fc98 (21273 chars)",
+      ""
+     ],
+     "reference_reproducible": true
+    },
+    "ffind.2": {
+     "ref": [
+      "ret",
+      "sha256:d8f9b6e4064c482b (1949 chars)",
+      ""
+     ],
+     "cand": [
+      "ret",
+      "sha256:7d0bca96caaecacd (1953 chars)",
+      ""
+     ],
+     "reference_reproducible": true
+    },
+    "ffind.3": {
+     "ref": [
+      "ret",
+      "sha256:d8f9b6e4064c482b (1949 chars)",
+      ""
+     ],
+     "cand": [
+      "ret",
+      "sha256:7d0bca96caaecacd (1953 chars)",
+      ""
+     ],
+     "reference_reproducible": true
+    },
+    "ffind.4": {
+     "ref": [
+      "ret",
+      "sha256:87631bdf456bb8dd (2593 chars)",
+      ""
+     ],
+     "cand": [
+      "ret",
+      "sha256:75d73a15efafbef2 (2597 chars)",
+      ""
+     ],
+     "reference_reproducible": true
+    },
+    "ffind.5": {
+     "ref": [
+      "ret",
+      "sha256:b3ee0829f86ec2a2 (5813 chars)",
+      ""
+     ],
+     "cand": [
+      "ret",
+      "sha256:be4acf3a4ae76ef5 (5817 chars)",
+      ""
+     ],
+     "reference_reproducible": true
+    },
+    "ffind.6": {
+     "ref": [
+      "ret",
+      "sha256:597c8f6b8c638186 (9677 chars)",
+      ""
+     ],
+     "cand": [
+      "ret",
+      "sha256:9fa773d7575d064d (9681 chars)",
+      ""
+     ],
+     "reference_reproducible": true
+    },
+    "ffind.7": {
+     "ref": [
+      "ret",
+      "sha256:4d9d1879873a78b9 (1949 chars)",
+      ""
+     ],
+     "cand": [
+      "ret",
+      "sha256:795e5b0783a8c909 (1953 chars)",
+      ""
+     ],
+     "reference_reproducible": true
+    },
+    "ffind.8": {
+     "ref": [
+      "ret",
+      "sha256:cf515054107d1df6 (2593 chars)",
+      ""
+     ],
+     "cand": [
+      "ret",
+      "sha256:c70d71cbbdb6bca2 (2597 chars)",
+      ""
+     ],
+     "reference_reproducible": true
+    },
+    "ffind.9": {
+     "ref": [
+      "ret",
+      "sha256:94a9141c10c38ef5 (9677 chars)",
+      ""
+     ],
+     "cand": [
+      "ret",
+      "sha256:ce1fa66717ceeb4e (9681 chars)",
+      ""
+     ],
+     "reference_reproducible": true
+    },
+    "ffind.10": {
+     "ref": [
+      "ret",
+      "sha256:44ae6ca7fd3ddf57 (1305 chars)",
+      ""
+     ],
+     "cand": [
+      "ret",
+      "sha256:603fbde91c7032d9 (1309 chars)",
+      ""
+     ],
+     "reference_reproducible": true
+    },
+    "ffind.11": {
+     "ref": [
+      "ret",
+      "sha256:6acf2a90ca9fa7f2 (647 chars)",
+      ""
+     ],
+     "cand": [
+      "ret",
+      "sha256:6acf2a90ca9fa7f2 (647 chars)",
+      ""
+     ],
+     "reference_reproducible": true
+    },
+    "ffind.12": {
+     "ref": [
+      "ret",
+      "sha256:d8f3abaea75ea067 (647 chars)",
+      ""
+     ],
+     "cand": [
+      "ret",
+      "sha256:d8f3abaea75ea067 (647 chars)",
+      ""
+     ],
+     "reference_reproducible": true
+    },
+    "ffind.13": {
+     "ref": [
+      "ret",
+      "sha256:2baa5a0be5d22526 (1305 chars)",
+      ""
+     ],
+     "cand": [
+      "ret",
+      "sha256:b466136c9bb66375 (1309 chars)",
+      ""
+     ],
+     "reference_reproducible": true
+    },
+    "ffind.14": {
+     "ref": [
+      "ret",
+      "sha256:b5412af29e1b2166 (7745 chars)",
+      ""
+     ],
+     "cand": [
+      "ret",
+      "sha256:3f8476cafa4991b2 (7749 chars)",
+      ""
+     ],
+     "reference_reproducible": true
+    },
+    "ffind.15": {
+     "ref": [
+      "ret",
+      "sha256:4ba7dab0276f2a8e (7101 chars)",
+      ""
+     ],
+     "cand": [
+      "ret",
+      "sha256:cbe00b6f4a99c6f4 (7105 chars)",
+      ""
+     ],
+     "reference_reproducible": true
+    },
+    "ffind.16": {
+     "ref": [
+      "ret",
+      "sha256:de8069e93b5014bc (1305 chars)",
+      ""
+     ],
+     "cand": [
+      "ret",
+      "sha256:36786a72787bab98 (1309 chars)",
+      ""
+     ],
+     "reference_reproducible": true
+    },
+    "ffind.17": {
+     "ref": [
+      "ret",
+      "sha256:e776bf3c07ea72a3 (1949 chars)",
+      ""
+     ],
+     "cand": [
+      "ret",
+      "sha256:884f9c97765795e5 (1953 chars)",
+      ""
+     ],
+     "reference_reproducible": true
+    },
+    "ffind.18": {
+     "ref": [
+      "ret",
+      "sha256:2600a81b157a68e3 (2593 chars)",
+      ""
+     ],
+     "cand": [
+      "ret",
+      "sha256:59378cc2cb6e4942 (2597 chars)",
+      ""
+     ],
+     "reference_reproducible": true
+    },
+    "ffind.19": {
+     "ref": [
+      "ret",
+      "sha256:132e121d5567e029 (2593 chars)",
+      ""
+     ],
+     "cand": [
+      "ret",
+      "sha256:176e86395ab854e6 (2597 chars)",
+      ""
+     ],
+     "reference_reproducible": true
+    },
+    "ffind.20": {
+     "ref": [
+      "ret",
+      "sha256:0272f2918d94c74a (2615 chars)",
+      ""
+     ],
+     "cand": [
+      "ret",
+      "sha256:2885b54386a2da51 (2619 chars)",
+      ""
+     ],
+     "reference_reproducible": true
+    },
+    "ffind.21": {
+     "ref": [
+      "ret",
+      "sha256:fddce82a20be0c94 (3241 chars)",
+      ""
+     ],
+     "cand": [
+      "ret",
+      "sha256:b39d0893c0fcd657 (3245 chars)",
+      ""
+     ],
+     "reference_reproducible": true
+    }
+   }
+  },
+  "fopen": {
+   "cases": 22,
+   "mismatches": 22,
+   "pending": 0,
+   "outcomes": {
+    "fopen.0": {
+     "ref": [
+      "ret",
+      "; open le=0 e=0 R=i3 I=0,0,0,1,3,0,0,0|0,0,0,0,0,0,0,0|0,0,0,0,0,0,0,0 le=21845 e=0 C=0 I=0,0,0,0,3,0,0,0|0,0,0,0,0,0,0,0|0,0,0,0,0,0,0,0",
+      ""
+     ],
+     "cand": [
+      "ret",
+      "; open le=21845 e=0 R=i3 I=0,0,0,1,3,0,0,0|0,0,0,0,0,0,0,0|0,0,0,0,0,0,0,0 le=21845 e=0 C=0 I=0,0,0,0,0,0,0,0|0,0,0,0,0,0,0,0|0,0,0,0,0,0,0,0",
+      ""
+     ],
+     "reference_reproducible": true
+    },
+    "fopen.1": {
+     "ref": [
+      "ret",
+      "; open le=0 e=0 R=i3 I=0,0,0,1,3,0,0,0|0,0,0,0,0,0,0,0|0,0,0,0,0,0,0,0 le=21845 e=0 C=0 I=0,0,0,0,3,0,0,0|0,0,0,0,0,0,0,0|0,0,0,0,0,0,0,0",
+      ""
+     ],
+     "cand": [
+      "ret",
+      "; open le=21845 e=0 R=i3 I=0,0,0,1,3,0,0,0|0,0,0,0,0,0,0,0|0,0,0,0,0,0,0,0 le=21845 e=0 C=0 I=0,0,0,0,0,0,0,0|0,0,0,0,0,0,0,0|0,0,0,0,0,0,0,0",
+      ""
+     ],
+     "reference_reproducible": true
+    },
+    "fopen.2": {
+     "ref": [
+      "ret",
+      "; open le=2 e=2 R=0 I=0,0,0,0,FFFFFFFF,0,0,0|0,0,0,0,0,0,0,0|0,0,0,0,0,0,0,0",
+      ""
+     ],
+     "cand": [
+      "ret",
+      "; open le=2 e=2 R=0 I=0,0,0,0,0,0,0,0|0,0,0,0,0,0,0,0|0,0,0,0,0,0,0,0",
+      ""
+     ],
+     "reference_reproducible": true
+    },
+    "fopen.3": {
+     "ref": [
+      "ret",
+      "; open le=5 e=13 R=0 I=0,0,0,0,FFFFFFFF,0,0,0|0,0,0,0,0,0,0,0|0,0,0,0,0,0,0,0",
+      ""
+     ],
+     "cand": [
+      "ret",
+      "; open le=5 e=13 R=0 I=0,0,0,0,0,0,0,0|0,0,0,0,0,0,0,0|0,0,0,0,0,0,0,0",
+      ""
+     ],
+     "reference_reproducible": true
+    },
+    "fopen.4": {
+     "ref": [
+      "ret",
+      "; open le=0 e=0 R=i3 I=0,0,0,1,3,0,0,0|0,0,0,0,0,0,0,0|0,0,0,0,0,0,0,0 le=21845 e=0 C=0 I=0,0,0,0,3,0,0,0|0,0,0,0,0,0,0,0|0,0,0,0,0,0,0,0",
+      ""
+     ],
+     "cand": [
+      "ret",
+      "; open le=21845 e=0 R=i3 I=0,0,0,1,3,0,0,0|0,0,0,0,0,0,0,0|0,0,0,0,0,0,0,0 le=21845 e=0 C=0 I=0,0,0,0,0,0,0,0|0,0,0,0,0,0,0,0|0,0,0,0,0,0,0,0",
+      ""
+     ],
+     "reference_reproducible": true
+    },
+    "fopen.5": {
+     "ref": [
+      "ret",
+      "; open le=0 e=0 R=i3 I=0,0,0,1,3,0,0,0|0,0,0,0,0,0,0,0|0,0,0,0,0,0,0,0 le=21845 e=0 C=0 I=0,0,0,0,3,0,0,0|0,0,0,0,0,0,0,0|0,0,0,0,0,0,0,0",
+      ""
+     ],
+     "cand": [
+      "ret",
+      "; open le=21845 e=0 R=i3 I=0,0,0,1,3,0,0,0|0,0,0,0,0,0,0,0|0,0,0,0,0,0,0,0 le=21845 e=0 C=0 I=0,0,0,0,0,0,0,0|0,0,0,0,0,0,0,0|0,0,0,0,0,0,0,0",
+      ""
+     ],
+     "reference_reproducible": true
+    },
+    "fopen.6": {
+     "ref": [
+      "ret",
+      "; open le=3 e=2 R=0 I=0,0,0,0,FFFFFFFF,0,0,0|0,0,0,0,0,0,0,0|0,0,0,0,0,0,0,0",
+      ""
+     ],
+     "cand": [
+      "ret",
+      "; open le=3 e=2 R=0 I=0,0,0,0,0,0,0,0|0,0,0,0,0,0,0,0|0,0,0,0,0,0,0,0",
+      ""
+     ],
+     "reference_reproducible": true
+    },
+    "fopen.7": {
+     "ref": [
+      "ret",
+      "; open le=3 e=2 R=0 I=0,0,0,0,FFFFFFFF,0,0,0|0,0,0,0,0,0,0,0|0,0,0,0,0,0,0,0",
+      ""
+     ],
+     "cand": [
+      "ret",
+      "; open le=3 e=2 R=0 I=0,0,0,0,0,0,0,0|0,0,0,0,0,0,0,0|0,0,0,0,0,0,0,0",
+      ""
+     ],
+     "reference_reproducible": true
+    },
+    "fopen.8": {
+     "ref": [
+      "ret",
+      "; open le=0 e=0 R=i3 I=0,0,0,1,3,0,0,0|0,0,0,0,0,0,0,0|0,0,0,0,0,0,0,0 le=21845 e=0 C=0 I=0,0,0,0,3,0,0,0|0,0,0,0,0,0,0,0|0,0,0,0,0,0,0,0",
+      ""
+     ],
+     "cand": [
+      "ret",
+      "; open le=21845 e=0 R=i3 I=0,0,0,1,3,0,0,0|0,0,0,0,0,0,0,0|0,0,0,0,0,0,0,0 le=21845 e=0 C=0 I=0,0,0,0,0,0,0,0|0,0,0,0,0,0,0,0|0,0,0,0,0,0,0,0",
+      ""
+     ],
+     "reference_reproducible": true
+    },
+    "fopen.9": {
+     "ref": [
+      "ret",
+      "; open le=0 e=0 R=i3 I=0,0,0,2,3,0,0,0|0,0,0,0,0,0,0,0|0,0,0,0,0,0,0,0 le=21845 e=0 C=0 I=0,0,0,0,3,0,0,0|0,0,0,0,0,0,0,0|0,0,0,0,0,0,0,0",
+      ""
+     ],
+     "cand": [
+      "ret",
+      "; open le=21845 e=0 R=i3 I=0,0,0,2,3,0,0,0|0,0,0,0,0,0,0,0|0,0,0,0,0,0,0,0 le=21845 e=0 C=0 I=0,0,0,0,0,0,0,0|0,0,0,0,0,0,0,0|0,0,0,0,0,0,0,0",
+      ""
+     ],
+     "reference_reproducible": true
+    },
+    "fopen.10": {
+     "ref": [
+      "ret",
+      "; open le=183 e=0 R=i3 I=0,0,0,2,3,0,0,0|0,0,0,0,0,0,0,0|0,0,0,0,0,0,0,0 le=21845 e=0 C=0 I=0,0,0,0,3,0,0,0|0,0,0,0,0,0,0,0|0,0,0,0,0,0,0,0",
+      ""
+     ],
+     "cand": [
+      "ret",
+      "; open le=21845 e=0 R=i3 I=0,0,0,2,3,0,0,0|0,0,0,0,0,0,0,0|0,0,0,0,0,0,0,0 le=21845 e=0 C=0 I=0,0,0,0,0,0,0,0|0,0,0,0,0,0,0,0|0,0,0,0,0,0,0,0",
+      ""
+     ],
+     "reference_reproducible": true
+    },
+    "fopen.11": {
+     "ref": [
+      "ret",
+      "; open le=5 e=13 R=0 I=0,0,0,0,FFFFFFFF,0,0,0|0,0,0,0,0,0,0,0|0,0,0,0,0,0,0,0",
+      ""
+     ],
+     "cand": [
+      "ret",
+      "; open le=5 e=13 R=0 I=0,0,0,0,0,0,0,0|0,0,0,0,0,0,0,0|0,0,0,0,0,0,0,0",
+      ""
+     ],
+     "reference_reproducible": true
+    },
+    "fopen.12": {
+     "ref": [
+      "ret",
+      "; open le=5 e=13 R=0 I=0,0,0,0,FFFFFFFF,0,0,0|0,0,0,0,0,0,0,0|0,0,0,0,0,0,0,0",
+      ""
+     ],
+     "cand": [
+      "ret",
+      "; open le=5 e=13 R=0 I=0,0,0,0,0,0,0,0|0,0,0,0,0,0,0,0|0,0,0,0,0,0,0,0",
+      ""
+     ],
+     "reference_reproducible": true
+    },
+    "fopen.13": {
+     "ref": [
+      "ret",
+      "; open le=5 e=13 R=0 I=0,0,0,0,FFFFFFFF,0,0,0|0,0,0,0,0,0,0,0|0,0,0,0,0,0,0,0",
+      ""
+     ],
+     "cand": [
+      "ret",
+      "; open le=5 e=13 R=0 I=0,0,0,0,0,0,0,0|0,0,0,0,0,0,0,0|0,0,0,0,0,0,0,0",
+      ""
+     ],
+     "reference_reproducible": true
+    },
+    "fopen.14": {
+     "ref": [
+      "ret",
+      "; open le=5 e=13 R=0 I=0,0,0,0,FFFFFFFF,0,0,0|0,0,0,0,0,0,0,0|0,0,0,0,0,0,0,0",
+      ""
+     ],
+     "cand": [
+      "ret",
+      "; open le=5 e=13 R=0 I=0,0,0,0,0,0,0,0|0,0,0,0,0,0,0,0|0,0,0,0,0,0,0,0",
+      ""
+     ],
+     "reference_reproducible": true
+    },
+    "fopen.15": {
+     "ref": [
+      "ret",
+      "; open le=3 e=2 R=0 I=0,0,0,0,FFFFFFFF,0,0,0|0,0,0,0,0,0,0,0|0,0,0,0,0,0,0,0",
+      ""
+     ],
+     "cand": [
+      "ret",
+      "; open le=3 e=2 R=0 I=0,0,0,0,0,0,0,0|0,0,0,0,0,0,0,0|0,0,0,0,0,0,0,0",
+      ""
+     ],
+     "reference_reproducible": true
+    },
+    "fopen.16": {
+     "ref": [
+      "ret",
+      "; open le=0 e=0 R=i3 I=0,0,0,2,3,0,0,0|0,0,0,0,0,0,0,0|0,0,0,0,0,0,0,0 le=21845 e=0 C=0 I=0,0,0,0,3,0,0,0|0,0,0,0,0,0,0,0|0,0,0,0,0,0,0,0",
+      ""
+     ],
+     "cand": [
+      "ret",
+      "; open le=21845 e=0 R=i3 I=0,0,0,2,3,0,0,0|0,0,0,0,0,0,0,0|0,0,0,0,0,0,0,0 le=21845 e=0 C=0 I=0,0,0,0,0,0,0,0|0,0,0,0,0,0,0,0|0,0,0,0,0,0,0,0",
+      ""
+     ],
+     "reference_reproducible": true
+    },
+    "fopen.17": {
+     "ref": [
+      "ret",
+      "; open le=0 e=0 R=i3 I=0,0,0,2,3,0,0,0|0,0,0,0,0,0,0,0|0,0,0,0,0,0,0,0 le=21845 e=0 C=0 I=0,0,0,0,3,0,0,0|0,0,0,0,0,0,0,0|0,0,0,0,0,0,0,0",
+      ""
+     ],
+     "cand": [
+      "ret",
+      "; open le=21845 e=0 R=i3 I=0,0,0,2,3,0,0,0|0,0,0,0,0,0,0,0|0,0,0,0,0,0,0,0 le=21845 e=0 C=0 I=0,0,0,0,0,0,0,0|0,0,0,0,0,0,0,0|0,0,0,0,0,0,0,0",
+      ""
+     ],
+     "reference_reproducible": true
+    },
+    "fopen.18": {
+     "ref": [
+      "ret",
+      "; open le=3 e=2 R=0 I=0,0,0,0,FFFFFFFF,0,0,0|0,0,0,0,0,0,0,0|0,0,0,0,0,0,0,0",
+      ""
+     ],
+     "cand": [
+      "ret",
+      "; open le=3 e=2 R=0 I=0,0,0,0,0,0,0,0|0,0,0,0,0,0,0,0|0,0,0,0,0,0,0,0",
+      ""
+     ],
+     "reference_reproducible": true
+    },
+    "fopen.19": {
+     "ref": [
+      "ret",
+      "; open le=3 e=2 R=0 I=0,0,0,0,FFFFFFFF,0,0,0|0,0,0,0,0,0,0,0|0,0,0,0,0,0,0,0",
+      ""
+     ],
+     "cand": [
+      "ret",
+      "; open le=3 e=2 R=0 I=0,0,0,0,0,0,0,0|0,0,0,0,0,0,0,0|0,0,0,0,0,0,0,0",
+      ""
+     ],
+     "reference_reproducible": true
+    },
+    "fopen.20": {
+     "ref": [
+      "ret",
+      "; open le=2 e=2 R=0 I=0,0,0,0,FFFFFFFF,0,0,0|0,0,0,0,0,0,0,0|0,0,0,0,0,0,0,0 ; open le=0 e=2 R=i3 I=0,0,0,1,3,0,0,0|0,0,0,0,0,0,0,0|0,0,0,0,0,0,0,0 le=21845 e=2 C=0 I=0,0,0,0,3,0,0,0|0,0,0,0,0,0,0,0|0,0,0,0,0,0,0,0",
+      ""
+     ],
+     "cand": [
+      "ret",
+      "; open le=2 e=2 R=0 I=0,0,0,0,0,0,0,0|0,0,0,0,0,0,0,0|0,0,0,0,0,0,0,0 ; open le=21845 e=2 R=i3 I=0,0,0,1,3,0,0,0|0,0,0,0,0,0,0,0|0,0,0,0,0,0,0,0 le=21845 e=2 C=0 I=0,0,0,0,0,0,0,0|0,0,0,0,0,0,0,0|0,0,0,0,0,0,0,0",
+      ""
+     ],
+     "reference_reproducible": true
+    },
+    "fopen.21": {
+     "ref": [
+      "ret",
+      "sha256:b402df11c62cda3a (435 chars)",
+      ""
+     ],
+     "cand": [
+      "ret",
+      "sha256:8e2e36cb1d58688b (447 chars)",
+      ""
+     ],
+     "reference_reproducible": true
     }
    }
   }
  },
- "total_mismatches": 4,
+ "total_mismatches": 110,
  "pending": 1796,
  "reference_faults": [],
  "mismatch_examples": {
-  "bvsnwerr": [
+  "zrealloc": [
    {
-    "id": "bvsnwerr.1",
-    "case": "E bvsnwerr.1 _vsnwprintf null 0x0 006100620063",
+    "id": "zrealloc.2",
+    "case": "Z zrealloc.2 r0,0 s0 f0",
+    "ref": "r:1:1 s:1 f",
+    "cand": "r:1:1 s:0 f"
+   }
+  ],
+  "ffull": [
+   {
+    "id": "ffull.15",
+    "case": "F ffull.15 full:=:260:78787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878",
     "ref": [
      "ret",
-     "R=3"
+     "sha256:ea3f9dd92aac9380 (608 chars)",
+     ""
     ],
     "cand": [
      "ret",
-     "R=-1"
+     "sha256:ff2cfd346e7f8e12 (610 chars)",
+     "",
+     "h an adapter: vsprintf strrchr strchr strncpy _stricmp atoi toupper qsort malloc realloc _msize free _set_se_translator _getcwd _fullpath _chdir _findfirst _findnext _findclose fopen fclose _errno\r | dependencies without an adapter (PENDING):\r | 1 cases\r | direct xrt_wformat vs adapter mismatches: 0"
     ]
    },
    {
-    "id": "bvsnwerr.2",
-    "case": "E bvsnwerr.2 _vsnwprintf null 0x0 00250064 i00003039",
+    "id": "ffull.16",
+    "case": "F ffull.16 full:=:260:78787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878",
     "ref": [
      "ret",
-     "R=5"
+     "sha256:ea3f9dd92aac9380 (608 chars)",
+     ""
     ],
     "cand": [
      "ret",
-     "R=-1"
+     "sha256:ff2cfd346e7f8e12 (610 chars)",
+     "",
+     "h an adapter: vsprintf strrchr strchr strncpy _stricmp atoi toupper qsort malloc realloc _msize free _set_se_translator _getcwd _fullpath _chdir _findfirst _findnext _findclose fopen fclose _errno\r | dependencies without an adapter (PENDING):\r | 1 cases\r | direct xrt_wformat vs adapter mismatches: 0"
     ]
    },
    {
-    "id": "bvsnwerr.5",
-    "case": "E bvsnwerr.5 _vsnwprintf null 0x7FFFFFFF 006100620063",
+    "id": "ffull.39",
+    "case": "F ffull.39 full:-:0:7878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878787878",
     "ref": [
      "ret",
-     "R=3"
+     "; full le=206 e=2 R=0",
+     ""
     ],
     "cand": [
      "ret",
-     "R=-1"
+     "; full le=21845 e=2 R=0",
+     "",
+     "h an adapter: vsprintf strrchr strchr strncpy _stricmp atoi toupper qsort malloc realloc _msize free _set_se_translator _getcwd _fullpath _chdir _findfirst _findnext _findclose fopen fclose _errno\r | dependencies without an adapter (PENDING):\r | 1 cases\r | direct xrt_wformat vs adapter mismatches: 0"
+    ]
+   }
+  ],
+  "fff": [
+   {
+    "id": "fff.0",
+    "case": "F fff.0 ff:6372745F646966665F66732E6D61726B6572",
+    "ref": [
+     "ret",
+     "sha256:037dd96a37fb54e9 (661 chars)",
+     ""
+    ],
+    "cand": [
+     "ret",
+     "sha256:0ac99484b14e6843 (665 chars)",
+     "",
+     "h an adapter: vsprintf strrchr strchr strncpy _stricmp atoi toupper qsort malloc realloc _msize free _set_se_translator _getcwd _fullpath _chdir _findfirst _findnext _findclose fopen fclose _errno\r | dependencies without an adapter (PENDING):\r | 1 cases\r | direct xrt_wformat vs adapter mismatches: 0"
     ]
    },
    {
-    "id": "bvsnwerr.6",
-    "case": "E bvsnwerr.6 _vsnwprintf null 0xFFFFFFFF 006100620063",
+    "id": "fff.1",
+    "case": "F fff.1 ff:612E747874",
     "ref": [
      "ret",
-     "R=3"
+     "sha256:865e2ae3cf9b978a (661 chars)",
+     ""
     ],
     "cand": [
      "ret",
-     "R=-1"
+     "sha256:97835c6d1da3b52b (665 chars)",
+     "",
+     "h an adapter: vsprintf strrchr strchr strncpy _stricmp atoi toupper qsort malloc realloc _msize free _set_se_translator _getcwd _fullpath _chdir _findfirst _findnext _findclose fopen fclose _errno\r | dependencies without an adapter (PENDING):\r | 1 cases\r | direct xrt_wformat vs adapter mismatches: 0"
+    ]
+   },
+   {
+    "id": "fff.2",
+    "case": "F fff.2 ff:422E55",
+    "ref": [
+     "ret",
+     "sha256:b17d62c240d00326 (661 chars)",
+     ""
+    ],
+    "cand": [
+     "ret",
+     "sha256:2998930ddbbc0c95 (665 chars)",
+     "",
+     "h an adapter: vsprintf strrchr strchr strncpy _stricmp atoi toupper qsort malloc realloc _msize free _set_se_translator _getcwd _fullpath _chdir _findfirst _findnext _findclose fopen fclose _errno\r | dependencies without an adapter (PENDING):\r | 1 cases\r | direct xrt_wformat vs adapter mismatches: 0"
+    ]
+   },
+   {
+    "id": "fff.3",
+    "case": "F fff.3 ff:4C6F6E67204E616D652057697468205370616365732E696E74",
+    "ref": [
+     "ret",
+     "sha256:1d3a1012b3ae5e27 (661 chars)",
+     ""
+    ],
+    "cand": [
+     "ret",
+     "sha256:81cf97a0e9d5c2fa (665 chars)",
+     "",
+     "h an adapter: vsprintf strrchr strchr strncpy _stricmp atoi toupper qsort malloc realloc _msize free _set_se_translator _getcwd _fullpath _chdir _findfirst _findnext _findclose fopen fclose _errno\r | dependencies without an adapter (PENDING):\r | 1 cases\r | direct xrt_wformat vs adapter mismatches: 0"
+    ]
+   },
+   {
+    "id": "fff.4",
+    "case": "F fff.4 ff:6E616D652E776974682E646F74732E75",
+    "ref": [
+     "ret",
+     "sha256:69bd5b908456c122 (661 chars)",
+     ""
+    ],
+    "cand": [
+     "ret",
+     "sha256:654541fdd07afdc3 (665 chars)",
+     "",
+     "h an adapter: vsprintf strrchr strchr strncpy _stricmp atoi toupper qsort malloc realloc _msize free _set_se_translator _getcwd _fullpath _chdir _findfirst _findnext _findclose fopen fclose _errno\r | dependencies without an adapter (PENDING):\r | 1 cases\r | direct xrt_wformat vs adapter mismatches: 0"
+    ]
+   }
+  ],
+  "ffind": [
+   {
+    "id": "ffind.0",
+    "case": "F ffind.0 find:2A",
+    "ref": [
+     "ret",
+     "sha256:e84b78436fad6aed (21269 chars)",
+     ""
+    ],
+    "cand": [
+     "ret",
+     "sha256:6639a89c9172fc98 (21273 chars)",
+     "",
+     "h an adapter: vsprintf strrchr strchr strncpy _stricmp atoi toupper qsort malloc realloc _msize free _set_se_translator _getcwd _fullpath _chdir _findfirst _findnext _findclose fopen fclose _errno\r | dependencies without an adapter (PENDING):\r | 1 cases\r | direct xrt_wformat vs adapter mismatches: 0"
+    ]
+   },
+   {
+    "id": "ffind.1",
+    "case": "F ffind.1 find:2A2E2A",
+    "ref": [
+     "ret",
+     "sha256:e84b78436fad6aed (21269 chars)",
+     ""
+    ],
+    "cand": [
+     "ret",
+     "sha256:6639a89c9172fc98 (21273 chars)",
+     "",
+     "h an adapter: vsprintf strrchr strchr strncpy _stricmp atoi toupper qsort malloc realloc _msize free _set_se_translator _getcwd _fullpath _chdir _findfirst _findnext _findclose fopen fclose _errno\r | dependencies without an adapter (PENDING):\r | 1 cases\r | direct xrt_wformat vs adapter mismatches: 0"
+    ]
+   },
+   {
+    "id": "ffind.2",
+    "case": "F ffind.2 find:2A2E75",
+    "ref": [
+     "ret",
+     "sha256:d8f9b6e4064c482b (1949 chars)",
+     ""
+    ],
+    "cand": [
+     "ret",
+     "sha256:7d0bca96caaecacd (1953 chars)",
+     "",
+     "h an adapter: vsprintf strrchr strchr strncpy _stricmp atoi toupper qsort malloc realloc _msize free _set_se_translator _getcwd _fullpath _chdir _findfirst _findnext _findclose fopen fclose _errno\r | dependencies without an adapter (PENDING):\r | 1 cases\r | direct xrt_wformat vs adapter mismatches: 0"
+    ]
+   },
+   {
+    "id": "ffind.3",
+    "case": "F ffind.3 find:2A2E55",
+    "ref": [
+     "ret",
+     "sha256:d8f9b6e4064c482b (1949 chars)",
+     ""
+    ],
+    "cand": [
+     "ret",
+     "sha256:7d0bca96caaecacd (1953 chars)",
+     "",
+     "h an adapter: vsprintf strrchr strchr strncpy _stricmp atoi toupper qsort malloc realloc _msize free _set_se_translator _getcwd _fullpath _chdir _findfirst _findnext _findclose fopen fclose _errno\r | dependencies without an adapter (PENDING):\r | 1 cases\r | direct xrt_wformat vs adapter mismatches: 0"
+    ]
+   },
+   {
+    "id": "ffind.4",
+    "case": "F ffind.4 find:53797374656D5C2A2E75",
+    "ref": [
+     "ret",
+     "sha256:87631bdf456bb8dd (2593 chars)",
+     ""
+    ],
+    "cand": [
+     "ret",
+     "sha256:75d73a15efafbef2 (2597 chars)",
+     "",
+     "h an adapter: vsprintf strrchr strchr strncpy _stricmp atoi toupper qsort malloc realloc _msize free _set_se_translator _getcwd _fullpath _chdir _findfirst _findnext _findclose fopen fclose _errno\r | dependencies without an adapter (PENDING):\r | 1 cases\r | direct xrt_wformat vs adapter mismatches: 0"
+    ]
+   }
+  ],
+  "fopen": [
+   {
+    "id": "fopen.0",
+    "case": "F fopen.0 open:612E747874:7262",
+    "ref": [
+     "ret",
+     "; open le=0 e=0 R=i3 I=0,0,0,1,3,0,0,0|0,0,0,0,0,0,0,0|0,0,0,0,0,0,0,0 le=21845 e=0 C=0 I=0,0,0,0,3,0,0,0|0,0,0,0,0,0,0,0|0,0,0,0,0,0,0,0",
+     ""
+    ],
+    "cand": [
+     "ret",
+     "; open le=21845 e=0 R=i3 I=0,0,0,1,3,0,0,0|0,0,0,0,0,0,0,0|0,0,0,0,0,0,0,0 le=21845 e=0 C=0 I=0,0,0,0,0,0,0,0|0,0,0,0,0,0,0,0|0,0,0,0,0,0,0,0",
+     "",
+     "h an adapter: vsprintf strrchr strchr strncpy _stricmp atoi toupper qsort malloc realloc _msize free _set_se_translator _getcwd _fullpath _chdir _findfirst _findnext _findclose fopen fclose _errno\r | dependencies without an adapter (PENDING):\r | 1 cases\r | direct xrt_wformat vs adapter mismatches: 0"
+    ]
+   },
+   {
+    "id": "fopen.1",
+    "case": "F fopen.1 open:422E55:7262",
+    "ref": [
+     "ret",
+     "; open le=0 e=0 R=i3 I=0,0,0,1,3,0,0,0|0,0,0,0,0,0,0,0|0,0,0,0,0,0,0,0 le=21845 e=0 C=0 I=0,0,0,0,3,0,0,0|0,0,0,0,0,0,0,0|0,0,0,0,0,0,0,0",
+     ""
+    ],
+    "cand": [
+     "ret",
+     "; open le=21845 e=0 R=i3 I=0,0,0,1,3,0,0,0|0,0,0,0,0,0,0,0|0,0,0,0,0,0,0,0 le=21845 e=0 C=0 I=0,0,0,0,0,0,0,0|0,0,0,0,0,0,0,0|0,0,0,0,0,0,0,0",
+     "",
+     "h an adapter: vsprintf strrchr strchr strncpy _stricmp atoi toupper qsort malloc realloc _msize free _set_se_translator _getcwd _fullpath _chdir _findfirst _findnext _findclose fopen fclose _errno\r | dependencies without an adapter (PENDING):\r | 1 cases\r | direct xrt_wformat vs adapter mismatches: 0"
+    ]
+   },
+   {
+    "id": "fopen.2",
+    "case": "F fopen.2 open:6E6F6E65786973742E747874:7262",
+    "ref": [
+     "ret",
+     "; open le=2 e=2 R=0 I=0,0,0,0,FFFFFFFF,0,0,0|0,0,0,0,0,0,0,0|0,0,0,0,0,0,0,0",
+     ""
+    ],
+    "cand": [
+     "ret",
+     "; open le=2 e=2 R=0 I=0,0,0,0,0,0,0,0|0,0,0,0,0,0,0,0|0,0,0,0,0,0,0,0",
+     "",
+     "h an adapter: vsprintf strrchr strchr strncpy _stricmp atoi toupper qsort malloc realloc _msize free _set_se_translator _getcwd _fullpath _chdir _findfirst _findnext _findclose fopen fclose _errno\r | dependencies without an adapter (PENDING):\r | 1 cases\r | direct xrt_wformat vs adapter mismatches: 0"
+    ]
+   },
+   {
+    "id": "fopen.3",
+    "case": "F fopen.3 open:53797374656D:7262",
+    "ref": [
+     "ret",
+     "; open le=5 e=13 R=0 I=0,0,0,0,FFFFFFFF,0,0,0|0,0,0,0,0,0,0,0|0,0,0,0,0,0,0,0",
+     ""
+    ],
+    "cand": [
+     "ret",
+     "; open le=5 e=13 R=0 I=0,0,0,0,0,0,0,0|0,0,0,0,0,0,0,0|0,0,0,0,0,0,0,0",
+     "",
+     "h an adapter: vsprintf strrchr strchr strncpy _stricmp atoi toupper qsort malloc realloc _msize free _set_se_translator _getcwd _fullpath _chdir _findfirst _findnext _findclose fopen fclose _errno\r | dependencies without an adapter (PENDING):\r | 1 cases\r | direct xrt_wformat vs adapter mismatches: 0"
+    ]
+   },
+   {
+    "id": "fopen.4",
+    "case": "F fopen.4 open:726F2E747874:7262",
+    "ref": [
+     "ret",
+     "; open le=0 e=0 R=i3 I=0,0,0,1,3,0,0,0|0,0,0,0,0,0,0,0|0,0,0,0,0,0,0,0 le=21845 e=0 C=0 I=0,0,0,0,3,0,0,0|0,0,0,0,0,0,0,0|0,0,0,0,0,0,0,0",
+     ""
+    ],
+    "cand": [
+     "ret",
+     "; open le=21845 e=0 R=i3 I=0,0,0,1,3,0,0,0|0,0,0,0,0,0,0,0|0,0,0,0,0,0,0,0 le=21845 e=0 C=0 I=0,0,0,0,0,0,0,0|0,0,0,0,0,0,0,0|0,0,0,0,0,0,0,0",
+     "",
+     "h an adapter: vsprintf strrchr strchr strncpy _stricmp atoi toupper qsort malloc realloc _msize free _set_se_translator _getcwd _fullpath _chdir _findfirst _findnext _findclose fopen fclose _errno\r | dependencies without an adapter (PENDING):\r | 1 cases\r | direct xrt_wformat vs adapter mismatches: 0"
     ]
    }
   ]
  },
  "exclusions": {
   "_snwprintf": "not imported by UCC.exe, Core.dll, Engine.dll, GlmLib.dll or Editor.dll",
-  "vsprintf, swprintf": "unbounded variants imported by Engine.dll/GlmLib.dll; no runtime adapter; outside the bounded-printf target (sprintf itself is covered by the A lines)",
+  "swscanf, swprintf, _snprintf, _vsnprintf on the ucc make path": "not reached by the original `ucc make` (main session's import trace); _snprintf/_vsnprintf keep their B/K/E cases (PENDING without an adapter)",
   "outputs of 16384 characters or more": "B lines: SKIP (the measuring call has a 16384-character capacity)",
-  "F2 (ACP 932 command-line splitting)": "separate test experiments/xrt/tests/f2_mbcs_argv, open, not part of this formatter result"
+  "F2 (ACP 932 command-line splitting)": "separate test experiments/xrt/tests/f2_mbcs_argv, open, not part of this formatter result",
+  "DBCS code pages for the path and string functions": "T and F lines run under the system ANSI code page (recorded in fs.acp); behaviour under ACP 932 belongs to the open F2 work and is not claimed here",
+  "TZ and __MSVCRT_HEAP_SELECT environment variables": "removed from the environment of every process (generator, both sides, isolated runs): F-line times use the system time zone (recorded in fs, with whether DST was in effect at the run), and msvcr70 selects its heap the default way (system heap on NT 5+)",
+  "access times in F lines": "every access time in the tree is the run's start time T0: NTFS refreshes a last-access time that is more than an hour old when the file is opened, so historical access times would not stay fixed. Creation and write times are fixed historical values",
+  "times in the tree snapshot": "the snapshot compares names, attributes, sizes and contents; times are compared through _findfirst/_findnext only",
+  "files of 4 GB or more": "_finddata_t.size is 32-bit; not tested",
+  "_set_se_translator invocation": "X lines check the recorded and returned translators only; whether a translator runs when a structured exception crosses a C++ try block belongs to exception dispatch (the runtime does not translate structured exceptions), not tested here",
+  "qsort comparators": "harness comparators (int32, wrapping difference, descending, first-byte key, constant 0); the engine's own comparators run as translated code and are not reproduced",
+  "heap addresses": "Z lines record success, content preservation and _msize, never addresses"
  },
  "extended_run": {
   "command": "compare.py --i10 60000 --seed 7",

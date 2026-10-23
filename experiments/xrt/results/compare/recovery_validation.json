@@ -1,0 +1,637 @@
+{
+ "schema": 1,
+ "date_local": "2026-10-22",
+ "timezone": "America/New_York",
+ "source_commit": "b987eef37e408327756ebd2d854468f635cb103d",
+ "recovery_parent": "1c7aef2fd39e8348c16368449285259114bba0d7",
+ "source_files_sha256": {
+  "experiments/xrt/build_xrt.cmd": "ff3cb6c937111b3337a854b5871f60ee6dbe51e36bb8d14b82b51f84402e575d",
+  "experiments/xrt/compile_probe/invalid/XrtCompileProbe/Classes/XrtCompileProbe.uc": "e4f13a53255ae37ef433f4acbad307328e584976b46338e4f0852474f3a03626",
+  "experiments/xrt/compile_probe/v1/XrtCompileProbe/Classes/XrtCompileProbe.uc": "22b647118ec66089ac2fc7e0aecefe6b0adffcaa2199edb6d808a85aed4df31d",
+  "experiments/xrt/compile_probe/v1/expected.txt": "611723e09a2a8d6dcc72fd4cff7d384522a8140a96c0eb4e80f3823cd2ae0134",
+  "experiments/xrt/compile_probe/v2/XrtCompileProbe/Classes/XrtCompileProbe.uc": "2ab000d1fb9a7c44757974072074a8ba86e24090d7dcf0e490fc3b859a4b675d",
+  "experiments/xrt/compile_probe/v2/expected.txt": "7f920c71281cff14d46ce29229e5821b34005f9e523078f778c4d775ca6cb582",
+  "experiments/xrt/compile_probe/v3/XrtCompileProbe/Classes/XrtCompileProbe.uc": "e0fa4cdf6a2aa8272d574dbf7718cf8ca5b9e12811e5951dccdaca01e279e0c9",
+  "experiments/xrt/compile_probe/v3/XrtCompileProbe/Classes/XrtProbeShape.uc": "1a04cc8a89d5e84f8fd45e135f29835be9b750128c7ad63dbace079c8d3958b2",
+  "experiments/xrt/compile_probe/v3/XrtCompileProbe/Classes/XrtProbeSquare.uc": "49e8231d9090021a7f8879cf1aa058c7d90635b56d8fbd1922b58811ac6af97a",
+  "experiments/xrt/compile_probe/v3/XrtCompileProbe/Classes/XrtProbeTriangle.uc": "6ef413bbdd73b5e15bc2fb52eec0151ae0188f85f37a557e239e1133153a406b",
+  "experiments/xrt/compile_probe/v3/expected.txt": "13c62e4db0163413cfffd72e29f9be2cb6214f710c9defa3c38e800003cf29f7",
+  "experiments/xrt/runtime/hle_kernel32.c": "f8c901bbffc483b65d43035fdac2441ceeefdf389627c797fe6b9be45336dd14",
+  "experiments/xrt/runtime/hle_misc.c": "1338e63c8e95c68d35cdf5572191ffc03891a2a53c0160d9d9acc21882ea3645",
+  "experiments/xrt/runtime/hle_msvcr70.c": "0fc4150931ede6ff6b0272a37d65a787e2f60bad454830a30686cd55fe621618",
+  "experiments/xrt/runtime/xrt.h": "8cf3867a876d3888af8d4cb55c7ad9c9f7d11b29286cb82d9fe268215abf623e",
+  "experiments/xrt/runtime/xrt_cpu.c": "a39bf8c808a508d6e611b91a41b5187ebb37cd4bcfc12995ea18e15634214f8f",
+  "experiments/xrt/runtime/xrt_diag.c": "fc730000a728778c05065eae2faa1148f85d2c2b7dac47e3d594905ce6601814",
+  "experiments/xrt/runtime/xrt_eh.c": "907c2b3cbfc568ac3b094ce85a1b66526828249e61c462cff8cc6a93c2f65b5a",
+  "experiments/xrt/runtime/xrt_events.c": "09ad96bd0ab70550edced577ec49f2a0b1ad803c01c3c3b45ce1189609e250d1",
+  "experiments/xrt/runtime/xrt_fmt.c": "7a1003e73a95b78dea1b243c106c4df5b452c66032a35623cf10a0a7f9a99178",
+  "experiments/xrt/runtime/xrt_internal.h": "f829390f222b4d4de586220d0c7a58e824be831ec0a840fcd7aa5f4118bc40de",
+  "experiments/xrt/runtime/xrt_loader.c": "061653cbab1c69b907350ed36b0f4eb034738d9a83ce256ca41bda116fb11658",
+  "experiments/xrt/runtime/xrt_main.c": "c7a0ba713944110edbe3e3631698a3daeec36b473194735ac10f8eb4e10f499f",
+  "experiments/xrt/runtime/xrt_mem.c": "c8df54a118b29e00d73ecdc1e61e066748b64e3049f63cbea5f5ae3ec4ccc27b",
+  "experiments/xrt/runtime/xrt_msvcr70img.c": "17c060c3109fa60acd550ffaa260d5299c19a2e99bf9af2f2fe229e4a3431f05",
+  "experiments/xrt/runtime/xrt_thread.c": "cd0c0751d9e59b715b6a2bd9f741c54285956e84d3866597be6416c0831a0fa7",
+  "experiments/xrt/tests/common/xrt_test_stubs.c": "21f5c524ac0f046d68f0b7766620cd9697d33556eaa0481ab08dc7ffea232c14",
+  "experiments/xrt/tests/crt_diff/build.cmd": "4e862e462e7e74d4d1bcf4bfd63caa628c319cbb0a9cdfea87297d0c179bcd9e",
+  "experiments/xrt/tests/crt_diff/cand.c": "1ae3138586ed4cd86dd3460f2b403208335be48c8c0f2a2dd6cd37f196e418fc",
+  "experiments/xrt/tests/crt_diff/compare.py": "74a5836b4bf1c3ae10281379c5f0f989b6f528021cfb182c60be14c6988a3c83",
+  "experiments/xrt/tests/crt_diff/crt_diff_core.h": "8c3b82343dda8b379982fd7eebafd774f04818dc1ae5ec88a3a516fed2115f4e",
+  "experiments/xrt/tests/crt_diff/gen_corpus.py": "1864429487c5e06589b378f540d8669165adbe99902d36565d47ec9ae6a16f70",
+  "experiments/xrt/tests/crt_diff/i10_model.py": "3877398dd6edc2d2ea6e08b205934ede7d0cfdff35a66d2ddcd50ea944a252e6",
+  "experiments/xrt/tests/crt_diff/ref.c": "8ab597c4660331f865ac2e249d4ff295cdc93cf43adee188aa09adee586722fb",
+  "experiments/xrt/tests/f1_wtoi/build.cmd": "c3e6a9a29ac5abdc1b7bfb11e76737a94a2b2f4aa6352218336bd44963bc76ea",
+  "experiments/xrt/tests/f1_wtoi/cand_wtoi.c": "6896e59bf0aa3c5df3c8e4e4b5d123ea9877f01a0566db0da6d75b6285c31bce",
+  "experiments/xrt/tests/f1_wtoi/cases.h": "32ecdee90bffd2e61e67c9194dfbfc28dae6605b72ace37fa63a16c2fba307a6",
+  "experiments/xrt/tests/f1_wtoi/ref_wtoi.c": "94ad07ce4ca81ddef68ca59a3ec71eb904e7ac4f0bd197cf2a17b5dab263ec66",
+  "experiments/xrt/tests/f2_mbcs_argv/acp932.manifest": "f43b0232ccef347662f67398fb8a3f22600dabf13efc3c4db770a604f8767ccd",
+  "experiments/xrt/tests/f2_mbcs_argv/build.cmd": "3116612259273509a048b68b128a8ea37501125c55692c22d606753372698f8b",
+  "experiments/xrt/tests/f2_mbcs_argv/cand_argv.c": "0fe49e7e28a8febed2949d83c3b1dd2c8da15cfc8bc8404d19863e4c07e936e9",
+  "experiments/xrt/tests/f2_mbcs_argv/ref_argv.c": "30627d76b346148c1e59a57dc82183fc62ed0e296fc90fb55bba31d2f6957137",
+  "experiments/xrt/tests/f2_mbcs_argv/run_f2.py": "9b3909e999698fb64d7364b5e9109651ba0be86b71fc5582cc4fbce038294154",
+  "experiments/xrt/tests/f3_sandbox_guard/build.cmd": "e8be6865efdd396126aa03ebfc815dcdb9213bf53f28ee94ccc8addb437c147d",
+  "experiments/xrt/tests/f3_sandbox_guard/callsites.py": "442a979101516a7e5c2cd19b3943b48dde9e852b0d4669d15e2ee1f7bd3a7614",
+  "experiments/xrt/tests/f3_sandbox_guard/f3_test.c": "7ebb0fe09b00bf2dea1cb70734629df3039731eb1ee41d7434f1f1a51c72f1b7",
+  "experiments/xrt/tests/f3_sandbox_guard/stubs.c": "1d79275224899411b49cbcba8b41e4381bd629ac7010d54721d4c4737d4a49dd",
+  "experiments/xrt/tests/f4_setfilepointer/adapter.c": "970e1d9f0f32878dc4bde5ed98c920aeef6375f3626672cf131d4e85ded7f135",
+  "experiments/xrt/tests/f4_setfilepointer/build.cmd": "e7eabce857640c4daa46e0c1b9148eb725a1de3959fdeda158597e4f2b505f52",
+  "experiments/xrt/tests/f4_setfilepointer/host_api.c": "fa4eee45bd6b73b1373ccbd0d9be9936ed9bc549b3b25c5c936f240ef493e098",
+  "experiments/xrt/tests/insn_diff/build.cmd": "624ea13da02a028b6bbc56ed37a0a52fc63b0855183cdba8760db2b6d708d510",
+  "experiments/xrt/tests/insn_diff/build_lifted.cmd": "3d63bf85595dc9ad61ad38048822730a705404974fb1b726383d111f5191e764",
+  "experiments/xrt/tests/insn_diff/census.py": "d4a5e092589d447da3f5842159345846407688357b1be3ca1f5c70250b255c66",
+  "experiments/xrt/tests/insn_diff/compare.py": "166f4e81fbd08ad3ce689aa16ab2ec13682188fb20fee507a6d6baadb0d62058",
+  "experiments/xrt/tests/insn_diff/extended.py": "c85c99692e6ae2acdfe08f76a8132ccf6a2ca893283e443da95905dec7fa4510",
+  "experiments/xrt/tests/insn_diff/gen.py": "612e5e8fe659efd7d58bca9df87893c6b21b5eb3c8651d1a4153a825f738d9c3",
+  "experiments/xrt/tests/insn_diff/insn_diff.h": "b5d9138dee0d90c52574a2971abd7dd67ed94975947c0baed6d656c09345de90",
+  "experiments/xrt/tests/insn_diff/lifted_x64.c": "672b2095d9060973df885dc231269695564bb6aae8293d191c5ace1fe57c952c",
+  "experiments/xrt/tests/insn_diff/mutation_check.py": "3e56de6d18e3c0049efee44ec1912cb535c2536809ed919b8e031fefed472fe5",
+  "experiments/xrt/tests/insn_diff/native_run.asm": "bce1306a4899c11162fa51b387922363523b8618d32703546b7a7538ae361434",
+  "experiments/xrt/tests/insn_diff/native_x86.c": "12e7b6c364f20206757ea50d1c38ffff5f53ce9b94f95b9da59262c2a633da37",
+  "experiments/xrt/tests/insn_diff/run.py": "333cde7b198447cd0bd137887fa4ebda78396a00ff4257abce39882c84b701c9",
+  "experiments/xrt/tests/x87/analyze.py": "823676170953b04f195fe27960a4cba2a1927950c180cfed13a467ecb13b14f7",
+  "experiments/xrt/tests/x87/analyze_extra.py": "1ef6046a6abb5cb56cf5837573f95f0feb69a1b8ad97dc60e0446f335a509f89",
+  "experiments/xrt/tests/x87/build_x87.cmd": "569afae9167b250db20b5b3ce46a747c94ab7ebd5680717fa4032771104cb2bb",
+  "experiments/xrt/tests/x87/check_constants.py": "7d1bb950a44e1bd554c2c9c9350e85e9977226ee5b582624b638dac894b07f9d",
+  "experiments/xrt/tests/x87/find_x87.py": "8c69ad7eaa0a59f8c3dda31afeaa879f9ded383fb31083849065027750712cdb",
+  "experiments/xrt/tests/x87/make_results.py": "7214a583210fa4e9269704a2a919f5acbf5faef6656c134bf8752c8bd2afb1e9",
+  "experiments/xrt/tests/x87/run_x87.py": "3afd937fad9771ab75663814ecff30c05a620df03ec75ff1f3e22e0dd5d37d79",
+  "experiments/xrt/tests/x87/summarize_records.py": "424ccb7ee962436657fcc0f42e272d75e6a29b1485eba12c835e91fccd88df4d",
+  "experiments/xrt/tests/x87/x87_alt.c": "6fb22f01da8d78239de90ecd21b718d1563c81eaff5f05a93c14028df1adab1c",
+  "experiments/xrt/tests/x87/x87_common.h": "542479049dd2c58ddd2ec8ed56433461fb6ef0e5e3a6c81445aba7ee34da5641",
+  "experiments/xrt/tests/x87/x87_hw32.c": "2aefd5cbd8bcbe07d9043ecf8a257566ec5e5753230eb8460f408350de104899",
+  "experiments/xrt/tests/x87/x87_hw64.asm": "323af2e6f7de5d21df5d63214166685b8ce876c8973289ef38889c7fd1909555",
+  "experiments/xrt/tests/x87/x87_rt64.c": "bfb98159104c47959c29cfdf2bb04b99bd00a625cd7fccbf8bb52c5cc22603a6",
+  "experiments/xrt/tests/x87/x87data.py": "ec71ccaa9ec14738fa4b7e05a4a8d9574b28593313402a94bcfa93feb5641f3e",
+  "tools/xrt/cases.py": "960c7f86022618324ea0844d45015fae01f1d771d1d16b51a5c3aa584e24c25e",
+  "tools/xrt/compile_xrt.py": "8f6ae5b1cd6502afe5ec5910966b8b4b2f4ca810dd1289ea4bdd4890c27ef67c",
+  "tools/xrt/depmap.py": "b34ba346b56388dc9ea6ef2d66e4c4c4ff8d6cb60d449a5a31a4950bb578fe97",
+  "tools/xrt/discover.py": "0bf260db6ce1439ecff4410532c5d0c6b3b4485f3c45ae58e9343ff3591868aa",
+  "tools/xrt/eh_points.py": "8916627d8582e46c85ffde2d8411d73cc04c788c8035c21594fdcdbcc0cfa497",
+  "tools/xrt/lift_sse2.py": "6a92af5fc793d6730663e1a6b9abe39ca8bb6ae34ad08569cc2df5aa39a5bd0f",
+  "tools/xrt/make_sandbox.py": "706c6561538a6cb3a14cec0438da64b204d65ef378773d6770c33246f0b13e3e",
+  "tools/xrt/peimage.py": "83b5efe2e392b71446ac5bba538f12de3e8252a4d03e84241bf9c6be6c64f9c0",
+  "tools/xrt/run_xrt.py": "7c252c44807f06a4944f5406cbbac5e91416d299caae5059b667550bd20ac2a4",
+  "tools/xrt/tests/crt_gatef/build.cmd": "38d66457f5e0f0b516fed40f1228537ed27e44ba6d854c7438f2e97ef70842e7",
+  "tools/xrt/tests/crt_gatef/cand.c": "d6be4220f0c4066fd713407d2421dbec8869bc8aaec0c7bb9571c6ba8a5d798f",
+  "tools/xrt/tests/crt_gatef/compare.py": "2f1ff5eaff28cf53196dd56c9bebcc281bfda371af2d088fbac65f9433b456e7",
+  "tools/xrt/tests/crt_gatef/gatef_core.h": "76c6d09ec65cfc570fbe1de8fc55d25ff6ab78d9be5f2c240e30d1c825373fcb",
+  "tools/xrt/tests/crt_gatef/ref.c": "9922e50a6529f4d8ebcf6f955bd3a4fa5b025b164be70d05c59d077bf032f07e",
+  "tools/xrt/tests/ehprobe/build_and_run.cmd": "b9fdac98b89e995626919f72087a78cc77a4cab88261a2585ecfb6a3674c3587",
+  "tools/xrt/tests/ehprobe/ehprobe.cpp": "1f3eab229397f2597f7770373003b38e4bf0bd6690c95fd567735398ee6a95aa",
+  "tools/xrt/tests/ehprobe/msvcr70_probe.def": "f52f835cda0ffea5faec4cddaaf2d98a9a9e17912cc8377af2358998b05b0a4b",
+  "tools/xrt/tests/ehprobe/native_host.c": "70f6ed9700cbcf16a45e4b62588e7069ed03684093959447a64d104f9d919fdd",
+  "tools/xrt/tests/ehprobe/patch_probe.py": "70f80d8e4723eb4447f1148172360c19ce81ec1ee97a556aa11e6ec40641d587",
+  "tools/xrt/tests/ehprobe/run_probe.py": "d1f74955efcdad582bb65ee0aa06b66467191c2d8921ca3ca37e897d59b251b2",
+  "tools/xrt/tests/ehprobe/xrt_probe_host.c": "4ca3f54da55a5b45f2ace3e50e96caa5e7f28a57de0ad5438f0bdeb5a9ecca77",
+  "tools/xrt/tests/fake_tracer.py": "50ab0f784a4e73c8ccd26fc41fe915d59aa69cda0faf465907278f7eb6231d26",
+  "tools/xrt/tests/tamper_candidate.py": "604c8c66f1069954db393f55a4acf893a45ea2e9ccae9d2c98beeb0db78b01d2",
+  "tools/xrt/tests/test_compile_xrt.py": "d18a2217aa44a35a4c9627ca6eeb497c3dba3b1c0f628f7ceff5decea11a4d0e",
+  "tools/xrt/tests/test_run_xrt.py": "9f30ec5d6d8f5bc34797b21d16c07b4161713018d9d3cf9a418f558a540eae62",
+  "tools/xrt/tests/test_validation_gates.py": "8a77b40450da54c0a3a562c93cb8fdf52b451a6f01be157b36937187252b7b73",
+  "tools/xrt/tests/test_xlift.py": "af4de8117aca310b2ac6ca51ad873ffe13c64e62e88d226bc33e2e677fc05592",
+  "tools/xrt/tests/x87_sintab/build_and_run.cmd": "015a6d661e050ac46b3f72fa8e2d7cf1bde6f135f04161b0cbb6eb57ed4e524f",
+  "tools/xrt/tests/x87_sintab/check_sintab.py": "8d9bb2a2826c807dbac91e0bbc1052b3738d8de5bf79821c0cfc6f6344879974",
+  "tools/xrt/tests/x87_sintab/hw_sintab.c": "371e640b77f9cb2368a6fa2b9a7cccfd8047776f0690052d7128c3b048360cf2",
+  "tools/xrt/tests/x87_sintab/rt_sintab.c": "1021f805eff00e20a79ca192c0e94047669795a58f5015eb0e6ca4425b5ccc70",
+  "tools/xrt/trace_original.py": "e29c2c7ac0ed104cdcb33df554aec44040ff3400c79f10e7eca69cbdee2cd6b7",
+  "tools/xrt/xlift.py": "aa07ad797c33217420b775ec6fb0035892c24ad7ac7314261d1bf55f2817c027"
+ },
+ "compiler": {
+  "verdict": "PASS",
+  "invocation_id": "20261023-013214-95746a9f",
+  "successful_compiles": 12,
+  "expected_compile_failures": 4,
+  "execution_combinations": 12,
+  "all_four_combinations_each_of_v1_v2_v3": "PASS",
+  "identity": {
+   "git_head": "1c7aef2fd39e8348c16368449285259114bba0d7",
+   "git_tracked_files_modified": true,
+   "candidate": {
+    "path": "experiments/xrt/build/xrt_ucc.exe",
+    "sha256": "99d8e9a4023f90c3d8372d0c478d7787dac0ac2405029c997c657638866a6697"
+   },
+   "runtime_sources": {
+    "path": "experiments/xrt/runtime",
+    "files": 15,
+    "sha256": "0a8bb57ecb631b0faeeccdba791885c7900514db5662e9bfada5414e5210948e"
+   },
+   "driver": {
+    "path": "tools/xrt/compile_xrt.py",
+    "sha256": "8f6ae5b1cd6502afe5ec5910966b8b4b2f4ca810dd1289ea4bdd4890c27ef67c"
+   }
+  },
+  "source_change_proof": {
+   "ok": true,
+   "proof": {
+    "packages": {
+     "original": {
+      "v1_sha256": "cd2d50c28239d10bc1a16c60cc21f8b0e9343926bffa2398814212d4a2bd794d",
+      "v2_sha256": "4f33bde0301a73281acdd3c71c22add9a53fafb93b656d2fac8e223086f6ea68",
+      "classification": "other",
+      "differing_ranges": [
+       [
+        24,
+        25
+       ],
+       [
+        32,
+        33
+       ],
+       [
+        36,
+        52
+       ],
+       [
+        389,
+        394
+       ],
+       [
+        395,
+        396
+       ],
+       [
+        918,
+        923
+       ],
+       [
+        924,
+        925
+       ],
+       [
+        1118,
+        1123
+       ],
+       [
+        1124,
+        1125
+       ],
+       [
+        1261,
+        1265
+       ],
+       [
+        1282,
+        1361
+       ],
+       [
+        1363,
+        1368
+       ],
+       [
+        1370,
+        1375
+       ],
+       [
+        1377,
+        1382
+       ],
+       [
+        1384,
+        1389
+       ],
+       [
+        1391,
+        1396
+       ],
+       [
+        1398,
+        1403
+       ],
+       [
+        1405,
+        1410
+       ],
+       [
+        1412,
+        1417
+       ],
+       [
+        1419,
+        1425
+       ]
+      ],
+      "structural_differences": [
+       [
+        "header",
+        "export_offset"
+       ],
+       [
+        "header",
+        "import_offset"
+       ],
+       [
+        "exports",
+        "#2 XrtCompileProbe.XrtCompileProbe.ProbeTag"
+       ],
+       [
+        "exports",
+        "#3 XrtCompileProbe.XrtCompileProbe.ScriptText"
+       ],
+       [
+        "exports",
+        "#4 XrtCompileProbe.XrtCompileProbe.Main"
+       ],
+       [
+        "exports",
+        "#7 XrtCompileProbe.XrtCompileProbe"
+       ],
+       [
+        "exports",
+        "#7 XrtCompileProbe.XrtCompileProbe"
+       ]
+      ]
+     },
+     "xrt": {
+      "v1_sha256": "96a0d62f89c3461eabae0916063ba444f871c84c64a2c28dfff567c3800b7f3b",
+      "v2_sha256": "7741eeb222971e6dcdedd47ca6ed9bde20e78814398b3a0809aa6b2ff49a7e38",
+      "classification": "other",
+      "differing_ranges": [
+       [
+        24,
+        25
+       ],
+       [
+        32,
+        33
+       ],
+       [
+        36,
+        52
+       ],
+       [
+        389,
+        394
+       ],
+       [
+        395,
+        396
+       ],
+       [
+        918,
+        923
+       ],
+       [
+        924,
+        925
+       ],
+       [
+        1118,
+        1123
+       ],
+       [
+        1124,
+        1125
+       ],
+       [
+        1261,
+        1265
+       ],
+       [
+        1282,
+        1361
+       ],
+       [
+        1363,
+        1368
+       ],
+       [
+        1370,
+        1375
+       ],
+       [
+        1377,
+        1382
+       ],
+       [
+        1384,
+        1389
+       ],
+       [
+        1391,
+        1396
+       ],
+       [
+        1398,
+        1403
+       ],
+       [
+        1405,
+        1410
+       ],
+       [
+        1412,
+        1417
+       ],
+       [
+        1419,
+        1425
+       ]
+      ],
+      "structural_differences": [
+       [
+        "header",
+        "export_offset"
+       ],
+       [
+        "header",
+        "import_offset"
+       ],
+       [
+        "exports",
+        "#2 XrtCompileProbe.XrtCompileProbe.ProbeTag"
+       ],
+       [
+        "exports",
+        "#3 XrtCompileProbe.XrtCompileProbe.ScriptText"
+       ],
+       [
+        "exports",
+        "#4 XrtCompileProbe.XrtCompileProbe.Main"
+       ],
+       [
+        "exports",
+        "#7 XrtCompileProbe.XrtCompileProbe"
+       ],
+       [
+        "exports",
+        "#7 XrtCompileProbe.XrtCompileProbe"
+       ]
+      ]
+     }
+    },
+    "exec": {
+     "A": {
+      "v1": [
+       "XCP tag=alpha-1 greeting=from-defaults",
+       "XCP done"
+      ],
+      "v2": [
+       "XCP tag=bravo-2 greeting=changed-default",
+       "XCP done"
+      ]
+     },
+     "D": {
+      "v1": [
+       "XCP tag=alpha-1 greeting=from-defaults",
+       "XCP done"
+      ],
+      "v2": [
+       "XCP tag=bravo-2 greeting=changed-default",
+       "XCP done"
+      ]
+     }
+    }
+   },
+   "checks": [
+    {
+     "check": "original compiler: v1 and v2 packages differ (SHA-256)",
+     "ok": true
+    },
+    {
+     "check": "xrt compiler: v1 and v2 packages differ (SHA-256)",
+     "ok": true
+    },
+    {
+     "check": "original compiler: v1 and v2 packages differ outside the GUID (the source change reached the package)",
+     "ok": true
+    },
+    {
+     "check": "xrt compiler: v1 and v2 packages differ outside the GUID (the source change reached the package)",
+     "ok": true
+    },
+    {
+     "check": "v1 original compiles started from a fresh sandbox without XrtCompileProbe.u",
+     "ok": true
+    },
+    {
+     "check": "v1 xrt compiles started from a fresh sandbox without XrtCompileProbe.u",
+     "ok": true
+    },
+    {
+     "check": "v2 original compiles started from a fresh sandbox without XrtCompileProbe.u",
+     "ok": true
+    },
+    {
+     "check": "v2 xrt compiles started from a fresh sandbox without XrtCompileProbe.u",
+     "ok": true
+    },
+    {
+     "check": "combination A prints v1's own tag/greeting ('XCP tag=alpha-1 greeting=from-defaults')",
+     "ok": true
+    },
+    {
+     "check": "combination A prints v2's own tag/greeting ('XCP tag=bravo-2 greeting=changed-default')",
+     "ok": true
+    },
+    {
+     "check": "combination D prints v1's own tag/greeting ('XCP tag=alpha-1 greeting=from-defaults')",
+     "ok": true
+    },
+    {
+     "check": "combination D prints v2's own tag/greeting ('XCP tag=bravo-2 greeting=changed-default')",
+     "ok": true
+    }
+   ]
+  },
+  "incremental_with_existing_package_tested": false,
+  "cleanup": "Success: UnrImp detached/unmapped; remaining DLLs detach in reverse initialization order. Invalid: detach on process exit."
+ },
+ "commandlets": {
+  "invocation_id": "20261023-013525-de49eb02",
+  "pass": 27,
+  "fail": 0,
+  "traced_invocation_id": "20261023-013948-b8073561",
+  "traced_pass": 7,
+  "traced_fail": 0
+ },
+ "python": {
+  "command": "XRT_E2E=1 XRT_FULL=1 .venv/Scripts/python -I -m unittest discover -s tools/xrt/tests -v",
+  "tests": 139,
+  "skipped": 0,
+  "verdict": "PASS"
+ },
+ "instructions": {
+  "cases": 432304,
+  "failed_cases": 0,
+  "mutation_results": [
+   {
+    "mutation": "adc ignores carry-in",
+    "sites": 45,
+    "result": "killed",
+    "detail": "failed cases: 3165; forms: adc m32,r32 (842), lock adc m32,r32 (827), adc r8,r8 (483), adc r32,r32 (338), adc m32,imm (308), adc r8,imm (191), adc r32,imm (176)"
+   },
+   {
+    "mutation": "sbb carry-out ignores carry-in",
+    "sites": 52,
+    "result": "killed",
+    "detail": "failed cases: 870; forms: sbb r8,r8 (327), sbb r32,r32 (182), sbb r16,r16 (171), sbb r32,m32 (52), sbb m32,r32 (52), lock sbb m32,r32 (52), sbb m8,imm (17), sbb r8,imm (11), sbb r32,imm (6)"
+   },
+   {
+    "mutation": "shr CF taken from the wrong bit",
+    "sites": 164,
+    "result": "killed",
+    "detail": "failed cases: 1152; forms: shr m32,imm (382), shr r32,imm (308), shr r32,r8 (172), shr r16,imm (109), shr r16,r8 (107), shr r8,r8 (74)"
+   },
+   {
+    "mutation": "setl condition inverted",
+    "sites": 4,
+    "result": "killed",
+    "detail": "failed cases: 1280; forms: setl r8 (1280)"
+   },
+   {
+    "mutation": "high-byte register write clobbers the low byte",
+    "sites": 317,
+    "result": "killed",
+    "detail": "failed cases: 30138; forms: sar r8,imm (3033), ror r8,imm (2711), and r8,m8 (1596), or r8,m8 (1592), shl r8,imm (1356), rol r8,imm (1352), setle r8 (959), setge r8 (959), setg r8 (957), setne r8 (956), sub r8,r8 (951), xchg r8,r8 (639)"
+   },
+   {
+    "mutation": "8-bit compare flags computed at 32 bits",
+    "sites": 64,
+    "result": "killed",
+    "detail": "failed cases: 5334; forms: cmp r8,m8 (1441), sub m8,r8 (1071), cmp m8,r8 (1053), cmp r8,imm (490), cmp r8,r8 (387), sub r8,r8 (349), cmp m8,imm (322), sub r8,imm (221)"
+   },
+   {
+    "mutation": "idiv quotient overflow not detected",
+    "sites": 7,
+    "result": "killed",
+    "detail": "failed cases: 931; forms: idiv r32 (541), idiv m32 (390)"
+   },
+   {
+    "mutation": "string ops ignore DF",
+    "sites": 9,
+    "result": "killed",
+    "detail": "failed cases: 1415; forms: movsd m32,m32 (175), stosd m32,r32 (165), scasd r32,m32 (164), repe cmpsd m32,m32 (157), rep stosd m32,r32 (153), rep movsd m32,m32 (153), lodsd r32,m32 (152), repne scasd r32,m32 (150), cmpsd m32,m32 (146)"
+   },
+   {
+    "mutation": "fsub/fsubp ST(i),ST(0) operand order swapped",
+    "sites": 2,
+    "result": "killed",
+    "detail": "failed cases: 620; forms: fsubp sti (312), fsub sti,st0 (308)"
+   },
+   {
+    "mutation": "sar shifts logically",
+    "sites": 41,
+    "result": "killed",
+    "detail": "failed cases: 785; forms: sar r32,imm (542), sar r32,r8 (243)"
+   },
+   {
+    "mutation": "movsx from 16 bits treated as 8 bits",
+    "sites": 8,
+    "result": "killed",
+    "detail": "failed cases: 1585; forms: movsx r32,m16 (1017), movsx r32,r16 (376), cwde (192)"
+   },
+   {
+    "mutation": "x87 fild m64 read as m32",
+    "sites": 4,
+    "result": "killed",
+    "detail": "failed cases: 164; forms: fild m64 (164)"
+   },
+   {
+    "mutation": "fs: operands off by 4 bytes",
+    "sites": 14,
+    "result": "killed",
+    "detail": "failed cases: 4466; forms: mov r32,m32 (3200), mov m32,r32 (1266)"
+   }
+  ],
+  "unsupported_instruction_outcomes": "Fatal-by-design is recorded separately; it is not successful emulation."
+ },
+ "gate_f_crt": {
+  "cases": 51536,
+  "mismatches": 0,
+  "verdict": "PASS"
+ },
+ "eh_probe": {
+  "positive_matched": 6,
+  "negative_explicitly_fatal": 2,
+  "verdict": "PASS"
+ },
+ "x87": {
+  "sine_table_float32_entries": 16384,
+  "sine_table_mismatches": 0,
+  "fsin_edge_cases": 13,
+  "edge_float32_status_mismatches": 0,
+  "double_bits_exact": false,
+  "exhaustive_rerun": false,
+  "reason": "xrt_cpu.c and the relevant helper implementation unchanged; prior exhaustive results and limitations retained.",
+  "xrt_cpu_sha256": "a39bf8c808a508d6e611b91a41b5187ebb37cd4bcfc12995ea18e15634214f8f"
+ },
+ "review_regressions": {
+  "F1": {
+   "matched": 21
+  },
+  "F2": {
+   "known_differences": 6,
+   "ACP": 932,
+   "process_exit": 1,
+   "system_ACP_1252_matches": true
+  },
+  "F3": {
+   "checked_adapter_failures": 0,
+   "write_escapes": 0
+  },
+  "F4": {
+   "pass": 3
+  }
+ },
+ "expanded_crt": {
+  "verdict": "FAIL",
+  "process_exit": 1,
+  "cases": 244110,
+  "mismatches": 110,
+  "pending": 1796,
+  "reference_self_check": {
+   "f_lines": 189,
+   "reproducible": 189
+  },
+  "mismatches_by_category": {
+   "zrealloc": 1,
+   "ffull": 3,
+   "fff": 64,
+   "ffind": 20,
+   "fopen": 22
+  },
+  "last_error_only_repro_pairs": 87,
+  "fopen_fclose_field_difference_cases": 22,
+  "heap_size_difference_cases": 1,
+  "resolved_null_destination_vsnwprintf_cases": 4,
+  "reproducers": "experiments/xrt/tests/crt_diff/repro",
+  "result": "experiments/xrt/tests/crt_diff/results.json"
+ },
+ "installation_integrity": {
+  "System_files": 285,
+  "unchanged": true,
+  "manifest_sha256": "c41d91574c9894234b20f3c24cd9accbe42fecb76a92177e7cfc3b0ee1d2cc4d",
+  "source_read_only": true,
+  "saves_accessed": false
+ },
+ "preservation": {
+  "snapshot": "out/recovery/codex-takeover-20261022",
+  "project_files": 321,
+  "ignored_game_generated_and_binary_files_excluded": true,
+  "no_reset_clean_stash_or_remote_push": true
+ },
+ "whitespace": {
+  "CRLF": "Native batch-file CRLF accepted with core.whitespace=cr-at-eol.",
+  "intentional_fixture_trailing_space": "experiments/xrt/compile_probe/v3/expected.txt:5 (exact expected output)."
+ },
+ "next_objective": "Trace the smallest original headless level load, reproduce actor initialization, then fixed-clock/seed simulation and finally a real frame. Not started."
+}

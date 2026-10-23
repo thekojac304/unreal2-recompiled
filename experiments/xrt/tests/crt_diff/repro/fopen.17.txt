@@ -1,0 +1,11 @@
+# crt_diff reproducer for fopen.17 (2026-10-22, commit 1c7aef2fd39e8348c16368449285259114bba0d7); one process per side
+# rerun (both sides, the same way compare.py ran it): .venv\Scripts\python.exe -I experiments\xrt\tests\crt_diff\compare.py --repro experiments\xrt\tests\crt_diff\repro\fopen.17.txt
+# t0 134371932550000000  (FILETIME of every access time in the scratch tree; --repro rebuilds the tree with it)
+# ref:  ret ; open le=0 e=0 R=i3 I=0,0,0,2,3,0,0,0|0,0,0,0,0,0,0,0|0,0,0,0,0,0,0,0 le=21845 e=0 C=0 I=0,0,0,0,3,0,0,0|0,0,0,0,0,0,0,0|0,0,0,0,0,0,0,0
+# cand: ret ; open le=21845 e=0 R=i3 I=0,0,0,2,3,0,0,0|0,0,0,0,0,0,0,0|0,0,0,0,0,0,0,0 le=21845 e=0 C=0 I=0,0,0,0,0,0,0,0|0,0,0,0,0,0,0,0|0,0,0,0,0,0,0,0
+# candidate process: exit 0x00000000: h an adapter: vsprintf strrchr strchr strncpy _stricmp atoi toupper qsort malloc realloc _msize free _set_se_translator _getcwd _fullpath _chdir _findfirst _findnext _findclose fopen fclose _errno | dependencies without an adapter (PENDING): | 1 cases | direct xrt_wformat vs adapter mismatches: 0
+# reference:
+# open le=0 e=0 R=i3 I=0,0,0,2,3,0,0,0|0,0,0,0,0,0,0,0|0,0,0,0,0,0,0,0 le=21845 e=0 C=0 I=0,0,0,0,3,0,0,0|0,0,0,0,0,0,0,0|0,0,0,0,0,0,0,0
+# candidate:
+# open le=21845 e=0 R=i3 I=0,0,0,2,3,0,0,0|0,0,0,0,0,0,0,0|0,0,0,0,0,0,0,0 le=21845 e=0 C=0 I=0,0,0,0,0,0,0,0|0,0,0,0,0,0,0,0|0,0,0,0,0,0,0,0
+F fopen.17 open:726F6469725C6E65772E62696E:7762

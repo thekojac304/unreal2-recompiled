@@ -1,6 +1,6 @@
-# Current status: X1 translated runtime (UCC.exe, Core.dll, Engine.dll, GlmLib.dll on Windows x64)
+# Current status: X1 translated runtime, including Editor.dll / ucc make on Windows x64
 
-Updated 2026-10-22, phase 2 (acceptance gates). Details and limitations:
+Updated 2026-10-22 (US Eastern), compiler recovery and acceptance gates. Details and limitations:
 [experiments/xrt/README.md](experiments/xrt/README.md). Component differential tests:
 [experiments/xrt/tests/README.md](experiments/xrt/tests/README.md).
 
@@ -13,7 +13,11 @@ rem    Any fresh sandbox copy works as the source (the runtime checks every file
 .venv\Scripts\python -I tools\xrt\xlift.py sandbox_cmp\lift\System\UCC.exe --out experiments\xrt\gen\ucc
 .venv\Scripts\python -I tools\xrt\xlift.py sandbox_cmp\lift\System\Core.dll --out experiments\xrt\gen\core
 .venv\Scripts\python -I tools\xrt\xlift.py sandbox_cmp\lift\System\Engine.dll --out experiments\xrt\gen\engine
-.venv\Scripts\python -I tools\xrt\xlift.py sandbox_cmp\lift\System\GlmLib.dll --out experiments\xrt\gen\glmlib --base 0x02df0000
+.venv\Scripts\python -I tools\xrt\xlift.py sandbox_cmp\lift\System\GlmLib.dll --out experiments\xrt\gen\glmlib --base 0x02f40000
+.venv\Scripts\python -I tools\xrt\xlift.py sandbox_cmp\lift\System\Editor.dll --out experiments\xrt\gen\editor --base 0x02de0000
+.venv\Scripts\python -I tools\xrt\xlift.py sandbox_cmp\lift\System\Window.dll --out experiments\xrt\gen\window
+.venv\Scripts\python -I tools\xrt\xlift.py sandbox_cmp\lift\System\plugins\UnrImp.gpi --out experiments\xrt\gen\unrimp --base 0x036d0000
+.venv\Scripts\python -I tools\xrt\xlift.py sandbox_cmp\lift\System\Fire.dll --out experiments\xrt\gen\fire --base 0x03710000
 .venv\Scripts\python -I tools\xrt\lift_sse2.py sandbox_cmp\lift\System\msvcr70.dll 0x7c00ae08 xrt_msvcr70_pow_sse2 --error-handler 0x7c036052 --out experiments\xrt\gen\msvcr70\pow_sse2.c
 rem 2. build (about 10 min with Engine/GlmLib; "runtime" rebuilds only the host runtime); the tracer of the original
 experiments\xrt\build_xrt.cmd
@@ -26,15 +30,17 @@ rem    the same with the original run under uctrace (function-entry cross-check 
 rem    gate F: VMProbe through the translated Engine.dll and GlmLib.dll (traced: Engine/GlmLib function sets compared)
 .venv\Scripts\python -I tools\xrt\run_xrt.py vmprobe --repeat 3
 .venv\Scripts\python -I tools\xrt\run_xrt.py vmprobe --trace
-rem 4. tests: lifter, runner (logic layer always; XRT_E2E=1 adds end-to-end tamper tests, XRT_FULL=1 fails on a
+rem 4. compiler milestone: 16 compiles + 12 executions, fresh isolated sandboxes
+.venv\Scripts\python -I tools\xrt\compile_xrt.py
+rem 5. tests: lifter, runner (logic layer always; XRT_E2E=1 adds end-to-end tamper tests, XRT_FULL=1 fails on a
 rem    missing real-data layer)
 .venv\Scripts\python -I -m unittest discover -s tools\xrt\tests -v
 set XRT_E2E=1& set XRT_FULL=1& .venv\Scripts\python -I -m unittest discover -s tools\xrt\tests -p test_run_xrt.py -v
-rem 5. C++ exception probe (native msvcr70 vs translated) and FGlobalMath sine table (hardware x87 vs model)
+rem 6. C++ exception probe (native msvcr70 vs translated) and FGlobalMath sine table (hardware x87 vs model)
 tools\xrt\tests\ehprobe\build_and_run.cmd
 tools\xrt\tests\x87_sintab\build_and_run.cmd aae4923
 .venv\Scripts\python -I tools\xrt\tests\x87_sintab\check_sintab.py
-rem 6. gate-F CRT adapters vs the real msvcr70 (qsort, atof, _CIpow, _CIfmod, _isnan, toupper, strchr, _stricmp,
+rem 7. gate-F CRT adapters vs the real msvcr70 (qsort, atof, _CIpow, _CIfmod, _isnan, toupper, strchr, _stricmp,
 rem    atoi); --inputs replays operands recorded from a real run (set XRT_MATH_LOG=<file> for xrt_ucc.exe)
 tools\xrt\tests\crt_gatef\build.cmd
 .venv\Scripts\python -I tools\xrt\tests\crt_gatef\compare.py --json tools\xrt\tests\crt_gatef\results.json
@@ -51,7 +57,7 @@ Runner exit status: 0 all PASS, 1 any FAIL, 2 usage error, 3 UNVERIFIED (no refe
 | A. reliable comparison runner | done | `tools/xrt/run_xrt.py` rewritten; adversarial review (4 lenses, 32 findings, 29 confirmed) fixed in `805e2fe` |
 | B. milestone evidence as assertions | done | runtime event timeline + marks/watch from `tools/xrt/marks.json`; 7 evidence groups per Core case (+ engine_module_loading for vmprobe); 66 runner tests (+14 lifter tests) |
 | C. fresh reconfirmation of M0-M5 | done, 18/18 PASS | invocation `20261022-183909-adefc8f0` (3 x 6 cases) and traced cross-check `20261022-184054-53367051` (6/6) |
-| D. targeted differential tests | done | x87 trig model replaced (pi66 reduction); instruction, CRT and x87 suites at 0 unexplained differences; claims scoped |
+| D. targeted differential tests | original scope done; expanded CRT scope has open findings below | x87 trig model replaced (pi66 reduction); instruction, CRT and x87 suites at 0 unexplained differences; claims scoped |
 | E. measured C++ exception path | done | `hello`, `badclass` PASS with the original's throw/catch/resume sequence; probe 6/6 identical, 2/2 negatives fatal; 24/24 + 6/6 traced |
 | F. Engine.dll / VMProbe | done, `vmprobe` 3/3 + traced 1/1 PASS | VMProbe runs through the translated Engine.dll and GlmLib.dll: stdout identical, Engine/GlmLib executed exactly the original's function sets (1429/981); requirements asserted as evidence |
 
@@ -121,7 +127,7 @@ sources digest `5be0a285...fe1d`; inputs UCC.exe `84326806...b1ab`, Core.dll `51
 |---|---|---|
 | hellofull (`Core.HelloWorldCommandlet a b c`) | 3 + 1 traced | PASS 4/4 |
 | hello_noargs | 3 + 1 traced | PASS 4/4 |
-| hellonew (`x=1 -flag "two words" back\slash ünï`) | 3 + 1 traced | PASS 4/4 |
+| hellonew (`x=1 -flag "two words" back\slash ÃƒÂ¼nÃƒÂ¯`) | 3 + 1 traced | PASS 4/4 |
 | hellofull_nosse (scalar CPU policy matched, CPU Features line compared) | 3 + 1 traced | PASS 4/4 |
 | simple (`Core.SimpleCommandlet`) | 3 + 1 traced | PASS 4/4 |
 | arraytest (`Core.ArrayTest`) | 3 + 1 traced | PASS 4/4 |
@@ -235,34 +241,94 @@ Save junction's names, sizes and timestamps unchanged (never opened).
 | M5 repeated, multiple argument strings | done for Core-only cases, incl. the exception paths | 24/24 strict + 6/6 traced |
 | F VMProbe through translated Engine.dll + GlmLib.dll | done | `vmprobe` 3/3 + traced (function sets identical) |
 
-Highest gate passed: F.
+Highest gate passed: compiler milestone (after F); see the fresh acceptance below.
 
-## First reproducible failure
+## Compiler milestone
 
-Any commandlet whose class lives in a module that is not translated. The nearest one, the script compiler:
+Fresh invocation `20261023-013214-95746a9f` passed all four variants, with both compilers repeated twice:
+12 successful compiles, 4 expected invalid-source failures, and 12 successful executions. The driver is
+`tools/xrt/compile_xrt.py`; the compact evidence is
+[compile_milestone.json](experiments/xrt/results/compare/compile_milestone.json). Raw stdout, logs, packages,
+module hits, file hashes and process metadata remain local under `experiments/xrt/results/raw/compile/`.
 
-```bat
-.venv\Scripts\python -I tools\xrt\make_sandbox.py sandbox_cmp\next_try --probe
-cd sandbox_cmp\next_try\System
-..\..\..\experiments\xrt\build\xrt_ucc.exe --guest E:\Unreal2-Port-Investigation\sandbox_cmp\next_try\System\UCC.exe --log ..\xrt.log --report ..\report.json -- make
-```
+| Compiler output | Execution engine | v1 | v2 (changed source) | v3 (four classes) |
+|---|---|---|---|---|
+| Original | Original (A) | PASS | PASS | PASS |
+| Original | Translated (B) | PASS | PASS | PASS |
+| Translated | Original (C) | PASS | PASS | PASS |
+| Translated | Translated (D) | PASS | PASS | PASS |
 
-exits 75: `LoadLibraryW(...\System\Editor.dll): the DLL exists but is not part of this translated runtime` (from
-Core's `appGetDllHandle`). Adding Editor.dll is "another module" (lift, register in `xrt_main.c`'s module list,
-then follow its imports), outside this phase's gates.
+Every compile starts without the probe package in a newly copied sandbox, at the same guest-visible path.
+Only Core and the project-owned probe are EditPackages. v1/v2/v3 packages are 1528/1530/6924 bytes; all pairwise
+comparisons within a variant differ only in header GUID bytes [36,52), including repeated original compiles.
+Names, imports, exports and serialized object payloads match. Every GUID is distinct and RFC 4122 v4; translated
+GUIDs match the recorded CoCreateGuid call. The shipped Golem.u header is also re-saved with a fresh GUID by both
+compilers; all other bytes match the shipped package. No unexplained writes were accepted.
+
+The v2 fixture changes constants/defaults. Its clean recompilations differ from v1 outside the GUID and every
+engine combination prints the changed tag and greeting. This proves source-change propagation through a fresh
+compile; an incremental build with a pre-existing output package has not been claimed. v3 exercises inheritance,
+overrides, super, statics, defaults, arrays, out parameters and control flow. Expected output is checked against
+handwritten fixtures, never copied from a run.
+
+The invalid source fails at line 14 with `Bad or missing expression after '$'`, exit 1, matching diagnostic/history
+lines, and no probe package on either side. Runtime failure is judged separately from a compiler diagnostic.
+Translated reports execute 405 Editor.dll functions for v1/v2, 438 for v3 and 397 for invalid, including
+UEditorEngine::InitEditor and MakeScripts. Source-open and package-save events are required. UnrImp.gpi is detached,
+unmapped and removed from lookup on successful compiler cleanup; remaining DLLs detach in reverse initialization
+order. The invalid path detaches at process exit, matching the original's error shutdown behavior.
+
+Recovery base was `1c7aef2fd39e8348c16368449285259114bba0d7`, with unfinished changes. The pre-edit source snapshot
+(321 project files, no ignored game/generated/binary files) is local at `out/recovery/codex-takeover-20261022`.
+No active compiler/build workers or Git lock were found; the source hashes stayed stable during the snapshot.
+Runtime-only rebuild succeeded using the existing generated objects (all present and newer than their C sources).
+The acceptance binary SHA-256 is `99d8e9a4023f90c3d8372d0c478d7787dac0ac2405029c997c657638866a6697`;
+runtime source digest `0a8bb57ecb631b0faeeccdba791885c7900514db5662e9bfada5414e5210948e`, generated-code digest
+`ac5b6a3b266600efb8e7da389e82aae12791d3b4033f961f6e85e822b4c9d784`, and compiler-driver SHA-256
+`8f6ae5b1cd6502afe5ec5910966b8b4b2f4ca810dd1289ea4bdd4890c27ef67c` identify the exact tested state.
+Source and test revision: `b987eef37e408327756ebd2d854468f635cb103d`. All 139 Python tests pass with
+`XRT_E2E=1 XRT_FULL=1`, with no skips. The v3 expected-output fixture intentionally retains its trailing
+space on the grades line. Source/test file hashes and final validation are recorded in `experiments/xrt/results/compare/recovery_validation.json`.
+
+## Recovery regressions and remaining failures
+
+- Commandlets: invocation `20261023-013525-de49eb02`, 27/27 PASS (nine cases, repeat 3). Traced invocation
+  `20261023-013948-b8073561`: 7/7 PASS, including matching Engine/GlmLib function sets.
+- Instructions: 432,304 cases, zero failures; 13/13 mutations detected. Unsupported instructions remain explicit
+  fatal-by-design cases, not successfully emulated instructions. Unchanged x87 runtime SHA-256 is
+  `a39bf8c808a508d6e611b91a41b5187ebb37cd4bcfc12995ea18e15634214f8f`; the earlier exhaustive measurements remain
+  applicable. Fresh sine-table check: 16,384 float32 entries and 13 edge cases match; double-bit differences remain.
+- Gate-F CRT: 51,536 cases, zero mismatches. Exception probe: 6 positives identical; 2 negatives explicitly fatal.
+- F1: 21 identical; F3: no write escapes, zero checked adapter failures; F4: three PASS results. F2 remains open:
+  six ACP 932 differences; system ACP 1252 cases match. F2 now returns nonzero when differences exist.
+- Expanded CRT: 244,110 cases, **110 mismatches, 1,796 PENDING**, exit 1. The reference reproduced all 189 filesystem
+  cases. Mismatches: realloc(NULL,0) size (1), _fullpath last-error state (3), _findfirst (64), directory enumeration
+  (20), fopen/fclose (22). These concern last-error values and FILE fields as well as heap size; they are preserved
+  in `experiments/xrt/tests/crt_diff/repro/` and not counted as passes. The former four NULL-destination _vsnwprintf
+  failures are fixed (all nine isolated wide cases now match). Missing narrow bounded adapters stay PENDING.
+  Removing only `le=` values from the raw reproducer text makes all 87 _fullpath/find/enumeration pairs identical;
+  the 22 fopen/fclose cases also differ in FILE fields. This broader component suite is not globally green;
+  the measured compiler milestone above is green.
+- Test harnesses were rebuilt against the added dependencies. Unexercised dependency stubs fail explicitly; F3
+  validates the expected guard diagnostic and reports assertion failures through its exit status. Instruction
+  comparison/mutation failures, missing mutation patterns and mutant build failures now propagate as failures.
 
 ## Lift statistics
 
-Engine.dll: 16,449 functions, 3521 static traps, 2326 EH frames; GlmLib.dll (`--base 0x02df0000`): 11,592
-functions, 1556 static traps, 1137 EH frames, 31,885 relocation fixups at load; all EH funclets/continuations are
+Engine.dll: 16,449 functions, 3521 static traps, 2326 EH frames; GlmLib.dll (`--base 0x02f40000`): 11,592
+functions, 1758 static traps, 1137 EH frames, 31,885 relocation fixups at load; all EH funclets/continuations are
 translated entries. msvcr70 `_CIpow` SSE2 core: 644 instructions translated.
 
 ## Next concrete task
 
-Decide the next module (Editor.dll for `ucc make`, or the Engine paths of another headless commandlet) and repeat
-the gate-F procedure: fresh trace of the original (uctrace now handles unloads), lift, register, follow the concrete
-failures with adapters ported from the DLL and measured against it. Open items: F2 (DBCS `__getmainargs`), the x87
-tag word, GlmLib's fixed base.
+Stop editor/toolchain expansion. Trace the original headless level-load path first, selecting the smallest shipped
+level with the fewest native dependencies. Reuse the loader, translator and sandbox runner to reach
+UGameEngine::Init/LoadMap, asserting the level package opened and actor construction/initialization completed.
+Translate only native modules reached by that trace and implement the first reproducible missing import, keeping
+render/audio/network paths explicit if they are not exercised. Then drive a fixed number of ticks with a fixed
+clock and random seed, compare actor counts/transforms and a world-state digest against the original, and repeat
+for determinism. A first real frame follows only after level initialization and headless simulation are measured.
+No gameplay or graphics expansion was started during this recovery.
 
 ## Deliberate limitations
 
