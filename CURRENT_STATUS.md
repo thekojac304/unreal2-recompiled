@@ -313,7 +313,37 @@ space on the grades line. Source/test file hashes and final validation are recor
   validates the expected guard diagnostic and reports assertion failures through its exit status. Instruction
   comparison/mutation failures, missing mutation patterns and mutant build failures now propagate as failures.
 
-## Lift statistics
+## Fresh full-build checkpoint (2026-10-22 US Eastern)
+
+Repository arrived clean at `a182f262a44b1afb86f2e398c2110b32336a90ba`, a documentation-only successor to
+`b987eef37e408327756ebd2d854468f635cb103d`. Nothing was reset. `tools/xrt/fresh_checkpoint.py --system sandbox/System`
+re-ran the current generators against an existing isolated copy, comparing every generated file and metadata
+byte for byte, including marks and the declared relocation bases. All eight module lifts matched. The special
+msvcr70 pow lift matched except its input-path provenance comment. No regeneration discrepancy was found.
+Scratch translations were removed only after equality; assets were not copied for this check.
+
+The script then built **all generated and runtime translation units against current headers** in a new, empty
+`experiments/xrt/build/fresh-20261023-015722-b7ee8987` directory. It reused no objects from the recovery build.
+`identity.json` there preserves generator commands, source/input/generated/object hashes and build logs.
+The binary is `4582d6c66564015d4f8af19666475c242f591884e7ad25be91d7112cabd63a78`;
+runtime sources `0a8bb57ecb631b0faeeccdba791885c7900514db5662e9bfada5414e5210948e`, generated code
+`ac5b6a3b266600efb8e7da389e82aae12791d3b4033f961f6e85e822b4c9d784` (unchanged from recovery).
+Tested source was `a182f26` plus the build-output-directory and `XRT_BINARY` runner overrides recorded in the
+acceptance identities; runtime, lifter, headers and compiler driver were unchanged.
+
+With `XRT_BINARY` set to that exact fresh binary and `XRT_COMPARE_DIR` inside its build directory:
+
+- `run_xrt.py hellofull hello_noargs hellonew hellofull_nosse simple arraytest hello badclass vmprobe`:
+  **9/9 PASS**, invocation `20261023-020348-3d5cd480`; exception cases used fresh traced originals.
+- `run_xrt.py vmprobe --trace`: **PASS**, `20261023-020511-56569f29`.
+- `compile_xrt.py`: **PASS**, `20261023-020602-5166a403`; 12 successful compiles, 4 expected invalid-source
+  failures, 12 executions; all package and evidence comparisons passed.
+- Default Python unit-test discovery: **139 tests, OK, 17 conditional tests skipped**. Full end-to-end tamper
+  coverage was not rerun in this compact pass. Expensive unchanged numerical corpora were not rerun.
+
+The 110 expanded CRT mismatches, 1,796 pending cases and six ACP 932 differences remain open as above.
+
+### Module lift statistics
 
 Engine.dll: 16,449 functions, 3521 static traps, 2326 EH frames; GlmLib.dll (`--base 0x02f40000`): 11,592
 functions, 1758 static traps, 1137 EH frames, 31,885 relocation fixups at load; all EH funclets/continuations are

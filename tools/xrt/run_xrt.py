@@ -68,7 +68,7 @@ from cases import CASE_ID, CASES  # noqa: E402
 
 WS = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", ".."))
 PY = sys.executable
-XRT = os.path.join(WS, "experiments", "xrt", "build", "xrt_ucc.exe")
+XRT = os.environ.get("XRT_BINARY") or os.path.join(WS, "experiments", "xrt", "build", "xrt_ucc.exe")
 TRACER = os.path.join(WS, "experiments", "xrt", "build", "tracer", "uctrace.exe")
 ENTRIES = os.path.join(WS, "experiments", "xrt", "traces", "entries")
 RUNS_ROOT = os.path.join(WS, "experiments", "xrt", "results", "raw", "runs")
