@@ -1,18 +1,19 @@
-# Current status: translated UGameEngine::Init and UWindowsClient::Init reached
+# Current status: translated UWindowsClient::Init returns; native D3D8 factory is next
 
-Updated 2026-10-23 (US Eastern). **G4 passes** in two fresh runs of the identified translated client.
-Real class registration, window creation, nested/default/prior WNDPROCs, launcher prerequisites and binary
-Golem file reads/seeks now execute. The next reproducible blocker is `dinput8!DirectInput8Create` in
-`WinDrv.dll+0x7bac`, called from `UWindowsClient::Init+0x8b`. **Translated LoadMap, CS_Intro world initialization
-and world ticks remain unreached.** No custom renderer or input bypass was added.
+Updated 2026-10-23 (US Eastern). **D3 passes** in two fresh runs of the identified translated client.
+Real DirectInput8Create returns an owned guest COM interface, and UWindowsClient::Init returns to
+Engine.dll+0x8f5a3. The next reproducible blocker is `d3d8!Direct3DCreate8` at D3DDrv.dll+0x1c6b0, called
+from +0xd8a1. **UGameEngine::Init completion, translated LoadMap, CS_Intro initialization and world ticks
+remain unreached.** No rendering implementation or input bypass was added.
 
 The original reference remains preserved: CS_Intro LoadMap returns a selected world, actor initialization
 completes, four ticks return to the caller and three game Presents succeed through the pinned dgVoodoo/D3D11
 configuration. Fresh repeats confirm it. Pixel-capture attempts do not verify game content; input/play is untested.
 
 [Current checkpoint and commands](experiments/xrt/GRAPHICS_STARTUP.md),
-[identified results](experiments/xrt/results/compare/class_initialization.json).
-The class oracle has 464 identical native/translated values; the binary FILE oracle has 188. Existing GUI,
+[identified results](experiments/xrt/results/compare/directinput_initialization.json).
+The input/COM oracle has 50 identical values and four explicit negatives; the class oracle has 472 values,
+and the binary FILE oracle has 188. Existing GUI,
 module, EH and startup checks pass. Final acceptance: 9 commandlet/VM cases, traced VMProbe, 16 compiler
 invocations/12 execution comparisons, and 149 Python tests (17 expected skips).
 

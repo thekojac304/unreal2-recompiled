@@ -1,4 +1,119 @@
-# Class registration / engine initialization checkpoint — 2026-10-23 (US Eastern)
+# DirectInput / Windows-client initialization checkpoint — 2026-10-23 (US Eastern)
+
+**Translated D3 is reached: `UWindowsClient::Init` returns to its real engine caller.**
+The first remaining fatal boundary is `d3d8.dll!Direct3DCreate8` at
+`D3DDrv.dll+0x1c6b0`, called from `+0xd8a1` inside `UD3DRenderDevice::Init`.
+`UGameEngine::Init` has not completed; genuine LoadMap and selected-world ticks remain unreached.
+No rendering implementation, initialization bypass, Android, animation replacement or editor expansion was added.
+
+Starting HEAD was clean at `051e73536b462126bb9e50436d0b6bec5ef1457c`, on
+`codex/level-initialization`. Runtime and fixture changes are committed locally as `8076749`.
+No push was made. Earlier binaries, evidence and the original installation/saves remain preserved.
+Public comparison: [directinput_initialization.json](results/compare/directinput_initialization.json).
+
+| Milestone | Translated result |
+|---|---|
+| D1: DirectInput8Create completes with measured native behavior | **Yes**, real host `S_OK`, guest object returned |
+| D2: required initial DirectInput setup finishes | **Yes**, within UWindowsClient Init; later viewport/device setup is unexecuted |
+| D3: UWindowsClient::Init returns | **Yes**, paired call/return with matching object, thread and engine caller |
+| D4: UGameEngine::Init completes | No; nested renderer initialization reaches the native D3D8 dependency |
+| D5: genuine UGameEngine::LoadMap entered | No |
+| D6: CS_Intro.un2 opened through LoadMap | No |
+
+## Measured COM and HINSTANCE boundary
+
+The same project-owned PE32 DLL is run natively and through the actual lifter/runtime.
+Four positive probes have **50 identical logged values**: 29 creation/COM, 7 independent-object lifetime,
+2 outstanding-reference cleanup, and 12 A/W StickyKeys values. Four deliberate translated negatives retain
+explicit diagnostics: stale interface, an unimplemented method, successful but unmodelled ANSI QueryInterface,
+and aggregation. The final executable/report/fixture identities are pinned in
+`results/raw/input-checkpoint-20261023/oracles/`; rebuilding the fixture cannot replace that evidence.
+
+- Actual implemented operations are `DirectInput8Create`, `IDirectInput8W::QueryInterface`, `AddRef` and
+  `Release`. QueryInterface supports the measured W/IUnknown identity and returns actual host failures for
+  missing IIDs. Each successful host reference is owned and released. Guest objects contain a 32-bit guest
+  vtable address; all eleven slots contain guest adapter/trap addresses. Typed host `IDirectInput8W*` values
+  stay in a separate ownership table. Non-recycled guest tombstones diagnose stale calls. Shutdown releases
+  outstanding references; the leak fixture confirms two releases and the client confirms one.
+- Native creation measures version `0x0800`, IID `bf798031-483a-4da2-aa99-5d64ed369700`, NULL outer and
+  the owning module's HINSTANCE. Other versions, NULL HINSTANCE and missing IID failures/output clearing also
+  match. A fresh original-client trace at WinDrv `184b/1850` confirms Window HINSTANCE `0x11000000`, version
+  `0800`, NULL outer, `S_OK`, and 20 bytes of argument cleanup. The IID bytes are verified against the loaded PE.
+- Host HINSTANCE conversion is explicit: validate the guest module base/generation, retain that provenance,
+  then pass the real EXE HINSTANCE containing the translated code. The x64 probe measures that a resource-only
+  PE32 module handle fails DirectInput with `E_INVALIDARG`; normal x64 loading of PE32 fails with error 193.
+  No PE32 code is executed by the host. This establishes the observed factory/COM behavior, **not** equivalence
+  of original-module certification or path-specific compatibility behavior. See Microsoft's
+  [DirectInput8Create HINSTANCE contract](https://learn.microsoft.com/en-us/previous-versions/windows/desktop/ee416756(v=vs.85)).
+- The actual client has called only the factory before its renderer boundary. It has not reached CreateDevice,
+  EnumDevices, capabilities, cooperative level, or DirectInput callbacks. Those paths are not fabricated or
+  speculatively implemented. All remaining IDirectInput8W slots retain individually named fatal diagnostics.
+- Encountered prerequisites use real Windows calls: two-DWORD A/W StickyKeys get/set, GetDC/ReleaseDC for
+  represented windows (including the desktop-window token), and GetDeviceCaps `BITSPIXEL` (32 on this host).
+  StickyKeys changes are session-only and restore the captured host state on normal/fatal/timeout stops;
+  both final client reports confirm successful restoration. Timeout cleanup avoids concurrent COM Release.
+  Borrowed callback DCs cannot be released as acquired DCs. The class oracle now compares 472 values.
+
+## Exact execution evidence
+
+Final binary: `build/input-final/xrt_ucc.exe`, SHA-256
+`ea02a6cf324087ba9d5ebd3db956daec72a3c48cdcb6dbbaab6f45799a2d0c34`.
+Its `client-identity.json` binds all freshly compiled runtime/client objects and checks the reused generated
+objects against the preserved full checkpoint. `xrt.h` and generated code are unchanged; the client build
+has no compiler warnings.
+
+Both final invocations have **23,123 events, zero dropped events**, and the same first remaining fatal:
+
+- `results/raw/level/20261023-051602-15c5e746-candidate/`
+- `results/raw/level/20261023-051827-026be1e1-candidate/`
+
+In each, factory event 23081 returns a guest object with `S_OK`. UWindowsClient Init call/return events
+23077/23084 share object/thread, return to `Engine.dll+0x8f5a3`, and adjust ESP by eight bytes (return plus
+one argument). The original trace matches the same caller and its genuine WinDrv RET at `1939`.
+The final fatal is seq 23121, followed by successful StickyKeys restoration and one owned COM release.
+Engine `90f00` has not executed. No map-open or world-execution milestone is inferred from Golem file reads.
+
+Earlier runtime steps were resumed and recorded separately: factory bridge → SystemParametersInfoW at
+WinDrv `18d4` (`20261023-050800-cc94c422`); StickyKeys → GetDC at D3DDrv `d872`
+(`20261023-050933-cc70d490`); window DC → GetDeviceCaps at `d87b`
+(`20261023-051123-9b7b89da`); BITSPIXEL → Direct3DCreate8 (`20261023-051302-5ecdd625`).
+
+```powershell
+$env:XRT_BINARY = 'E:\Unreal2-Port-Investigation\experiments\xrt\build\input-final\xrt_ucc.exe'
+.venv/Scripts/python -I tools/xrt/level_probe.py candidate --timeout-ms 45000
+cmd /d /c experiments\xrt\tests\input_boundary\build.cmd
+```
+
+## Reference, regressions and next experiment
+
+The established original reference `d1f7f7ddff9e-dgvoodoo` is preserved. Fresh run
+`results/raw/graphics-startup/bfa5306f66a4-dgvoodoo/` again completes CS_Intro initialization with 268 of each
+actor lifecycle event, **four returned selected-world ticks and three successful game Presents**.
+It is complete, with no dropped events or exceptions. No new pixel-content or interactive-play claim is made.
+
+Final validation logs and immutable fixture copies are in `results/raw/input-checkpoint-20261023/`:
+
+- Input/COM, GUI, class, module, exception (six positives/two negatives), binary FILE and startup/memory
+  oracles PASS. Input includes four deliberate unsupported cases. Existing fixture compiler warnings remain
+  visible in logs; the final client build has none.
+- Nine commandlet/VM cases PASS: `20261023-051719-9d331505`.
+- Traced VMProbe PASS: `20261023-051853-8bd8f28f`.
+- Compiler PASS: `20261023-051622-6a84c58e`, 16 compiles including four expected invalid-source failures,
+  and 12 execution comparisons. Python: **149 tests OK, 17 expected skips**.
+- Existing expanded CRT baseline remains **110 mismatches / 1,796 pending**; the focused fopen.0 reproducer
+  freshly still differs. Fresh ACP 932 comparison retains **six differences**. No expectations were weakened.
+- Read-only census compares all 4,757 installation files with the preceding audit: zero additional differences;
+  Save entry metadata matches. The [unexplained Ogg finding](INSTALLATION_INTEGRITY.md) remains unresolved.
+
+The smallest next experiment toward a translated world tick is a focused **native x86 versus x64
+Direct3DCreate8 / immediate adapter-capability fixture**, identifying a host implementation that can preserve
+the established dgVoodoo reference before writing a guest COM renderer bridge. The existing x86 wrapper cannot
+be loaded into the x64 translated process. This checkpoint stops at that dependency; it does not return a
+fabricated D3D object or skip render-device initialization to reach LoadMap.
+
+---
+
+# Historical class registration / engine initialization checkpoint — 2026-10-23 (US Eastern)
 
 **Translated G4 is reached.** The real Unreal2.exe client enters `UGameEngine::Init`
 (`Engine.dll+0x8f460`), executes Golem workspace file initialization, and enters

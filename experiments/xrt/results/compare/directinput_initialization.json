@@ -1,0 +1,719 @@
+{
+  "schema": 1,
+  "updated_eastern": "2026-10-23",
+  "starting_head": "051e73536b462126bb9e50436d0b6bec5ef1457c",
+  "runtime_source_commit": "8076749",
+  "binary": {
+    "path": "experiments/xrt/build/input-final/xrt_ucc.exe",
+    "sha256": "ea02a6cf324087ba9d5ebd3db956daec72a3c48cdcb6dbbaab6f45799a2d0c34"
+  },
+  "build_identity": {
+    "path": "experiments/xrt/build/input-final/client-identity.json",
+    "sha256": "4c5725450ed4e00ec54aaccc56c522071f5a7af76f682e265a0fe7e04c3bb004"
+  },
+  "runtime": {
+    "path": "experiments/xrt/runtime",
+    "files": 16,
+    "sha256": "3b72dd39df03089f9d043a88a8feb1f9b885b09b6ff250234ccc513cd20e840f"
+  },
+  "highest_milestone": "D3",
+  "D2_scope": "Initial UWindowsClient DirectInput setup finished. Later viewport/device initialization is not claimed.",
+  "implemented": [
+    "DirectInput8Create",
+    "IDirectInput8W::QueryInterface (W/IUnknown identity and actual failed IIDs)",
+    "IDirectInput8W::AddRef",
+    "IDirectInput8W::Release"
+  ],
+  "unencountered": [
+    "CreateDevice",
+    "EnumDevices",
+    "GetCapabilities",
+    "SetCooperativeLevel",
+    "DirectInput callbacks"
+  ],
+  "unsupported": "All other DirectInput slots have named fatal diagnostics; no devices or callbacks fabricated.",
+  "hinstance_mapping": "Validate guest module base/generation; use real host EXE HINSTANCE containing translated code. Resource-only PE32 handles return E_INVALIDARG; normal x64 PE32 load returns ERROR_BAD_EXE_FORMAT. Original-module certification/path compatibility behavior is not established.",
+  "fixture": {
+    "values": 50,
+    "counts": {
+      "probe_creation": 29,
+      "probe_sticky": 12,
+      "probe_lifetime": 7,
+      "probe_leak": 2
+    },
+    "negatives": 4,
+    "results": {
+      "path": "experiments/xrt/results/raw/input-checkpoint-20261023/oracles/input_boundary/results.json",
+      "sha256": "84c99566c2920d43df24531a7a2015f1d0d76a7e8d47f3b0a9d4eabacf154808"
+    },
+    "module_identity": {
+      "path": "experiments/xrt/results/raw/input-checkpoint-20261023/oracles/input_boundary/module-identity.txt",
+      "sha256": "e81c3b2624b19d8b7c190690143ec46b3eb2ce4a7de1afa33585da29f0616c7d"
+    }
+  },
+  "translated": [
+    {
+      "directory": "experiments/xrt/results/raw/level/20261023-051602-15c5e746-candidate",
+      "report": {
+        "path": "experiments/xrt/results/raw/level/20261023-051602-15c5e746-candidate/report.json",
+        "sha256": "1df8fb01fabde85c89aaf5a3c58917c4185b6e144ab8920edcd1082c263e3c10"
+      },
+      "metadata": {
+        "path": "experiments/xrt/results/raw/level/20261023-051602-15c5e746-candidate/meta.json",
+        "sha256": "a26bed725c1fd1190eaa75cb9bbfdea2d73a1552e5b75f4d19a8fc8344d3e2ed"
+      },
+      "milestones": {
+        "D1": true,
+        "D2": true,
+        "D3": true,
+        "D4": false,
+        "D5": false,
+        "D6": false
+      },
+      "events_recorded": 23123,
+      "events_dropped": 0,
+      "creation": {
+        "seq": 23081,
+        "thread": 0,
+        "kind": "dinput_create",
+        "owner": 285212672,
+        "version": 2048,
+        "iid": 3212410929,
+        "outer": 0,
+        "object": 86092,
+        "result": 0
+      },
+      "client_init_call": {
+        "seq": 23077,
+        "thread": 0,
+        "kind": "client_init_call",
+        "target": 286267328,
+        "esp": 18928820,
+        "return": 272168355,
+        "this": 303730944
+      },
+      "client_init_return": {
+        "seq": 23084,
+        "thread": 0,
+        "kind": "client_init_return",
+        "target": 286267328,
+        "esp_before": 18928820,
+        "esp_after": 18928828,
+        "return": 272168355,
+        "actual_return": 272168355,
+        "this": 303730944
+      },
+      "directinput_method_calls_after_creation": 0,
+      "blocker": {
+        "seq": 23121,
+        "thread": 0,
+        "kind": "fatal",
+        "code": 75,
+        "message": "call to import d3d8.dll!Direct3DCreate8, which has no host implementation (from 0697c6b0 (D3DDrv.dll+1c6b0))"
+      }
+    },
+    {
+      "directory": "experiments/xrt/results/raw/level/20261023-051827-026be1e1-candidate",
+      "report": {
+        "path": "experiments/xrt/results/raw/level/20261023-051827-026be1e1-candidate/report.json",
+        "sha256": "eaf3794a14b7b7473f4dfe6f1ca8aa55f36db263d95467be0153c2cd2b29caf9"
+      },
+      "metadata": {
+        "path": "experiments/xrt/results/raw/level/20261023-051827-026be1e1-candidate/meta.json",
+        "sha256": "d322024a36ab5219c3d52965c971d8abdaca5375f4fa1093eb161b89a1141064"
+      },
+      "milestones": {
+        "D1": true,
+        "D2": true,
+        "D3": true,
+        "D4": false,
+        "D5": false,
+        "D6": false
+      },
+      "events_recorded": 23123,
+      "events_dropped": 0,
+      "creation": {
+        "seq": 23081,
+        "thread": 0,
+        "kind": "dinput_create",
+        "owner": 285212672,
+        "version": 2048,
+        "iid": 3212410929,
+        "outer": 0,
+        "object": 86092,
+        "result": 0
+      },
+      "client_init_call": {
+        "seq": 23077,
+        "thread": 0,
+        "kind": "client_init_call",
+        "target": 286267328,
+        "esp": 18928820,
+        "return": 272168355,
+        "this": 303730944
+      },
+      "client_init_return": {
+        "seq": 23084,
+        "thread": 0,
+        "kind": "client_init_return",
+        "target": 286267328,
+        "esp_before": 18928820,
+        "esp_after": 18928828,
+        "return": 272168355,
+        "actual_return": 272168355,
+        "this": 303730944
+      },
+      "directinput_method_calls_after_creation": 0,
+      "blocker": {
+        "seq": 23121,
+        "thread": 0,
+        "kind": "fatal",
+        "code": 75,
+        "message": "call to import d3d8.dll!Direct3DCreate8, which has no host implementation (from 0697c6b0 (D3DDrv.dll+1c6b0))"
+      }
+    }
+  ],
+  "original": {
+    "directory": "experiments/xrt/results/raw/graphics-startup/bfa5306f66a4-dgvoodoo",
+    "trace": {
+      "path": "experiments/xrt/results/raw/graphics-startup/bfa5306f66a4-dgvoodoo/trace.json",
+      "sha256": "613150971465cffdfcfce0c7e42f2307c6ebe5c421617ecc669162e2491fa015"
+    },
+    "creation_call": {
+      "seq": 51,
+      "thread": 0,
+      "kind": "point",
+      "label": "DirectInput8Create.call",
+      "module": "WinDrv.dll",
+      "rva": "0x184b",
+      "esp": "0x005fd1fc",
+      "stack_top": "0x11000000",
+      "eax": "0x11000000",
+      "ecx": "0x005fd430"
+    },
+    "creation_arguments": {
+      "hinstance": "0x11000000",
+      "version": "00000800",
+      "iid_address": "1110d614",
+      "output_address": "111175d8",
+      "outer": "00000000"
+    },
+    "creation_return": {
+      "seq": 52,
+      "thread": 0,
+      "kind": "point",
+      "label": "DirectInput8Create.return",
+      "module": "WinDrv.dll",
+      "rva": "0x1850",
+      "esp": "0x005fd210",
+      "stack_top": "0x1014b800",
+      "eax": "0x00000000",
+      "ecx": "0xa5262acc"
+    },
+    "observed_iid": "bf798031-483a-4da2-aa99-5d64ed369700",
+    "client_init_entry": {
+      "seq": 50,
+      "thread": 0,
+      "kind": "point",
+      "label": "UWindowsClient.Init",
+      "module": "WinDrv.dll",
+      "rva": "0x17c0",
+      "esp": "0x005fd440",
+      "stack_top": "0x1038f5a3",
+      "eax": "0x01d69100",
+      "ecx": "0x01d69100"
+    },
+    "client_init_ret": {
+      "seq": 53,
+      "thread": 0,
+      "kind": "point",
+      "label": "UWindowsClient.Init.return",
+      "module": "WinDrv.dll",
+      "rva": "0x1939",
+      "esp": "0x005fd440",
+      "stack_top": "0x1038f5a3",
+      "eax": "0x00000000",
+      "ecx": "0x005ff558"
+    },
+    "world": {
+      "observer_complete_without_drops": true,
+      "selected_map": {
+        "entry_seq": 114,
+        "open_seq": 115,
+        "return_seq": 1043,
+        "world": "0x0fe12800",
+        "actors": {
+          "AActor.eventPreBeginPlay": 268,
+          "AActor.eventBeginPlay": 268,
+          "AActor.eventPostBeginPlay": 268
+        }
+      },
+      "selected_level_initialized": true,
+      "completed_selected_world_ticks": [
+        {
+          "entry_seq": 12330,
+          "ret_seq": 12337,
+          "caller_seq": 12338
+        },
+        {
+          "entry_seq": 12346,
+          "ret_seq": 12347,
+          "caller_seq": 12348
+        },
+        {
+          "entry_seq": 12353,
+          "ret_seq": 12354,
+          "caller_seq": 12355
+        },
+        {
+          "entry_seq": 12363,
+          "ret_seq": 12364,
+          "caller_seq": 12365
+        }
+      ],
+      "game_create_device": [
+        {
+          "call_seq": 12325,
+          "return_seq": 12326,
+          "hresult": "0x00000000"
+        }
+      ],
+      "game_present": [
+        {
+          "call_seq": 12343,
+          "return_seq": 12344,
+          "hresult": "0x00000000"
+        },
+        {
+          "call_seq": 12360,
+          "return_seq": 12361,
+          "hresult": "0x00000000"
+        },
+        {
+          "call_seq": 12370,
+          "return_seq": 12371,
+          "hresult": "0x00000000"
+        }
+      ],
+      "interactive_play_verified": false
+    }
+  },
+  "oracle_manifest": {
+    "input_boundary": [
+      {
+        "path": "experiments/xrt/results/raw/input-checkpoint-20261023/oracles/input_boundary/inputprobe.dll",
+        "sha256": "cbfc4413e42713040b57089f8b3588ff3f2fbbfbfd47208997ee3ec8a2a71f17"
+      },
+      {
+        "path": "experiments/xrt/results/raw/input-checkpoint-20261023/oracles/input_boundary/lift.txt",
+        "sha256": "fb507d0723cb631d6cfeb27ee160c902f7ce7e74044f118617d2e59bc8356632"
+      },
+      {
+        "path": "experiments/xrt/results/raw/input-checkpoint-20261023/oracles/input_boundary/module-identity.txt",
+        "sha256": "e81c3b2624b19d8b7c190690143ec46b3eb2ce4a7de1afa33585da29f0616c7d"
+      },
+      {
+        "path": "experiments/xrt/results/raw/input-checkpoint-20261023/oracles/input_boundary/module_identity.cmd",
+        "sha256": "70918872c47a810c0a1c419f1a76f48fa394819bed6cec8ba68c177a748ae740"
+      },
+      {
+        "path": "experiments/xrt/results/raw/input-checkpoint-20261023/oracles/input_boundary/module_identity.exe",
+        "sha256": "8946f823379136311d2defe09eea2c6eb6b8621780e552b71ede576414655743"
+      },
+      {
+        "path": "experiments/xrt/results/raw/input-checkpoint-20261023/oracles/input_boundary/native.exe",
+        "sha256": "ca804b12467c0767eb6f1b8fcc08fe20ca16871de3d942887576e980e5662471"
+      },
+      {
+        "path": "experiments/xrt/results/raw/input-checkpoint-20261023/oracles/input_boundary/probe_aggregate.json",
+        "sha256": "9fb33ce9b63de9e5da50fd3ee0479980ff0e7a1a828de48f57c864d6247bf2d4"
+      },
+      {
+        "path": "experiments/xrt/results/raw/input-checkpoint-20261023/oracles/input_boundary/probe_ansi.json",
+        "sha256": "39936fc1ef4f13ce9cff573066ea08120bfe732dfd5290844be52c3d1d719f1f"
+      },
+      {
+        "path": "experiments/xrt/results/raw/input-checkpoint-20261023/oracles/input_boundary/probe_stale.json",
+        "sha256": "7aac8ff248a5534187d54ee1be8ff771045fa98d67d7061c0548b2a0ec4f9e64"
+      },
+      {
+        "path": "experiments/xrt/results/raw/input-checkpoint-20261023/oracles/input_boundary/probe_unmeasured.json",
+        "sha256": "1e1c26b0664fa1c36f9ab397415813d5228c84b37318c7bf227579b90ca1c283"
+      },
+      {
+        "path": "experiments/xrt/results/raw/input-checkpoint-20261023/oracles/input_boundary/report.json",
+        "sha256": "f7d2388c116dc4a83be020096d0dc900a89fe5627c9ff92389562ce786d85073"
+      },
+      {
+        "path": "experiments/xrt/results/raw/input-checkpoint-20261023/oracles/input_boundary/results.json",
+        "sha256": "84c99566c2920d43df24531a7a2015f1d0d76a7e8d47f3b0a9d4eabacf154808"
+      },
+      {
+        "path": "experiments/xrt/results/raw/input-checkpoint-20261023/oracles/input_boundary/translated.exe",
+        "sha256": "cd9498585853b62321b721ad8e22c7a43a48c8c12eb80a25402a31d472f04a9a"
+      }
+    ],
+    "class_boundary": [
+      {
+        "path": "experiments/xrt/results/raw/input-checkpoint-20261023/oracles/class_boundary/classprobe.dll",
+        "sha256": "ef288bba84998a0655602f167f2c13fa948c8bc9219f477d4949365321f992a9"
+      },
+      {
+        "path": "experiments/xrt/results/raw/input-checkpoint-20261023/oracles/class_boundary/lift.txt",
+        "sha256": "80e4f9cb9ae9c0132756da726312285b59c989f0a312291cfb37a606919861e4"
+      },
+      {
+        "path": "experiments/xrt/results/raw/input-checkpoint-20261023/oracles/class_boundary/native.exe",
+        "sha256": "ca804b12467c0767eb6f1b8fcc08fe20ca16871de3d942887576e980e5662471"
+      },
+      {
+        "path": "experiments/xrt/results/raw/input-checkpoint-20261023/oracles/class_boundary/probe_atom_cleanup.json",
+        "sha256": "32d1b3b85b15523cbdf59f666e801d1f8372975cbc49092a154decefe7546af9"
+      },
+      {
+        "path": "experiments/xrt/results/raw/input-checkpoint-20261023/oracles/class_boundary/probe_bad_proc.json",
+        "sha256": "a929f55804b113c6ddbeba4776540e1b1b417ef1e49653984b5a7f5ec07449e5"
+      },
+      {
+        "path": "experiments/xrt/results/raw/input-checkpoint-20261023/oracles/class_boundary/probe_pointer_message.json",
+        "sha256": "151fca442a210247f3205df4209466870ed3256ac9cb21d8be3dd42d611509df"
+      },
+      {
+        "path": "experiments/xrt/results/raw/input-checkpoint-20261023/oracles/class_boundary/probe_reloaded_prior.json",
+        "sha256": "eb4d44e6db9df0abef6a98854b259686d6a9163a0bfbb103cbb3da30502f7a57"
+      },
+      {
+        "path": "experiments/xrt/results/raw/input-checkpoint-20261023/oracles/class_boundary/probe_stale_prior.json",
+        "sha256": "6a5eb0396b675d6376ae14e8c219c92febba3fe52b9301530b19072d33a03024"
+      },
+      {
+        "path": "experiments/xrt/results/raw/input-checkpoint-20261023/oracles/class_boundary/query.c",
+        "sha256": "2d22dedd94ec649e4f654249030d0f360fa31bf688b48254054161b92702926e"
+      },
+      {
+        "path": "experiments/xrt/results/raw/input-checkpoint-20261023/oracles/class_boundary/query32.exe",
+        "sha256": "5a0f2cf3355dcb6856cdae7c54a3b7aba05080452491c616c027eaf6b5b73da4"
+      },
+      {
+        "path": "experiments/xrt/results/raw/input-checkpoint-20261023/oracles/class_boundary/query64.exe",
+        "sha256": "864f539bf68b9aabfddcbc7273d2763733e43a46474702c6ed41edbbe05064df"
+      },
+      {
+        "path": "experiments/xrt/results/raw/input-checkpoint-20261023/oracles/class_boundary/report.json",
+        "sha256": "f4c8ef3ba2ab6dc822373436ff744fb9919b4e98eb33912a231b9cd79ea2c95b"
+      },
+      {
+        "path": "experiments/xrt/results/raw/input-checkpoint-20261023/oracles/class_boundary/results.json",
+        "sha256": "2de3118f715d22a4089bb09fbb8071bc74c2ed604de8a01b5118485304601782"
+      },
+      {
+        "path": "experiments/xrt/results/raw/input-checkpoint-20261023/oracles/class_boundary/translated.exe",
+        "sha256": "51e016c9ce906fe1ebe93aba6eaa842048d6241720e83bef291eb4f39d232b35"
+      }
+    ],
+    "gui_boundary": [
+      {
+        "path": "experiments/xrt/results/raw/input-checkpoint-20261023/oracles/gui_boundary/guiprobe.dll",
+        "sha256": "714da24ca6f755a5f3702c705aa4babce5e2712ec4e988994a68f4d85dba1a57"
+      },
+      {
+        "path": "experiments/xrt/results/raw/input-checkpoint-20261023/oracles/gui_boundary/lift.txt",
+        "sha256": "7e70e5ca880332a7971d57ebe51a20ed4cb474204cdb5888c3576475e6674c66"
+      },
+      {
+        "path": "experiments/xrt/results/raw/input-checkpoint-20261023/oracles/gui_boundary/native.exe",
+        "sha256": "ca804b12467c0767eb6f1b8fcc08fe20ca16871de3d942887576e980e5662471"
+      },
+      {
+        "path": "experiments/xrt/results/raw/input-checkpoint-20261023/oracles/gui_boundary/report.json",
+        "sha256": "1a3d2a8556603a8a689ea73f24a83c4b67739b22832d404501b26899f5a4acbe"
+      },
+      {
+        "path": "experiments/xrt/results/raw/input-checkpoint-20261023/oracles/gui_boundary/results.json",
+        "sha256": "126f5d79e8d14c328e54f244c8ec43061fab1ec55ba55fb2bf01712f0e60d215"
+      },
+      {
+        "path": "experiments/xrt/results/raw/input-checkpoint-20261023/oracles/gui_boundary/translated.exe",
+        "sha256": "dd4c69b4cf36de6e07f55c84932dd8d1238313fe79a1e39340c87b4c0a011986"
+      }
+    ],
+    "module_boundary": [
+      {
+        "path": "experiments/xrt/results/raw/input-checkpoint-20261023/oracles/module_boundary/lift.txt",
+        "sha256": "8d2f817a53bf5cf19d69e3a2715571bcf2a53abb67b0ee530a494f579d08aa64"
+      },
+      {
+        "path": "experiments/xrt/results/raw/input-checkpoint-20261023/oracles/module_boundary/moduleprobe.dll",
+        "sha256": "8710155377db85c0334e9412c81fab0bfd98b4b3df382ec3b6b8f7d129707ffd"
+      },
+      {
+        "path": "experiments/xrt/results/raw/input-checkpoint-20261023/oracles/module_boundary/native.exe",
+        "sha256": "5727c4bc466d2ac39a8f485147fd4dbc58ce4aed0b7d649e06d4661322143e40"
+      },
+      {
+        "path": "experiments/xrt/results/raw/input-checkpoint-20261023/oracles/module_boundary/probe_stale_export.json",
+        "sha256": "cd1a1199b7b548908e4f2a35e27828029cbeaf308c434dd401fec834f9840c02"
+      },
+      {
+        "path": "experiments/xrt/results/raw/input-checkpoint-20261023/oracles/module_boundary/probe_transitive_identity.json",
+        "sha256": "30ffd6767fa9b30e1fb3ea611d097d34e2454848775ecb31e27a327986ab39e4"
+      },
+      {
+        "path": "experiments/xrt/results/raw/input-checkpoint-20261023/oracles/module_boundary/probe_unadapted_export.json",
+        "sha256": "becbea4a910cad5202911e4116c0b6814d99b2d3a9c0f0c59fa3f2b19b152009"
+      },
+      {
+        "path": "experiments/xrt/results/raw/input-checkpoint-20261023/oracles/module_boundary/report.json",
+        "sha256": "ad2502e5dc1a1b3a8d26e8a196f3431ae22a963d7f0fb28b655892c2ac540ee2"
+      },
+      {
+        "path": "experiments/xrt/results/raw/input-checkpoint-20261023/oracles/module_boundary/results.json",
+        "sha256": "2dbf11978fe7a969b283c19f2ef3cffe2b4b3e9a55c9a1bf0f96ec13c1be127d"
+      },
+      {
+        "path": "experiments/xrt/results/raw/input-checkpoint-20261023/oracles/module_boundary/translated.exe",
+        "sha256": "623e17555b1a8d3115fb423c7d3713f8372eeac63fb7760728253688f29b0d23"
+      }
+    ],
+    "file_boundary": [
+      {
+        "path": "experiments/xrt/results/raw/input-checkpoint-20261023/oracles/file_boundary/fileprobe.dll",
+        "sha256": "0b73c4208789b03c13656eef67187c4e46e2594c24db04157b2b96e62f4d452d"
+      },
+      {
+        "path": "experiments/xrt/results/raw/input-checkpoint-20261023/oracles/file_boundary/fread-oracle.bin",
+        "sha256": "17f0109972faab856dd64bcc3f30885622fd9d91af104ba08b291c0042ab60f2"
+      },
+      {
+        "path": "experiments/xrt/results/raw/input-checkpoint-20261023/oracles/file_boundary/lift.txt",
+        "sha256": "8acb58148e2aed3ad27aca783e4ae1c7042ba23af4b25293f6f05f25a29c4815"
+      },
+      {
+        "path": "experiments/xrt/results/raw/input-checkpoint-20261023/oracles/file_boundary/msvcr70.dll",
+        "sha256": "f68e4cdbc879423ea47d763a6768567f5f8063924f13a74239750c13fa8d168a"
+      },
+      {
+        "path": "experiments/xrt/results/raw/input-checkpoint-20261023/oracles/file_boundary/native.exe",
+        "sha256": "9980b9d55975d42d31f3879662837ae8a5ed883a85cf8f144cd541820750efed"
+      },
+      {
+        "path": "experiments/xrt/results/raw/input-checkpoint-20261023/oracles/file_boundary/probe_invalid_file.json",
+        "sha256": "776ed07b4819bd51f48692587d4cfd2cd3a063635a19a0601bb9666a2e070b9a"
+      },
+      {
+        "path": "experiments/xrt/results/raw/input-checkpoint-20261023/oracles/file_boundary/probe_large_read.json",
+        "sha256": "a5008c99d8cb0cfc0ef4e6bfbc957289a15cb27ad884700afcceefe5be96a290"
+      },
+      {
+        "path": "experiments/xrt/results/raw/input-checkpoint-20261023/oracles/file_boundary/probe_text_read.json",
+        "sha256": "7a88127c4529741c1b3cfce36f09e90106890c0d22439a04d2f33825b5ded3ad"
+      },
+      {
+        "path": "experiments/xrt/results/raw/input-checkpoint-20261023/oracles/file_boundary/report.json",
+        "sha256": "f4cbee2a1cccb1a5e5e5327dfd0e15e07f107179eb2a45fb3121c4e656fa01c3"
+      },
+      {
+        "path": "experiments/xrt/results/raw/input-checkpoint-20261023/oracles/file_boundary/results.json",
+        "sha256": "c07553f9361c318554cd9d10d546725f9adb73370115417bfcdd935052fc5474"
+      },
+      {
+        "path": "experiments/xrt/results/raw/input-checkpoint-20261023/oracles/file_boundary/translated.exe",
+        "sha256": "c9a94ac38a71ccd81aff1b4ef9d38807e072904d2748a86630080eda077483c4"
+      }
+    ],
+    "client_startup": [],
+    "ehprobe": [
+      {
+        "path": "experiments/xrt/results/raw/input-checkpoint-20261023/oracles/ehprobe/ehprobe.dll",
+        "sha256": "0c7ab477955ecd76031b249f40006b4fe6ae5afb961d55be47a57d12acd4c7a0"
+      },
+      {
+        "path": "experiments/xrt/results/raw/input-checkpoint-20261023/oracles/ehprobe/libtest/t.cmd",
+        "sha256": "6168a41cfd9b6868a075d70beda1ed607763eb243791860092a0de1e522ab8dd"
+      },
+      {
+        "path": "experiments/xrt/results/raw/input-checkpoint-20261023/oracles/ehprobe/libtest/t.def",
+        "sha256": "ef9e7a44f6400d6ab1881e89021a460ce03e8c4bab74bf9b9b608a1ee4cff6f4"
+      },
+      {
+        "path": "experiments/xrt/results/raw/input-checkpoint-20261023/oracles/ehprobe/lift.txt",
+        "sha256": "137eecf56d313841f7b206edf1cb29d2182fd5606a289a4fb53e8573518109b6"
+      },
+      {
+        "path": "experiments/xrt/results/raw/input-checkpoint-20261023/oracles/ehprobe/native.txt",
+        "sha256": "d3a4a622dfb27f311361b9d8bf5380d5db37fca4d4d6b172f0eb1971835e2a97"
+      },
+      {
+        "path": "experiments/xrt/results/raw/input-checkpoint-20261023/oracles/ehprobe/native_host.exe",
+        "sha256": "5727c4bc466d2ac39a8f485147fd4dbc58ce4aed0b7d649e06d4661322143e40"
+      },
+      {
+        "path": "experiments/xrt/results/raw/input-checkpoint-20261023/oracles/ehprobe/native_probe_neg_catch_by_value.txt",
+        "sha256": "033b91cb4b5a41ec8c598bf5b6337641b43074240cf709dced81ea79fe38db40"
+      },
+      {
+        "path": "experiments/xrt/results/raw/input-checkpoint-20261023/oracles/ehprobe/native_probe_neg_unhandled.txt",
+        "sha256": "e0be3b7cb65a713a70d664d38f56e9e2b930d7371ec3511dadd00bb3757aded2"
+      },
+      {
+        "path": "experiments/xrt/results/raw/input-checkpoint-20261023/oracles/ehprobe/patch.txt",
+        "sha256": "ebd1322d9131a13c3fd71496a0dee5798ae583d6bf3100f175fc107b7c4fcc77"
+      },
+      {
+        "path": "experiments/xrt/results/raw/input-checkpoint-20261023/oracles/ehprobe/report.json",
+        "sha256": "bbe2ffd37637b3e5b220756d3a167f11dd47488c0d7b4c934ec94f5b6832731a"
+      },
+      {
+        "path": "experiments/xrt/results/raw/input-checkpoint-20261023/oracles/ehprobe/report_probe_neg_catch_by_value.json",
+        "sha256": "5aa4f065fdcfbe532159be03f1ecaaef34a976024f42d995e10e9bf96520dc07"
+      },
+      {
+        "path": "experiments/xrt/results/raw/input-checkpoint-20261023/oracles/ehprobe/report_probe_neg_unhandled.json",
+        "sha256": "f03f4f1946deab1ac34215728006507484e56f00d0d768f14e517e2c058f2c12"
+      },
+      {
+        "path": "experiments/xrt/results/raw/input-checkpoint-20261023/oracles/ehprobe/results.json",
+        "sha256": "23a31b9055ccb37f99e5ec81dd3fa32d412cc2bacc82e110aa2c3302dba426a8"
+      },
+      {
+        "path": "experiments/xrt/results/raw/input-checkpoint-20261023/oracles/ehprobe/sandbox.txt",
+        "sha256": "73f06e0c7b44a4d4df26c67b6b72a005bc279fce19d94e1fde742ff29a4ac5f9"
+      },
+      {
+        "path": "experiments/xrt/results/raw/input-checkpoint-20261023/oracles/ehprobe/xrt.err",
+        "sha256": "da27acef75076c95b22a7a0686eb96e5b22c869645ccec3a1babf33cde526a66"
+      },
+      {
+        "path": "experiments/xrt/results/raw/input-checkpoint-20261023/oracles/ehprobe/xrt.txt",
+        "sha256": "4ed56849611b58ea5907722968d73cd72365703b24dd4de3f63d25c9eb781a72"
+      },
+      {
+        "path": "experiments/xrt/results/raw/input-checkpoint-20261023/oracles/ehprobe/xrt_probe_host.exe",
+        "sha256": "b0214cf8cb25ee8cbc90d425f587a709e7ce817327bf39496fc054814a4929c7"
+      },
+      {
+        "path": "experiments/xrt/results/raw/input-checkpoint-20261023/oracles/ehprobe/xrt_probe_neg_catch_by_value.txt",
+        "sha256": "f105d8939a84072d15be6d0f9886d42c3133afa9a9fa2c1eb1a40b19f88bf406"
+      },
+      {
+        "path": "experiments/xrt/results/raw/input-checkpoint-20261023/oracles/ehprobe/xrt_probe_neg_unhandled.txt",
+        "sha256": "9b56e3b8a8a649a83f5988a86368608e362bd71b4b633bac5de2a0588342819d"
+      }
+    ]
+  },
+  "oracle_results": {
+    "path": "experiments/xrt/results/raw/input-checkpoint-20261023/oracles.json",
+    "sha256": "bbced4db62cc47c4cdc0715a4985325e52c434476f61f55b6a1088f6c74f6c48"
+  },
+  "regressions": {
+    "compiler": {
+      "command": [
+        "E:\\Unreal2-Port-Investigation\\.venv\\Scripts\\python.exe",
+        "-I",
+        "tools/xrt/compile_xrt.py"
+      ],
+      "exit": 0,
+      "expected_exit": 0,
+      "log": "experiments\\xrt\\results\\raw\\input-checkpoint-20261023\\compiler.txt"
+    },
+    "python": {
+      "command": [
+        "E:\\Unreal2-Port-Investigation\\.venv\\Scripts\\python.exe",
+        "-I",
+        "-m",
+        "unittest",
+        "discover",
+        "-s",
+        "tools/xrt/tests"
+      ],
+      "exit": 0,
+      "expected_exit": 0,
+      "log": "experiments\\xrt\\results\\raw\\input-checkpoint-20261023\\python.txt"
+    },
+    "crt_repro": {
+      "command": [
+        "E:\\Unreal2-Port-Investigation\\.venv\\Scripts\\python.exe",
+        "-I",
+        "experiments/xrt/tests/crt_diff/compare.py",
+        "--repro",
+        "fopen.0"
+      ],
+      "exit": 1,
+      "expected_exit": 1,
+      "log": "experiments\\xrt\\results\\raw\\input-checkpoint-20261023\\crt_repro.txt"
+    },
+    "acp932": {
+      "command": [
+        "E:\\Unreal2-Port-Investigation\\.venv\\Scripts\\python.exe",
+        "-I",
+        "experiments/xrt/tests/f2_mbcs_argv/run_f2.py"
+      ],
+      "exit": 1,
+      "expected_exit": 1,
+      "log": "experiments\\xrt\\results\\raw\\input-checkpoint-20261023\\acp932.txt"
+    },
+    "vmprobe": {
+      "command": [
+        "E:\\Unreal2-Port-Investigation\\.venv\\Scripts\\python.exe",
+        "-I",
+        "tools/xrt/run_xrt.py",
+        "vmprobe",
+        "--trace"
+      ],
+      "exit": 0,
+      "expected_exit": 0,
+      "log": "experiments\\xrt\\results\\raw\\input-checkpoint-20261023\\vmprobe.txt"
+    },
+    "commandlet_initial_usage_error": {
+      "command": [
+        "E:\\Unreal2-Port-Investigation\\.venv\\Scripts\\python.exe",
+        "-I",
+        "tools/xrt/run_xrt.py",
+        "--repeat",
+        "1"
+      ],
+      "exit": 2,
+      "expected_exit": 0,
+      "log": "experiments\\xrt\\results\\raw\\input-checkpoint-20261023\\commandlet.txt"
+    },
+    "commandlet": {
+      "command": [
+        ".venv/Scripts/python",
+        "-I",
+        "tools/xrt/run_xrt.py",
+        "hellofull",
+        "hello_noargs",
+        "hellonew",
+        "hellofull_nosse",
+        "simple",
+        "arraytest",
+        "hello",
+        "badclass",
+        "vmprobe",
+        "--repeat",
+        "1"
+      ],
+      "exit": 0,
+      "expected_exit": 0,
+      "log": "experiments/xrt/results/raw/input-checkpoint-20261023/commandlet-final.txt",
+      "invocation": "20261023-051719-9d331505"
+    }
+  },
+  "installation": {
+    "census": {
+      "path": "experiments/xrt/results/raw/input-checkpoint-20261023/installation.json",
+      "sha256": "811566e74e4f05ba43e1e281c20d30e55042361d5c60fabdf65eb39328181a16"
+    },
+    "files": 4757,
+    "additional_changes": 0,
+    "save_metadata_match": true,
+    "unresolved_ogg_finding": "experiments/xrt/INSTALLATION_INTEGRITY.md"
+  },
+  "unresolved": {
+    "crt_mismatches": 110,
+    "crt_pending": 1796,
+    "fopen_reproducer_still_differs": true,
+    "acp932_differences": 6
+  },
+  "next_experiment": "Native x86 versus x64 Direct3DCreate8 and immediate adapter/capability probe, identifying a host implementation that preserves the established dgVoodoo reference before any renderer bridge."
+}
