@@ -3,6 +3,7 @@ import argparse
 import json
 from pathlib import Path
 import sys
+import pefile
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 import run_xrt as R
@@ -35,15 +36,29 @@ def main():
     if hashes(base / "obj/gen") != expected_objects:
         raise RuntimeError("unexpected/missing baseline objects; wildcard linking refused")
     lifts = []
+    ranges = []
     for stem, name, expected_base in [("unreal2", "Unreal2.exe", "0x10900000"),
                                       ("windrv", "WinDrv.dll", "0x11100000"),
-                                      ("d3ddrv", "D3DDrv.dll", "0x6960000")]:
+                                      ("d3ddrv", "D3DDrv.dll", "0x6960000"),
+                                      ("particlesystems", "ParticleSystems.dll", "0x0fe00000"),
+                                      ("legend", "Legend.dll", "0x0ff40000"),
+                                      ("ui", "UI.dll", "0x19120000"),
+                                      ("u2", "U2.dll", "0x10060000"),
+                                      ("u2dialog", "U2Dialog.dll", "0x19630000")]:
         meta = json.loads((WS / "experiments/xrt/gen" / stem / (name.split('.')[0] + "_meta.json")).read_text())
         if int(meta["base"],16) != int(expected_base,16) or meta["sha256"] != R.sha256_file(WS / "sandbox_cmp/level/System" / name):
             raise RuntimeError(f"client lift/input/base mismatch: {name}")
         expected = set(meta["files"]) | {name.split('.')[0] + "_meta.json"}
         if set(hashes(WS / "experiments/xrt/gen" / stem)) != expected:
             raise RuntimeError(f"unexpected/missing generated client files: {name}")
+        image = pefile.PE(str(WS / "sandbox_cmp/level/System" / name), fast_load=True)
+        lo = int(meta["base"], 16)
+        hi = lo + image.OPTIONAL_HEADER.SizeOfImage
+        image.close()
+        for other_lo, other_hi, other_name in ranges:
+            if lo < other_hi and other_lo < hi:
+                raise RuntimeError(f"overlapping client lift ranges: {name} and {other_name}")
+        ranges.append((lo, hi, name))
         lifts.append(meta)
     identity = {"git": R.git_identity(), "base_identity": R.file_identity(str(base / "identity.json")),
                 "baseline_binary": checkpoint["binary_sha256"], "runtime": R.tree_digest(str(WS / "experiments/xrt/runtime")),
@@ -55,7 +70,7 @@ def main():
         plan = json.loads((out / "client-plan.json").read_text())
         if any(plan[k] != identity[k] for k in ["runtime", "generated", "lifter", "base_identity", "build_script", "identity_driver"]):
             raise RuntimeError("source/lifts/base changed during client build")
-        client_sources = [p for stem in ["unreal2","windrv","d3ddrv"] for p in (WS / "experiments/xrt/gen" / stem).glob("*.c")]
+        client_sources = [p for stem in ["unreal2","windrv","d3ddrv","particlesystems","legend","ui","u2","u2dialog"] for p in (WS / "experiments/xrt/gen" / stem).glob("*.c")]
         runtime_sources = list((WS / "experiments/xrt/runtime").glob("*.c"))
         for folder, sources in [("client",client_sources),("rt",runtime_sources)]:
             if {p.name for p in (out / "obj" / folder).glob("*.obj")} != {p.stem+".obj" for p in sources}:

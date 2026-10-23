@@ -34,6 +34,12 @@ def main():
                         help="controlled stop after N normal game Present returns")
     parser.add_argument("--capture-client", action="store_true",
                         help="capture this debuggee's client DC at the controlled Present stop")
+    parser.add_argument("--stop-after-floor", type=int, default=0,
+                        help="focused CRT observation: stop after N appRound floor returns, recording x87 state")
+    parser.add_argument("--stop-after-ceil", type=int, default=0,
+                        help="focused CRT observation: stop after N appCeil returns, recording x87 state")
+    parser.add_argument("--stop-after-music-factory", action="store_true",
+                        help="observe the original DirectMusic factories and stop after the second return")
     args = parser.parse_args()
     if not 1 <= args.timeout_ms <= 120000:
         parser.error("timeout must be 1..120000 ms")
@@ -124,12 +130,42 @@ def main():
               ("D3DDrv.dll",0xddc3,"D3D.CheckDeviceFormat.return.2"),
               ("D3DDrv.dll",0xddec,"D3D.CheckDeviceFormat.call.3"),
               ("D3DDrv.dll",0xddef,"D3D.CheckDeviceFormat.return.3")]
+    extra += [("Engine.dll",0x18177f,"DirectMusic.CoInitialize.call"),
+              ("Engine.dll",0x181785,"DirectMusic.CoInitialize.return"),
+              ("Engine.dll",0x18182c,"DirectMusic.Loader8.call"),
+              ("Engine.dll",0x18182e,"DirectMusic.Loader8.return"),
+              ("Engine.dll",0x181845,"DirectMusic.Performance8.call"),
+              ("Engine.dll",0x181847,"DirectMusic.Performance8.return")]
+    if args.stop_after_music_factory and (args.stop_after_present or args.stop_after_floor or args.stop_after_ceil):
+        parser.error("stop-after-music-factory cannot combine with other stop options")
+    if args.stop_after_floor:
+        if not 1 <= args.stop_after_floor <= 1000 or args.stop_after_present:
+            parser.error("stop-after-floor must be 1..1000 and cannot combine with stop-after-present")
+        extra += [("msvcr70.dll",0x98db,"CRT.floor.entry"),
+                  ("msvcr70.dll",0x9919,"CRT.floor.SSE2"),
+                  ("msvcr70.dll",0x363b7,"CRT.floor.x87"),
+                  ("Core.dll",0x17226,"Core.appRound.floor.return")]
+    if args.stop_after_ceil:
+        if not 1 <= args.stop_after_ceil <= 1000 or args.stop_after_present or args.stop_after_floor:
+            parser.error("stop-after-ceil must be 1..1000 and cannot combine with other stop options")
+        extra += [("msvcr70.dll",0x97c0,"CRT.ceil.entry"),
+                  ("msvcr70.dll",0x97fe,"CRT.ceil.SSE2"),
+                  ("msvcr70.dll",0x362e6,"CRT.ceil.x87"),
+                  ("Core.dll",0x17200,"Core.appCeil.return")]
     points.write_text("".join(f"{module} {rva:x} {label}\n" for module, rva, label in L.POINTS + extra))
     exe = root / "System/Unreal2.exe"
     env = R.tracer_env(ident)
     graphics_environment=G.environment(env,out) if args.configuration=='dxvk' else None
     env.update(UCTRACE_TIMEOUT_MS=str(args.timeout_ms), UCTRACE_EVENTS=str(points),
                UCTRACE_STOP_LABEL="Launcher.Error.Serialize")
+    if args.stop_after_music_factory:
+        env["UCTRACE_STOP_LABEL"] = "DirectMusic.Performance8.return"
+    if args.stop_after_floor:
+        env.update(UCTRACE_FPU="1", UCTRACE_STOP_LABEL="Core.appRound.floor.return",
+                   UCTRACE_STOP_AFTER=str(args.stop_after_floor))
+    if args.stop_after_ceil:
+        env.update(UCTRACE_FPU="1", UCTRACE_STOP_LABEL="Core.appCeil.return",
+                   UCTRACE_STOP_AFTER=str(args.stop_after_ceil))
     if args.stop_after_present:
         if not 1 <= args.stop_after_present <= 100:
             parser.error("stop-after-present must be 1..100")

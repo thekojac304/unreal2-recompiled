@@ -256,7 +256,10 @@ void xrt_fldcw(CPU* c, uint16_t cw) {
     if (((cw >> 8) & 3) != 2 || ((cw >> 10) & 3) != 0 || (cw & 0x3F) != 0x3F)
         xrt_fatal(c, XRT_EXIT_UNSUPPORTED,
                   "fldcw %04x leaves the modelled x87 state (53-bit precision, round-to-nearest, exceptions masked)", cw);
-    c->fcw = cw;
+    /* Hardware reads reserved bit 6 as one, even after FLDCW 023f. GlmLib's
+     * control-word helper clears it; native floor still sees 027f. Measured by
+     * floor_boundary (including the full status word, not masked comparisons). */
+    c->fcw = cw | 0x0040;
 }
 
 static long cpuid_log_budget = 16;

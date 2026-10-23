@@ -942,6 +942,17 @@ static void hle_GetSystemTimeAsFileTime(CPU* c) {
     wr32(ARG(0) + 4, ft.dwHighDateTime);
     RET_STD(1, 0);
 }
+
+/* SYSTEMTIME is eight WORDs in both ABIs, with no handles or pointers. */
+static void hle_GetLocalTime(CPU* c) {
+    SYSTEMTIME st;
+    GetLocalTime(&st);
+    wr16(ARG(0), st.wYear); wr16(ARG(0)+2, st.wMonth);
+    wr16(ARG(0)+4, st.wDayOfWeek); wr16(ARG(0)+6, st.wDay);
+    wr16(ARG(0)+8, st.wHour); wr16(ARG(0)+10, st.wMinute);
+    wr16(ARG(0)+12, st.wSecond); wr16(ARG(0)+14, st.wMilliseconds);
+    c->rv = pop32(c); c->r[ESP] += 4;
+}
 static void hle_GetCurrentProcessId(CPU* c) { RET_STD(0, rd32(c->fs_base + 0x20)); }
 static void hle_GetCurrentThreadId(CPU* c) { RET_STD(0, c->thread->guest_tid); }
 static void hle_QueryPerformanceCounter(CPU* c) {
@@ -1474,6 +1485,7 @@ const XrtHle xrt_hle_kernel32[] = {
     {"kernel32.dll", "WideCharToMultiByte", hle_WideCharToMultiByte},
     {"kernel32.dll", "GetTickCount", hle_GetTickCount},
     {"kernel32.dll", "GetSystemTimeAsFileTime", hle_GetSystemTimeAsFileTime},
+    {"kernel32.dll", "GetLocalTime", hle_GetLocalTime},
     {"kernel32.dll", "GetCurrentProcessId", hle_GetCurrentProcessId},
     {"kernel32.dll", "GetCurrentThreadId", hle_GetCurrentThreadId},
     {"kernel32.dll", "QueryPerformanceCounter", hle_QueryPerformanceCounter},

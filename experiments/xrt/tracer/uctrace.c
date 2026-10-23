@@ -58,7 +58,9 @@ static int order_counter;
 #define MAX_EVENTS 200000
 typedef struct { char mod[64]; DWORD rva; char label[96]; } EvPoint;
 static EvPoint* evp; static int nevp;
-typedef struct { int seq; int thread; int point; DWORD esp, top, eax, ebp, ecx, edx, esi, edi, args[12]; WCHAR text0[256]; int exc; } EvRec;
+typedef struct { int seq; int thread; int point; DWORD esp, top, eax, ebp, ecx, edx, esi, edi, args[12]; WCHAR text0[256]; int exc;
+    int fp_valid, mxcsr_valid; DWORD mxcsr; FLOATING_SAVE_AREA fp;
+} EvRec;
 static EvRec* evlog; static int nevlog, evdropped, ev_seq;
 #define MAX_SITES 65536
 static char site_names[8][64]; static int nsite_names;
@@ -275,6 +277,15 @@ static void log_event(int point, int exc, int thread, const CONTEXT* ctx) {
     r->seq = seq; r->thread = thread; r->point = point; r->exc = exc;
     r->esp = ctx->Esp; r->eax = ctx->Eax; r->ebp = ctx->Ebp; r->top = 0;
     r->ecx = ctx->Ecx; r->edx = ctx->Edx; r->esi = ctx->Esi; r->edi = ctx->Edi;
+    r->fp_valid = 0;
+    r->mxcsr_valid = 0;
+    /* Read a separate context: observation must not write FPU state back through SetThreadContext. */
+    if (getenv("UCTRACE_FPU") && thread >= 0 && thread < nthreads) {
+        CONTEXT fp; memset(&fp, 0, sizeof fp); fp.ContextFlags = CONTEXT_FLOATING_POINT;
+        if (GetThreadContext(threads[thread].h, &fp)) { r->fp = fp.FloatSave; r->fp_valid = 1; }
+        fp.ContextFlags = CONTEXT_EXTENDED_REGISTERS;
+        if (GetThreadContext(threads[thread].h, &fp)) { memcpy(&r->mxcsr, fp.ExtendedRegisters+24, 4); r->mxcsr_valid = 1; }
+    }
     memset(r->args, 0, sizeof r->args);
     rd(ctx->Esp + 4, r->args, sizeof r->args);
     memset(r->text0, 0, sizeof r->text0);
@@ -654,6 +665,17 @@ int main(int argc, char** argv) {
         for (int k = 0; k < 12; k++) fprintf(jout, "%s\"%08lx\"", k ? "," : "", r->args[k]);
         fputs("], \"diagnostic_arg0_wide\": ", jout);
         json_wstr(jout, r->text0);
+        if (r->fp_valid) {
+            fprintf(jout, ", \"x87\": {\"cw\": \"%04lx\", \"sw\": \"%04lx\", \"tag\": \"%04lx\", \"registers80\": [",
+                    r->fp.ControlWord & 0xffff, r->fp.StatusWord & 0xffff, r->fp.TagWord & 0xffff);
+            for (int k = 0; k < 8; k++) {
+                fprintf(jout, "%s\"", k ? "," : "");
+                for (int j = 9; j >= 0; j--) fprintf(jout, "%02x", r->fp.RegisterArea[10*k+j]);
+                fputc('"', jout);
+            }
+            fputs("]}", jout);
+        }
+        if (r->mxcsr_valid) fprintf(jout, ", \"mxcsr\": \"%08lx\"", r->mxcsr);
         fputs("}", jout);
     }
     fprintf(jout, "\n ],\n \"x87_control_words_seen\": [");

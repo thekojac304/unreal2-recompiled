@@ -780,6 +780,47 @@ static double from_bits(uint64_t b) {
     return x;
 }
 
+static void set_errno(CPU* c, uint32_t e);
+
+/* msvcr70+98db floor / +97c0 ceil SSE2 paths, measured with floor_boundary
+ * and the original appRound/appCeil calls.
+ * Compute entirely on binary64 bits, independently of host libm/rounding mode.
+ * SSE truncation/subtraction adds no x87 precision flag; the final FLD clears
+ * C1, preserves C0/C2/C3/sticky flags, and quiets SNaN with IE. NaNs set EDOM.
+ * The runtime's supported guest CW is deliberately narrower than the CRT's. */
+static void hle_round_integral(CPU* c, int ceiling) {
+    uint64_t b = (uint64_t)ARG(0) | (uint64_t)ARG(1) << 32, result = b;
+    uint64_t magnitude = b & 0x7fffffffffffffffull;
+    unsigned exponent = (unsigned)(magnitude >> 52);
+    uint16_t before = fstatus(c);
+    static unsigned kept[2];
+    if (c->fcw != 0x027f)
+        xrt_fatal(c, XRT_EXIT_UNSUPPORTED, "%s: unmeasured x87 control word %04x", ceiling ? "ceil" : "floor", c->fcw);
+    c->fsw &= (uint16_t)~0x0200; /* FLD C1=0 (no stack overflow in the measured ABI). */
+    if (exponent == 0x7ff) {
+        if (magnitude & 0xfffffffffffffull) {
+            if (!(b & 0x8000000000000ull)) c->fsw |= 1;
+            result |= 0x8000000000000ull;
+            set_errno(c, 33);
+        }
+    } else if (exponent < 1023) {
+        if (ceiling) result = b >> 63 ? 0x8000000000000000ull : (magnitude ? 0x3ff0000000000000ull : 0);
+        else result = b >> 63 ? (magnitude ? 0xbff0000000000000ull : b) : 0;
+    } else if (exponent < 1075) {
+        uint64_t unit = 1ull << (1075 - exponent), mask = unit - 1;
+        result = b & ~mask;
+        if ((ceiling ? !(b >> 63) : (b >> 63)) && (b & mask)) result += unit;
+    }
+    fpush(c, from_bits(result));
+    if (mlog()) fprintf(math_log, "%s %016llx %016llx %04x %04x %04x\n", ceiling ? "ceil" : "floor", b, result, c->fcw, before, fstatus(c));
+    if (kept[ceiling]++ < 32)
+        xrt_event(ceiling ? "crt_ceil" : "crt_floor", "\"input\":\"%016llx\",\"result\":\"%016llx\",\"cw\":\"%04x\",\"sw_before\":\"%04x\",\"sw_after\":\"%04x\",\"caller\":\"%08x\"",
+                  b, result, c->fcw, before, fstatus(c), rd32(c->r[ESP]));
+    RET_C_VOID();
+}
+static void hle_floor(CPU* c) { hle_round_integral(c, 0); }
+static void hle_ceil(CPU* c) { hle_round_integral(c, 1); }
+
 static double x87_nan_result(double x, double y) {   /* x87 propagation for an operation with a NaN operand */
     uint64_t a = dbits(x), b = dbits(y), qa = a | 1ull << 51, qb = b | 1ull << 51;
     int na = isnan(x), nb = isnan(y);
@@ -1876,6 +1917,8 @@ const XrtHle xrt_hle_msvcr70[] = {
     {"msvcr70.dll", "qsort", hle_qsort},
     {"msvcr70.dll", "_CIpow", hle_CIpow},
     {"msvcr70.dll", "_CIfmod", hle_CIfmod},
+    {"msvcr70.dll", "floor", hle_floor},
+    {"msvcr70.dll", "ceil", hle_ceil},
     {"msvcr70.dll", "_isnan", hle_isnan},
     {"msvcr70.dll", "atof", hle_atof},
     {"msvcr70.dll", "_purecall", hle_purecall},

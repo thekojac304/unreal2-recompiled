@@ -20,7 +20,7 @@
 extern const XrtLiftedModule xrt_mod_UCC, xrt_mod_Core, xrt_mod_Engine, xrt_mod_GlmLib, xrt_mod_Editor, xrt_mod_Window,
     xrt_mod_UnrImp, xrt_mod_Fire;
 #ifdef XRT_WITH_UNREAL2
-extern const XrtLiftedModule xrt_mod_Unreal2, xrt_mod_WinDrv, xrt_mod_D3DDrv;
+extern const XrtLiftedModule xrt_mod_Unreal2, xrt_mod_WinDrv, xrt_mod_D3DDrv, xrt_mod_ParticleSystems, xrt_mod_Legend, xrt_mod_UI, xrt_mod_U2, xrt_mod_U2Dialog;
 #endif
 void hle_msvcr70_init(void);
 
@@ -35,11 +35,11 @@ void hle_msvcr70_init(void);
 static const XrtLiftedModule* const lifted_all[] = {&xrt_mod_UCC, &xrt_mod_Core, &xrt_mod_Engine, &xrt_mod_GlmLib,
                                                     &xrt_mod_Editor, &xrt_mod_Window, &xrt_mod_UnrImp, &xrt_mod_Fire
 #ifdef XRT_WITH_UNREAL2
-                                                    , &xrt_mod_Unreal2, &xrt_mod_WinDrv, &xrt_mod_D3DDrv
+                                                    , &xrt_mod_Unreal2, &xrt_mod_WinDrv, &xrt_mod_D3DDrv, &xrt_mod_ParticleSystems, &xrt_mod_Legend, &xrt_mod_UI, &xrt_mod_U2, &xrt_mod_U2Dialog
 #endif
 };
 #define NLIFTED ((int)(sizeof lifted_all / sizeof lifted_all[0]))
-static XrtModule* init_order[16];   /* DLLs whose DLL_PROCESS_ATTACH completed, in that order */
+static XrtModule* init_order[XRT_MAX_MODULES];   /* DLLs whose DLL_PROCESS_ATTACH completed, in that order */
 static int ninit;
 static char app_dir[520];           /* directory of the guest EXE: where the loader looks for DLLs first */
 
@@ -208,7 +208,7 @@ static void map_tree(CPU* c, const char* host_path, const XrtLiftedModule* l, Xr
             xrt_fatal(c, XRT_EXIT_IMPORT, "%s imports %s, which is not in %s", m->name, dll, app_dir);
         map_tree(c, path, dl, list, n);
     }
-    if (*n == 8)
+    if (*n == XRT_MAX_MODULES)
         xrt_fatal(c, XRT_EXIT_SETUP, "too many modules in one load");
     list[(*n)++] = m;
     m->load_count = 1;
@@ -216,7 +216,7 @@ static void map_tree(CPU* c, const char* host_path, const XrtLiftedModule* l, Xr
 
 XrtModule* xrt_load_library(CPU* c, const char* host_path) {
     XrtModule* m = xrt_module_by_name(host_path);
-    XrtModule* list[8];
+    XrtModule* list[XRT_MAX_MODULES];
     const XrtLiftedModule* l;
     int n = 0, i;
     if (m) {
@@ -293,7 +293,7 @@ int xrt_free_library(CPU* c, XrtModule* m) {
  * ends, for every initialised DLL - none of these modules calls DisableThreadLibraryCalls. Threads the original
  * process got from the system (not created by guest code) are not modelled. */
 void xrt_dll_thread_notify(CPU* c, uint32_t reason) {
-    XrtModule* order[16];
+    XrtModule* order[XRT_MAX_MODULES];
     int n = ninit, k;
     memcpy(order, init_order, sizeof order);
     c->thread->loader_lock++;

@@ -133,6 +133,25 @@ int main(void) {
     native_error=GetLastError();
     check("actual absent-window query",call_std("FindWindowExA",4,(uint32_t[]){0,0,0x4000u,0}),0);
     check("absent-window last-error matches native",xrt_get_last_error(&cpu),native_error);
+    {
+        SYSTEMTIME lo,hi,got; FILETIME a,b,g; ULARGE_INTEGER ta,tb,tg;
+        memset(G2H(G_OUT-4),0xa5,24);
+        xrt_set_last_error(&cpu,STALE_GUEST);
+        GetLocalTime(&lo);
+        call_std("GetLocalTime",1,(uint32_t[]){G_OUT});
+        GetLocalTime(&hi);
+        memcpy(&got,G2H(G_OUT),16);
+        check("local SYSTEMTIME converts",SystemTimeToFileTime(&got,&g),1);
+        SystemTimeToFileTime(&lo,&a); SystemTimeToFileTime(&hi,&b);
+        ta.LowPart=a.dwLowDateTime; ta.HighPart=a.dwHighDateTime;
+        tb.LowPart=b.dwLowDateTime; tb.HighPart=b.dwHighDateTime;
+        tg.LowPart=g.dwLowDateTime; tg.HighPart=g.dwHighDateTime;
+        check("local time within native call interval",tg.QuadPart>=ta.QuadPart && tg.QuadPart<=tb.QuadPart,1);
+        check("local time weekday",got.wDayOfWeek,lo.wDayOfWeek);
+        check("local time front canary",rd32(G_OUT-4),0xa5a5a5a5);
+        check("local time rear canary",rd32(G_OUT+16),0xa5a5a5a5);
+        check("local time guest last-error preserved",xrt_get_last_error(&cpu),STALE_GUEST);
+    }
     printf("%s client startup adapters\n",fails?"FAIL":"PASS");
     return fails?1:0;
 }

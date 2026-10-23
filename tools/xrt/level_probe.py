@@ -109,6 +109,7 @@ def main():
     ap.add_argument("--timeout-ms", type=int, default=90000)
     ap.add_argument("--minimal", action="store_true", help="reference: milestone breakpoints only, no function/import census")
     ap.add_argument("--d3d8-backend", choices=["dxvk"], help="candidate: verified official x64 DXVK 3.1.1 D3D8/D3D9 pair")
+    ap.add_argument("--package", action="append", default=[], help="stage an installed dynamic package into the sandbox (repeatable)")
     a = ap.parse_args()
     if a.d3d8_backend and a.mode!='candidate':ap.error('--d3d8-backend requires candidate mode')
     if not 1 <= a.timeout_ms <= 600000:
@@ -120,6 +121,19 @@ def main():
     out = RAW / (ident + "-" + a.mode)
     out.mkdir(parents=True, exist_ok=False)
     exe = SB / "System/Unreal2.exe"
+    staged = []
+    for relative in a.package:
+        source = (SOURCE / relative).resolve()
+        relative = source.relative_to(SOURCE.resolve())
+        if source.suffix.lower() not in {".utx", ".u", ".usx", ".uax", ".ugx"} or not source.is_file():
+            raise RuntimeError("expected an installed game package")
+        dest = SB / relative
+        if dest.exists() and sha(dest) != sha(source):
+            raise RuntimeError(f"preserving different existing sandbox package: {dest}")
+        if not dest.exists():
+            dest.parent.mkdir(parents=True, exist_ok=True)
+            shutil.copy2(source, dest)
+        staged.append(dict(R.file_identity(str(source)), destination=relative.as_posix()))
     # Restore only the known mutable config files; preserve every run's written versions first.
     pristine = RAW / "pristine-config"
     if not (pristine / "Golem.u").exists():
@@ -135,6 +149,7 @@ def main():
             p.unlink()
     before = snapshot()
     meta = {"id": ident, "mode": a.mode, "git": R.git_identity(), "sandbox": str(SB), "args": ARGS,
+            "staged_packages": staged,
             "probe_driver": R.file_identity(str(Path(__file__).resolve())),
             "before": before, "runtime_sources": R.tree_digest(str(WS / "experiments/xrt/runtime")),
             "generated_code": R.tree_digest(str(WS / "experiments/xrt/gen"))}

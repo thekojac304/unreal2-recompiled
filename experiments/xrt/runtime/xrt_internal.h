@@ -34,6 +34,7 @@ struct XrtModule;
 #define XRT_STACK_END 0x10000000u
 #define XRT_HEAP_BASE 0x20000000u
 #define XRT_HEAP_END 0x7FF00000u
+#define XRT_MAX_MODULES 32 /* Includes unloaded slots; client packages exceed the old eight-module limit. */
 
 /* exit codes used by the runtime itself (guest exit codes are passed through unchanged) */
 enum { XRT_EXIT_TRAP = 71, XRT_EXIT_BADRET = 72, XRT_EXIT_DIV0 = 73, XRT_EXIT_FAULT = 74, XRT_EXIT_IMPORT = 75,
