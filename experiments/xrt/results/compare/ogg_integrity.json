@@ -1,0 +1,82 @@
+{
+  "schema": 1,
+  "status": "UNRESOLVED INTEGRITY FINDING",
+  "timing_and_cause": "Unestablished; not attributed to this project.",
+  "raw_evidence": {
+    "path": "experiments/xrt/results/raw/ogg-integrity-reproduced/report.json",
+    "sha256": "1072cf10135110c820e5d253cf1216eda55fd87547db343b27ce25273b7ae9bb"
+  },
+  "sources_unchanged": true,
+  "differences": [
+    {
+      "offset": 489527,
+      "snapshot": "6e",
+      "installed": "2e"
+    }
+  ],
+  "decoder": {
+    "path": "C:\\Program Files\\Shutter Encoder\\Library\\ffmpeg.exe",
+    "sha256": "c1f0980142d994e9a4c4e8b1df916726ea970313ffbf06a0c693f6dd34a0195d",
+    "version": "ffmpeg version N-121198-g56c14f2311 Copyright (c) 2000-2025 the FFmpeg developers"
+  },
+  "source_spec": "https://xiph.org/ogg/doc/framing.html",
+  "files": {
+    "snapshot": {
+      "path": "E:\\Unreal2-Port-Investigation\\sandbox_cmp\\level\\Music\\M03_fite_loop2.ogg",
+      "size": 3677906,
+      "sha256": "b6261e7e09ca82b48361702d09ea6d24c7d24a85b4073dd1ff1920f1317318bb",
+      "decode_exit": 0,
+      "pcm_bytes": 21403200,
+      "pcm_sha256": "bf11c32443208022d30f32d94dff650231f863312e3bceb5f3fc05da7fa6e16e",
+      "decode_stderr": "",
+      "changed_pages": [
+        {
+          "offset": 488957,
+          "body_offset": 489003,
+          "end": 493160,
+          "sequence": 116,
+          "granule": 727488,
+          "stored_crc": "6b159d5a",
+          "computed_crc": "6b159d5a",
+          "valid_crc": true
+        }
+      ],
+      "pages": 866,
+      "invalid_crc_pages": []
+    },
+    "installed": {
+      "path": "E:\\Launchbox\\Games\\PC Games\\Unreal 2 - The Awakening\\singleplayer\\Music\\M03_fite_loop2.ogg",
+      "size": 3677906,
+      "sha256": "6518e44f945853bf935bd674dbc84b9d9a8310beea1bb7262cf240dfd10fa2bf",
+      "decode_exit": 0,
+      "pcm_bytes": 21378624,
+      "pcm_sha256": "cc60533c15cef5465c5d69fbd694a9603db29f9dc8e54996b42e8972126a07fa",
+      "decode_stderr": "[ogg @ 000002333b1f1780] CRC mismatch!\r\n    Last message repeated 1 times\r\n[vorbis @ 000002333b1f1ec0] Overread 5 bits\r\n",
+      "changed_pages": [
+        {
+          "offset": 488957,
+          "body_offset": 489003,
+          "end": 493160,
+          "sequence": 116,
+          "granule": 727488,
+          "stored_crc": "6b159d5a",
+          "computed_crc": "c5184bda",
+          "valid_crc": false
+        }
+      ],
+      "pages": 866,
+      "invalid_crc_pages": [
+        {
+          "offset": 488957,
+          "body_offset": 489003,
+          "end": 493160,
+          "sequence": 116,
+          "granule": 727488,
+          "stored_crc": "6b159d5a",
+          "computed_crc": "c5184bda",
+          "valid_crc": false
+        }
+      ]
+    }
+  }
+}
