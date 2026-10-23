@@ -3,7 +3,7 @@
  * Slot numbers remain explicit; no assumed success or calls are injected. */
 typedef struct {DWORD self,vt;unsigned slots;char name[32];} MusicObject;
 static MusicObject music_objects[1024];static int music_nobjects;
-typedef struct {int used,thread;DWORD ret,esp,stack[16];char label[96];} MusicPending;
+typedef struct {int used,thread;DWORD ret,esp,ecx,stack[16];char label[96];} MusicPending;
 static MusicPending music_pending[2048];
 static void music_hook(DWORD addr) {
     int bi=bp_find(addr);
@@ -43,7 +43,9 @@ static void music_discover(const char*label,const DWORD*s,DWORD result,int entry
     if((LONG)result<0)return;
     /* entry snapshots include [esp]=return, instruction call sites do not. */
     const DWORD*a=s+entry;
-    if(!strcmp(label,"DirectMusic.Loader8"))music_output(a[4],"Loader8",15);
+    if(!strcmp(label,"DirectInput.Factory"))music_output(a[3],"DI8W",11);
+    else if(!strcmp(label,"DirectInput.DI8W.slot3"))music_output(a[2],"DID8W",32);
+    else if(!strcmp(label,"DirectMusic.Loader8"))music_output(a[4],"Loader8",15);
     else if(!strcmp(label,"DirectMusic.Performance8"))music_output(a[4],"Performance8",53);
     else if(!strcmp(label,"DirectMusic.Performance.InitAudio"))music_output(a[2],"DirectSound",11);
     else if(!strcmp(label,"DirectMusic.Performance.GetDefaultAudioPath"))music_output(a[1],"AudioPath",7);
@@ -73,6 +75,7 @@ static void music_discover(const char*label,const DWORD*s,DWORD result,int entry
 static MusicPending* music_save(const char*label,int thread,const CONTEXT*ctx,int entry) {
     for(int i=0;i<2048;i++)if(!music_pending[i].used) {
         MusicPending*p=&music_pending[i];memset(p,0,sizeof*p);p->used=1;p->thread=thread;p->esp=ctx->Esp;
+        p->ecx=ctx->Ecx;
         strncpy(p->label,label,95);rd(ctx->Esp,p->stack,sizeof p->stack);
         if(entry){p->ret=p->stack[0];music_hook(p->ret);}
         return p;
@@ -81,10 +84,14 @@ static MusicPending* music_save(const char*label,int thread,const CONTEXT*ctx,in
 }
 static void music_observe(int point,int seq,int thread,const CONTEXT*ctx) {
     char stem[96],label[128];size_t n;
-    if(!getenv("UCTRACE_MUSIC_LOG") || point<0 || strncmp(evp[point].label,"DirectMusic.",12))return;
+    if(!getenv("UCTRACE_MUSIC_LOG") || point<0 ||
+       (strncmp(evp[point].label,"DirectMusic.",12) && strncmp(evp[point].label,"DirectInput.",12) &&
+        strncmp(evp[point].label,"AActor.event",12)))return;
     music_write(evp[point].label,seq,thread,ctx,NULL);
     strcpy(stem,evp[point].label);n=strlen(stem);
-    if(n>5 && !strcmp(stem+n-5,".call")) {
+    if(!strncmp(stem,"AActor.event",12)) {
+        music_save(stem,thread,ctx,1);
+    } else if(n>5 && !strcmp(stem+n-5,".call")) {
         stem[n-5]=0;music_save(stem,thread,ctx,0);
     } else if(n>6 && !strcmp(stem+n-6,".entry")) {
         stem[n-6]=0;music_save(stem,thread,ctx,1);
@@ -111,7 +118,9 @@ static void music_break(const CONTEXT*ctx,int thread) {
     }
     if(match>=0) {
         MusicPending*p=&music_pending[match];
-        snprintf(label,sizeof label,"%s.exit",p->label);music_write(label,++ev_seq,thread,ctx,p->stack);
+        CONTEXT observed=*ctx;
+        if(!strncmp(p->label,"AActor.event",12))observed.Ecx=p->ecx;
+        snprintf(label,sizeof label,"%s.exit",p->label);music_write(label,++ev_seq,thread,&observed,p->stack);
         music_discover(p->label,p->stack,ctx->Eax,1);
         size_t label_len=strlen(p->label);
         if(!ctx->Eax && label_len>=6 && !strcmp(p->label+label_len-6,".slot2")) {
@@ -124,7 +133,7 @@ static void music_break(const CONTEXT*ctx,int thread) {
         MusicObject*o=&music_objects[i];DWORD methods[64];
         if(!rd(o->vt,methods,o->slots*4))break;
         for(unsigned k=0;k<o->slots;k++)if(methods[k]==ctx->Eip) {
-            snprintf(label,sizeof label,"DirectMusic.%s.slot%u",o->name,k);
+            snprintf(label,sizeof label,"%s.%s.slot%u",!strncmp(o->name,"DI",2)?"DirectInput":"DirectMusic",o->name,k);
             music_write(label,++ev_seq,thread,ctx,NULL);music_save(label,thread,ctx,1);break;
         }
         break;

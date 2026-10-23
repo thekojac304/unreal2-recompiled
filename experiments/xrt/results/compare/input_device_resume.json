@@ -1,0 +1,158 @@
+{
+  "starting_head": "75b215317b55dd463183ad3a8f06872ca74962b1",
+  "execution_stopped": true,
+  "stop_reason": "Unexplained MSVC C1001 errors in Engine_032, then unchanged ParticleSystems_001 and Unreal2_000, plus D8040 child-process communication failure; no protected-input hash difference detected.",
+  "asset_boundary": {
+    "manifest_sha256": "3e1807c3c1d3c2881e3353ab46d8f571654e19d10b7ded41b88304c71e172173",
+    "files": 4122,
+    "protected_trees": 3,
+    "protected_files": 9
+  },
+  "asset_root": "sandbox_inputs/first-world/content",
+  "initial_snapshot_files_verified": 4120,
+  "source_checkpoint": "experiments/xrt/results/raw/resume-source-checkpoint.json",
+  "initial_manifest_sha256": "3e7eaaf41388df99e288968e216724b32420bb3874fed9daa3d740bf4f2b7b2c",
+  "regressions": {
+    "path": "experiments/xrt/results/raw/directmusic/regressions-d38bb485195a/result.json",
+    "passed": true,
+    "complete": true,
+    "binary_sha256": "414bdec39c84023eb018348b6ec1e59c42304df680bc6c28fe164dff5f45016b",
+    "python_tests": 153,
+    "python_skipped": 17,
+    "post_input_full_sweep_complete": false
+  },
+  "input_oracle": {
+    "path": "experiments\\xrt\\results\\raw\\input-device-checkpoint-20261023",
+    "passed": true,
+    "positive_probes": 7,
+    "explicit_negative_probes": 6,
+    "implemented": [
+      "CreateDevice",
+      "device.QueryInterface",
+      "device.AddRef",
+      "device.Release",
+      "device.SetDataFormat",
+      "device.SetProperty(BUFFERSIZE,AXISMODE)",
+      "device.Acquire",
+      "device.GetDeviceData"
+    ],
+    "limits": [
+      "Only measured 8W interface identities, guest data layout 20, formats with 24/16-byte headers/objects, two property types and bounded transfers are supported.",
+      "Capabilities, enumeration, cooperative level, Unacquire, Poll and other device methods remain explicit unsupported boundaries.",
+      "Acquired nonempty input data was not differentially exercised."
+    ]
+  },
+  "reference": {
+    "path": "experiments/xrt/results/raw/graphics-startup/0781777c3ebf-dxvk",
+    "world": "0x108f2800",
+    "observer_complete": true,
+    "lifecycle_returns": {
+      "PreBeginPlay": 268,
+      "BeginPlay": 268,
+      "PostBeginPlay": 268
+    },
+    "unique_actor_addresses": 267,
+    "selected_world_ticks": 4,
+    "create_device": 1,
+    "presents": 3
+  },
+  "candidate": {
+    "path": "experiments/xrt/results/raw/level/20261023-194110-8023b9db-candidate",
+    "binary": {
+      "path": "experiments/xrt/build/input-device-client-01/xrt_ucc.exe",
+      "sha256": "be14698cec8b62d6e12ed5203ad3de5871f37e944432566be026a758740f862d"
+    },
+    "events": 24208,
+    "events_dropped": 0,
+    "selected_world": {
+      "world": 318056448,
+      "entry_seq": 23400,
+      "return_seq": 24158
+    },
+    "milestones": {
+      "T1": true,
+      "T2": "unverified",
+      "T3": false,
+      "T4": false,
+      "T5": false,
+      "T6": false
+    },
+    "completed_selected_world_ticks": 0,
+    "d3d_device": 0,
+    "presents": 0,
+    "first_fatal": {
+      "seq": 24197,
+      "thread": 0,
+      "kind": "fatal",
+      "code": 75,
+      "message": "LoadLibraryW(\"E:\\Unreal2-Port-Investigation\\sandbox_cmp\\first-world\\System\\U2AI.dll\"): the DLL exists but is not part of this translated runtime"
+    },
+    "input_events": [
+      {
+        "seq": 24175,
+        "thread": 0,
+        "kind": "dinput_device_create",
+        "parent": 86092,
+        "guid_data1": 1864182624,
+        "object": 87220,
+        "result": 0
+      },
+      {
+        "seq": 24176,
+        "thread": 0,
+        "kind": "dinput_format",
+        "object": 87220,
+        "guest_size": 24,
+        "host_size": 32,
+        "guest_object_size": 16,
+        "host_object_size": 24,
+        "flags": 2,
+        "data_bytes": 16,
+        "objects": 7,
+        "result": 0
+      },
+      {
+        "seq": 24177,
+        "thread": 0,
+        "kind": "dinput_property",
+        "object": 87220,
+        "property": 1,
+        "how": 0,
+        "offset": 0,
+        "value": 1024,
+        "result": 0
+      },
+      {
+        "seq": 24178,
+        "thread": 0,
+        "kind": "dinput_property",
+        "object": 87220,
+        "property": 2,
+        "how": 0,
+        "offset": 0,
+        "value": 1,
+        "result": 0
+      }
+    ]
+  },
+  "unaccepted_work": [
+    "U2AI translation linkage at 1c6d0000",
+    "Engine direct-call lifecycle/tick observer and build selection",
+    "input-world-client-04 built and hashes verified, never executed or regression accepted",
+    "input-world-client-05/06 failed builds"
+  ],
+  "compiler_evidence": [
+    "input-world-client-build-03.txt",
+    "input-world-client-build-05.txt",
+    "compiler-particle-isolated.txt",
+    "input-world-client-build-06.txt"
+  ],
+  "next_experiment": "Owner-reviewed compiler stability check: repeat one hash-pinned unchanged translation unit serially in fresh output directories with bounded process lifetime and before/after source/input hashes; no client execution. Only then validate the pending U2AI/world observer client.",
+  "known_discrepancies": {
+    "expanded_crt_mismatches": 110,
+    "expanded_crt_pending": 1796,
+    "acp932_differences": 6,
+    "x87_and_numerical": "Existing sticky-status, large-input/tag and double-rounding limitations remain; broad corpora not rerun."
+  },
+  "hardware_health_established": false
+}

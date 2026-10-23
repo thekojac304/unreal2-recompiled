@@ -25,6 +25,8 @@ WRAPPERS = {
 
 
 def main():
+    import asset_boundary as A
+    A.verify()
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("configuration", choices=["system", "d3d8to9", "dgvoodoo", "dxvk"])
     parser.add_argument("--timeout-ms", type=int, default=60000)
@@ -41,6 +43,7 @@ def main():
     parser.add_argument("--stop-after-music-factory", action="store_true",
                         help="observe the original DirectMusic factories and stop after the second return")
     parser.add_argument("--music-trace", action="store_true", help="read-only DirectMusic argument/memory observation")
+    parser.add_argument("--input-trace", action="store_true", help="read-only returned DirectInput interfaces and arguments")
     parser.add_argument("--sound", action="store_true", help="omit -nosound for a controlled original comparison")
     parser.add_argument("--close-after-present", action="store_true", help="post WM_CLOSE at the bounded Present stop and trace normal cleanup")
     args = parser.parse_args()
@@ -67,6 +70,8 @@ def main():
     root = L.WS / "sandbox_cmp/graphics-client" / ident
     out = L.WS / "experiments/xrt/results/raw/graphics-startup" / ident
     out.mkdir(parents=True, exist_ok=False)
+    A.check_writable(root)
+    A.inventory(L.SB)  # Refuse aliases before copying a writable run tree.
     shutil.copytree(L.SB, root)
     staged = []
     for relative in args.package:
@@ -78,8 +83,9 @@ def main():
         dest.parent.mkdir(parents=True, exist_ok=True)
         shutil.copy2(source, dest)
         staged.append(dict(R.file_identity(str(source)), destination=relative.as_posix()))
-    for source in (L.RAW / "pristine-config").glob("*"):
-        shutil.copy2(source, root / "System" / source.name)
+    for source in (L.SOURCE / 'System').glob('*'):
+        if source.suffix.lower() == '.ini' or source.name == 'Golem.u':
+            shutil.copy2(source, root / 'System' / source.name)
     for name in ["Unreal2.log", "Running.ini"]:
         (root / "System" / name).unlink(missing_ok=True)
     if args.configuration == "dgvoodoo":
@@ -187,6 +193,14 @@ def main():
                     api_points.append((dll+'.dll',e.address,'DirectMusic.API.'+e.name.decode()+'.entry'))
         points.write_text("".join(f"{m} {r:x} {label}\n" for m,r,label in all_points + MUSIC_POINTS + api_points))
         env['UCTRACE_MUSIC_LOG'] = str(out / 'music.jsonl')
+    if args.input_trace:
+        input_points = [('WinDrv.dll',0x184b,'DirectInput.Factory.call'),
+                        ('WinDrv.dll',0x1850,'DirectInput.Factory.return'),
+                        ('WinDrv.dll',0x2e50,'DirectInput.EnumDevice.callback.entry'),
+                        ('WinDrv.dll',0x2e90,'DirectInput.EnumObject.callback.entry')]
+        points.write_text(''.join(f'{m} {r:x} {label}\n' for m,r,label in
+                          [p for p in L.POINTS+extra if p[1] not in (0x184b,0x1850)] + input_points))
+        env['UCTRACE_MUSIC_LOG'] = str(out / 'input.jsonl')
     if args.close_after_present:
         if not args.stop_after_present:parser.error('--close-after-present requires --stop-after-present')
         env['UCTRACE_CLOSE_ON_STOP']='1'
@@ -196,7 +210,7 @@ def main():
         env["UCTRACE_CAPTURE_CLIENT"] = str(out / "client.bmp")
     game_args = [a for a in L.ARGS if not (args.sound and a == '-nosound')]
     command = [R.TRACER, str(entries), str(out / "trace.json"), str(out / "stdout.bin"), str(exe)] + game_args
-    before = {f.relative_to(root).as_posix(): L.sha(f) for f in root.rglob("*") if f.is_file()}
+    before = A.inventory(root)
     meta = {"id": ident, "configuration": args.configuration, "sandbox": str(root), "command": command,
             "args": game_args, "git": R.git_identity(), "driver": R.file_identity(str(Path(__file__).resolve())),
             "before": before, "tracer": R.file_identity(R.TRACER), "wrapper": wrapper, "staged_packages": staged,
@@ -207,8 +221,10 @@ def main():
     with (out / "host-output.txt").open("wb") as output:
         result = subprocess.run(command, cwd=exe.parent, env=env, stdout=output, stderr=subprocess.STDOUT,
                                 timeout=args.timeout_ms / 1000 + 45)
+    A.verify()
     meta["exit_code"] = result.returncode
-    after = {f.relative_to(root).as_posix(): L.sha(f) for f in root.rglob("*") if f.is_file()}
+    after = A.inventory(root)
+    A.check_run_inputs(before, after)
     meta["written"] = {name: digest for name, digest in after.items() if before.get(name) != digest}
     for name in meta["written"]:
         dest = out / "written" / name

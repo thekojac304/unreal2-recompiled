@@ -15,7 +15,7 @@ import level_summary as S
 class LevelLock(unittest.TestCase):
     @unittest.skipUnless(os.name == "nt", "Windows client lock")
     def test_other_client_does_not_restore_inputs(self):
-        path = Path(R.WS) / "sandbox_cmp/level/System/Unreal2.ini"
+        path = Path(R.WS) / "sandbox_cmp/first-world/System/Unreal2.ini"
         before = path.read_bytes() if path.exists() else None
         with R.CaseLock("graphics-client-session"):
             p = subprocess.run([sys.executable, "-I", str(Path(R.WS) / "tools/xrt/level_probe.py"), "candidate"],
@@ -26,7 +26,7 @@ class LevelLock(unittest.TestCase):
 
     @unittest.skipUnless(os.name == "nt", "Windows sandbox lock")
     def test_locked_run_does_not_restore_inputs(self):
-        path = Path(R.WS) / "sandbox_cmp/level/System/Unreal2.ini"
+        path = Path(R.WS) / "sandbox_cmp/first-world/System/Unreal2.ini"
         before = path.read_bytes() if path.exists() else None
         with R.CaseLock("level"):
             p = subprocess.run([sys.executable, "-I", str(Path(R.WS) / "tools/xrt/level_probe.py"), "candidate"],

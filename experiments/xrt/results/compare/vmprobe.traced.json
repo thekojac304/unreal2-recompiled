@@ -1,7 +1,7 @@
 {
  "runner_schema": 4,
- "invocation_id": "20261023-013948-b8073561",
- "invocation_dir": "experiments/xrt/results/raw/runs/20261023-013948-b8073561",
+ "invocation_id": "20261023-193415-5b7406d9",
+ "invocation_dir": "experiments/xrt/results/raw/runs/20261023-193415-5b7406d9",
  "case": "vmprobe",
  "args": [
   "VMProbe.VMProbe"
@@ -40,13 +40,12 @@
  "reference": "fresh-original",
  "identity": {
   "git": {
-   "head": "1c7aef2fd39e8348c16368449285259114bba0d7",
+   "head": "75b215317b55dd463183ad3a8f06872ca74962b1",
    "tracked_files_modified": true,
    "modified": [
-    "M experiments/xrt/README.md",
-    " M experiments/xrt/build_xrt.cmd",
-    " M experiments/xrt/results/compare/arraytest.json",
+    "M experiments/xrt/results/compare/arraytest.json",
     " M experiments/xrt/results/compare/badclass.json",
+    " M experiments/xrt/results/compare/compile_milestone.json",
     " M experiments/xrt/results/compare/hello.json",
     " M experiments/xrt/results/compare/hello_noargs.json",
     " M experiments/xrt/results/compare/hellofull.json",
@@ -54,48 +53,21 @@
     " M experiments/xrt/results/compare/hellonew.json",
     " M experiments/xrt/results/compare/simple.json",
     " M experiments/xrt/results/compare/vmprobe.json",
-    " M experiments/xrt/runtime/hle_kernel32.c",
-    " M experiments/xrt/runtime/hle_misc.c",
-    " M experiments/xrt/runtime/hle_msvcr70.c",
-    " M experiments/xrt/runtime/xrt_internal.h",
-    " M experiments/xrt/runtime/xrt_loader.c",
-    " M experiments/xrt/runtime/xrt_main.c",
-    " M experiments/xrt/runtime/xrt_mem.c",
-    " M experiments/xrt/runtime/xrt_msvcr70img.c",
-    " M experiments/xrt/tests/common/xrt_test_stubs.c",
-    " M experiments/xrt/tests/crt_diff/README.md",
-    " M experiments/xrt/tests/crt_diff/build.cmd",
-    " M experiments/xrt/tests/crt_diff/cand.c",
-    " M experiments/xrt/tests/crt_diff/compare.py",
-    " M experiments/xrt/tests/crt_diff/crt_diff_core.h",
-    " M experiments/xrt/tests/crt_diff/gen_corpus.py",
-    " M experiments/xrt/tests/crt_diff/ref.c",
-    " D experiments/xrt/tests/crt_diff/repro/bvsnwerr.1.txt",
-    " D experiments/xrt/tests/crt_diff/repro/bvsnwerr.2.txt",
-    " D experiments/xrt/tests/crt_diff/repro/bvsnwerr.5.txt",
-    " D experiments/xrt/tests/crt_diff/repro/bvsnwerr.6.txt",
-    " M experiments/xrt/tests/f1_wtoi/build.cmd",
-    " M experiments/xrt/tests/f2_mbcs_argv/build.cmd",
-    " M experiments/xrt/tests/f2_mbcs_argv/run_f2.py",
-    " M experiments/xrt/tests/f3_sandbox_guard/build.cmd",
-    " M experiments/xrt/tests/f3_sandbox_guard/f3_test.c",
-    " M experiments/xrt/tests/f3_sandbox_guard/stubs.c",
-    " M experiments/xrt/tests/f4_setfilepointer/adapter.c",
-    " M experiments/xrt/tests/f4_setfilepointer/build.cmd",
-    " M experiments/xrt/tests/insn_diff/mutation_check.py",
-    " M experiments/xrt/tests/insn_diff/results.json",
-    " M experiments/xrt/tests/insn_diff/run.py",
-    " M tools/xrt/discover.py",
+    " M experiments/xrt/tracer/music_trace.inc",
+    " M experiments/xrt/tracer/uctrace.c",
+    " M tools/xrt/compile_xrt.py",
+    " M tools/xrt/dmusic_regressions.py",
+    " M tools/xrt/graphics_reference.py",
+    " M tools/xrt/level_probe.py",
+    " M tools/xrt/make_sandbox.py",
     " M tools/xrt/run_xrt.py",
-    " M tools/xrt/tests/crt_gatef/build.cmd",
-    " M tools/xrt/tests/crt_gatef/cand.c",
-    " M tools/xrt/tests/test_run_xrt.py",
-    " M tools/xrt/xlift.py"
+    " M tools/xrt/tests/test_compile_xrt.py",
+    " M tools/xrt/tests/test_level_probe.py"
    ]
   },
   "runner": {
    "path": "tools/xrt/run_xrt.py",
-   "sha256": "7c252c44807f06a4944f5406cbbac5e91416d299caae5059b667550bd20ac2a4"
+   "sha256": "23845663abf8c86f5f089e7f32582ce20552bd790625d89e37f129c4e3c34149"
   },
   "cases_registry": {
    "path": "tools/xrt/cases.py",
@@ -111,25 +83,25 @@
   },
   "runtime_sources": {
    "path": "experiments/xrt/runtime",
-   "files": 15,
-   "sha256": "0a8bb57ecb631b0faeeccdba791885c7900514db5662e9bfada5414e5210948e"
+   "files": 19,
+   "sha256": "80be1d7c3a557c8dacb6daa8a300b912057bf2319e367106820a18e6401d43d5"
   },
   "generated_code": {
    "path": "experiments/xrt/gen",
-   "files": 196,
-   "sha256": "ac5b6a3b266600efb8e7da389e82aae12791d3b4033f961f6e85e822b4c9d784"
+   "files": 295,
+   "sha256": "d94a0fd8d2f180bcc87f5b01d0ea01c76817056602e02da9d111db6bee8afea1"
   },
   "candidate": {
-   "path": "experiments/xrt/build/xrt_ucc.exe",
-   "sha256": "99d8e9a4023f90c3d8372d0c478d7787dac0ac2405029c997c657638866a6697"
+   "path": "experiments/xrt/build/dmusic-client-final/xrt_ucc.exe",
+   "sha256": "414bdec39c84023eb018348b6ec1e59c42304df680bc6c28fe164dff5f45016b"
   },
   "tracer": {
    "path": "experiments/xrt/build/tracer/uctrace.exe",
-   "sha256": "3106b6ce73baeb04caa741eccd3694a907c522cd02e1a610be56b83239c444af"
+   "sha256": "5c83054febf28bb426bc2fae8b332bfa8dbf7ea93a1a831875eacf4bd0ac02b1"
   },
   "tracer_source": {
    "path": "experiments/xrt/tracer/uctrace.c",
-   "sha256": "f76db4a0212fd77b469b3b22150a739ad47b8a7234494b446ef97f8a55a5278b"
+   "sha256": "01ed7841cb6ecb0528448c346c808999d58e26ddaf9448c5e73883b0b28b6cc8"
   },
   "eh_points_tool": {
    "path": "tools/xrt/eh_points.py",
@@ -141,11 +113,11 @@
  "runs": [
   {
    "run": 0,
-   "dir": "experiments/xrt/results/raw/runs/20261023-013948-b8073561/vmprobe/run0",
+   "dir": "experiments/xrt/results/raw/runs/20261023-193415-5b7406d9/vmprobe/run0",
    "verdict": "PASS",
    "candidate": {
     "exit_code": 0,
-    "seconds": 6.59,
+    "seconds": 6.361,
     "stdout_sha256": "866753d6f1246d3f2675d9a618a46f52731303ae320fc9a0d4b41cc3db7f44ba",
     "command_line": "E:\\Unreal2-Port-Investigation\\sandbox_cmp\\vmprobe\\System\\UCC.exe VMProbe.VMProbe",
     "inputs": {
@@ -166,7 +138,7 @@
    "original": {
     "tool": "uctrace",
     "exit_code": 0,
-    "seconds": 38.927,
+    "seconds": 41.327,
     "stdout_sha256": "866753d6f1246d3f2675d9a618a46f52731303ae320fc9a0d4b41cc3db7f44ba",
     "command_line": "E:\\Unreal2-Port-Investigation\\sandbox_cmp\\vmprobe\\System\\UCC.exe VMProbe.VMProbe",
     "written": [

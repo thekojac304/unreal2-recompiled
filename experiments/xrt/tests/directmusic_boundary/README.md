@@ -1,3 +1,7 @@
+Current continuation: the owner-authorized snapshot-only DirectMusic regression sweep passed completely.
+Further execution is now held on compiler instability; see [the DirectInput checkpoint](../../DIRECTINPUT_DEVICE.md).
+The earlier stop and oracle history below are preserved.
+
 # DirectMusic COM/session oracles
 
 The approved bounded IPC implementation and required integrity stop are recorded in

@@ -1,3 +1,12 @@
+# Current continuation
+
+See [DirectInput device checkpoint](DIRECTINPUT_DEVICE.md) and [current status](CURRENT_STATUS.md).
+Mouse creation/setup now executes through real DirectInput; selected-world ticks and translated D3D
+CreateDevice/Present remain unverified/unreached. Further execution is held on unexplained compiler failures.
+The following earlier graphics/DirectMusic checkpoints remain historical evidence.
+
+---
+
 # Current continuation — DirectMusic ownership and native session characterization
 
 The [DirectMusic checkpoint](DIRECTMUSIC_INITIALIZATION.md) supersedes the first CoInitialize blocker

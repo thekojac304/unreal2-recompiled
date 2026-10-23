@@ -13,7 +13,7 @@ prints, one per line, derived by hand from the sources. The original engine runn
 fixture is never rewritten from run output.
 
 Configuration rule: every execution uses a fresh sandbox at the SAME guest-visible path sandbox_cmp/xcp (the whole
-directory removed, then recreated by tools/xrt/make_sandbox.py from the read-only install, while holding the
+directory removed, then recreated by tools/xrt/make_sandbox.py from manifest-verified snapshot inputs, while holding the
 exclusive lock sandbox_cmp/xcp.lock). For a compile, the sources are staged to sandbox_cmp/xcp/XrtCompileProbe/
 Classes/ and System/XrtCompileProbe.ini is derived from System/Unreal2.ini byte for byte (latin-1, line endings
 kept), except that in [Editor.EditorEngine] all EditPackages= lines are replaced, at the position of the first one,
@@ -546,7 +546,7 @@ def find_probe_files(root):
 
 
 def fresh_sandbox():
-    """Remove sandbox_cmp/xcp entirely and recreate it (System only) with make_sandbox.py (without --probe)."""
+    """Archive sandbox_cmp/xcp intact and recreate it (System only) with make_sandbox.py (without --probe)."""
     sb = os.path.join(SANDBOX_ROOT, CASE)
     if not R.inside(sb, SANDBOX_ROOT):
         raise R.HarnessError(f"sandbox path escapes {SANDBOX_ROOT}: {sb}")

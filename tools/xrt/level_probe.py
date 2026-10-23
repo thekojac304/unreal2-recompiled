@@ -19,11 +19,11 @@ import uuid
 HERE = Path(__file__).resolve().parent
 sys.path.insert(0, str(HERE))
 import run_xrt as R
-from make_sandbox import INSTALL
+import asset_boundary as A
 
 WS = Path(R.WS)
-SB = WS / "sandbox_cmp/level"
-SOURCE = Path(INSTALL).parent
+SB = WS / "sandbox_cmp/first-world"
+SOURCE = A.source()
 RAW = WS / "experiments/xrt/results/raw/level"
 ARGS = ["CS_Intro.un2", "-windowed", "-nosound", "-NOMMX", "-NOSSE"]
 MODULES = ["Unreal2.exe", "Core.dll", "Engine.dll", "GlmLib.dll", "Window.dll", "WinDrv.dll", "D3DDrv.dll",
@@ -49,7 +49,7 @@ def sha(p):
 
 
 def snapshot():
-    return {p.relative_to(SB).as_posix(): sha(p) for p in SB.rglob("*") if p.is_file()}
+    return A.inventory(SB)
 
 
 def save(p, value):
@@ -57,50 +57,11 @@ def save(p, value):
 
 
 def prepare():
+    A.check_writable(SB)
     if SB.exists():
         raise RuntimeError(f"preserving existing {SB}; prepare refuses to replace it")
-    subprocess.run([sys.executable, "-I", str(HERE / "make_sandbox.py"), str(SB)], check=True)
-    # Runtime resources are named dynamically outside package imports (Golem, UI, dialogue and music).
-    # One shared isolated copy, no junctions or writable links to original content.
-    for name in ["Meshes", "Music", "UIScripts", "Scripts", "Dialog", "Voice", "Help"]:
-        shutil.copytree(SOURCE / name, SB / name)
-    sys.path.insert(0, str(WS / "tools/pkgreader"))
-    from upkg import Package
-    index = {}
-    for folder in ["System", "Maps", "Textures", "StaticMeshes", "Sounds", "Meshes"]:
-        for p in (SOURCE / folder).rglob("*"):
-            if p.suffix.lower() in {".u", ".un2", ".utx", ".usx", ".uax", ".ugx"}:
-                index[p.stem.lower()] = p
-    queue = ["CS_Intro", "Entry", "Core", "Engine", "U2", "UI", "Legend", "U2Pawns"]
-    seen, missing = set(), set()
-    while queue:
-        name = queue.pop().lower()
-        if name in seen:
-            continue
-        seen.add(name)
-        p = index.get(name)
-        if p is None:
-            missing.add(name)
-            continue
-        dest = SB / p.relative_to(SOURCE)
-        if not dest.exists():
-            dest.parent.mkdir(parents=True, exist_ok=True)
-            shutil.copy2(p, dest)
-        pkg = Package(str(p))
-        queue += [i.name for i in pkg.imports if i.outer == 0]
-    (SB / "Save").mkdir()
-    (SB / "Cache").mkdir()
-    for p in (SB / "System").glob("*.log"):
-        p.unlink()
-    RAW.mkdir(parents=True, exist_ok=True)
-    save(RAW / "staging.json", {"sandbox": str(SB), "source": str(SOURCE), "maps": ["CS_Intro", "Entry"],
-         "dependency_packages": sorted(seen), "missing_packages": sorted(missing), "files": snapshot()})
-    pristine = RAW / "pristine-config"
-    pristine.mkdir(exist_ok=False)
-    for p in (SB / "System").glob("*.ini"):
-        shutil.copy2(p, pristine / p.name)
-    shutil.copy2(SB / "System/Golem.u", pristine / "Golem.u")
-    print("prepared", SB, "missing packages:", sorted(missing), flush=True)
+    shutil.copytree(SOURCE, SB)
+    print("prepared verified independent run tree", SB, flush=True)
 
 
 def main():
@@ -109,14 +70,18 @@ def main():
     ap.add_argument("--timeout-ms", type=int, default=90000)
     ap.add_argument("--minimal", action="store_true", help="reference: milestone breakpoints only, no function/import census")
     ap.add_argument("--d3d8-backend", choices=["dxvk"], help="candidate: verified official x64 DXVK 3.1.1 D3D8/D3D9 pair")
-    ap.add_argument("--package", action="append", default=[], help="stage an installed dynamic package into the sandbox (repeatable)")
+    ap.add_argument("--package", action="append", default=[], help="stage a verified snapshot package into the sandbox (repeatable)")
     a = ap.parse_args()
     if a.d3d8_backend and a.mode!='candidate':ap.error('--d3d8-backend requires candidate mode')
     if not 1 <= a.timeout_ms <= 600000:
         ap.error("timeout must be 1..600000 ms")
+    A.verify()
     if a.mode == "prepare":
         prepare()
+        A.verify()
         return 0
+    A.check_writable(SB)
+    A.inventory(SB)  # Reject aliases before restoring writable configuration.
     ident = datetime.now(timezone.utc).strftime("%Y%m%d-%H%M%S-") + uuid.uuid4().hex[:8]
     out = RAW / (ident + "-" + a.mode)
     out.mkdir(parents=True, exist_ok=False)
@@ -126,7 +91,7 @@ def main():
         source = (SOURCE / relative).resolve()
         relative = source.relative_to(SOURCE.resolve())
         if source.suffix.lower() not in {".utx", ".u", ".usx", ".uax", ".ugx"} or not source.is_file():
-            raise RuntimeError("expected an installed game package")
+            raise RuntimeError("expected a verified snapshot package")
         dest = SB / relative
         if dest.exists() and sha(dest) != sha(source):
             raise RuntimeError(f"preserving different existing sandbox package: {dest}")
@@ -135,14 +100,10 @@ def main():
             shutil.copy2(source, dest)
         staged.append(dict(R.file_identity(str(source)), destination=relative.as_posix()))
     # Restore only the known mutable config files; preserve every run's written versions first.
-    pristine = RAW / "pristine-config"
-    if not (pristine / "Golem.u").exists():
-        original = SOURCE / "System/Golem.u"
-        if sha(original) != json.loads((RAW / "staging.json").read_text())["files"]["System/Golem.u"]:
-            raise RuntimeError("Golem.u source no longer matches initial staging")
-        shutil.copy2(original, pristine / "Golem.u")
+    pristine = SOURCE / "System"
     for p in pristine.glob("*"):
-        shutil.copy2(p, SB / "System" / p.name)
+        if p.suffix.lower() == '.ini' or p.name == 'Golem.u':
+            shutil.copy2(p, SB / "System" / p.name)
     for name in ["Unreal2.log", "Running.ini"]:
         p = SB / "System" / name
         if p.exists():
@@ -196,7 +157,10 @@ def main():
         p = subprocess.run(cmd, cwd=exe.parent, stdout=f, stderr=subprocess.STDOUT, env=env,
                            timeout=a.timeout_ms / 1000 + 45)
     meta["exit_code"] = p.returncode
+    if a.mode == 'candidate' and R.file_identity(R.XRT) != meta['candidate']:
+        raise RuntimeError('candidate executable changed during experiment')
     after = snapshot()
+    A.check_run_inputs(before, after)
     changed = {p: h for p, h in after.items() if before.get(p) != h}
     meta.update(written=changed, deleted=sorted(before.keys() - after.keys()))
     for path in changed:
@@ -204,6 +168,7 @@ def main():
         dest.parent.mkdir(parents=True, exist_ok=True)
         shutil.copy2(SB / path, dest)
     save(out / "meta.json", meta)
+    A.verify()
     print(a.mode, p.returncode, out, flush=True)
     return p.returncode
 

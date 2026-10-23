@@ -1,3 +1,18 @@
+# Current continuation: isolated DirectInput mouse setup works; compiler stability hold
+
+Updated 2026-10-23 (US Eastern). The interrupted DirectMusic regression sweep freshly passes in full.
+The new typed DirectInput device oracle passes seven positive/six negative cases, and a genuine translated
+run now passes mouse CreateDevice, SetDataFormat and both properties. CS_Intro returns `0x12f52800`;
+the next executed fatal is U2AI.dll absent from that linked client. **No selected-world tick completed.**
+
+Execution is held after unexplained MSVC C1001 errors moved across generated units and a D8040 followed.
+Protected snapshot/input hashes still match; hardware health is not established. World-observer/U2AI
+integration is preserved as unaccepted, uncommitted work. No full post-input regression acceptance is claimed.
+
+[Current status](experiments/xrt/CURRENT_STATUS.md), [full evidence and hold](experiments/xrt/DIRECTINPUT_DEVICE.md).
+
+---
+
 # Current status: bounded DirectMusic IPC works; required installation integrity stop
 
 Updated 2026-10-23. The owner-approved project x86 helper matches the measured native DirectMusic

@@ -1,3 +1,13 @@
+# Owner-authorized isolated resumption — 2026-10-23
+
+The interrupted sweep is now freshly complete against the preserved IPC implementation: all affected
+components, commandlet/VM, compiler, traced VM and Python pass. Snapshot-only staging replaces installation
+reads. Subsequent DirectInput device work passes its focused oracle and genuine mouse setup, but compiler
+instability now holds execution and final post-change integration remains incomplete.
+[Current continuation](DIRECTINPUT_DEVICE.md). The earlier integrity-stop report follows unchanged.
+
+---
+
 # Bounded DirectMusic helper — integrity stop, 2026-10-23
 
 The approved x86 helper faithfully executes the measured native DirectMusic session. The focused x64

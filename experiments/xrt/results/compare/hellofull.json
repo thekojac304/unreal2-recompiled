@@ -1,7 +1,7 @@
 {
  "runner_schema": 4,
- "invocation_id": "20261023-013525-de49eb02",
- "invocation_dir": "experiments/xrt/results/raw/runs/20261023-013525-de49eb02",
+ "invocation_id": "20261023-192916-e15e2d60",
+ "invocation_dir": "experiments/xrt/results/raw/runs/20261023-192916-e15e2d60",
  "case": "hellofull",
  "args": [
   "Core.HelloWorldCommandlet",
@@ -28,47 +28,30 @@
   "UObject::execNotEqual_StringString",
   "UObject::execConcat_StringString"
  ],
- "repeat": 3,
+ "repeat": 1,
  "timeout_s": 120.0,
  "trace": false,
  "trace_forced": false,
  "reference": "fresh-original",
  "identity": {
   "git": {
-   "head": "1c7aef2fd39e8348c16368449285259114bba0d7",
+   "head": "75b215317b55dd463183ad3a8f06872ca74962b1",
    "tracked_files_modified": true,
    "modified": [
-    "M experiments/xrt/README.md",
-    " M experiments/xrt/build_xrt.cmd",
-    " M experiments/xrt/runtime/hle_kernel32.c",
-    " M experiments/xrt/runtime/hle_misc.c",
-    " M experiments/xrt/runtime/hle_msvcr70.c",
-    " M experiments/xrt/runtime/xrt_internal.h",
-    " M experiments/xrt/runtime/xrt_loader.c",
-    " M experiments/xrt/runtime/xrt_main.c",
-    " M experiments/xrt/runtime/xrt_mem.c",
-    " M experiments/xrt/runtime/xrt_msvcr70img.c",
-    " M experiments/xrt/tests/common/xrt_test_stubs.c",
-    " M experiments/xrt/tests/crt_diff/README.md",
-    " M experiments/xrt/tests/crt_diff/build.cmd",
-    " M experiments/xrt/tests/crt_diff/cand.c",
-    " M experiments/xrt/tests/crt_diff/compare.py",
-    " M experiments/xrt/tests/crt_diff/crt_diff_core.h",
-    " M experiments/xrt/tests/crt_diff/gen_corpus.py",
-    " M experiments/xrt/tests/crt_diff/ref.c",
-    " D experiments/xrt/tests/crt_diff/repro/bvsnwerr.1.txt",
-    " D experiments/xrt/tests/crt_diff/repro/bvsnwerr.2.txt",
-    " D experiments/xrt/tests/crt_diff/repro/bvsnwerr.5.txt",
-    " D experiments/xrt/tests/crt_diff/repro/bvsnwerr.6.txt",
-    " M tools/xrt/discover.py",
+    "M experiments/xrt/tracer/music_trace.inc",
+    " M tools/xrt/compile_xrt.py",
+    " M tools/xrt/dmusic_regressions.py",
+    " M tools/xrt/graphics_reference.py",
+    " M tools/xrt/level_probe.py",
+    " M tools/xrt/make_sandbox.py",
     " M tools/xrt/run_xrt.py",
-    " M tools/xrt/tests/test_run_xrt.py",
-    " M tools/xrt/xlift.py"
+    " M tools/xrt/tests/test_compile_xrt.py",
+    " M tools/xrt/tests/test_level_probe.py"
    ]
   },
   "runner": {
    "path": "tools/xrt/run_xrt.py",
-   "sha256": "7c252c44807f06a4944f5406cbbac5e91416d299caae5059b667550bd20ac2a4"
+   "sha256": "c1583fc867f039fe01b7be3f9cc8f72bd398e2859408f989f7615c9e07c6e6e9"
   },
   "cases_registry": {
    "path": "tools/xrt/cases.py",
@@ -84,25 +67,25 @@
   },
   "runtime_sources": {
    "path": "experiments/xrt/runtime",
-   "files": 15,
-   "sha256": "0a8bb57ecb631b0faeeccdba791885c7900514db5662e9bfada5414e5210948e"
+   "files": 19,
+   "sha256": "80be1d7c3a557c8dacb6daa8a300b912057bf2319e367106820a18e6401d43d5"
   },
   "generated_code": {
    "path": "experiments/xrt/gen",
-   "files": 196,
-   "sha256": "ac5b6a3b266600efb8e7da389e82aae12791d3b4033f961f6e85e822b4c9d784"
+   "files": 295,
+   "sha256": "d94a0fd8d2f180bcc87f5b01d0ea01c76817056602e02da9d111db6bee8afea1"
   },
   "candidate": {
-   "path": "experiments/xrt/build/xrt_ucc.exe",
-   "sha256": "99d8e9a4023f90c3d8372d0c478d7787dac0ac2405029c997c657638866a6697"
+   "path": "experiments/xrt/build/dmusic-client-final/xrt_ucc.exe",
+   "sha256": "414bdec39c84023eb018348b6ec1e59c42304df680bc6c28fe164dff5f45016b"
   },
   "tracer": {
    "path": "experiments/xrt/build/tracer/uctrace.exe",
-   "sha256": "3106b6ce73baeb04caa741eccd3694a907c522cd02e1a610be56b83239c444af"
+   "sha256": "5c83054febf28bb426bc2fae8b332bfa8dbf7ea93a1a831875eacf4bd0ac02b1"
   },
   "tracer_source": {
    "path": "experiments/xrt/tracer/uctrace.c",
-   "sha256": "f76db4a0212fd77b469b3b22150a739ad47b8a7234494b446ef97f8a55a5278b"
+   "sha256": "a44e1409b501226c31e1fffca9d8301be3b9b8af20a05c9b161e66185cd9fbe1"
   },
   "eh_points_tool": {
    "path": "tools/xrt/eh_points.py",
@@ -114,11 +97,11 @@
  "runs": [
   {
    "run": 0,
-   "dir": "experiments/xrt/results/raw/runs/20261023-013525-de49eb02/hellofull/run0",
+   "dir": "experiments/xrt/results/raw/runs/20261023-192916-e15e2d60/hellofull/run0",
    "verdict": "PASS",
    "candidate": {
     "exit_code": 0,
-    "seconds": 1.731,
+    "seconds": 1.768,
     "stdout_sha256": "622d7eb96043060966ed0bf1f9a9f73f66a2537814e260bfddcb9f4a3a8b1575",
     "command_line": "E:\\Unreal2-Port-Investigation\\sandbox_cmp\\hellofull\\System\\UCC.exe Core.HelloWorldCommandlet a b c",
     "inputs": {
@@ -139,211 +122,7 @@
    "original": {
     "tool": "direct",
     "exit_code": 0,
-    "seconds": 1.749,
-    "stdout_sha256": "622d7eb96043060966ed0bf1f9a9f73f66a2537814e260bfddcb9f4a3a8b1575",
-    "command_line": "E:\\Unreal2-Port-Investigation\\sandbox_cmp\\hellofull\\System\\UCC.exe Core.HelloWorldCommandlet a b c",
-    "written": [
-     "UCC.log"
-    ]
-   },
-   "failures": [],
-   "candidate_execution_completed": true,
-   "expected_result": true,
-   "reference": "fresh-original",
-   "output_matches_reference": true,
-   "comparison": {
-    "stdout_byte_identical": true,
-    "stdout_identical_after_normalisation": true,
-    "exit_code_identical": true,
-    "ucc_log_identical_after_normalisation": true,
-    "ucc_log_diff": [],
-    "written_files": [],
-    "written_files_identical": true,
-    "match": true
-   },
-   "milestone_evidence_valid": true,
-   "harness_error": null,
-   "evidence": [
-    {
-     "group": "instrumentation_binding",
-     "ok": true,
-     "checks_passed": 5,
-     "failed_checks": []
-    },
-    {
-     "group": "engine_initialization",
-     "ok": true,
-     "checks_passed": 7,
-     "failed_checks": []
-    },
-    {
-     "group": "package_load_and_commandlet_construction",
-     "ok": true,
-     "checks_passed": 7,
-     "failed_checks": []
-    },
-    {
-     "group": "commandlet_execution",
-     "ok": true,
-     "checks_passed": 12,
-     "failed_checks": []
-    },
-    {
-     "group": "worker_creation_and_execution",
-     "ok": true,
-     "checks_passed": 7,
-     "failed_checks": []
-    },
-    {
-     "group": "shutdown_flag_transition",
-     "ok": true,
-     "checks_passed": 7,
-     "failed_checks": []
-    },
-    {
-     "group": "worker_termination_and_wait_completion",
-     "ok": true,
-     "checks_passed": 10,
-     "failed_checks": []
-    },
-    {
-     "group": "engine_cleanup_and_exit",
-     "ok": true,
-     "checks_passed": 15,
-     "failed_checks": []
-    }
-   ]
-  },
-  {
-   "run": 1,
-   "dir": "experiments/xrt/results/raw/runs/20261023-013525-de49eb02/hellofull/run1",
-   "verdict": "PASS",
-   "candidate": {
-    "exit_code": 0,
-    "seconds": 1.724,
-    "stdout_sha256": "622d7eb96043060966ed0bf1f9a9f73f66a2537814e260bfddcb9f4a3a8b1575",
-    "command_line": "E:\\Unreal2-Port-Investigation\\sandbox_cmp\\hellofull\\System\\UCC.exe Core.HelloWorldCommandlet a b c",
-    "inputs": {
-     "UCC.exe": "84326806545670efdf1e1675d86da438751de2223a578a65f3764edb5a5fb1ab",
-     "Core.dll": "51bdad4d63b1b4fa8fb6935379f730345ca5cfb96cee9d5458eb6e681ac769cc",
-     "Core.u": "8c649483717de4d88d218d5bab129173d137950985eb8d4d61b91104869afe0f",
-     "Engine.dll": "f951becf4069f4976a76c027c04f7acaf73435578190216359c3a9936e618499",
-     "Engine.u": "bf660c827ea7f3a90e023d941fb55f553626bde5540046d8cf2c99f5d31adf03",
-     "GlmLib.dll": "85399770648383236ae3e9cc84b9bd94ae0261bd2ca4691dbc1fc4b314a4bdf3",
-     "msvcr70.dll": "f68e4cdbc879423ea47d763a6768567f5f8063924f13a74239750c13fa8d168a",
-     "VMProbe.u": "5d2c77d7a1afe4c9cff8a9303eba091578fe8d9c8fb6aa3aa266337f0e965991",
-     "VMProbe.ini": "9cee79720c913cea667c7de14a157c80050909d911ec99d76beed2b8743d26b2"
-    },
-    "written": [
-     "UCC.log"
-    ]
-   },
-   "original": {
-    "tool": "direct",
-    "exit_code": 0,
-    "seconds": 1.721,
-    "stdout_sha256": "622d7eb96043060966ed0bf1f9a9f73f66a2537814e260bfddcb9f4a3a8b1575",
-    "command_line": "E:\\Unreal2-Port-Investigation\\sandbox_cmp\\hellofull\\System\\UCC.exe Core.HelloWorldCommandlet a b c",
-    "written": [
-     "UCC.log"
-    ]
-   },
-   "failures": [],
-   "candidate_execution_completed": true,
-   "expected_result": true,
-   "reference": "fresh-original",
-   "output_matches_reference": true,
-   "comparison": {
-    "stdout_byte_identical": true,
-    "stdout_identical_after_normalisation": true,
-    "exit_code_identical": true,
-    "ucc_log_identical_after_normalisation": true,
-    "ucc_log_diff": [],
-    "written_files": [],
-    "written_files_identical": true,
-    "match": true
-   },
-   "milestone_evidence_valid": true,
-   "harness_error": null,
-   "evidence": [
-    {
-     "group": "instrumentation_binding",
-     "ok": true,
-     "checks_passed": 5,
-     "failed_checks": []
-    },
-    {
-     "group": "engine_initialization",
-     "ok": true,
-     "checks_passed": 7,
-     "failed_checks": []
-    },
-    {
-     "group": "package_load_and_commandlet_construction",
-     "ok": true,
-     "checks_passed": 7,
-     "failed_checks": []
-    },
-    {
-     "group": "commandlet_execution",
-     "ok": true,
-     "checks_passed": 12,
-     "failed_checks": []
-    },
-    {
-     "group": "worker_creation_and_execution",
-     "ok": true,
-     "checks_passed": 7,
-     "failed_checks": []
-    },
-    {
-     "group": "shutdown_flag_transition",
-     "ok": true,
-     "checks_passed": 7,
-     "failed_checks": []
-    },
-    {
-     "group": "worker_termination_and_wait_completion",
-     "ok": true,
-     "checks_passed": 10,
-     "failed_checks": []
-    },
-    {
-     "group": "engine_cleanup_and_exit",
-     "ok": true,
-     "checks_passed": 15,
-     "failed_checks": []
-    }
-   ]
-  },
-  {
-   "run": 2,
-   "dir": "experiments/xrt/results/raw/runs/20261023-013525-de49eb02/hellofull/run2",
-   "verdict": "PASS",
-   "candidate": {
-    "exit_code": 0,
-    "seconds": 1.732,
-    "stdout_sha256": "622d7eb96043060966ed0bf1f9a9f73f66a2537814e260bfddcb9f4a3a8b1575",
-    "command_line": "E:\\Unreal2-Port-Investigation\\sandbox_cmp\\hellofull\\System\\UCC.exe Core.HelloWorldCommandlet a b c",
-    "inputs": {
-     "UCC.exe": "84326806545670efdf1e1675d86da438751de2223a578a65f3764edb5a5fb1ab",
-     "Core.dll": "51bdad4d63b1b4fa8fb6935379f730345ca5cfb96cee9d5458eb6e681ac769cc",
-     "Core.u": "8c649483717de4d88d218d5bab129173d137950985eb8d4d61b91104869afe0f",
-     "Engine.dll": "f951becf4069f4976a76c027c04f7acaf73435578190216359c3a9936e618499",
-     "Engine.u": "bf660c827ea7f3a90e023d941fb55f553626bde5540046d8cf2c99f5d31adf03",
-     "GlmLib.dll": "85399770648383236ae3e9cc84b9bd94ae0261bd2ca4691dbc1fc4b314a4bdf3",
-     "msvcr70.dll": "f68e4cdbc879423ea47d763a6768567f5f8063924f13a74239750c13fa8d168a",
-     "VMProbe.u": "5d2c77d7a1afe4c9cff8a9303eba091578fe8d9c8fb6aa3aa266337f0e965991",
-     "VMProbe.ini": "9cee79720c913cea667c7de14a157c80050909d911ec99d76beed2b8743d26b2"
-    },
-    "written": [
-     "UCC.log"
-    ]
-   },
-   "original": {
-    "tool": "direct",
-    "exit_code": 0,
-    "seconds": 1.737,
+    "seconds": 1.834,
     "stdout_sha256": "622d7eb96043060966ed0bf1f9a9f73f66a2537814e260bfddcb9f4a3a8b1575",
     "command_line": "E:\\Unreal2-Port-Investigation\\sandbox_cmp\\hellofull\\System\\UCC.exe Core.HelloWorldCommandlet a b c",
     "written": [
@@ -420,7 +199,7 @@
   }
  ],
  "counts": {
-  "PASS": 3,
+  "PASS": 1,
   "FAIL": 0,
   "UNVERIFIED": 0
  },

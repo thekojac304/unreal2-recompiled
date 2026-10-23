@@ -27,7 +27,11 @@ import compile_xrt as C  # noqa: E402
 import run_xrt as R  # noqa: E402
 
 TMP_ROOT = os.path.join(R.WS, "experiments", "xrt", "build", "test_tmp")   # git-ignored
-INSTALL_INI = r"E:\Launchbox\Games\PC Games\Unreal 2 - The Awakening\singleplayer\System\Unreal2.ini"
+import asset_boundary as A
+try:
+    INSTALL_INI = str(A.source() / 'System/Unreal2.ini')
+except FileNotFoundError:
+    INSTALL_INI = str(A.WS / 'sandbox_inputs/unconfigured/System/Unreal2.ini')
 
 
 def mkdtemp():

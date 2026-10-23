@@ -17,7 +17,7 @@ expected result and evidence can be confirmed, equivalence cannot. A failure of 
 tool, unexpected exception) is recorded as a FAIL with "harness error" and gives exit status 4.
 
 Isolation and freshness: both executables run in the SAME guest-visible sandbox path, sandbox_cmp/<case>/System,
-recreated from the read-only install before every single execution (the engine hashes paths into its config maps,
+recreated from manifest-verified snapshot inputs before every single execution (the engine hashes paths into its config maps,
 so equal paths are needed for comparable internal behaviour) while holding an exclusive per-case lock. Results go
 to a directory created exclusively by this invocation, experiments/xrt/results/raw/runs/<invocation-id>/<case>/
 run<k>/{original,xrt}/ (git-ignored); nothing is read from any other location. The runtime report and log and the
@@ -177,7 +177,7 @@ def file_identity(path):
     return {"path": rel(path), "sha256": sha256_file(path)} if os.path.isfile(path) else {"path": rel(path), "missing": True}
 
 
-def tree_digest(root, patterns=(".c", ".h", ".py", ".json", ".cmd")):
+def tree_digest(root, patterns=(".c", ".h", ".inc", ".py", ".json", ".cmd")):
     """SHA-256 over (relative name, content) of the source files below root: identifies an exact source state
     even when it is not committed (generated code in gen/ is never committed)."""
     h, n = hashlib.sha256(), 0
@@ -219,7 +219,7 @@ class CaseLock:
 
 
 def fresh_sandbox(case_name):
-    """Recreate sandbox_cmp/<case>/System from the install; returns (system dir, {file: sha256})."""
+    """Recreate sandbox_cmp/<case>/System from verified snapshot inputs; returns (system dir, {file: sha256})."""
     if not CASE_ID.match(case_name):
         raise UsageError(f"bad case id {case_name!r}")
     sb = os.path.join(SANDBOX_ROOT, case_name)
@@ -232,7 +232,7 @@ def fresh_sandbox(case_name):
     hashes = dict(line.split() for line in p.stdout.splitlines() if line.strip())
     sysdir = os.path.join(sb, "System")
     if os.path.exists(os.path.join(sysdir, "UCC.log")):
-        raise HarnessError("fresh sandbox already contains UCC.log (the install is expected not to have one)")
+        raise HarnessError("fresh sandbox already contains UCC.log (verified source must not contain one)")
     return sysdir, hashes
 
 

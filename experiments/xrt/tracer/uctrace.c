@@ -171,13 +171,17 @@ static void music_write(const char* label,int seq,int thread,const CONTEXT* ctx,
     if(!path)return;
     if(!f) { f=fopen(path,"w"); if(!f) {fputs("music sidecar open failed\n",stderr);exit(5);} }
     if(saved)memcpy(stack,saved,sizeof stack);else rd(ctx->Esp,stack,sizeof stack);
-    fprintf(f,"{\"seq\":%d,\"thread\":%d,\"label\":\"%s\",\"eax\":\"%08lx\",\"esp\":\"%08lx\",\"stack\":[",
-            seq,thread,label,ctx->Eax,ctx->Esp);
+    fprintf(f,"{\"seq\":%d,\"thread\":%d,\"label\":\"%s\",\"eax\":\"%08lx\",\"esp\":\"%08lx\",\"eip\":\"%08lx\",\"stack\":[",
+            seq,thread,label,ctx->Eax,ctx->Esp,ctx->Eip);
     for(int i=0;i<16;i++)fprintf(f,"%s\"%08lx\"",i?",":"",stack[i]);
     fputs("],\"pointers\":[",f);
     for(int i=0;i<16;i++){if(i)fputc(',',f);music_memory(f,stack[i]);}
     fputs("],\"esi\":",f);music_memory(f,ctx->Esi);
     fputs(",\"ecx\":",f);music_memory(f,ctx->Ecx);
+    if(!strncmp(label,"AActor.event",12)) {
+        DWORD world=0;BOOL readable=rd(ctx->Ecx+0xd4,&world,4);
+        fprintf(f,",\"actor_world\":\"%08lx\",\"actor_world_readable\":%s",world,readable?"true":"false");
+    }
     fputs("}\n",f);fflush(f);
 }
 static BOOL wr(DWORD a, const void* b, SIZE_T n) {
