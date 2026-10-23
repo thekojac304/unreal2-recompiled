@@ -1,4 +1,147 @@
-# D3D8 creation and queries / translated LoadMap entry — 2026-10-23 (US Eastern)
+# Entry LoadMap completed; CS_Intro PostLoad completed; DirectMusic boundary — 2026-10-23 (US Eastern)
+
+**The genuine translated Entry LoadMap now returns a non-null world.** The second LoadMap opens
+`CS_Intro.un2` and completes that package's `ULevel::PostLoad`. It has **not** returned from CS_Intro
+LoadMap, completed selected-world actor initialization or executed a selected-world tick.
+The first remaining fatal is `ole32!CoInitialize`, called at `Engine.dll+0x18177f` from the
+`DMCallRoutine → AMusicScriptEvent::execCallRoutine` path, even with `-nosound`.
+
+Starting HEAD was clean at `ebf67d56209254e909eef1ad1b0a5f6608641215`; its parent is `0c57992`.
+Both reported commits were verified and no later changes were reset. Implementation/oracles are
+committed locally as `0fcd8b0`. No push was made. Public evidence:
+[entry_initialization.json](results/compare/entry_initialization.json).
+
+| Independently tracked milestone | Genuine translated evidence |
+|---|---|
+| Entry.un2 LoadMap entry | Yes, seq 23206 |
+| Entry package PostLoad completion | Yes, paired call/return 23270/23295 |
+| Entry LoadMap successful return | Yes, seq 23395, world `0x120a5000`, matching caller and ESP +20 |
+| CS_Intro.un2 opening | Yes, successful file open seq 23404 within second LoadMap (23400) |
+| CS_Intro package PostLoad completion | Yes, paired call/return 23926/23933, object `0x12f52800` |
+| CS_Intro LoadMap successful return with non-null world | **No** |
+| Selected-world actor lifecycle initialization completed | **Not established**; Entry's actor method hits cannot prove it |
+| One completed selected-world simulation tick | **No**; neither UGameEngine Tick nor ULevel Tick entered |
+| Actual translated D3D device / Present | **None / none** |
+
+Engine Init has not returned. File reads, object allocation and PostLoad completion are not used as
+substitutes for the missing selected-world initialization evidence. No render output is claimed.
+
+## CRT boundary: measured bit behavior, state and regression
+
+The preserved starting binary reproduces the original fatal at `Core.dll+17220`:
+`results/raw/level/20261023-055123-c6e1372d-candidate/`.
+Original instruction observers capture the actual msvcr70 floor entry, SSE2/x87 branch and appRound
+return. Both dgVoodoo (`5bffb0661486-dgvoodoo`) and DXVK x86 (`4dba095f123d-dxvk`) select **SSE2**.
+The first operands are `3faa000000000000` and `3fefe00000000000`, both returning positive zero;
+FCW is `027f`, FSW `0120 → 3920`, MXCSR `00001fa4` unchanged. The game `-NOSSE` flag does not disable
+the native CRT's SSE2 implementation. Raw x87 tags and all eight 80-bit register slots are retained.
+
+The focused [floor/ceil oracle](tests/floor_boundary/README.md) calls the real x86 sandbox msvcr70
+export through a function pointer, and the actual translated adapters through guest cdecl frames.
+For **each function, 73,920 cases have zero differences** in full result bits, FCW, FSW including TOP,
+condition and sticky flags, errno and surviving deeper stack values. Guest return/ESP and callee-saved
+register checks also pass. Inputs include actual game operands, negative fractions, integral neighbours,
+signed zeros, subnormals, large values, infinities, quiet/signalling NaNs and payloads, plus seeded random
+binary64 values. No difference is masked or waived. Unmodeled control words remain explicit fatal negatives.
+
+The implementation uses integer manipulation of IEEE binary64 bits, with **no host floor/ceil/libm call**.
+It preserves negative zero, quiets SNaN while setting x87 IE, preserves NaN sign/payload, sets EDOM for
+NaNs, clears C1 and preserves the other measured x87 flags. The subsequently encountered `ceil` import
+at Core `171fa` has its own native comparison. Original appCeil uses operand `409fa40000000000`, which
+returns unchanged, FCW `027f`, FSW `4025 → 7825`, MXCSR `00001fa5` unchanged (`6b7ef11021f4-dxvk`).
+
+A genuine resumed run exposed FLDCW `023f`: the model retained its clear reserved bit 6, while native
+hardware reads back `027f`. The expanded differential reproduced the failure before fixing
+`xrt_fldcw` to set that readback bit. Both control inputs now compare exactly. Other precision/rounding
+controls, unmasked exceptions, a full x87 stack and the CRT SSE2-disabled fallback are outside this oracle.
+
+**Existing arithmetic-status differences remain visible.** Translated incoming floor FSW is `0100`,
+return `3900`, versus native `0120/3920`; ceil is `4000/7800` versus `4025/7825`. Earlier general guest
+x87 arithmetic does not model all exception sticky flags. The new adapters preserve their incoming
+state correctly and are tested with those exact native and translated states; this does not establish
+end-to-end FPU-status equivalence. Native MXCSR is observed, while guest SIMD status remains unmodeled.
+
+## Actual encountered steps and remaining host dependency
+
+After rounding, real Entry initialization required `GetLocalTime`; its adapter writes the eight guest
+SYSTEMTIME WORDs from the actual host call. Tests check the native time interval, weekday, both canaries,
+last-error preservation and stdcall cleanup. The loader now records paired PostLoad/LoadMap returns.
+
+CS_Intro then requested, one at a time, `ParticleSystems.dll`, `Legend.dll`, `UI.dll`, `U2.dll` and
+`U2Dialog.dll`. Each is lifted from the unchanged sandbox binary, hash-bound, and executes its real
+DllMain successfully. The module limit is now 32 (including unloaded slots), with consistent bounds for
+import counts, load lists and initialization order. The client identity check rejects overlapping client
+lift ranges before compilation. One exploratory run combined relocation bases from different original
+runs and failed visibly on UI/U2Dialog overlap; its binary/logs and previous UI lift remain preserved.
+The corrected layout uses UI `19120000` and U2Dialog `19630000` from the same reference run.
+
+After CS_Intro PostLoad, the missing dynamic `SubTFonts.utx` followed an error path into unsupported
+`FormatMessageW`. That error boundary remains visible in `20261023-061639-93a28750-candidate`.
+The driver now stages the genuine installed font package into the sandbox with hashes, matching the
+established original reference. It refuses to overwrite a different existing sandbox package. This
+resumes normal loading and exposes the current DirectMusic boundary; no dummy package was supplied.
+
+No new guest COM method was added. The existing typed guest COM and **DXVK 3.1.1 x64 D3D8/D3D9**
+backend remain intact; CreateDevice is still explicitly unsupported and uncalled. The 18 measured
+dgVoodoo/DXVK caps differences are preserved in the preceding D3D8 comparison.
+
+The [native DirectMusic dependency probe](tests/directmusic_boundary/README.md) extracts the exact
+CLSID/IID pairs from Engine.dll's data. CoInitialize returns S_OK then S_FALSE on both architectures.
+Loader8 creation succeeds on both. **Performance8 succeeds on x86 but returns `80040154`
+(REGDB_E_CLASSNOTREG), NULL output, on x64.** All successful native references are released and both
+apartment initializations balanced; no audio device, InitAudio or playback is invoked. This is a measured
+architecture difference, **not a compatibility pass**. Original instruction observations at `15300b5237d8-dxvk`
+confirm S_OK for its actual CoInitialize and both game factory calls.
+
+The smallest next experiment is to measure the original Performance8 initialization/script methods and
+identify a usable x64 implementation or a bounded x86 COM bridge, then implement measured apartment
+ownership and typed guest interfaces. Simply returning S_OK, omitting the music script, or presenting
+the x64 factory failure as equivalent to the original's success would not resolve this boundary.
+
+## Final runnable case and acceptance
+
+Final binary: `build/entry-floor-final/xrt_ucc.exe`, SHA-256
+`910e1d1c0900dbe2a6cf306526c453c5190ef8a3475527f8f2ed2aea1b6f640c`.
+Every runtime/client translation unit was compiled freshly without warnings; unchanged baseline generated
+objects were verified against `fresh-20261023-015722-b7ee8987`. `client-identity.json` binds sources,
+lifts, objects and binary. Both final runs have **24,135 events, zero dropped events**, the same milestone
+sequence above and the same fatal (24132), followed by real D3D8/DirectInput releases and StickyKeys restoration:
+
+- `results/raw/level/20261023-062210-ecf6c9db-candidate/`
+- `results/raw/level/20261023-062406-fa48fecc-candidate/`
+
+```powershell
+$env:XRT_BINARY = 'E:\Unreal2-Port-Investigation\experiments\xrt\build\entry-floor-final\xrt_ucc.exe'
+.venv/Scripts/python -I tools/xrt/level_probe.py candidate --d3d8-backend dxvk --package Textures/SubTFonts.utx --timeout-ms 45000
+cmd /d /c experiments\xrt\tests\floor_boundary\build.cmd
+.venv/Scripts/python -I experiments/xrt/tests/floor_boundary/compare.py
+.venv/Scripts/python -I experiments/xrt/tests/floor_boundary/compare.py --function ceil
+```
+
+Fresh full original references `542dc90f477d-dgvoodoo` and `e3188707f1d2-dxvk` both complete CS_Intro
+initialization: 268 of each actor lifecycle event, four returned selected-world ticks, one successful
+game device creation and three successful normal Presents. Both observer traces are complete without
+drops. The established SubTFonts/U2Player_A/HUD_Fonts/UI_Fonts reference staging is unchanged.
+
+Final validation: nine commandlet/VM cases PASS (`20261023-062221-add36d09`); compiler PASS
+(`20261023-062221-5d4877f2`, 16 compiles including four expected invalid-source failures, 12 execution
+comparisons); traced VMProbe PASS (`20261023-062406-a7feacea`); Python **149 tests OK, 17 expected skips**.
+DirectInput/COM, D3D8/COM, GUI, class, module, binary FILE, startup/memory and EH (six positives/two explicit
+negatives) suites pass. Gate-F CRT: **51,536 cases, zero mismatches**. Current sine table: all 16,384 floats
+match; the existing two double-only edge differences remain visible. Earlier lock-colliding Python and
+relocation-overlap experiments are excluded; serial final checks pass. Existing fixture compiler warnings
+remain in component logs; the final client build has none.
+
+Immutable oracle binaries, comparison logs and hash manifest: `results/raw/floor-checkpoint-20261023/`.
+Full expanded CRT baseline remains **110 mismatches / 1,796 pending**, not exhaustively rerun; fresh
+`fopen.0` still differs. Fresh ACP 932 retains six differences. No expectation was weakened.
+Read-only final census matches all **4,757** preceding installation files with zero additional differences;
+Save metadata matches. The [unresolved Ogg CRC/PCM discrepancy](INSTALLATION_INTEGRITY.md) is preserved
+without repair or a clean-install claim. No original-install or save writes were made.
+
+---
+
+# Historical D3D8 creation and queries / translated LoadMap entry — 2026-10-23 (US Eastern)
 
 **The translated D3D8 creation/query boundary works through DXVK 3.1.1 x64.**
 The real client obtains a guest COM object, enumerates two adapters, obtains both identifiers and HAL

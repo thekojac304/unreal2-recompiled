@@ -1,0 +1,462 @@
+{
+  "date": "2026-10-23 (America/New_York)",
+  "starting_head": "ebf67d56209254e909eef1ad1b0a5f6608641215",
+  "implementation_commit": "0fcd8b0",
+  "preserved_preceding_commits": [
+    "0c57992",
+    "ebf67d5"
+  ],
+  "milestones": {
+    "entry_loadmap_entered": true,
+    "entry_package_postload_completed": true,
+    "entry_loadmap_returned_nonnull_world": true,
+    "cs_intro_opened_within_second_loadmap": true,
+    "cs_intro_package_postload_completed": true,
+    "cs_intro_loadmap_returned_nonnull_world": false,
+    "selected_world_actor_lifecycle_completed": false,
+    "selected_world_completed_ticks": 0,
+    "translated_d3d_device_created": false,
+    "translated_frame_presented": false,
+    "engine_init_returned": false
+  },
+  "candidate_runs": [
+    {
+      "path": "experiments/xrt/results/raw/level/20261023-062210-ecf6c9db-candidate",
+      "events": 24135,
+      "dropped": 0,
+      "outcome": "call to import ole32.dll!CoInitialize, which has no host implementation (from 1048177f (Engine.dll+18177f, in f_10481770+f))",
+      "milestone_events": [
+        {
+          "seq": 23206,
+          "thread": 0,
+          "kind": "engine_loadmap_call",
+          "target": 272174848,
+          "esp": 18928808,
+          "return": 272168548,
+          "this": 304460416,
+          "arg0": 18937032
+        },
+        {
+          "seq": 23270,
+          "thread": 0,
+          "kind": "level_postload_call",
+          "target": 272339296,
+          "esp": 18924264,
+          "return": 269772740,
+          "this": 302665728
+        },
+        {
+          "seq": 23295,
+          "thread": 0,
+          "kind": "level_postload_return",
+          "target": 272339296,
+          "esp_before": 18924264,
+          "esp_after": 18924268,
+          "return": 269772740,
+          "actual_return": 269772740,
+          "this": 302665728
+        },
+        {
+          "seq": 23395,
+          "thread": 0,
+          "kind": "engine_loadmap_return",
+          "target": 272174848,
+          "result": 302665728,
+          "actual_return": 272168548,
+          "esp_before": 18928808,
+          "esp_after": 18928828,
+          "return": 272168548,
+          "this": 304460416
+        },
+        {
+          "seq": 23400,
+          "thread": 0,
+          "kind": "engine_loadmap_call",
+          "target": 272174848,
+          "esp": 18927512,
+          "return": 272173943,
+          "this": 304460416,
+          "arg0": 18928752
+        },
+        {
+          "seq": 23926,
+          "thread": 0,
+          "kind": "level_postload_call",
+          "target": 272339296,
+          "esp": 18922968,
+          "return": 269772740,
+          "this": 318056448
+        },
+        {
+          "seq": 23933,
+          "thread": 0,
+          "kind": "level_postload_return",
+          "target": 272339296,
+          "esp_before": 18922968,
+          "esp_after": 18922972,
+          "return": 269772740,
+          "actual_return": 269772740,
+          "this": 318056448
+        },
+        {
+          "seq": 24132,
+          "thread": 0,
+          "kind": "fatal",
+          "code": 75,
+          "message": "call to import ole32.dll!CoInitialize, which has no host implementation (from 1048177f (Engine.dll+18177f, in f_10481770+f))"
+        }
+      ],
+      "staged_packages": [
+        {
+          "path": "E:\\Launchbox\\Games\\PC Games\\Unreal 2 - The Awakening\\singleplayer\\Textures\\SubTFonts.utx",
+          "sha256": "08c186db89e00eb898671e5bef741b07e2a2b9af24d4ef37ff25a010d40df7e5",
+          "destination": "Textures/SubTFonts.utx"
+        }
+      ]
+    },
+    {
+      "path": "experiments/xrt/results/raw/level/20261023-062406-fa48fecc-candidate",
+      "events": 24135,
+      "dropped": 0,
+      "outcome": "call to import ole32.dll!CoInitialize, which has no host implementation (from 1048177f (Engine.dll+18177f, in f_10481770+f))",
+      "milestone_events": [
+        {
+          "seq": 23206,
+          "thread": 0,
+          "kind": "engine_loadmap_call",
+          "target": 272174848,
+          "esp": 18928808,
+          "return": 272168548,
+          "this": 304460416,
+          "arg0": 18937032
+        },
+        {
+          "seq": 23270,
+          "thread": 0,
+          "kind": "level_postload_call",
+          "target": 272339296,
+          "esp": 18924264,
+          "return": 269772740,
+          "this": 302665728
+        },
+        {
+          "seq": 23295,
+          "thread": 0,
+          "kind": "level_postload_return",
+          "target": 272339296,
+          "esp_before": 18924264,
+          "esp_after": 18924268,
+          "return": 269772740,
+          "actual_return": 269772740,
+          "this": 302665728
+        },
+        {
+          "seq": 23395,
+          "thread": 0,
+          "kind": "engine_loadmap_return",
+          "target": 272174848,
+          "result": 302665728,
+          "actual_return": 272168548,
+          "esp_before": 18928808,
+          "esp_after": 18928828,
+          "return": 272168548,
+          "this": 304460416
+        },
+        {
+          "seq": 23400,
+          "thread": 0,
+          "kind": "engine_loadmap_call",
+          "target": 272174848,
+          "esp": 18927512,
+          "return": 272173943,
+          "this": 304460416,
+          "arg0": 18928752
+        },
+        {
+          "seq": 23926,
+          "thread": 0,
+          "kind": "level_postload_call",
+          "target": 272339296,
+          "esp": 18922968,
+          "return": 269772740,
+          "this": 318056448
+        },
+        {
+          "seq": 23933,
+          "thread": 0,
+          "kind": "level_postload_return",
+          "target": 272339296,
+          "esp_before": 18922968,
+          "esp_after": 18922972,
+          "return": 269772740,
+          "actual_return": 269772740,
+          "this": 318056448
+        },
+        {
+          "seq": 24132,
+          "thread": 0,
+          "kind": "fatal",
+          "code": 75,
+          "message": "call to import ole32.dll!CoInitialize, which has no host implementation (from 1048177f (Engine.dll+18177f, in f_10481770+f))"
+        }
+      ],
+      "staged_packages": [
+        {
+          "path": "E:\\Launchbox\\Games\\PC Games\\Unreal 2 - The Awakening\\singleplayer\\Textures\\SubTFonts.utx",
+          "sha256": "08c186db89e00eb898671e5bef741b07e2a2b9af24d4ef37ff25a010d40df7e5",
+          "destination": "Textures/SubTFonts.utx"
+        }
+      ]
+    }
+  ],
+  "build_identity": {
+    "path": "experiments/xrt/build/entry-floor-final/client-identity.json",
+    "sha256": "5fe7db23932245e2dc509753789314086da04a845ad2528611161bed8f7f4a2f"
+  },
+  "binary": {
+    "path": "experiments/xrt/build/entry-floor-final/xrt_ucc.exe",
+    "sha256": "910e1d1c0900dbe2a6cf306526c453c5190ef8a3475527f8f2ed2aea1b6f640c"
+  },
+  "rounding": {
+    "floor": {
+      "path": "experiments/xrt/results/raw/floor/f3eb8dffdef1/result.json",
+      "sha256": "ca7f2cbdae1d00fd66558d1f2ba609970e9aa2a0ff95262f32fd6f9be08eed66"
+    },
+    "ceil": {
+      "path": "experiments/xrt/results/raw/ceil/99bbfca914bc/result.json",
+      "sha256": "4cfb08a7a4aca6b97f6758edf0fa776318688e73267e21533c7ab1efb0c2a74b"
+    },
+    "cases_each": 73920,
+    "differences_each": 0,
+    "comparison": "full result bits, FCW, FSW, TOP, errno and deeper stack; cdecl/callee-saved checks",
+    "host_libm_used": false,
+    "reserved_fldcw_bit6_fixed": true,
+    "native_floor_observations": [
+      "4dba095f123d-dxvk",
+      "5bffb0661486-dgvoodoo"
+    ],
+    "native_ceil_observation": "6b7ef11021f4-dxvk",
+    "end_to_end_status_difference": "Existing guest arithmetic does not set all x87 exception sticky flags: first floor 0100 -> 3900 vs native 0120 -> 3920; ceil 4000 -> 7800 vs native 4025 -> 7825. No end-to-end status equivalence claimed."
+  },
+  "new_host_adapters": [
+    "msvcr70!floor",
+    "msvcr70!ceil",
+    "KERNEL32!GetLocalTime"
+  ],
+  "new_guest_com_methods": [],
+  "new_client_lifts": [
+    [
+      "ParticleSystems.dll",
+      "0xfe00000",
+      "63c8b47717bb4a76c668fd3804012e0a3ab4bb20cd6e01523d7f6e2c5a1260ca"
+    ],
+    [
+      "Legend.dll",
+      "0xff40000",
+      "fa96383f2fed2a13f4d357edeeb1787000efb55b647d4ac94b57c8a0f788e6fc"
+    ],
+    [
+      "UI.dll",
+      "0x19120000",
+      "5a4192726c25b3b81d23c6cb38a9ae82bbbbe55c20797a3f14a6072d2486ef25"
+    ],
+    [
+      "U2.dll",
+      "0x10060000",
+      "8758f07cafeafac95ce09469d8ec0d6ad754450385dfb96d68e9606fb117d8b0"
+    ],
+    [
+      "U2Dialog.dll",
+      "0x19630000",
+      "c0c2fd368584f2ac6cf9c4286a3d1bdf663968844854be357f863eda73a68814"
+    ]
+  ],
+  "native_directmusic": {
+    "result": {
+      "path": "experiments/xrt/results/raw/directmusic/e0d9dff11edc/result.json",
+      "sha256": "58d68bd772eb0b8a7da527bfb0e079bee741fbfc81d39d2f8b8031612f0a0a95"
+    },
+    "original_trace": {
+      "path": "experiments/xrt/results/raw/graphics-startup/15300b5237d8-dxvk/trace.json",
+      "sha256": "159262fb72dc3336cc4e5198e654a351e4b2c2618e00800009dc2d25940113c7"
+    },
+    "finding": "Both game factories succeed on x86. Loader8 succeeds on x64; Performance8 returns 80040154 with NULL output. This is not a compatibility pass."
+  },
+  "original_world_references": {
+    "dgvoodoo": {
+      "trace": {
+        "path": "experiments/xrt/results/raw/graphics-startup/542dc90f477d-dgvoodoo/trace.json",
+        "sha256": "6282cac3652b0170bad3f95a4f5066a78a8e69497756a091f1ceaf65d5ba8cfd"
+      },
+      "evidence": {
+        "observer_complete_without_drops": true,
+        "selected_map": {
+          "entry_seq": 125,
+          "open_seq": 126,
+          "return_seq": 1054,
+          "world": "0x0ff82800",
+          "actors": {
+            "AActor.eventPreBeginPlay": 268,
+            "AActor.eventBeginPlay": 268,
+            "AActor.eventPostBeginPlay": 268
+          }
+        },
+        "selected_level_initialized": true,
+        "completed_selected_world_ticks": [
+          {
+            "entry_seq": 12341,
+            "ret_seq": 12348,
+            "caller_seq": 12349
+          },
+          {
+            "entry_seq": 12357,
+            "ret_seq": 12358,
+            "caller_seq": 12359
+          },
+          {
+            "entry_seq": 12364,
+            "ret_seq": 12365,
+            "caller_seq": 12366
+          },
+          {
+            "entry_seq": 12374,
+            "ret_seq": 12375,
+            "caller_seq": 12376
+          }
+        ],
+        "game_create_device": [
+          {
+            "call_seq": 12336,
+            "return_seq": 12337,
+            "hresult": "0x00000000"
+          }
+        ],
+        "game_present": [
+          {
+            "call_seq": 12354,
+            "return_seq": 12355,
+            "hresult": "0x00000000"
+          },
+          {
+            "call_seq": 12371,
+            "return_seq": 12372,
+            "hresult": "0x00000000"
+          },
+          {
+            "call_seq": 12381,
+            "return_seq": 12382,
+            "hresult": "0x00000000"
+          }
+        ],
+        "interactive_play_verified": false
+      }
+    },
+    "dxvk_x86": {
+      "trace": {
+        "path": "experiments/xrt/results/raw/graphics-startup/e3188707f1d2-dxvk/trace.json",
+        "sha256": "4a4defd9df343685d6bedb407e15e8df761d1c70a0c28e380ae6eeb2fcf70b67"
+      },
+      "evidence": {
+        "observer_complete_without_drops": true,
+        "selected_map": {
+          "entry_seq": 125,
+          "open_seq": 126,
+          "return_seq": 1054,
+          "world": "0x10802800",
+          "actors": {
+            "AActor.eventPreBeginPlay": 268,
+            "AActor.eventBeginPlay": 268,
+            "AActor.eventPostBeginPlay": 268
+          }
+        },
+        "selected_level_initialized": true,
+        "completed_selected_world_ticks": [
+          {
+            "entry_seq": 12341,
+            "ret_seq": 12348,
+            "caller_seq": 12349
+          },
+          {
+            "entry_seq": 12357,
+            "ret_seq": 12358,
+            "caller_seq": 12359
+          },
+          {
+            "entry_seq": 12364,
+            "ret_seq": 12365,
+            "caller_seq": 12366
+          },
+          {
+            "entry_seq": 12374,
+            "ret_seq": 12375,
+            "caller_seq": 12376
+          }
+        ],
+        "game_create_device": [
+          {
+            "call_seq": 12336,
+            "return_seq": 12337,
+            "hresult": "0x00000000"
+          }
+        ],
+        "game_present": [
+          {
+            "call_seq": 12354,
+            "return_seq": 12355,
+            "hresult": "0x00000000"
+          },
+          {
+            "call_seq": 12371,
+            "return_seq": 12372,
+            "hresult": "0x00000000"
+          },
+          {
+            "call_seq": 12381,
+            "return_seq": 12382,
+            "hresult": "0x00000000"
+          }
+        ],
+        "interactive_play_verified": false
+      }
+    }
+  },
+  "regressions": {
+    "commandlet_vm": "20261023-062221-add36d09 PASS (9 cases)",
+    "compiler": "20261023-062221-5d4877f2 PASS (16 compiles, 12 executions)",
+    "traced_vm": "20261023-062406-a7feacea PASS",
+    "python": "149 tests OK, 17 expected skips",
+    "component_suites": [
+      "DirectInput/COM",
+      "D3D8/COM",
+      "GUI",
+      "class",
+      "module",
+      "binary FILE",
+      "startup/memory",
+      "EH: 6 positives + 2 explicit negatives"
+    ],
+    "gate_f_crt": "51536 cases, 0 mismatches",
+    "x87_sine": "16384 float table entries and 13 edge arguments match at tested scope; existing 2 double-only ulp differences remain visible",
+    "raw_archive": "experiments/xrt/results/raw/floor-checkpoint-20261023",
+    "fresh_acceptance_reports": "experiments/xrt/results/raw/floor-checkpoint-20261023/acceptance-public/",
+    "preceding_tracked_comparisons_preserved": true
+  },
+  "open_baselines": {
+    "expanded_crt": "110 mismatches, 1796 pending; exhaustive baseline not rerun, fopen.0 freshly still differs",
+    "acp_932": "six fresh differences",
+    "caps": "18 dgVoodoo/DXVK differences preserved in d3d8_initialization.json",
+    "ogg": "unresolved CRC/PCM discrepancy preserved; not repaired",
+    "error_path": "FormatMessageW remains unsupported; observed after missing SubTFonts before staging the genuine package"
+  },
+  "installation": {
+    "audit": {
+      "path": "experiments/xrt/results/raw/floor-install-after.json",
+      "sha256": "aeb4443b968fba33e99a1faddf3f88333f55b4e08a8a21a9cf632f9f2397be6c"
+    },
+    "files": 4757,
+    "additional_differences": 0,
+    "save_metadata_matches": true
+  },
+  "first_blocker": "ole32!CoInitialize at Engine.dll+18177f, DMCallRoutine/AMusicScriptEvent during CS_Intro initialization",
+  "smallest_next_experiment": "Measure original Performance8 initialization/script calls and a usable x64 implementation or bounded x86 COM bridge; then add measured apartment ownership and typed guest interfaces. Preserve the observed architecture mismatch."
+}

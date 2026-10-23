@@ -1,4 +1,36 @@
-# Current status: translated D3D8 queries pass; genuine LoadMap enters Entry
+# Current status: Entry LoadMap completes; CS_Intro reaches completed package PostLoad
+
+Updated 2026-10-23 (US Eastern). **The translated client completes genuine Entry LoadMap and returns a
+non-null world.** Its second LoadMap opens CS_Intro.un2 and completes that package's ULevel::PostLoad.
+CS_Intro LoadMap has not returned; selected-world actor initialization and ticks are not established.
+Engine Init has not returned, and no translated D3D device or frame exists.
+
+The first remaining fatal is **OLE32!CoInitialize at Engine.dll+18177f**, in the real DirectMusic script
+initialization path despite -nosound. A native x86/x64 probe finds a subsequent material dependency:
+DirectMusic Loader8 succeeds on both, while Performance8 succeeds on x86 and returns 80040154 with NULL
+output on x64. No COM success, audio object or lifecycle bypass was fabricated.
+
+Measured floor and ceil adapters use integer binary64 operations, with **73,920 exact native/translated
+comparisons each**, zero differences. The encountered FLDCW reserved-bit readback discrepancy is fixed.
+GetLocalTime and five newly encountered client DLL translations advance the genuine path. The pinned
+DXVK 3.1.1 x64 D3D8/D3D9 backend, typed guest COM infrastructure and all 18 cross-backend caps differences
+are preserved. Existing general x87 sticky-status differences remain explicitly documented.
+
+Source/oracles: local commit `0fcd8b0`, preserving starting HEAD `ebf67d5` and parent `0c57992`.
+[Current checkpoint, commands and limits](experiments/xrt/GRAPHICS_STARTUP.md),
+[identified comparison](experiments/xrt/results/compare/entry_initialization.json).
+Two final runs reproduce the boundary with 24,135 events and no drops. Fresh dgVoodoo and DXVK x86
+references both complete CS_Intro actor initialization, four selected-world ticks and three Presents.
+
+Final commandlet/VM, compiler, traced VM, GUI/class, module, COM, binary FILE, exception and startup
+regressions pass; Python 149 tests OK with 17 expected skips. CRT Gate-F: 51,536 cases, zero mismatches.
+The expanded CRT baseline (110 mismatches / 1,796 pending), six ACP 932 differences and Ogg integrity
+finding remain open. All 4,757 installed files and Save metadata match the prior audit with no additional
+differences. No push, installation/save modification or Ogg repair occurred.
+
+---
+
+# Historical status: translated D3D8 queries pass; genuine LoadMap enters Entry
 
 Updated 2026-10-23 (US Eastern). **Direct3DCreate8(120), adapter enumeration/identifiers, HAL caps and
 observed DXT1/3/5 queries pass** through the pinned official **DXVK 3.1.1 x64 D3D8 + D3D9/Vulkan** pair.
