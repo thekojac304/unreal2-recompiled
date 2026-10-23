@@ -92,8 +92,10 @@ struct XrtThread {
     struct XrtEhCatch* eh_catches; /* catch blocks currently executing (innermost first) */
     int eh_unwinding;              /* > 0 while the dispatcher runs unwind actions (a throw then is terminate()) */
     int loader_lock;               /* > 0 while this thread runs DllMain notifications (no baton hand-over) */
+    unsigned com_initializations;  /* successful guest COM initializations owned by this host thread */
 };
 extern __declspec(thread) XrtThread* xrt_cur;
+void xrt_com_thread_cleanup(CPU* c); /* owning thread only; Loader8 references before apartment balance */
 extern volatile long xrt_exiting;          /* set when ExitProcess starts: no more baton hand-overs */
 void xrt_baton_acquire(void);
 void xrt_baton_release(void);

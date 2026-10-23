@@ -1,4 +1,25 @@
-# Unexplained Ogg byte difference — read-only findings, 2026-10-23
+# Unexplained Ogg byte differences — read-only findings, 2026-10-23
+
+## Additional read-only observation during the DirectMusic phase
+
+The current installed hash is now `413bccc0468b2fa9716e927037646e4c7fc29c699395495d95780a0d3bfce2b4`.
+Three independent reads reproduce two differences from the preserved snapshot: the previously recorded
+offset **489527**, `6e → 2e`, and newly observed offset **489791**, `6a → 2a`. Size and recorded mtime are
+unchanged. The timing and cause of the additional difference are unknown; it is not attributed to this
+project. All operations in this phase used read-only access to the installed tree, and neither copy was repaired.
+
+Both differences lie in the same page 116. Its computed CRC is now `375940cb`, against the unchanged
+stored `6b159d5a`; the preserved snapshot still passes all CRCs. The same read-only FFmpeg comparison
+retains the prior differing PCM results below (the damaged page is rejected): installed PCM SHA-256
+`cc60533c15cef5465c5d69fbd694a9603db29f9dc8e54996b42e8972126a07fa`, 21,378,624 bytes, versus snapshot
+`bf11c32443208022d30f32d94dff650231f863312e3bceb5f3fc05da7fa6e16e`, 21,403,200 bytes. Decoder exit 0
+does not validate the input. `sources_unchanged` is true across this probe.
+
+The other **4,756** installed files and Save junction metadata match `floor-install-after.json`. Raw
+evidence: `results/raw/directmusic-install-after.json`, `directmusic-ogg-repeat.json` and
+`directmusic-ogg-integrity/report.json`. The earlier one-byte finding follows unchanged as history.
+
+## Prior one-byte observation
 
 This is an **unresolved installation integrity finding**, recorded separately from the porting acceptance tests.
 Its timing and cause are unestablished. It is not attributed to this project. Neither input was repaired,

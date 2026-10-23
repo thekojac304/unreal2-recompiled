@@ -1,0 +1,233 @@
+{
+ "runner_schema": 4,
+ "invocation_id": "20261023-130926-ae01b0e4",
+ "invocation_dir": "experiments/xrt/results/raw/runs/20261023-130926-ae01b0e4",
+ "case": "vmprobe",
+ "args": [
+  "VMProbe.VMProbe"
+ ],
+ "expect": {
+  "exit_code": 0,
+  "negative": false,
+  "stdout_contains": [
+   "ucc.exe: UnrealOS execution environment",
+   "Executing Class VMProbe.VMProbe",
+   "T35=7 2187",
+   "T54=done"
+  ],
+  "stdout_excludes": [
+   "not found"
+  ]
+ },
+ "profile": "engine_commandlet",
+ "natives": [
+  "UObject::execLog",
+  "UObject::execConcat_StringString",
+  "UObject::execIntToString",
+  "UObject::execFloatToString",
+  "UObject::execLeft",
+  "UObject::execMid",
+  "UObject::execInStr",
+  "UObject::execDynArrayLength",
+  "UObject::execDynArrayInsert",
+  "UObject::execDynArrayRemove",
+  "UObject::execEqualEqual_VectorVector"
+ ],
+ "repeat": 1,
+ "timeout_s": 120.0,
+ "trace": true,
+ "trace_forced": false,
+ "reference": "fresh-original",
+ "identity": {
+  "git": {
+   "head": "936dcb7b61825c5a1cb422c786ec3b77f53dbaa9",
+   "tracked_files_modified": true,
+   "modified": [
+    "M experiments/xrt/results/compare/arraytest.json",
+    " M experiments/xrt/results/compare/badclass.json",
+    " M experiments/xrt/results/compare/compile_milestone.json",
+    " M experiments/xrt/results/compare/hello.json",
+    " M experiments/xrt/results/compare/hello_noargs.json",
+    " M experiments/xrt/results/compare/hellofull.json",
+    " M experiments/xrt/results/compare/hellofull_nosse.json",
+    " M experiments/xrt/results/compare/hellonew.json",
+    " M experiments/xrt/results/compare/simple.json",
+    " M experiments/xrt/results/compare/vmprobe.json",
+    " M experiments/xrt/runtime/hle_misc.c",
+    " M experiments/xrt/runtime/xrt_internal.h",
+    " M experiments/xrt/runtime/xrt_thread.c",
+    " M experiments/xrt/tests/directmusic_boundary/build.cmd",
+    " M experiments/xrt/tracer/build.cmd",
+    " M experiments/xrt/tracer/uctrace.c",
+    " M tools/xrt/graphics_reference.py"
+   ]
+  },
+  "runner": {
+   "path": "tools/xrt/run_xrt.py",
+   "sha256": "567e17f656be802561ebbff80f76ef5e976cf6a2c51db3167fb2798e3bbc0af1"
+  },
+  "cases_registry": {
+   "path": "tools/xrt/cases.py",
+   "sha256": "960c7f86022618324ea0844d45015fae01f1d771d1d16b51a5c3aa584e24c25e"
+  },
+  "marks": {
+   "path": "tools/xrt/marks.json",
+   "sha256": "2f0c255169e61282d2077dbcaf5bdd38737f730f202425758d840271fef96ed0"
+  },
+  "lifter": {
+   "path": "tools/xrt/xlift.py",
+   "sha256": "aa07ad797c33217420b775ec6fb0035892c24ad7ac7314261d1bf55f2817c027"
+  },
+  "runtime_sources": {
+   "path": "experiments/xrt/runtime",
+   "files": 17,
+   "sha256": "30ca06adb3a87843b02f3f42183dd9d1bd65aced537e224d40ea3d382a3d8ab2"
+  },
+  "generated_code": {
+   "path": "experiments/xrt/gen",
+   "files": 295,
+   "sha256": "d94a0fd8d2f180bcc87f5b01d0ea01c76817056602e02da9d111db6bee8afea1"
+  },
+  "candidate": {
+   "path": "experiments/xrt/build/directmusic-gate-final/xrt_ucc.exe",
+   "sha256": "81a50ef6668a2378a24bd8e0d2f12a82eb328b61555a7fa5c9505801de21c0bd"
+  },
+  "tracer": {
+   "path": "experiments/xrt/build/tracer/uctrace.exe",
+   "sha256": "079935e8c7a3d56e3632e2982e459c7acdb748973d69ab1f0a601a9e67626140"
+  },
+  "tracer_source": {
+   "path": "experiments/xrt/tracer/uctrace.c",
+   "sha256": "a44e1409b501226c31e1fffca9d8301be3b9b8af20a05c9b161e66185cd9fbe1"
+  },
+  "eh_points_tool": {
+   "path": "tools/xrt/eh_points.py",
+   "sha256": "8916627d8582e46c85ffde2d8411d73cc04c788c8035c21594fdcdbcc0cfa497"
+  },
+  "python": "3.14.5",
+  "host": "Windows-11-10.0.26300-SP0"
+ },
+ "runs": [
+  {
+   "run": 0,
+   "dir": "experiments/xrt/results/raw/runs/20261023-130926-ae01b0e4/vmprobe/run0",
+   "verdict": "PASS",
+   "candidate": {
+    "exit_code": 0,
+    "seconds": 6.359,
+    "stdout_sha256": "866753d6f1246d3f2675d9a618a46f52731303ae320fc9a0d4b41cc3db7f44ba",
+    "command_line": "E:\\Unreal2-Port-Investigation\\sandbox_cmp\\vmprobe\\System\\UCC.exe VMProbe.VMProbe",
+    "inputs": {
+     "UCC.exe": "84326806545670efdf1e1675d86da438751de2223a578a65f3764edb5a5fb1ab",
+     "Core.dll": "51bdad4d63b1b4fa8fb6935379f730345ca5cfb96cee9d5458eb6e681ac769cc",
+     "Core.u": "8c649483717de4d88d218d5bab129173d137950985eb8d4d61b91104869afe0f",
+     "Engine.dll": "f951becf4069f4976a76c027c04f7acaf73435578190216359c3a9936e618499",
+     "Engine.u": "bf660c827ea7f3a90e023d941fb55f553626bde5540046d8cf2c99f5d31adf03",
+     "GlmLib.dll": "85399770648383236ae3e9cc84b9bd94ae0261bd2ca4691dbc1fc4b314a4bdf3",
+     "msvcr70.dll": "f68e4cdbc879423ea47d763a6768567f5f8063924f13a74239750c13fa8d168a",
+     "VMProbe.u": "5d2c77d7a1afe4c9cff8a9303eba091578fe8d9c8fb6aa3aa266337f0e965991",
+     "VMProbe.ini": "9cee79720c913cea667c7de14a157c80050909d911ec99d76beed2b8743d26b2"
+    },
+    "written": [
+     "UCC.log"
+    ]
+   },
+   "original": {
+    "tool": "uctrace",
+    "exit_code": 0,
+    "seconds": 38.889,
+    "stdout_sha256": "866753d6f1246d3f2675d9a618a46f52731303ae320fc9a0d4b41cc3db7f44ba",
+    "command_line": "E:\\Unreal2-Port-Investigation\\sandbox_cmp\\vmprobe\\System\\UCC.exe VMProbe.VMProbe",
+    "written": [
+     "UCC.log"
+    ]
+   },
+   "failures": [],
+   "candidate_execution_completed": true,
+   "expected_result": true,
+   "reference": "fresh-original",
+   "output_matches_reference": true,
+   "comparison": {
+    "stdout_byte_identical": true,
+    "stdout_identical_after_normalisation": true,
+    "exit_code_identical": true,
+    "ucc_log_identical_after_normalisation": true,
+    "ucc_log_diff": [],
+    "written_files": [],
+    "written_files_identical": true,
+    "match": true
+   },
+   "milestone_evidence_valid": true,
+   "harness_error": null,
+   "evidence": [
+    {
+     "group": "instrumentation_binding",
+     "ok": true,
+     "checks_passed": 7,
+     "failed_checks": []
+    },
+    {
+     "group": "engine_initialization",
+     "ok": true,
+     "checks_passed": 7,
+     "failed_checks": []
+    },
+    {
+     "group": "package_load_and_commandlet_construction",
+     "ok": true,
+     "checks_passed": 7,
+     "failed_checks": []
+    },
+    {
+     "group": "commandlet_execution",
+     "ok": true,
+     "checks_passed": 28,
+     "failed_checks": []
+    },
+    {
+     "group": "worker_creation_and_execution",
+     "ok": true,
+     "checks_passed": 7,
+     "failed_checks": []
+    },
+    {
+     "group": "shutdown_flag_transition",
+     "ok": true,
+     "checks_passed": 7,
+     "failed_checks": []
+    },
+    {
+     "group": "worker_termination_and_wait_completion",
+     "ok": true,
+     "checks_passed": 10,
+     "failed_checks": []
+    },
+    {
+     "group": "engine_cleanup_and_exit",
+     "ok": true,
+     "checks_passed": 15,
+     "failed_checks": []
+    },
+    {
+     "group": "engine_module_loading",
+     "ok": true,
+     "checks_passed": 11,
+     "failed_checks": []
+    },
+    {
+     "group": "original_trace_cross_check",
+     "ok": true,
+     "checks_passed": 31,
+     "failed_checks": []
+    }
+   ]
+  }
+ ],
+ "counts": {
+  "PASS": 1,
+  "FAIL": 0,
+  "UNVERIFIED": 0
+ },
+ "harness_errors": 0,
+ "verdict": "PASS"
+}

@@ -1,0 +1,5815 @@
+{
+ "schema": 1,
+ "tool": "compile_xrt",
+ "mode": "fresh",
+ "invocation_id": "20261023-130658-30bdb7ac",
+ "invocation_dir": "experiments/xrt/results/raw/compile/20261023-130658-30bdb7ac",
+ "verdict": "PASS",
+ "configuration_complete": true,
+ "configuration": {
+  "variants": [
+   "v1",
+   "v2",
+   "v3",
+   "invalid"
+  ],
+  "compilers": [
+   "original",
+   "xrt"
+  ],
+  "repeat": 2,
+  "timeout_s": 900.0,
+  "skip_exec": false
+ },
+ "commands": {
+  "compile": [
+   "make",
+   "-ini=XrtCompileProbe.ini"
+  ],
+  "execute": [
+   "XrtCompileProbe.XrtCompileProbe"
+  ]
+ },
+ "guid_rule": "GUID = package header bytes [36, 52) in Windows GUID memory layout (Data1, Data2, Data3 little-endian, Data4 bytes); RFC 4122 version 4 <=> (data[43] >> 4) == 4 (version nibble: high nibble of Data3's high byte, GUID byte 7) and (data[44] & 0xC0) == 0x80 (variant bits of Data4[0], GUID byte 8)",
+ "harness_errors": 0,
+ "identity": {
+  "git_head": "936dcb7b61825c5a1cb422c786ec3b77f53dbaa9",
+  "git_tracked_files_modified": true,
+  "candidate": {
+   "path": "experiments/xrt/build/directmusic-gate-final/xrt_ucc.exe",
+   "sha256": "81a50ef6668a2378a24bd8e0d2f12a82eb328b61555a7fa5c9505801de21c0bd"
+  },
+  "runtime_sources": {
+   "path": "experiments/xrt/runtime",
+   "files": 17,
+   "sha256": "30ca06adb3a87843b02f3f42183dd9d1bd65aced537e224d40ea3d382a3d8ab2"
+  },
+  "driver": {
+   "path": "tools/xrt/compile_xrt.py",
+   "sha256": "8f6ae5b1cd6502afe5ec5910966b8b4b2f4ca810dd1289ea4bdd4890c27ef67c"
+  }
+ },
+ "inputs": {
+  "sources": {
+   "v1": {
+    "XrtCompileProbe.uc": "22b647118ec66089ac2fc7e0aecefe6b0adffcaa2199edb6d808a85aed4df31d"
+   },
+   "v2": {
+    "XrtCompileProbe.uc": "2ab000d1fb9a7c44757974072074a8ba86e24090d7dcf0e490fc3b859a4b675d"
+   },
+   "v3": {
+    "XrtCompileProbe.uc": "e0fa4cdf6a2aa8272d574dbf7718cf8ca5b9e12811e5951dccdaca01e279e0c9",
+    "XrtProbeShape.uc": "1a04cc8a89d5e84f8fd45e135f29835be9b750128c7ad63dbace079c8d3958b2",
+    "XrtProbeSquare.uc": "49e8231d9090021a7f8879cf1aa058c7d90635b56d8fbd1922b58811ac6af97a",
+    "XrtProbeTriangle.uc": "6ef413bbdd73b5e15bc2fb52eec0151ae0188f85f37a557e239e1133153a406b"
+   },
+   "invalid": {
+    "XrtCompileProbe.uc": "e4f13a53255ae37ef433f4acbad307328e584976b46338e4f0852474f3a03626"
+   }
+  },
+  "expected": {
+   "v1": {
+    "path": "experiments/xrt/compile_probe/v1/expected.txt",
+    "sha256": "611723e09a2a8d6dcc72fd4cff7d384522a8140a96c0eb4e80f3823cd2ae0134",
+    "lines": [
+     "XCP tag=alpha-1 greeting=from-defaults",
+     "XCP done"
+    ]
+   },
+   "v2": {
+    "path": "experiments/xrt/compile_probe/v2/expected.txt",
+    "sha256": "7f920c71281cff14d46ce29229e5821b34005f9e523078f778c4d775ca6cb582",
+    "lines": [
+     "XCP tag=bravo-2 greeting=changed-default",
+     "XCP done"
+    ]
+   },
+   "v3": {
+    "path": "experiments/xrt/compile_probe/v3/expected.txt",
+    "sha256": "13c62e4db0163413cfffd72e29f9be2cb6214f710c9defa3c38e800003cf29f7",
+    "lines": [
+     "XCP tag=charlie-3 greeting=from-defaults",
+     "XCP shapes=square:square/4/9,triangle/3/10 total=19",
+     "XCP history=1 last=19",
+     "XCP sum10=55 twice=42",
+     "XCP grades=7:C 14:C 21:A ",
+     "XCP do=12 default=3 isa=True",
+     "XCP done"
+    ]
+   }
+  }
+ },
+ "fixture_failures": {},
+ "variants": {
+  "v1": {
+   "verdict": "PASS",
+   "compiles": [
+    {
+     "run": "compile_original1",
+     "dir": "experiments/xrt/results/raw/compile/20261023-130658-30bdb7ac/v1/compile_original1",
+     "classification": "SUCCESS",
+     "exit_code": 0,
+     "stdout_sha256": "633e9d6a6cc089f2d51be9315d1aec8a4165d19af4bf3504529a6f45d2ae77c3",
+     "written": {
+      "System/Golem.u": "20c3a6fd54a2dc6056084b408491c8ef8affbecf9622b32adde76b3bf2257886",
+      "System/UCC.log": "b898765846ff64a2f6d9f22be5ab7b9650a0ef4f64fd4ebafd14c11bae7c720a",
+      "System/XrtCompileProbe.u": "8564798e9b6316d34303bdda5b935c8e8adc61ae08d44b58517750df128223c0"
+     },
+     "package": {
+      "sha256": "8564798e9b6316d34303bdda5b935c8e8adc61ae08d44b58517750df128223c0",
+      "size": 1528,
+      "guid": {
+       "present": true,
+       "hex": "ec756730abb1f744a2f7985ea73562d4",
+       "version_nibble": 4,
+       "variant_bits": "0x80",
+       "rfc4122_v4": true
+      }
+     },
+     "golem": {
+      "sha256": "20c3a6fd54a2dc6056084b408491c8ef8affbecf9622b32adde76b3bf2257886",
+      "size": 64,
+      "guid": {
+       "present": true,
+       "hex": "b91c285703187b458d1ec75d57003336",
+       "version_nibble": 4,
+       "variant_bits": "0x80",
+       "rfc4122_v4": true
+      }
+     },
+     "input_digest": "995312037f3ba77a3848e874fbb35c5392101e48f525f49696211b8b70f1c9f0",
+     "seconds": 1.909
+    },
+    {
+     "run": "compile_original2",
+     "dir": "experiments/xrt/results/raw/compile/20261023-130658-30bdb7ac/v1/compile_original2",
+     "classification": "SUCCESS",
+     "exit_code": 0,
+     "stdout_sha256": "633e9d6a6cc089f2d51be9315d1aec8a4165d19af4bf3504529a6f45d2ae77c3",
+     "written": {
+      "System/Golem.u": "ade1b6ac247af00b8326f6f27f969d444e98ef8d75999f9ec0e9426b3b3a00c8",
+      "System/UCC.log": "9bb0267c6c835f25f882e2e46760d5f8230335117c0a94eee35130968784adbe",
+      "System/XrtCompileProbe.u": "55c7aa188f2646b5de34b10baa982d77b0b7707c13cc6643bbdf185f58ab5059"
+     },
+     "package": {
+      "sha256": "55c7aa188f2646b5de34b10baa982d77b0b7707c13cc6643bbdf185f58ab5059",
+      "size": 1528,
+      "guid": {
+       "present": true,
+       "hex": "f7ab8ba2ac01934ba8b738243eb76e35",
+       "version_nibble": 4,
+       "variant_bits": "0x80",
+       "rfc4122_v4": true
+      }
+     },
+     "golem": {
+      "sha256": "ade1b6ac247af00b8326f6f27f969d444e98ef8d75999f9ec0e9426b3b3a00c8",
+      "size": 64,
+      "guid": {
+       "present": true,
+       "hex": "caa1b85423ef64489aff7d776d823979",
+       "version_nibble": 4,
+       "variant_bits": "0x80",
+       "rfc4122_v4": true
+      }
+     },
+     "input_digest": "995312037f3ba77a3848e874fbb35c5392101e48f525f49696211b8b70f1c9f0",
+     "seconds": 1.915
+    },
+    {
+     "run": "compile_xrt1",
+     "dir": "experiments/xrt/results/raw/compile/20261023-130658-30bdb7ac/v1/compile_xrt1",
+     "classification": "SUCCESS",
+     "exit_code": 0,
+     "stdout_sha256": "633e9d6a6cc089f2d51be9315d1aec8a4165d19af4bf3504529a6f45d2ae77c3",
+     "written": {
+      "System/Golem.u": "0c959480d25fcd8c665d22ddd0c15ebcc796f883006485f119fccf76a6343ca0",
+      "System/UCC.log": "2d1c95b85e09364289713a72889040cee99ab2e520549c4aa53983e09d3bae95",
+      "System/XrtCompileProbe.u": "866a5f6d0d54c42d6ed80b5cdde73fdfda8d55d9cf0503ff2f3736c832ec9a66"
+     },
+     "package": {
+      "sha256": "866a5f6d0d54c42d6ed80b5cdde73fdfda8d55d9cf0503ff2f3736c832ec9a66",
+      "size": 1528,
+      "guid": {
+       "present": true,
+       "hex": "3e9734696c8efa4b92e2d8a4c3f2cabf",
+       "version_nibble": 4,
+       "variant_bits": "0x80",
+       "rfc4122_v4": true
+      }
+     },
+     "golem": {
+      "sha256": "0c959480d25fcd8c665d22ddd0c15ebcc796f883006485f119fccf76a6343ca0",
+      "size": 64,
+      "guid": {
+       "present": true,
+       "hex": "bfb50f0ef6b4d241af517d2f0d6a2ecd",
+       "version_nibble": 4,
+       "variant_bits": "0x80",
+       "rfc4122_v4": true
+      }
+     },
+     "input_digest": "995312037f3ba77a3848e874fbb35c5392101e48f525f49696211b8b70f1c9f0",
+     "seconds": 6.467
+    },
+    {
+     "run": "compile_xrt2",
+     "dir": "experiments/xrt/results/raw/compile/20261023-130658-30bdb7ac/v1/compile_xrt2",
+     "classification": "SUCCESS",
+     "exit_code": 0,
+     "stdout_sha256": "633e9d6a6cc089f2d51be9315d1aec8a4165d19af4bf3504529a6f45d2ae77c3",
+     "written": {
+      "System/Golem.u": "b44787ea5fd1475cdd425c0d358e2b8f1085ed12033155fe61a2551ecd390937",
+      "System/UCC.log": "bbdf1fcd0d07522cb7ac51ee5a6d81bc2bc80157aab1519833c2107f2d03f00d",
+      "System/XrtCompileProbe.u": "413f678b2e69e26f9a6bbd819208f50207bd727c7607b2343fd5ae3a822b5923"
+     },
+     "package": {
+      "sha256": "413f678b2e69e26f9a6bbd819208f50207bd727c7607b2343fd5ae3a822b5923",
+      "size": 1528,
+      "guid": {
+       "present": true,
+       "hex": "8916c4e04a33ed499d8bd304d361e473",
+       "version_nibble": 4,
+       "variant_bits": "0x80",
+       "rfc4122_v4": true
+      }
+     },
+     "golem": {
+      "sha256": "b44787ea5fd1475cdd425c0d358e2b8f1085ed12033155fe61a2551ecd390937",
+      "size": 64,
+      "guid": {
+       "present": true,
+       "hex": "c70515ded240ce4b973c7cc8670ff01b",
+       "version_nibble": 4,
+       "variant_bits": "0x80",
+       "rfc4122_v4": true
+      }
+     },
+     "input_digest": "995312037f3ba77a3848e874fbb35c5392101e48f525f49696211b8b70f1c9f0",
+     "seconds": 6.541
+    }
+   ],
+   "package_pairs": [
+    {
+     "a": "original1",
+     "b": "original2",
+     "sha256": [
+      "8564798e9b6316d34303bdda5b935c8e8adc61ae08d44b58517750df128223c0",
+      "55c7aa188f2646b5de34b10baa982d77b0b7707c13cc6643bbdf185f58ab5059"
+     ],
+     "size": [
+      1528,
+      1528
+     ],
+     "classification": "guid_only",
+     "differing_ranges": [
+      [
+       36,
+       52
+      ]
+     ],
+     "unresolved_ranges": [],
+     "guid": [
+      "ec756730abb1f744a2f7985ea73562d4",
+      "f7ab8ba2ac01934ba8b738243eb76e35"
+     ],
+     "structure_parsed": true,
+     "structural_differences": []
+    },
+    {
+     "a": "original1",
+     "b": "xrt1",
+     "sha256": [
+      "8564798e9b6316d34303bdda5b935c8e8adc61ae08d44b58517750df128223c0",
+      "866a5f6d0d54c42d6ed80b5cdde73fdfda8d55d9cf0503ff2f3736c832ec9a66"
+     ],
+     "size": [
+      1528,
+      1528
+     ],
+     "classification": "guid_only",
+     "differing_ranges": [
+      [
+       36,
+       52
+      ]
+     ],
+     "unresolved_ranges": [],
+     "guid": [
+      "ec756730abb1f744a2f7985ea73562d4",
+      "3e9734696c8efa4b92e2d8a4c3f2cabf"
+     ],
+     "structure_parsed": true,
+     "structural_differences": []
+    },
+    {
+     "a": "original1",
+     "b": "xrt2",
+     "sha256": [
+      "8564798e9b6316d34303bdda5b935c8e8adc61ae08d44b58517750df128223c0",
+      "413f678b2e69e26f9a6bbd819208f50207bd727c7607b2343fd5ae3a822b5923"
+     ],
+     "size": [
+      1528,
+      1528
+     ],
+     "classification": "guid_only",
+     "differing_ranges": [
+      [
+       36,
+       52
+      ]
+     ],
+     "unresolved_ranges": [],
+     "guid": [
+      "ec756730abb1f744a2f7985ea73562d4",
+      "8916c4e04a33ed499d8bd304d361e473"
+     ],
+     "structure_parsed": true,
+     "structural_differences": []
+    },
+    {
+     "a": "original2",
+     "b": "xrt1",
+     "sha256": [
+      "55c7aa188f2646b5de34b10baa982d77b0b7707c13cc6643bbdf185f58ab5059",
+      "866a5f6d0d54c42d6ed80b5cdde73fdfda8d55d9cf0503ff2f3736c832ec9a66"
+     ],
+     "size": [
+      1528,
+      1528
+     ],
+     "classification": "guid_only",
+     "differing_ranges": [
+      [
+       36,
+       43
+      ],
+      [
+       44,
+       52
+      ]
+     ],
+     "unresolved_ranges": [],
+     "guid": [
+      "f7ab8ba2ac01934ba8b738243eb76e35",
+      "3e9734696c8efa4b92e2d8a4c3f2cabf"
+     ],
+     "structure_parsed": true,
+     "structural_differences": []
+    },
+    {
+     "a": "original2",
+     "b": "xrt2",
+     "sha256": [
+      "55c7aa188f2646b5de34b10baa982d77b0b7707c13cc6643bbdf185f58ab5059",
+      "413f678b2e69e26f9a6bbd819208f50207bd727c7607b2343fd5ae3a822b5923"
+     ],
+     "size": [
+      1528,
+      1528
+     ],
+     "classification": "guid_only",
+     "differing_ranges": [
+      [
+       36,
+       52
+      ]
+     ],
+     "unresolved_ranges": [],
+     "guid": [
+      "f7ab8ba2ac01934ba8b738243eb76e35",
+      "8916c4e04a33ed499d8bd304d361e473"
+     ],
+     "structure_parsed": true,
+     "structural_differences": []
+    },
+    {
+     "a": "xrt1",
+     "b": "xrt2",
+     "sha256": [
+      "866a5f6d0d54c42d6ed80b5cdde73fdfda8d55d9cf0503ff2f3736c832ec9a66",
+      "413f678b2e69e26f9a6bbd819208f50207bd727c7607b2343fd5ae3a822b5923"
+     ],
+     "size": [
+      1528,
+      1528
+     ],
+     "classification": "guid_only",
+     "differing_ranges": [
+      [
+       36,
+       52
+      ]
+     ],
+     "unresolved_ranges": [],
+     "guid": [
+      "3e9734696c8efa4b92e2d8a4c3f2cabf",
+      "8916c4e04a33ed499d8bd304d361e473"
+     ],
+     "structure_parsed": true,
+     "structural_differences": []
+    }
+   ],
+   "golem_pairs": [
+    {
+     "a": "original1",
+     "b": "original2",
+     "sha256": [
+      "20c3a6fd54a2dc6056084b408491c8ef8affbecf9622b32adde76b3bf2257886",
+      "ade1b6ac247af00b8326f6f27f969d444e98ef8d75999f9ec0e9426b3b3a00c8"
+     ],
+     "size": [
+      64,
+      64
+     ],
+     "classification": "guid_only",
+     "differing_ranges": [
+      [
+       36,
+       52
+      ]
+     ],
+     "unresolved_ranges": [],
+     "guid": [
+      "b91c285703187b458d1ec75d57003336",
+      "caa1b85423ef64489aff7d776d823979"
+     ],
+     "structure_parsed": true,
+     "structural_differences": []
+    },
+    {
+     "a": "original1",
+     "b": "xrt1",
+     "sha256": [
+      "20c3a6fd54a2dc6056084b408491c8ef8affbecf9622b32adde76b3bf2257886",
+      "0c959480d25fcd8c665d22ddd0c15ebcc796f883006485f119fccf76a6343ca0"
+     ],
+     "size": [
+      64,
+      64
+     ],
+     "classification": "guid_only",
+     "differing_ranges": [
+      [
+       36,
+       52
+      ]
+     ],
+     "unresolved_ranges": [],
+     "guid": [
+      "b91c285703187b458d1ec75d57003336",
+      "bfb50f0ef6b4d241af517d2f0d6a2ecd"
+     ],
+     "structure_parsed": true,
+     "structural_differences": []
+    },
+    {
+     "a": "original1",
+     "b": "xrt2",
+     "sha256": [
+      "20c3a6fd54a2dc6056084b408491c8ef8affbecf9622b32adde76b3bf2257886",
+      "b44787ea5fd1475cdd425c0d358e2b8f1085ed12033155fe61a2551ecd390937"
+     ],
+     "size": [
+      64,
+      64
+     ],
+     "classification": "guid_only",
+     "differing_ranges": [
+      [
+       36,
+       52
+      ]
+     ],
+     "unresolved_ranges": [],
+     "guid": [
+      "b91c285703187b458d1ec75d57003336",
+      "c70515ded240ce4b973c7cc8670ff01b"
+     ],
+     "structure_parsed": true,
+     "structural_differences": []
+    },
+    {
+     "a": "original2",
+     "b": "xrt1",
+     "sha256": [
+      "ade1b6ac247af00b8326f6f27f969d444e98ef8d75999f9ec0e9426b3b3a00c8",
+      "0c959480d25fcd8c665d22ddd0c15ebcc796f883006485f119fccf76a6343ca0"
+     ],
+     "size": [
+      64,
+      64
+     ],
+     "classification": "guid_only",
+     "differing_ranges": [
+      [
+       36,
+       46
+      ],
+      [
+       47,
+       52
+      ]
+     ],
+     "unresolved_ranges": [],
+     "guid": [
+      "caa1b85423ef64489aff7d776d823979",
+      "bfb50f0ef6b4d241af517d2f0d6a2ecd"
+     ],
+     "structure_parsed": true,
+     "structural_differences": []
+    },
+    {
+     "a": "original2",
+     "b": "xrt2",
+     "sha256": [
+      "ade1b6ac247af00b8326f6f27f969d444e98ef8d75999f9ec0e9426b3b3a00c8",
+      "b44787ea5fd1475cdd425c0d358e2b8f1085ed12033155fe61a2551ecd390937"
+     ],
+     "size": [
+      64,
+      64
+     ],
+     "classification": "guid_only",
+     "differing_ranges": [
+      [
+       36,
+       52
+      ]
+     ],
+     "unresolved_ranges": [],
+     "guid": [
+      "caa1b85423ef64489aff7d776d823979",
+      "c70515ded240ce4b973c7cc8670ff01b"
+     ],
+     "structure_parsed": true,
+     "structural_differences": []
+    },
+    {
+     "a": "xrt1",
+     "b": "xrt2",
+     "sha256": [
+      "0c959480d25fcd8c665d22ddd0c15ebcc796f883006485f119fccf76a6343ca0",
+      "b44787ea5fd1475cdd425c0d358e2b8f1085ed12033155fe61a2551ecd390937"
+     ],
+     "size": [
+      64,
+      64
+     ],
+     "classification": "guid_only",
+     "differing_ranges": [
+      [
+       36,
+       52
+      ]
+     ],
+     "unresolved_ranges": [],
+     "guid": [
+      "bfb50f0ef6b4d241af517d2f0d6a2ecd",
+      "c70515ded240ce4b973c7cc8670ff01b"
+     ],
+     "structure_parsed": true,
+     "structural_differences": []
+    }
+   ],
+   "golem_vs_shipped": [
+    {
+     "a": "shipped",
+     "b": "compile_original1",
+     "sha256": [
+      "c9e78920e429d335245a65384ad91ff30d725d99e60c25f932701f70e71b1648",
+      "20c3a6fd54a2dc6056084b408491c8ef8affbecf9622b32adde76b3bf2257886"
+     ],
+     "size": [
+      64,
+      64
+     ],
+     "classification": "guid_only",
+     "differing_ranges": [
+      [
+       36,
+       52
+      ]
+     ],
+     "unresolved_ranges": [],
+     "guid": [
+      "6785bfe949e55744808181c3e608b259",
+      "b91c285703187b458d1ec75d57003336"
+     ],
+     "structure_parsed": true,
+     "structural_differences": []
+    },
+    {
+     "a": "shipped",
+     "b": "compile_original2",
+     "sha256": [
+      "c9e78920e429d335245a65384ad91ff30d725d99e60c25f932701f70e71b1648",
+      "ade1b6ac247af00b8326f6f27f969d444e98ef8d75999f9ec0e9426b3b3a00c8"
+     ],
+     "size": [
+      64,
+      64
+     ],
+     "classification": "guid_only",
+     "differing_ranges": [
+      [
+       36,
+       52
+      ]
+     ],
+     "unresolved_ranges": [],
+     "guid": [
+      "6785bfe949e55744808181c3e608b259",
+      "caa1b85423ef64489aff7d776d823979"
+     ],
+     "structure_parsed": true,
+     "structural_differences": []
+    },
+    {
+     "a": "shipped",
+     "b": "compile_xrt1",
+     "sha256": [
+      "c9e78920e429d335245a65384ad91ff30d725d99e60c25f932701f70e71b1648",
+      "0c959480d25fcd8c665d22ddd0c15ebcc796f883006485f119fccf76a6343ca0"
+     ],
+     "size": [
+      64,
+      64
+     ],
+     "classification": "guid_only",
+     "differing_ranges": [
+      [
+       36,
+       52
+      ]
+     ],
+     "unresolved_ranges": [],
+     "guid": [
+      "6785bfe949e55744808181c3e608b259",
+      "bfb50f0ef6b4d241af517d2f0d6a2ecd"
+     ],
+     "structure_parsed": true,
+     "structural_differences": []
+    },
+    {
+     "a": "shipped",
+     "b": "compile_xrt2",
+     "sha256": [
+      "c9e78920e429d335245a65384ad91ff30d725d99e60c25f932701f70e71b1648",
+      "b44787ea5fd1475cdd425c0d358e2b8f1085ed12033155fe61a2551ecd390937"
+     ],
+     "size": [
+      64,
+      64
+     ],
+     "classification": "guid_only",
+     "differing_ranges": [
+      [
+       36,
+       52
+      ]
+     ],
+     "unresolved_ranges": [],
+     "guid": [
+      "6785bfe949e55744808181c3e608b259",
+      "c70515ded240ce4b973c7cc8670ff01b"
+     ],
+     "structure_parsed": true,
+     "structural_differences": []
+    }
+   ],
+   "exec": {
+    "fixture_failure": false,
+    "runs": [
+     {
+      "combo": "A",
+      "package": "original",
+      "engine": "original",
+      "dir": "experiments/xrt/results/raw/compile/20261023-130658-30bdb7ac/v1/exec_A",
+      "exit_code": 0,
+      "xcp_lines": [
+       "XCP tag=alpha-1 greeting=from-defaults",
+       "XCP done"
+      ],
+      "matches_expected": true,
+      "stdout_sha256": "4be500ee49b3cbc1d4afe25679076743af6d1021d874ce69d01949de4d147c92",
+      "loaded_package_sha256": "8564798e9b6316d34303bdda5b935c8e8adc61ae08d44b58517750df128223c0"
+     },
+     {
+      "combo": "B",
+      "package": "original",
+      "engine": "xrt",
+      "dir": "experiments/xrt/results/raw/compile/20261023-130658-30bdb7ac/v1/exec_B",
+      "exit_code": 0,
+      "xcp_lines": [
+       "XCP tag=alpha-1 greeting=from-defaults",
+       "XCP done"
+      ],
+      "matches_expected": true,
+      "stdout_sha256": "4be500ee49b3cbc1d4afe25679076743af6d1021d874ce69d01949de4d147c92",
+      "loaded_package_sha256": "8564798e9b6316d34303bdda5b935c8e8adc61ae08d44b58517750df128223c0"
+     },
+     {
+      "combo": "C",
+      "package": "xrt",
+      "engine": "original",
+      "dir": "experiments/xrt/results/raw/compile/20261023-130658-30bdb7ac/v1/exec_C",
+      "exit_code": 0,
+      "xcp_lines": [
+       "XCP tag=alpha-1 greeting=from-defaults",
+       "XCP done"
+      ],
+      "matches_expected": true,
+      "stdout_sha256": "4be500ee49b3cbc1d4afe25679076743af6d1021d874ce69d01949de4d147c92",
+      "loaded_package_sha256": "866a5f6d0d54c42d6ed80b5cdde73fdfda8d55d9cf0503ff2f3736c832ec9a66"
+     },
+     {
+      "combo": "D",
+      "package": "xrt",
+      "engine": "xrt",
+      "dir": "experiments/xrt/results/raw/compile/20261023-130658-30bdb7ac/v1/exec_D",
+      "exit_code": 0,
+      "xcp_lines": [
+       "XCP tag=alpha-1 greeting=from-defaults",
+       "XCP done"
+      ],
+      "matches_expected": true,
+      "stdout_sha256": "4be500ee49b3cbc1d4afe25679076743af6d1021d874ce69d01949de4d147c92",
+      "loaded_package_sha256": "866a5f6d0d54c42d6ed80b5cdde73fdfda8d55d9cf0503ff2f3736c832ec9a66"
+     }
+    ]
+   },
+   "checks": [
+    {
+     "group": "compile_original1",
+     "ok": true,
+     "checks": [
+      {
+       "check": "artifacts of this run present and consistent (run id, exit code, stdout, UCC.log, written files)",
+       "ok": true
+      },
+      {
+       "check": "XrtCompileProbe.u absent before the run (fresh sandbox, nothing from an earlier run)",
+       "ok": true
+      },
+      {
+       "check": "no XrtCompileProbe.* in the sandbox before the run except the staged sources and the ini",
+       "ok": true
+      },
+      {
+       "check": "staged sources are exactly the variant's sources (SHA-256)",
+       "ok": true
+      },
+      {
+       "check": "configuration: [Editor.EditorEngine] EditPackages = Core, XrtCompileProbe",
+       "ok": true
+      },
+      {
+       "check": "the sandbox ini before the run is the recorded derived ini (SHA-256)",
+       "ok": true
+      },
+      {
+       "check": "compile classified SUCCESS",
+       "ok": true
+      },
+      {
+       "check": "no unexpected write (only Golem.u and XrtCompileProbe.ini changed, UCC.log and XrtCompileProbe.u created)",
+       "ok": true
+      },
+      {
+       "check": "shipped Golem.u preserved from before the run (SHA-256 verified)",
+       "ok": true
+      },
+      {
+       "check": "Golem.u re-save differs from the shipped Golem.u at most in the GUID (documented exception)",
+       "ok": true
+      }
+     ]
+    },
+    {
+     "group": "compile_original2",
+     "ok": true,
+     "checks": [
+      {
+       "check": "artifacts of this run present and consistent (run id, exit code, stdout, UCC.log, written files)",
+       "ok": true
+      },
+      {
+       "check": "XrtCompileProbe.u absent before the run (fresh sandbox, nothing from an earlier run)",
+       "ok": true
+      },
+      {
+       "check": "no XrtCompileProbe.* in the sandbox before the run except the staged sources and the ini",
+       "ok": true
+      },
+      {
+       "check": "staged sources are exactly the variant's sources (SHA-256)",
+       "ok": true
+      },
+      {
+       "check": "configuration: [Editor.EditorEngine] EditPackages = Core, XrtCompileProbe",
+       "ok": true
+      },
+      {
+       "check": "the sandbox ini before the run is the recorded derived ini (SHA-256)",
+       "ok": true
+      },
+      {
+       "check": "compile classified SUCCESS",
+       "ok": true
+      },
+      {
+       "check": "no unexpected write (only Golem.u and XrtCompileProbe.ini changed, UCC.log and XrtCompileProbe.u created)",
+       "ok": true
+      },
+      {
+       "check": "shipped Golem.u preserved from before the run (SHA-256 verified)",
+       "ok": true
+      },
+      {
+       "check": "Golem.u re-save differs from the shipped Golem.u at most in the GUID (documented exception)",
+       "ok": true
+      }
+     ]
+    },
+    {
+     "group": "compile_xrt1",
+     "ok": true,
+     "checks": [
+      {
+       "check": "artifacts of this run present and consistent (run id, exit code, stdout, UCC.log, written files)",
+       "ok": true
+      },
+      {
+       "check": "XrtCompileProbe.u absent before the run (fresh sandbox, nothing from an earlier run)",
+       "ok": true
+      },
+      {
+       "check": "no XrtCompileProbe.* in the sandbox before the run except the staged sources and the ini",
+       "ok": true
+      },
+      {
+       "check": "staged sources are exactly the variant's sources (SHA-256)",
+       "ok": true
+      },
+      {
+       "check": "configuration: [Editor.EditorEngine] EditPackages = Core, XrtCompileProbe",
+       "ok": true
+      },
+      {
+       "check": "the sandbox ini before the run is the recorded derived ini (SHA-256)",
+       "ok": true
+      },
+      {
+       "check": "compile classified SUCCESS",
+       "ok": true
+      },
+      {
+       "check": "no unexpected write (only Golem.u and XrtCompileProbe.ini changed, UCC.log and XrtCompileProbe.u created)",
+       "ok": true
+      },
+      {
+       "check": "shipped Golem.u preserved from before the run (SHA-256 verified)",
+       "ok": true
+      },
+      {
+       "check": "Golem.u re-save differs from the shipped Golem.u at most in the GUID (documented exception)",
+       "ok": true
+      }
+     ]
+    },
+    {
+     "group": "compile_xrt1/translated_compile_evidence",
+     "ok": true,
+     "checks": [
+      {
+       "check": "runtime report of this run present and well formed (run id, schema 2)",
+       "ok": true
+      },
+      {
+       "check": "report run id equals the run's id",
+       "ok": true
+      },
+      {
+       "check": "report outcome 'exited'",
+       "ok": true
+      },
+      {
+       "check": "report exit code equals the process exit code",
+       "ok": true
+      },
+      {
+       "check": "no fatal or timeout event",
+       "ok": true
+      },
+      {
+       "check": "no XRT FATAL / XRT TIMEOUT diagnostic on stderr",
+       "ok": true
+      },
+      {
+       "check": "event timeline complete (events_dropped == 0)",
+       "ok": true
+      },
+      {
+       "check": "process exit completed (process_exit_complete with the exit code)",
+       "ok": true
+      },
+      {
+       "check": "every mapped module was lifted from the sandbox file of the same name (SHA-256)",
+       "ok": true
+      },
+      {
+       "check": "guest command line equals the original's (sandbox UCC.exe and the same arguments)",
+       "ok": true
+      },
+      {
+       "check": "staged source read: file_open ok of <sandbox>\\XrtCompileProbe\\Classes\\XrtCompileProbe.uc",
+       "ok": true
+      },
+      {
+       "check": "Editor.dll mapped and translated code executed (functions_executed > 0)",
+       "ok": true
+      },
+      {
+       "check": "Editor.dll executed UEditorEngine::InitEditor (hit rva 68290)",
+       "ok": true
+      },
+      {
+       "check": "Editor.dll executed UEditorEngine::MakeScripts (hit rva 85a50)",
+       "ok": true
+      },
+      {
+       "check": "package saved by this run: MoveFile to <sandbox>\\System\\XrtCompileProbe.u ok",
+       "ok": true
+      },
+      {
+       "check": "package GUID (header bytes 36..51) equals the create_guid bytes preceding the save",
+       "ok": true
+      },
+      {
+       "check": "Golem.u re-save: GUID equals the create_guid bytes preceding its save",
+       "ok": true
+      },
+      {
+       "check": "UnrImp.gpi unloaded (dll_unloaded)",
+       "ok": true
+      }
+     ]
+    },
+    {
+     "group": "compile_xrt2",
+     "ok": true,
+     "checks": [
+      {
+       "check": "artifacts of this run present and consistent (run id, exit code, stdout, UCC.log, written files)",
+       "ok": true
+      },
+      {
+       "check": "XrtCompileProbe.u absent before the run (fresh sandbox, nothing from an earlier run)",
+       "ok": true
+      },
+      {
+       "check": "no XrtCompileProbe.* in the sandbox before the run except the staged sources and the ini",
+       "ok": true
+      },
+      {
+       "check": "staged sources are exactly the variant's sources (SHA-256)",
+       "ok": true
+      },
+      {
+       "check": "configuration: [Editor.EditorEngine] EditPackages = Core, XrtCompileProbe",
+       "ok": true
+      },
+      {
+       "check": "the sandbox ini before the run is the recorded derived ini (SHA-256)",
+       "ok": true
+      },
+      {
+       "check": "compile classified SUCCESS",
+       "ok": true
+      },
+      {
+       "check": "no unexpected write (only Golem.u and XrtCompileProbe.ini changed, UCC.log and XrtCompileProbe.u created)",
+       "ok": true
+      },
+      {
+       "check": "shipped Golem.u preserved from before the run (SHA-256 verified)",
+       "ok": true
+      },
+      {
+       "check": "Golem.u re-save differs from the shipped Golem.u at most in the GUID (documented exception)",
+       "ok": true
+      }
+     ]
+    },
+    {
+     "group": "compile_xrt2/translated_compile_evidence",
+     "ok": true,
+     "checks": [
+      {
+       "check": "runtime report of this run present and well formed (run id, schema 2)",
+       "ok": true
+      },
+      {
+       "check": "report run id equals the run's id",
+       "ok": true
+      },
+      {
+       "check": "report outcome 'exited'",
+       "ok": true
+      },
+      {
+       "check": "report exit code equals the process exit code",
+       "ok": true
+      },
+      {
+       "check": "no fatal or timeout event",
+       "ok": true
+      },
+      {
+       "check": "no XRT FATAL / XRT TIMEOUT diagnostic on stderr",
+       "ok": true
+      },
+      {
+       "check": "event timeline complete (events_dropped == 0)",
+       "ok": true
+      },
+      {
+       "check": "process exit completed (process_exit_complete with the exit code)",
+       "ok": true
+      },
+      {
+       "check": "every mapped module was lifted from the sandbox file of the same name (SHA-256)",
+       "ok": true
+      },
+      {
+       "check": "guest command line equals the original's (sandbox UCC.exe and the same arguments)",
+       "ok": true
+      },
+      {
+       "check": "staged source read: file_open ok of <sandbox>\\XrtCompileProbe\\Classes\\XrtCompileProbe.uc",
+       "ok": true
+      },
+      {
+       "check": "Editor.dll mapped and translated code executed (functions_executed > 0)",
+       "ok": true
+      },
+      {
+       "check": "Editor.dll executed UEditorEngine::InitEditor (hit rva 68290)",
+       "ok": true
+      },
+      {
+       "check": "Editor.dll executed UEditorEngine::MakeScripts (hit rva 85a50)",
+       "ok": true
+      },
+      {
+       "check": "package saved by this run: MoveFile to <sandbox>\\System\\XrtCompileProbe.u ok",
+       "ok": true
+      },
+      {
+       "check": "package GUID (header bytes 36..51) equals the create_guid bytes preceding the save",
+       "ok": true
+      },
+      {
+       "check": "Golem.u re-save: GUID equals the create_guid bytes preceding its save",
+       "ok": true
+      },
+      {
+       "check": "UnrImp.gpi unloaded (dll_unloaded)",
+       "ok": true
+      }
+     ]
+    },
+    {
+     "group": "compile_run_comparisons",
+     "ok": true,
+     "checks": [
+      {
+       "check": "every compile run produced judgeable artifacts",
+       "ok": true
+      },
+      {
+       "check": "original1 vs original2: same exit code",
+       "ok": true
+      },
+      {
+       "check": "original1 vs original2: stdout identical after normalise_stdout",
+       "ok": true
+      },
+      {
+       "check": "original1 vs original2: same error/diagnostic lines",
+       "ok": true
+      },
+      {
+       "check": "original1 vs original2: UCC.log identical after normalise_log",
+       "ok": true
+      },
+      {
+       "check": "original1 vs original2: same set of written files",
+       "ok": true
+      },
+      {
+       "check": "original1 vs original2: XrtCompileProbe.ini saved with identical contents",
+       "ok": true
+      },
+      {
+       "check": "original1 vs original2: identical System inputs (SHA-256 of every input file)",
+       "ok": true
+      },
+      {
+       "check": "original1 vs xrt1: same exit code",
+       "ok": true
+      },
+      {
+       "check": "original1 vs xrt1: stdout identical after normalise_stdout",
+       "ok": true
+      },
+      {
+       "check": "original1 vs xrt1: same error/diagnostic lines",
+       "ok": true
+      },
+      {
+       "check": "original1 vs xrt1: UCC.log identical after normalise_log",
+       "ok": true
+      },
+      {
+       "check": "original1 vs xrt1: same set of written files",
+       "ok": true
+      },
+      {
+       "check": "original1 vs xrt1: XrtCompileProbe.ini saved with identical contents",
+       "ok": true
+      },
+      {
+       "check": "original1 vs xrt1: identical System inputs (SHA-256 of every input file)",
+       "ok": true
+      },
+      {
+       "check": "original1 vs xrt2: same exit code",
+       "ok": true
+      },
+      {
+       "check": "original1 vs xrt2: stdout identical after normalise_stdout",
+       "ok": true
+      },
+      {
+       "check": "original1 vs xrt2: same error/diagnostic lines",
+       "ok": true
+      },
+      {
+       "check": "original1 vs xrt2: UCC.log identical after normalise_log",
+       "ok": true
+      },
+      {
+       "check": "original1 vs xrt2: same set of written files",
+       "ok": true
+      },
+      {
+       "check": "original1 vs xrt2: XrtCompileProbe.ini saved with identical contents",
+       "ok": true
+      },
+      {
+       "check": "original1 vs xrt2: identical System inputs (SHA-256 of every input file)",
+       "ok": true
+      }
+     ]
+    },
+    {
+     "group": "packages",
+     "ok": true,
+     "checks": [
+      {
+       "check": "every compile wrote XrtCompileProbe.u",
+       "ok": true
+      },
+      {
+       "check": "XrtCompileProbe.u original1 vs original2: differs at most in the GUID (bytes and structure)",
+       "ok": true
+      },
+      {
+       "check": "XrtCompileProbe.u original1 vs xrt1: differs at most in the GUID (bytes and structure)",
+       "ok": true
+      },
+      {
+       "check": "XrtCompileProbe.u original1 vs xrt2: differs at most in the GUID (bytes and structure)",
+       "ok": true
+      },
+      {
+       "check": "XrtCompileProbe.u original2 vs xrt1: differs at most in the GUID (bytes and structure)",
+       "ok": true
+      },
+      {
+       "check": "XrtCompileProbe.u original2 vs xrt2: differs at most in the GUID (bytes and structure)",
+       "ok": true
+      },
+      {
+       "check": "XrtCompileProbe.u xrt1 vs xrt2: differs at most in the GUID (bytes and structure)",
+       "ok": true
+      },
+      {
+       "check": "every compile created its own package GUID (all distinct)",
+       "ok": true
+      },
+      {
+       "check": "translated packages' GUIDs have the original's RFC 4122 v4 classification",
+       "ok": true
+      },
+      {
+       "check": "Golem.u original1 vs original2: differs at most in the GUID",
+       "ok": true
+      },
+      {
+       "check": "Golem.u original1 vs xrt1: differs at most in the GUID",
+       "ok": true
+      },
+      {
+       "check": "Golem.u original1 vs xrt2: differs at most in the GUID",
+       "ok": true
+      },
+      {
+       "check": "Golem.u original2 vs xrt1: differs at most in the GUID",
+       "ok": true
+      },
+      {
+       "check": "Golem.u original2 vs xrt2: differs at most in the GUID",
+       "ok": true
+      },
+      {
+       "check": "Golem.u xrt1 vs xrt2: differs at most in the GUID",
+       "ok": true
+      }
+     ]
+    },
+    {
+     "group": "exec_A",
+     "ok": true,
+     "checks": [
+      {
+       "check": "artifacts of this run present and consistent (run id, exit code, stdout, UCC.log, written files)",
+       "ok": true
+      },
+      {
+       "check": "package loaded from this invocation's raw compile results (SHA-256 verified)",
+       "ok": true
+      },
+      {
+       "check": "no sources and no other XrtCompileProbe.* in the sandbox (only the package)",
+       "ok": true
+      },
+      {
+       "check": "package bytes unchanged by the run",
+       "ok": true
+      },
+      {
+       "check": "exit code 0",
+       "ok": true
+      },
+      {
+       "check": "XCP lines equal expected.txt (exact, in order)",
+       "ok": true
+      },
+      {
+       "check": "no unexpected write (only UCC.log created)",
+       "ok": true
+      }
+     ]
+    },
+    {
+     "group": "exec_B",
+     "ok": true,
+     "checks": [
+      {
+       "check": "artifacts of this run present and consistent (run id, exit code, stdout, UCC.log, written files)",
+       "ok": true
+      },
+      {
+       "check": "package loaded from this invocation's raw compile results (SHA-256 verified)",
+       "ok": true
+      },
+      {
+       "check": "no sources and no other XrtCompileProbe.* in the sandbox (only the package)",
+       "ok": true
+      },
+      {
+       "check": "package bytes unchanged by the run",
+       "ok": true
+      },
+      {
+       "check": "exit code 0",
+       "ok": true
+      },
+      {
+       "check": "XCP lines equal expected.txt (exact, in order)",
+       "ok": true
+      },
+      {
+       "check": "no unexpected write (only UCC.log created)",
+       "ok": true
+      }
+     ]
+    },
+    {
+     "group": "exec_B/translated_execution_evidence",
+     "ok": true,
+     "checks": [
+      {
+       "check": "runtime report of this run present and well formed (run id, schema 2)",
+       "ok": true
+      },
+      {
+       "check": "report run id equals the run's id",
+       "ok": true
+      },
+      {
+       "check": "report outcome 'exited'",
+       "ok": true
+      },
+      {
+       "check": "report exit code equals the process exit code",
+       "ok": true
+      },
+      {
+       "check": "no fatal or timeout event",
+       "ok": true
+      },
+      {
+       "check": "no XRT FATAL / XRT TIMEOUT diagnostic on stderr",
+       "ok": true
+      },
+      {
+       "check": "event timeline complete (events_dropped == 0)",
+       "ok": true
+      },
+      {
+       "check": "process exit completed (process_exit_complete with the exit code)",
+       "ok": true
+      },
+      {
+       "check": "every mapped module was lifted from the sandbox file of the same name (SHA-256)",
+       "ok": true
+      },
+      {
+       "check": "guest command line equals the original's (sandbox UCC.exe and the same arguments)",
+       "ok": true
+      },
+      {
+       "check": "package opened: file_open ok of <sandbox>\\System\\XrtCompileProbe.u",
+       "ok": true
+      },
+      {
+       "check": "UCommandlet::Main called from UCC.exe",
+       "ok": true
+      },
+      {
+       "check": "script bytecode executed (UObject::ProcessInternal)",
+       "ok": true
+      },
+      {
+       "check": "UObject::execLog called at least once per expected line",
+       "ok": true
+      }
+     ]
+    },
+    {
+     "group": "exec_C",
+     "ok": true,
+     "checks": [
+      {
+       "check": "artifacts of this run present and consistent (run id, exit code, stdout, UCC.log, written files)",
+       "ok": true
+      },
+      {
+       "check": "package loaded from this invocation's raw compile results (SHA-256 verified)",
+       "ok": true
+      },
+      {
+       "check": "no sources and no other XrtCompileProbe.* in the sandbox (only the package)",
+       "ok": true
+      },
+      {
+       "check": "package bytes unchanged by the run",
+       "ok": true
+      },
+      {
+       "check": "exit code 0",
+       "ok": true
+      },
+      {
+       "check": "XCP lines equal expected.txt (exact, in order)",
+       "ok": true
+      },
+      {
+       "check": "no unexpected write (only UCC.log created)",
+       "ok": true
+      }
+     ]
+    },
+    {
+     "group": "exec_D",
+     "ok": true,
+     "checks": [
+      {
+       "check": "artifacts of this run present and consistent (run id, exit code, stdout, UCC.log, written files)",
+       "ok": true
+      },
+      {
+       "check": "package loaded from this invocation's raw compile results (SHA-256 verified)",
+       "ok": true
+      },
+      {
+       "check": "no sources and no other XrtCompileProbe.* in the sandbox (only the package)",
+       "ok": true
+      },
+      {
+       "check": "package bytes unchanged by the run",
+       "ok": true
+      },
+      {
+       "check": "exit code 0",
+       "ok": true
+      },
+      {
+       "check": "XCP lines equal expected.txt (exact, in order)",
+       "ok": true
+      },
+      {
+       "check": "no unexpected write (only UCC.log created)",
+       "ok": true
+      }
+     ]
+    },
+    {
+     "group": "exec_D/translated_execution_evidence",
+     "ok": true,
+     "checks": [
+      {
+       "check": "runtime report of this run present and well formed (run id, schema 2)",
+       "ok": true
+      },
+      {
+       "check": "report run id equals the run's id",
+       "ok": true
+      },
+      {
+       "check": "report outcome 'exited'",
+       "ok": true
+      },
+      {
+       "check": "report exit code equals the process exit code",
+       "ok": true
+      },
+      {
+       "check": "no fatal or timeout event",
+       "ok": true
+      },
+      {
+       "check": "no XRT FATAL / XRT TIMEOUT diagnostic on stderr",
+       "ok": true
+      },
+      {
+       "check": "event timeline complete (events_dropped == 0)",
+       "ok": true
+      },
+      {
+       "check": "process exit completed (process_exit_complete with the exit code)",
+       "ok": true
+      },
+      {
+       "check": "every mapped module was lifted from the sandbox file of the same name (SHA-256)",
+       "ok": true
+      },
+      {
+       "check": "guest command line equals the original's (sandbox UCC.exe and the same arguments)",
+       "ok": true
+      },
+      {
+       "check": "package opened: file_open ok of <sandbox>\\System\\XrtCompileProbe.u",
+       "ok": true
+      },
+      {
+       "check": "UCommandlet::Main called from UCC.exe",
+       "ok": true
+      },
+      {
+       "check": "script bytecode executed (UObject::ProcessInternal)",
+       "ok": true
+      },
+      {
+       "check": "UObject::execLog called at least once per expected line",
+       "ok": true
+      }
+     ]
+    },
+    {
+     "group": "execution_cross_check",
+     "ok": true,
+     "checks": [
+      {
+       "check": "every combination executed",
+       "ok": true
+      },
+      {
+       "check": "fixture ground truth: combination A (original package, original engine) prints expected.txt",
+       "ok": true
+      },
+      {
+       "check": "A vs B: stdout identical after normalise_stdout",
+       "ok": true
+      },
+      {
+       "check": "A vs B: same exit code",
+       "ok": true
+      },
+      {
+       "check": "A vs B: same set of written files",
+       "ok": true
+      },
+      {
+       "check": "A vs B: UCC.log identical after normalise_log",
+       "ok": true
+      },
+      {
+       "check": "A vs C: stdout identical after normalise_stdout",
+       "ok": true
+      },
+      {
+       "check": "A vs C: same exit code",
+       "ok": true
+      },
+      {
+       "check": "A vs C: same set of written files",
+       "ok": true
+      },
+      {
+       "check": "A vs C: UCC.log identical after normalise_log",
+       "ok": true
+      },
+      {
+       "check": "A vs D: stdout identical after normalise_stdout",
+       "ok": true
+      },
+      {
+       "check": "A vs D: same exit code",
+       "ok": true
+      },
+      {
+       "check": "A vs D: same set of written files",
+       "ok": true
+      },
+      {
+       "check": "B vs C: stdout identical after normalise_stdout",
+       "ok": true
+      },
+      {
+       "check": "B vs C: same exit code",
+       "ok": true
+      },
+      {
+       "check": "B vs C: same set of written files",
+       "ok": true
+      },
+      {
+       "check": "B vs D: stdout identical after normalise_stdout",
+       "ok": true
+      },
+      {
+       "check": "B vs D: same exit code",
+       "ok": true
+      },
+      {
+       "check": "B vs D: same set of written files",
+       "ok": true
+      },
+      {
+       "check": "B vs D: UCC.log identical after normalise_log",
+       "ok": true
+      },
+      {
+       "check": "C vs D: stdout identical after normalise_stdout",
+       "ok": true
+      },
+      {
+       "check": "C vs D: same exit code",
+       "ok": true
+      },
+      {
+       "check": "C vs D: same set of written files",
+       "ok": true
+      },
+      {
+       "check": "C vs D: UCC.log identical after normalise_log",
+       "ok": true
+      }
+     ]
+    }
+   ]
+  },
+  "v2": {
+   "verdict": "PASS",
+   "compiles": [
+    {
+     "run": "compile_original1",
+     "dir": "experiments/xrt/results/raw/compile/20261023-130658-30bdb7ac/v2/compile_original1",
+     "classification": "SUCCESS",
+     "exit_code": 0,
+     "stdout_sha256": "633e9d6a6cc089f2d51be9315d1aec8a4165d19af4bf3504529a6f45d2ae77c3",
+     "written": {
+      "System/Golem.u": "768a4e4a17a4454e61cf6b90de902ed861322a92d0c72731c4f63d2feb1a1a62",
+      "System/UCC.log": "f0eb5e543f05ff687764fced54002579479611eb2bfc16274160ce2fac3f609f",
+      "System/XrtCompileProbe.u": "e4b4bfd0f976a269d6caa3597833b139774aafd2b908d10a714960bd5b908f69"
+     },
+     "package": {
+      "sha256": "e4b4bfd0f976a269d6caa3597833b139774aafd2b908d10a714960bd5b908f69",
+      "size": 1530,
+      "guid": {
+       "present": true,
+       "hex": "558d4a32a385d2488724df6b1b14e613",
+       "version_nibble": 4,
+       "variant_bits": "0x80",
+       "rfc4122_v4": true
+      }
+     },
+     "golem": {
+      "sha256": "768a4e4a17a4454e61cf6b90de902ed861322a92d0c72731c4f63d2feb1a1a62",
+      "size": 64,
+      "guid": {
+       "present": true,
+       "hex": "264ff8566ffa5f4e9f35bc6d6fd8e973",
+       "version_nibble": 4,
+       "variant_bits": "0x80",
+       "rfc4122_v4": true
+      }
+     },
+     "input_digest": "995312037f3ba77a3848e874fbb35c5392101e48f525f49696211b8b70f1c9f0",
+     "seconds": 1.913
+    },
+    {
+     "run": "compile_original2",
+     "dir": "experiments/xrt/results/raw/compile/20261023-130658-30bdb7ac/v2/compile_original2",
+     "classification": "SUCCESS",
+     "exit_code": 0,
+     "stdout_sha256": "633e9d6a6cc089f2d51be9315d1aec8a4165d19af4bf3504529a6f45d2ae77c3",
+     "written": {
+      "System/Golem.u": "cc9f34aaf551807ed903986c8b37e0eb89705cc6d9a7f6ce3b5018a7dbb346d9",
+      "System/UCC.log": "1d6bcb2abc0cbc777ff2d1b609493ce60440f81687bc52970b513635c0db4eda",
+      "System/XrtCompileProbe.u": "5e78e2e530064905ab668de59b524c87959bc0b1b44330f1f5deb9309b3e647a"
+     },
+     "package": {
+      "sha256": "5e78e2e530064905ab668de59b524c87959bc0b1b44330f1f5deb9309b3e647a",
+      "size": 1530,
+      "guid": {
+       "present": true,
+       "hex": "ad944885884b8f4ba3a5337aa458c7fe",
+       "version_nibble": 4,
+       "variant_bits": "0x80",
+       "rfc4122_v4": true
+      }
+     },
+     "golem": {
+      "sha256": "cc9f34aaf551807ed903986c8b37e0eb89705cc6d9a7f6ce3b5018a7dbb346d9",
+      "size": 64,
+      "guid": {
+       "present": true,
+       "hex": "f83a6e816ff517409aa573c823768d18",
+       "version_nibble": 4,
+       "variant_bits": "0x80",
+       "rfc4122_v4": true
+      }
+     },
+     "input_digest": "995312037f3ba77a3848e874fbb35c5392101e48f525f49696211b8b70f1c9f0",
+     "seconds": 1.915
+    },
+    {
+     "run": "compile_xrt1",
+     "dir": "experiments/xrt/results/raw/compile/20261023-130658-30bdb7ac/v2/compile_xrt1",
+     "classification": "SUCCESS",
+     "exit_code": 0,
+     "stdout_sha256": "633e9d6a6cc089f2d51be9315d1aec8a4165d19af4bf3504529a6f45d2ae77c3",
+     "written": {
+      "System/Golem.u": "6ff454afbc1f3b56ee30a7e69104d0d0f1ed75f3b3627cd1de7026698a6c9612",
+      "System/UCC.log": "497252457cad37e2e709597ec470b65038f2e65820651921fb58df50bb352f21",
+      "System/XrtCompileProbe.u": "99b9474cfd15e4d71be5c0d255a529a7c885383854595a667d55618addb5dfa1"
+     },
+     "package": {
+      "sha256": "99b9474cfd15e4d71be5c0d255a529a7c885383854595a667d55618addb5dfa1",
+      "size": 1530,
+      "guid": {
+       "present": true,
+       "hex": "1e454d7cfdbe254b8f1ce99e5412cec6",
+       "version_nibble": 4,
+       "variant_bits": "0x80",
+       "rfc4122_v4": true
+      }
+     },
+     "golem": {
+      "sha256": "6ff454afbc1f3b56ee30a7e69104d0d0f1ed75f3b3627cd1de7026698a6c9612",
+      "size": 64,
+      "guid": {
+       "present": true,
+       "hex": "8184aa1309b78c42afb191a52c4bfa51",
+       "version_nibble": 4,
+       "variant_bits": "0x80",
+       "rfc4122_v4": true
+      }
+     },
+     "input_digest": "995312037f3ba77a3848e874fbb35c5392101e48f525f49696211b8b70f1c9f0",
+     "seconds": 6.498
+    },
+    {
+     "run": "compile_xrt2",
+     "dir": "experiments/xrt/results/raw/compile/20261023-130658-30bdb7ac/v2/compile_xrt2",
+     "classification": "SUCCESS",
+     "exit_code": 0,
+     "stdout_sha256": "633e9d6a6cc089f2d51be9315d1aec8a4165d19af4bf3504529a6f45d2ae77c3",
+     "written": {
+      "System/Golem.u": "a56628cc882e1497578960da8e254867efaea46923a076eedcc9bfe7c888c699",
+      "System/UCC.log": "c1f561bf1dd3e2f3699c9220fb6858022d51de922cf30b5b927d5d4d9191be17",
+      "System/XrtCompileProbe.u": "06e449b731a35ad2493793f6dc24eece2051fe6f059130ede592442756aa2e26"
+     },
+     "package": {
+      "sha256": "06e449b731a35ad2493793f6dc24eece2051fe6f059130ede592442756aa2e26",
+      "size": 1530,
+      "guid": {
+       "present": true,
+       "hex": "5835a9632b1f714fa40c4d65692ed04d",
+       "version_nibble": 4,
+       "variant_bits": "0x80",
+       "rfc4122_v4": true
+      }
+     },
+     "golem": {
+      "sha256": "a56628cc882e1497578960da8e254867efaea46923a076eedcc9bfe7c888c699",
+      "size": 64,
+      "guid": {
+       "present": true,
+       "hex": "8aed68511d2c3c46a0caaf56b73bbae8",
+       "version_nibble": 4,
+       "variant_bits": "0x80",
+       "rfc4122_v4": true
+      }
+     },
+     "input_digest": "995312037f3ba77a3848e874fbb35c5392101e48f525f49696211b8b70f1c9f0",
+     "seconds": 6.413
+    }
+   ],
+   "package_pairs": [
+    {
+     "a": "original1",
+     "b": "original2",
+     "sha256": [
+      "e4b4bfd0f976a269d6caa3597833b139774aafd2b908d10a714960bd5b908f69",
+      "5e78e2e530064905ab668de59b524c87959bc0b1b44330f1f5deb9309b3e647a"
+     ],
+     "size": [
+      1530,
+      1530
+     ],
+     "classification": "guid_only",
+     "differing_ranges": [
+      [
+       36,
+       52
+      ]
+     ],
+     "unresolved_ranges": [],
+     "guid": [
+      "558d4a32a385d2488724df6b1b14e613",
+      "ad944885884b8f4ba3a5337aa458c7fe"
+     ],
+     "structure_parsed": true,
+     "structural_differences": []
+    },
+    {
+     "a": "original1",
+     "b": "xrt1",
+     "sha256": [
+      "e4b4bfd0f976a269d6caa3597833b139774aafd2b908d10a714960bd5b908f69",
+      "99b9474cfd15e4d71be5c0d255a529a7c885383854595a667d55618addb5dfa1"
+     ],
+     "size": [
+      1530,
+      1530
+     ],
+     "classification": "guid_only",
+     "differing_ranges": [
+      [
+       36,
+       52
+      ]
+     ],
+     "unresolved_ranges": [],
+     "guid": [
+      "558d4a32a385d2488724df6b1b14e613",
+      "1e454d7cfdbe254b8f1ce99e5412cec6"
+     ],
+     "structure_parsed": true,
+     "structural_differences": []
+    },
+    {
+     "a": "original1",
+     "b": "xrt2",
+     "sha256": [
+      "e4b4bfd0f976a269d6caa3597833b139774aafd2b908d10a714960bd5b908f69",
+      "06e449b731a35ad2493793f6dc24eece2051fe6f059130ede592442756aa2e26"
+     ],
+     "size": [
+      1530,
+      1530
+     ],
+     "classification": "guid_only",
+     "differing_ranges": [
+      [
+       36,
+       52
+      ]
+     ],
+     "unresolved_ranges": [],
+     "guid": [
+      "558d4a32a385d2488724df6b1b14e613",
+      "5835a9632b1f714fa40c4d65692ed04d"
+     ],
+     "structure_parsed": true,
+     "structural_differences": []
+    },
+    {
+     "a": "original2",
+     "b": "xrt1",
+     "sha256": [
+      "5e78e2e530064905ab668de59b524c87959bc0b1b44330f1f5deb9309b3e647a",
+      "99b9474cfd15e4d71be5c0d255a529a7c885383854595a667d55618addb5dfa1"
+     ],
+     "size": [
+      1530,
+      1530
+     ],
+     "classification": "guid_only",
+     "differing_ranges": [
+      [
+       36,
+       43
+      ],
+      [
+       44,
+       52
+      ]
+     ],
+     "unresolved_ranges": [],
+     "guid": [
+      "ad944885884b8f4ba3a5337aa458c7fe",
+      "1e454d7cfdbe254b8f1ce99e5412cec6"
+     ],
+     "structure_parsed": true,
+     "structural_differences": []
+    },
+    {
+     "a": "original2",
+     "b": "xrt2",
+     "sha256": [
+      "5e78e2e530064905ab668de59b524c87959bc0b1b44330f1f5deb9309b3e647a",
+      "06e449b731a35ad2493793f6dc24eece2051fe6f059130ede592442756aa2e26"
+     ],
+     "size": [
+      1530,
+      1530
+     ],
+     "classification": "guid_only",
+     "differing_ranges": [
+      [
+       36,
+       52
+      ]
+     ],
+     "unresolved_ranges": [],
+     "guid": [
+      "ad944885884b8f4ba3a5337aa458c7fe",
+      "5835a9632b1f714fa40c4d65692ed04d"
+     ],
+     "structure_parsed": true,
+     "structural_differences": []
+    },
+    {
+     "a": "xrt1",
+     "b": "xrt2",
+     "sha256": [
+      "99b9474cfd15e4d71be5c0d255a529a7c885383854595a667d55618addb5dfa1",
+      "06e449b731a35ad2493793f6dc24eece2051fe6f059130ede592442756aa2e26"
+     ],
+     "size": [
+      1530,
+      1530
+     ],
+     "classification": "guid_only",
+     "differing_ranges": [
+      [
+       36,
+       52
+      ]
+     ],
+     "unresolved_ranges": [],
+     "guid": [
+      "1e454d7cfdbe254b8f1ce99e5412cec6",
+      "5835a9632b1f714fa40c4d65692ed04d"
+     ],
+     "structure_parsed": true,
+     "structural_differences": []
+    }
+   ],
+   "golem_pairs": [
+    {
+     "a": "original1",
+     "b": "original2",
+     "sha256": [
+      "768a4e4a17a4454e61cf6b90de902ed861322a92d0c72731c4f63d2feb1a1a62",
+      "cc9f34aaf551807ed903986c8b37e0eb89705cc6d9a7f6ce3b5018a7dbb346d9"
+     ],
+     "size": [
+      64,
+      64
+     ],
+     "classification": "guid_only",
+     "differing_ranges": [
+      [
+       36,
+       40
+      ],
+      [
+       41,
+       52
+      ]
+     ],
+     "unresolved_ranges": [],
+     "guid": [
+      "264ff8566ffa5f4e9f35bc6d6fd8e973",
+      "f83a6e816ff517409aa573c823768d18"
+     ],
+     "structure_parsed": true,
+     "structural_differences": []
+    },
+    {
+     "a": "original1",
+     "b": "xrt1",
+     "sha256": [
+      "768a4e4a17a4454e61cf6b90de902ed861322a92d0c72731c4f63d2feb1a1a62",
+      "6ff454afbc1f3b56ee30a7e69104d0d0f1ed75f3b3627cd1de7026698a6c9612"
+     ],
+     "size": [
+      64,
+      64
+     ],
+     "classification": "guid_only",
+     "differing_ranges": [
+      [
+       36,
+       52
+      ]
+     ],
+     "unresolved_ranges": [],
+     "guid": [
+      "264ff8566ffa5f4e9f35bc6d6fd8e973",
+      "8184aa1309b78c42afb191a52c4bfa51"
+     ],
+     "structure_parsed": true,
+     "structural_differences": []
+    },
+    {
+     "a": "original1",
+     "b": "xrt2",
+     "sha256": [
+      "768a4e4a17a4454e61cf6b90de902ed861322a92d0c72731c4f63d2feb1a1a62",
+      "a56628cc882e1497578960da8e254867efaea46923a076eedcc9bfe7c888c699"
+     ],
+     "size": [
+      64,
+      64
+     ],
+     "classification": "guid_only",
+     "differing_ranges": [
+      [
+       36,
+       52
+      ]
+     ],
+     "unresolved_ranges": [],
+     "guid": [
+      "264ff8566ffa5f4e9f35bc6d6fd8e973",
+      "8aed68511d2c3c46a0caaf56b73bbae8"
+     ],
+     "structure_parsed": true,
+     "structural_differences": []
+    },
+    {
+     "a": "original2",
+     "b": "xrt1",
+     "sha256": [
+      "cc9f34aaf551807ed903986c8b37e0eb89705cc6d9a7f6ce3b5018a7dbb346d9",
+      "6ff454afbc1f3b56ee30a7e69104d0d0f1ed75f3b3627cd1de7026698a6c9612"
+     ],
+     "size": [
+      64,
+      64
+     ],
+     "classification": "guid_only",
+     "differing_ranges": [
+      [
+       36,
+       52
+      ]
+     ],
+     "unresolved_ranges": [],
+     "guid": [
+      "f83a6e816ff517409aa573c823768d18",
+      "8184aa1309b78c42afb191a52c4bfa51"
+     ],
+     "structure_parsed": true,
+     "structural_differences": []
+    },
+    {
+     "a": "original2",
+     "b": "xrt2",
+     "sha256": [
+      "cc9f34aaf551807ed903986c8b37e0eb89705cc6d9a7f6ce3b5018a7dbb346d9",
+      "a56628cc882e1497578960da8e254867efaea46923a076eedcc9bfe7c888c699"
+     ],
+     "size": [
+      64,
+      64
+     ],
+     "classification": "guid_only",
+     "differing_ranges": [
+      [
+       36,
+       52
+      ]
+     ],
+     "unresolved_ranges": [],
+     "guid": [
+      "f83a6e816ff517409aa573c823768d18",
+      "8aed68511d2c3c46a0caaf56b73bbae8"
+     ],
+     "structure_parsed": true,
+     "structural_differences": []
+    },
+    {
+     "a": "xrt1",
+     "b": "xrt2",
+     "sha256": [
+      "6ff454afbc1f3b56ee30a7e69104d0d0f1ed75f3b3627cd1de7026698a6c9612",
+      "a56628cc882e1497578960da8e254867efaea46923a076eedcc9bfe7c888c699"
+     ],
+     "size": [
+      64,
+      64
+     ],
+     "classification": "guid_only",
+     "differing_ranges": [
+      [
+       36,
+       52
+      ]
+     ],
+     "unresolved_ranges": [],
+     "guid": [
+      "8184aa1309b78c42afb191a52c4bfa51",
+      "8aed68511d2c3c46a0caaf56b73bbae8"
+     ],
+     "structure_parsed": true,
+     "structural_differences": []
+    }
+   ],
+   "golem_vs_shipped": [
+    {
+     "a": "shipped",
+     "b": "compile_original1",
+     "sha256": [
+      "c9e78920e429d335245a65384ad91ff30d725d99e60c25f932701f70e71b1648",
+      "768a4e4a17a4454e61cf6b90de902ed861322a92d0c72731c4f63d2feb1a1a62"
+     ],
+     "size": [
+      64,
+      64
+     ],
+     "classification": "guid_only",
+     "differing_ranges": [
+      [
+       36,
+       52
+      ]
+     ],
+     "unresolved_ranges": [],
+     "guid": [
+      "6785bfe949e55744808181c3e608b259",
+      "264ff8566ffa5f4e9f35bc6d6fd8e973"
+     ],
+     "structure_parsed": true,
+     "structural_differences": []
+    },
+    {
+     "a": "shipped",
+     "b": "compile_original2",
+     "sha256": [
+      "c9e78920e429d335245a65384ad91ff30d725d99e60c25f932701f70e71b1648",
+      "cc9f34aaf551807ed903986c8b37e0eb89705cc6d9a7f6ce3b5018a7dbb346d9"
+     ],
+     "size": [
+      64,
+      64
+     ],
+     "classification": "guid_only",
+     "differing_ranges": [
+      [
+       36,
+       52
+      ]
+     ],
+     "unresolved_ranges": [],
+     "guid": [
+      "6785bfe949e55744808181c3e608b259",
+      "f83a6e816ff517409aa573c823768d18"
+     ],
+     "structure_parsed": true,
+     "structural_differences": []
+    },
+    {
+     "a": "shipped",
+     "b": "compile_xrt1",
+     "sha256": [
+      "c9e78920e429d335245a65384ad91ff30d725d99e60c25f932701f70e71b1648",
+      "6ff454afbc1f3b56ee30a7e69104d0d0f1ed75f3b3627cd1de7026698a6c9612"
+     ],
+     "size": [
+      64,
+      64
+     ],
+     "classification": "guid_only",
+     "differing_ranges": [
+      [
+       36,
+       52
+      ]
+     ],
+     "unresolved_ranges": [],
+     "guid": [
+      "6785bfe949e55744808181c3e608b259",
+      "8184aa1309b78c42afb191a52c4bfa51"
+     ],
+     "structure_parsed": true,
+     "structural_differences": []
+    },
+    {
+     "a": "shipped",
+     "b": "compile_xrt2",
+     "sha256": [
+      "c9e78920e429d335245a65384ad91ff30d725d99e60c25f932701f70e71b1648",
+      "a56628cc882e1497578960da8e254867efaea46923a076eedcc9bfe7c888c699"
+     ],
+     "size": [
+      64,
+      64
+     ],
+     "classification": "guid_only",
+     "differing_ranges": [
+      [
+       36,
+       52
+      ]
+     ],
+     "unresolved_ranges": [],
+     "guid": [
+      "6785bfe949e55744808181c3e608b259",
+      "8aed68511d2c3c46a0caaf56b73bbae8"
+     ],
+     "structure_parsed": true,
+     "structural_differences": []
+    }
+   ],
+   "exec": {
+    "fixture_failure": false,
+    "runs": [
+     {
+      "combo": "A",
+      "package": "original",
+      "engine": "original",
+      "dir": "experiments/xrt/results/raw/compile/20261023-130658-30bdb7ac/v2/exec_A",
+      "exit_code": 0,
+      "xcp_lines": [
+       "XCP tag=bravo-2 greeting=changed-default",
+       "XCP done"
+      ],
+      "matches_expected": true,
+      "stdout_sha256": "0eee082cf7a67b2b85fa97b0581bb8fbec46733c0718233244ee3d47156294a5",
+      "loaded_package_sha256": "e4b4bfd0f976a269d6caa3597833b139774aafd2b908d10a714960bd5b908f69"
+     },
+     {
+      "combo": "B",
+      "package": "original",
+      "engine": "xrt",
+      "dir": "experiments/xrt/results/raw/compile/20261023-130658-30bdb7ac/v2/exec_B",
+      "exit_code": 0,
+      "xcp_lines": [
+       "XCP tag=bravo-2 greeting=changed-default",
+       "XCP done"
+      ],
+      "matches_expected": true,
+      "stdout_sha256": "0eee082cf7a67b2b85fa97b0581bb8fbec46733c0718233244ee3d47156294a5",
+      "loaded_package_sha256": "e4b4bfd0f976a269d6caa3597833b139774aafd2b908d10a714960bd5b908f69"
+     },
+     {
+      "combo": "C",
+      "package": "xrt",
+      "engine": "original",
+      "dir": "experiments/xrt/results/raw/compile/20261023-130658-30bdb7ac/v2/exec_C",
+      "exit_code": 0,
+      "xcp_lines": [
+       "XCP tag=bravo-2 greeting=changed-default",
+       "XCP done"
+      ],
+      "matches_expected": true,
+      "stdout_sha256": "0eee082cf7a67b2b85fa97b0581bb8fbec46733c0718233244ee3d47156294a5",
+      "loaded_package_sha256": "99b9474cfd15e4d71be5c0d255a529a7c885383854595a667d55618addb5dfa1"
+     },
+     {
+      "combo": "D",
+      "package": "xrt",
+      "engine": "xrt",
+      "dir": "experiments/xrt/results/raw/compile/20261023-130658-30bdb7ac/v2/exec_D",
+      "exit_code": 0,
+      "xcp_lines": [
+       "XCP tag=bravo-2 greeting=changed-default",
+       "XCP done"
+      ],
+      "matches_expected": true,
+      "stdout_sha256": "0eee082cf7a67b2b85fa97b0581bb8fbec46733c0718233244ee3d47156294a5",
+      "loaded_package_sha256": "99b9474cfd15e4d71be5c0d255a529a7c885383854595a667d55618addb5dfa1"
+     }
+    ]
+   },
+   "checks": [
+    {
+     "group": "compile_original1",
+     "ok": true,
+     "checks": [
+      {
+       "check": "artifacts of this run present and consistent (run id, exit code, stdout, UCC.log, written files)",
+       "ok": true
+      },
+      {
+       "check": "XrtCompileProbe.u absent before the run (fresh sandbox, nothing from an earlier run)",
+       "ok": true
+      },
+      {
+       "check": "no XrtCompileProbe.* in the sandbox before the run except the staged sources and the ini",
+       "ok": true
+      },
+      {
+       "check": "staged sources are exactly the variant's sources (SHA-256)",
+       "ok": true
+      },
+      {
+       "check": "configuration: [Editor.EditorEngine] EditPackages = Core, XrtCompileProbe",
+       "ok": true
+      },
+      {
+       "check": "the sandbox ini before the run is the recorded derived ini (SHA-256)",
+       "ok": true
+      },
+      {
+       "check": "compile classified SUCCESS",
+       "ok": true
+      },
+      {
+       "check": "no unexpected write (only Golem.u and XrtCompileProbe.ini changed, UCC.log and XrtCompileProbe.u created)",
+       "ok": true
+      },
+      {
+       "check": "shipped Golem.u preserved from before the run (SHA-256 verified)",
+       "ok": true
+      },
+      {
+       "check": "Golem.u re-save differs from the shipped Golem.u at most in the GUID (documented exception)",
+       "ok": true
+      }
+     ]
+    },
+    {
+     "group": "compile_original2",
+     "ok": true,
+     "checks": [
+      {
+       "check": "artifacts of this run present and consistent (run id, exit code, stdout, UCC.log, written files)",
+       "ok": true
+      },
+      {
+       "check": "XrtCompileProbe.u absent before the run (fresh sandbox, nothing from an earlier run)",
+       "ok": true
+      },
+      {
+       "check": "no XrtCompileProbe.* in the sandbox before the run except the staged sources and the ini",
+       "ok": true
+      },
+      {
+       "check": "staged sources are exactly the variant's sources (SHA-256)",
+       "ok": true
+      },
+      {
+       "check": "configuration: [Editor.EditorEngine] EditPackages = Core, XrtCompileProbe",
+       "ok": true
+      },
+      {
+       "check": "the sandbox ini before the run is the recorded derived ini (SHA-256)",
+       "ok": true
+      },
+      {
+       "check": "compile classified SUCCESS",
+       "ok": true
+      },
+      {
+       "check": "no unexpected write (only Golem.u and XrtCompileProbe.ini changed, UCC.log and XrtCompileProbe.u created)",
+       "ok": true
+      },
+      {
+       "check": "shipped Golem.u preserved from before the run (SHA-256 verified)",
+       "ok": true
+      },
+      {
+       "check": "Golem.u re-save differs from the shipped Golem.u at most in the GUID (documented exception)",
+       "ok": true
+      }
+     ]
+    },
+    {
+     "group": "compile_xrt1",
+     "ok": true,
+     "checks": [
+      {
+       "check": "artifacts of this run present and consistent (run id, exit code, stdout, UCC.log, written files)",
+       "ok": true
+      },
+      {
+       "check": "XrtCompileProbe.u absent before the run (fresh sandbox, nothing from an earlier run)",
+       "ok": true
+      },
+      {
+       "check": "no XrtCompileProbe.* in the sandbox before the run except the staged sources and the ini",
+       "ok": true
+      },
+      {
+       "check": "staged sources are exactly the variant's sources (SHA-256)",
+       "ok": true
+      },
+      {
+       "check": "configuration: [Editor.EditorEngine] EditPackages = Core, XrtCompileProbe",
+       "ok": true
+      },
+      {
+       "check": "the sandbox ini before the run is the recorded derived ini (SHA-256)",
+       "ok": true
+      },
+      {
+       "check": "compile classified SUCCESS",
+       "ok": true
+      },
+      {
+       "check": "no unexpected write (only Golem.u and XrtCompileProbe.ini changed, UCC.log and XrtCompileProbe.u created)",
+       "ok": true
+      },
+      {
+       "check": "shipped Golem.u preserved from before the run (SHA-256 verified)",
+       "ok": true
+      },
+      {
+       "check": "Golem.u re-save differs from the shipped Golem.u at most in the GUID (documented exception)",
+       "ok": true
+      }
+     ]
+    },
+    {
+     "group": "compile_xrt1/translated_compile_evidence",
+     "ok": true,
+     "checks": [
+      {
+       "check": "runtime report of this run present and well formed (run id, schema 2)",
+       "ok": true
+      },
+      {
+       "check": "report run id equals the run's id",
+       "ok": true
+      },
+      {
+       "check": "report outcome 'exited'",
+       "ok": true
+      },
+      {
+       "check": "report exit code equals the process exit code",
+       "ok": true
+      },
+      {
+       "check": "no fatal or timeout event",
+       "ok": true
+      },
+      {
+       "check": "no XRT FATAL / XRT TIMEOUT diagnostic on stderr",
+       "ok": true
+      },
+      {
+       "check": "event timeline complete (events_dropped == 0)",
+       "ok": true
+      },
+      {
+       "check": "process exit completed (process_exit_complete with the exit code)",
+       "ok": true
+      },
+      {
+       "check": "every mapped module was lifted from the sandbox file of the same name (SHA-256)",
+       "ok": true
+      },
+      {
+       "check": "guest command line equals the original's (sandbox UCC.exe and the same arguments)",
+       "ok": true
+      },
+      {
+       "check": "staged source read: file_open ok of <sandbox>\\XrtCompileProbe\\Classes\\XrtCompileProbe.uc",
+       "ok": true
+      },
+      {
+       "check": "Editor.dll mapped and translated code executed (functions_executed > 0)",
+       "ok": true
+      },
+      {
+       "check": "Editor.dll executed UEditorEngine::InitEditor (hit rva 68290)",
+       "ok": true
+      },
+      {
+       "check": "Editor.dll executed UEditorEngine::MakeScripts (hit rva 85a50)",
+       "ok": true
+      },
+      {
+       "check": "package saved by this run: MoveFile to <sandbox>\\System\\XrtCompileProbe.u ok",
+       "ok": true
+      },
+      {
+       "check": "package GUID (header bytes 36..51) equals the create_guid bytes preceding the save",
+       "ok": true
+      },
+      {
+       "check": "Golem.u re-save: GUID equals the create_guid bytes preceding its save",
+       "ok": true
+      },
+      {
+       "check": "UnrImp.gpi unloaded (dll_unloaded)",
+       "ok": true
+      }
+     ]
+    },
+    {
+     "group": "compile_xrt2",
+     "ok": true,
+     "checks": [
+      {
+       "check": "artifacts of this run present and consistent (run id, exit code, stdout, UCC.log, written files)",
+       "ok": true
+      },
+      {
+       "check": "XrtCompileProbe.u absent before the run (fresh sandbox, nothing from an earlier run)",
+       "ok": true
+      },
+      {
+       "check": "no XrtCompileProbe.* in the sandbox before the run except the staged sources and the ini",
+       "ok": true
+      },
+      {
+       "check": "staged sources are exactly the variant's sources (SHA-256)",
+       "ok": true
+      },
+      {
+       "check": "configuration: [Editor.EditorEngine] EditPackages = Core, XrtCompileProbe",
+       "ok": true
+      },
+      {
+       "check": "the sandbox ini before the run is the recorded derived ini (SHA-256)",
+       "ok": true
+      },
+      {
+       "check": "compile classified SUCCESS",
+       "ok": true
+      },
+      {
+       "check": "no unexpected write (only Golem.u and XrtCompileProbe.ini changed, UCC.log and XrtCompileProbe.u created)",
+       "ok": true
+      },
+      {
+       "check": "shipped Golem.u preserved from before the run (SHA-256 verified)",
+       "ok": true
+      },
+      {
+       "check": "Golem.u re-save differs from the shipped Golem.u at most in the GUID (documented exception)",
+       "ok": true
+      }
+     ]
+    },
+    {
+     "group": "compile_xrt2/translated_compile_evidence",
+     "ok": true,
+     "checks": [
+      {
+       "check": "runtime report of this run present and well formed (run id, schema 2)",
+       "ok": true
+      },
+      {
+       "check": "report run id equals the run's id",
+       "ok": true
+      },
+      {
+       "check": "report outcome 'exited'",
+       "ok": true
+      },
+      {
+       "check": "report exit code equals the process exit code",
+       "ok": true
+      },
+      {
+       "check": "no fatal or timeout event",
+       "ok": true
+      },
+      {
+       "check": "no XRT FATAL / XRT TIMEOUT diagnostic on stderr",
+       "ok": true
+      },
+      {
+       "check": "event timeline complete (events_dropped == 0)",
+       "ok": true
+      },
+      {
+       "check": "process exit completed (process_exit_complete with the exit code)",
+       "ok": true
+      },
+      {
+       "check": "every mapped module was lifted from the sandbox file of the same name (SHA-256)",
+       "ok": true
+      },
+      {
+       "check": "guest command line equals the original's (sandbox UCC.exe and the same arguments)",
+       "ok": true
+      },
+      {
+       "check": "staged source read: file_open ok of <sandbox>\\XrtCompileProbe\\Classes\\XrtCompileProbe.uc",
+       "ok": true
+      },
+      {
+       "check": "Editor.dll mapped and translated code executed (functions_executed > 0)",
+       "ok": true
+      },
+      {
+       "check": "Editor.dll executed UEditorEngine::InitEditor (hit rva 68290)",
+       "ok": true
+      },
+      {
+       "check": "Editor.dll executed UEditorEngine::MakeScripts (hit rva 85a50)",
+       "ok": true
+      },
+      {
+       "check": "package saved by this run: MoveFile to <sandbox>\\System\\XrtCompileProbe.u ok",
+       "ok": true
+      },
+      {
+       "check": "package GUID (header bytes 36..51) equals the create_guid bytes preceding the save",
+       "ok": true
+      },
+      {
+       "check": "Golem.u re-save: GUID equals the create_guid bytes preceding its save",
+       "ok": true
+      },
+      {
+       "check": "UnrImp.gpi unloaded (dll_unloaded)",
+       "ok": true
+      }
+     ]
+    },
+    {
+     "group": "compile_run_comparisons",
+     "ok": true,
+     "checks": [
+      {
+       "check": "every compile run produced judgeable artifacts",
+       "ok": true
+      },
+      {
+       "check": "original1 vs original2: same exit code",
+       "ok": true
+      },
+      {
+       "check": "original1 vs original2: stdout identical after normalise_stdout",
+       "ok": true
+      },
+      {
+       "check": "original1 vs original2: same error/diagnostic lines",
+       "ok": true
+      },
+      {
+       "check": "original1 vs original2: UCC.log identical after normalise_log",
+       "ok": true
+      },
+      {
+       "check": "original1 vs original2: same set of written files",
+       "ok": true
+      },
+      {
+       "check": "original1 vs original2: XrtCompileProbe.ini saved with identical contents",
+       "ok": true
+      },
+      {
+       "check": "original1 vs original2: identical System inputs (SHA-256 of every input file)",
+       "ok": true
+      },
+      {
+       "check": "original1 vs xrt1: same exit code",
+       "ok": true
+      },
+      {
+       "check": "original1 vs xrt1: stdout identical after normalise_stdout",
+       "ok": true
+      },
+      {
+       "check": "original1 vs xrt1: same error/diagnostic lines",
+       "ok": true
+      },
+      {
+       "check": "original1 vs xrt1: UCC.log identical after normalise_log",
+       "ok": true
+      },
+      {
+       "check": "original1 vs xrt1: same set of written files",
+       "ok": true
+      },
+      {
+       "check": "original1 vs xrt1: XrtCompileProbe.ini saved with identical contents",
+       "ok": true
+      },
+      {
+       "check": "original1 vs xrt1: identical System inputs (SHA-256 of every input file)",
+       "ok": true
+      },
+      {
+       "check": "original1 vs xrt2: same exit code",
+       "ok": true
+      },
+      {
+       "check": "original1 vs xrt2: stdout identical after normalise_stdout",
+       "ok": true
+      },
+      {
+       "check": "original1 vs xrt2: same error/diagnostic lines",
+       "ok": true
+      },
+      {
+       "check": "original1 vs xrt2: UCC.log identical after normalise_log",
+       "ok": true
+      },
+      {
+       "check": "original1 vs xrt2: same set of written files",
+       "ok": true
+      },
+      {
+       "check": "original1 vs xrt2: XrtCompileProbe.ini saved with identical contents",
+       "ok": true
+      },
+      {
+       "check": "original1 vs xrt2: identical System inputs (SHA-256 of every input file)",
+       "ok": true
+      }
+     ]
+    },
+    {
+     "group": "packages",
+     "ok": true,
+     "checks": [
+      {
+       "check": "every compile wrote XrtCompileProbe.u",
+       "ok": true
+      },
+      {
+       "check": "XrtCompileProbe.u original1 vs original2: differs at most in the GUID (bytes and structure)",
+       "ok": true
+      },
+      {
+       "check": "XrtCompileProbe.u original1 vs xrt1: differs at most in the GUID (bytes and structure)",
+       "ok": true
+      },
+      {
+       "check": "XrtCompileProbe.u original1 vs xrt2: differs at most in the GUID (bytes and structure)",
+       "ok": true
+      },
+      {
+       "check": "XrtCompileProbe.u original2 vs xrt1: differs at most in the GUID (bytes and structure)",
+       "ok": true
+      },
+      {
+       "check": "XrtCompileProbe.u original2 vs xrt2: differs at most in the GUID (bytes and structure)",
+       "ok": true
+      },
+      {
+       "check": "XrtCompileProbe.u xrt1 vs xrt2: differs at most in the GUID (bytes and structure)",
+       "ok": true
+      },
+      {
+       "check": "every compile created its own package GUID (all distinct)",
+       "ok": true
+      },
+      {
+       "check": "translated packages' GUIDs have the original's RFC 4122 v4 classification",
+       "ok": true
+      },
+      {
+       "check": "Golem.u original1 vs original2: differs at most in the GUID",
+       "ok": true
+      },
+      {
+       "check": "Golem.u original1 vs xrt1: differs at most in the GUID",
+       "ok": true
+      },
+      {
+       "check": "Golem.u original1 vs xrt2: differs at most in the GUID",
+       "ok": true
+      },
+      {
+       "check": "Golem.u original2 vs xrt1: differs at most in the GUID",
+       "ok": true
+      },
+      {
+       "check": "Golem.u original2 vs xrt2: differs at most in the GUID",
+       "ok": true
+      },
+      {
+       "check": "Golem.u xrt1 vs xrt2: differs at most in the GUID",
+       "ok": true
+      }
+     ]
+    },
+    {
+     "group": "exec_A",
+     "ok": true,
+     "checks": [
+      {
+       "check": "artifacts of this run present and consistent (run id, exit code, stdout, UCC.log, written files)",
+       "ok": true
+      },
+      {
+       "check": "package loaded from this invocation's raw compile results (SHA-256 verified)",
+       "ok": true
+      },
+      {
+       "check": "no sources and no other XrtCompileProbe.* in the sandbox (only the package)",
+       "ok": true
+      },
+      {
+       "check": "package bytes unchanged by the run",
+       "ok": true
+      },
+      {
+       "check": "exit code 0",
+       "ok": true
+      },
+      {
+       "check": "XCP lines equal expected.txt (exact, in order)",
+       "ok": true
+      },
+      {
+       "check": "no unexpected write (only UCC.log created)",
+       "ok": true
+      }
+     ]
+    },
+    {
+     "group": "exec_B",
+     "ok": true,
+     "checks": [
+      {
+       "check": "artifacts of this run present and consistent (run id, exit code, stdout, UCC.log, written files)",
+       "ok": true
+      },
+      {
+       "check": "package loaded from this invocation's raw compile results (SHA-256 verified)",
+       "ok": true
+      },
+      {
+       "check": "no sources and no other XrtCompileProbe.* in the sandbox (only the package)",
+       "ok": true
+      },
+      {
+       "check": "package bytes unchanged by the run",
+       "ok": true
+      },
+      {
+       "check": "exit code 0",
+       "ok": true
+      },
+      {
+       "check": "XCP lines equal expected.txt (exact, in order)",
+       "ok": true
+      },
+      {
+       "check": "no unexpected write (only UCC.log created)",
+       "ok": true
+      }
+     ]
+    },
+    {
+     "group": "exec_B/translated_execution_evidence",
+     "ok": true,
+     "checks": [
+      {
+       "check": "runtime report of this run present and well formed (run id, schema 2)",
+       "ok": true
+      },
+      {
+       "check": "report run id equals the run's id",
+       "ok": true
+      },
+      {
+       "check": "report outcome 'exited'",
+       "ok": true
+      },
+      {
+       "check": "report exit code equals the process exit code",
+       "ok": true
+      },
+      {
+       "check": "no fatal or timeout event",
+       "ok": true
+      },
+      {
+       "check": "no XRT FATAL / XRT TIMEOUT diagnostic on stderr",
+       "ok": true
+      },
+      {
+       "check": "event timeline complete (events_dropped == 0)",
+       "ok": true
+      },
+      {
+       "check": "process exit completed (process_exit_complete with the exit code)",
+       "ok": true
+      },
+      {
+       "check": "every mapped module was lifted from the sandbox file of the same name (SHA-256)",
+       "ok": true
+      },
+      {
+       "check": "guest command line equals the original's (sandbox UCC.exe and the same arguments)",
+       "ok": true
+      },
+      {
+       "check": "package opened: file_open ok of <sandbox>\\System\\XrtCompileProbe.u",
+       "ok": true
+      },
+      {
+       "check": "UCommandlet::Main called from UCC.exe",
+       "ok": true
+      },
+      {
+       "check": "script bytecode executed (UObject::ProcessInternal)",
+       "ok": true
+      },
+      {
+       "check": "UObject::execLog called at least once per expected line",
+       "ok": true
+      }
+     ]
+    },
+    {
+     "group": "exec_C",
+     "ok": true,
+     "checks": [
+      {
+       "check": "artifacts of this run present and consistent (run id, exit code, stdout, UCC.log, written files)",
+       "ok": true
+      },
+      {
+       "check": "package loaded from this invocation's raw compile results (SHA-256 verified)",
+       "ok": true
+      },
+      {
+       "check": "no sources and no other XrtCompileProbe.* in the sandbox (only the package)",
+       "ok": true
+      },
+      {
+       "check": "package bytes unchanged by the run",
+       "ok": true
+      },
+      {
+       "check": "exit code 0",
+       "ok": true
+      },
+      {
+       "check": "XCP lines equal expected.txt (exact, in order)",
+       "ok": true
+      },
+      {
+       "check": "no unexpected write (only UCC.log created)",
+       "ok": true
+      }
+     ]
+    },
+    {
+     "group": "exec_D",
+     "ok": true,
+     "checks": [
+      {
+       "check": "artifacts of this run present and consistent (run id, exit code, stdout, UCC.log, written files)",
+       "ok": true
+      },
+      {
+       "check": "package loaded from this invocation's raw compile results (SHA-256 verified)",
+       "ok": true
+      },
+      {
+       "check": "no sources and no other XrtCompileProbe.* in the sandbox (only the package)",
+       "ok": true
+      },
+      {
+       "check": "package bytes unchanged by the run",
+       "ok": true
+      },
+      {
+       "check": "exit code 0",
+       "ok": true
+      },
+      {
+       "check": "XCP lines equal expected.txt (exact, in order)",
+       "ok": true
+      },
+      {
+       "check": "no unexpected write (only UCC.log created)",
+       "ok": true
+      }
+     ]
+    },
+    {
+     "group": "exec_D/translated_execution_evidence",
+     "ok": true,
+     "checks": [
+      {
+       "check": "runtime report of this run present and well formed (run id, schema 2)",
+       "ok": true
+      },
+      {
+       "check": "report run id equals the run's id",
+       "ok": true
+      },
+      {
+       "check": "report outcome 'exited'",
+       "ok": true
+      },
+      {
+       "check": "report exit code equals the process exit code",
+       "ok": true
+      },
+      {
+       "check": "no fatal or timeout event",
+       "ok": true
+      },
+      {
+       "check": "no XRT FATAL / XRT TIMEOUT diagnostic on stderr",
+       "ok": true
+      },
+      {
+       "check": "event timeline complete (events_dropped == 0)",
+       "ok": true
+      },
+      {
+       "check": "process exit completed (process_exit_complete with the exit code)",
+       "ok": true
+      },
+      {
+       "check": "every mapped module was lifted from the sandbox file of the same name (SHA-256)",
+       "ok": true
+      },
+      {
+       "check": "guest command line equals the original's (sandbox UCC.exe and the same arguments)",
+       "ok": true
+      },
+      {
+       "check": "package opened: file_open ok of <sandbox>\\System\\XrtCompileProbe.u",
+       "ok": true
+      },
+      {
+       "check": "UCommandlet::Main called from UCC.exe",
+       "ok": true
+      },
+      {
+       "check": "script bytecode executed (UObject::ProcessInternal)",
+       "ok": true
+      },
+      {
+       "check": "UObject::execLog called at least once per expected line",
+       "ok": true
+      }
+     ]
+    },
+    {
+     "group": "execution_cross_check",
+     "ok": true,
+     "checks": [
+      {
+       "check": "every combination executed",
+       "ok": true
+      },
+      {
+       "check": "fixture ground truth: combination A (original package, original engine) prints expected.txt",
+       "ok": true
+      },
+      {
+       "check": "A vs B: stdout identical after normalise_stdout",
+       "ok": true
+      },
+      {
+       "check": "A vs B: same exit code",
+       "ok": true
+      },
+      {
+       "check": "A vs B: same set of written files",
+       "ok": true
+      },
+      {
+       "check": "A vs B: UCC.log identical after normalise_log",
+       "ok": true
+      },
+      {
+       "check": "A vs C: stdout identical after normalise_stdout",
+       "ok": true
+      },
+      {
+       "check": "A vs C: same exit code",
+       "ok": true
+      },
+      {
+       "check": "A vs C: same set of written files",
+       "ok": true
+      },
+      {
+       "check": "A vs C: UCC.log identical after normalise_log",
+       "ok": true
+      },
+      {
+       "check": "A vs D: stdout identical after normalise_stdout",
+       "ok": true
+      },
+      {
+       "check": "A vs D: same exit code",
+       "ok": true
+      },
+      {
+       "check": "A vs D: same set of written files",
+       "ok": true
+      },
+      {
+       "check": "B vs C: stdout identical after normalise_stdout",
+       "ok": true
+      },
+      {
+       "check": "B vs C: same exit code",
+       "ok": true
+      },
+      {
+       "check": "B vs C: same set of written files",
+       "ok": true
+      },
+      {
+       "check": "B vs D: stdout identical after normalise_stdout",
+       "ok": true
+      },
+      {
+       "check": "B vs D: same exit code",
+       "ok": true
+      },
+      {
+       "check": "B vs D: same set of written files",
+       "ok": true
+      },
+      {
+       "check": "B vs D: UCC.log identical after normalise_log",
+       "ok": true
+      },
+      {
+       "check": "C vs D: stdout identical after normalise_stdout",
+       "ok": true
+      },
+      {
+       "check": "C vs D: same exit code",
+       "ok": true
+      },
+      {
+       "check": "C vs D: same set of written files",
+       "ok": true
+      },
+      {
+       "check": "C vs D: UCC.log identical after normalise_log",
+       "ok": true
+      }
+     ]
+    }
+   ]
+  },
+  "v3": {
+   "verdict": "PASS",
+   "compiles": [
+    {
+     "run": "compile_original1",
+     "dir": "experiments/xrt/results/raw/compile/20261023-130658-30bdb7ac/v3/compile_original1",
+     "classification": "SUCCESS",
+     "exit_code": 0,
+     "stdout_sha256": "b6284b34ac20d89c11729b935c096432d030d60301a040e81a24ce6f83e36653",
+     "written": {
+      "System/Golem.u": "b997b4f28d532da395aaab243c9712c4f9197568aa07da218dfad2df2034530b",
+      "System/UCC.log": "abe670b925dcf78fbc978a66985a493515870980ce9ff6f5a41a070742b735fa",
+      "System/XrtCompileProbe.u": "ab37b0b0bc3e9217780b32e64c97efdedfa9d7848b908eb9b31d73a1979333ea"
+     },
+     "package": {
+      "sha256": "ab37b0b0bc3e9217780b32e64c97efdedfa9d7848b908eb9b31d73a1979333ea",
+      "size": 6924,
+      "guid": {
+       "present": true,
+       "hex": "870982e0aa96164ca5a9ece17e4f86d4",
+       "version_nibble": 4,
+       "variant_bits": "0x80",
+       "rfc4122_v4": true
+      }
+     },
+     "golem": {
+      "sha256": "b997b4f28d532da395aaab243c9712c4f9197568aa07da218dfad2df2034530b",
+      "size": 64,
+      "guid": {
+       "present": true,
+       "hex": "e5c463233445b54d9c746bede03a2ee0",
+       "version_nibble": 4,
+       "variant_bits": "0x80",
+       "rfc4122_v4": true
+      }
+     },
+     "input_digest": "995312037f3ba77a3848e874fbb35c5392101e48f525f49696211b8b70f1c9f0",
+     "seconds": 1.913
+    },
+    {
+     "run": "compile_original2",
+     "dir": "experiments/xrt/results/raw/compile/20261023-130658-30bdb7ac/v3/compile_original2",
+     "classification": "SUCCESS",
+     "exit_code": 0,
+     "stdout_sha256": "b6284b34ac20d89c11729b935c096432d030d60301a040e81a24ce6f83e36653",
+     "written": {
+      "System/Golem.u": "e5de9b72f8c51502b95019aab665463a520b587819abad3a0fb379a037b8a4f5",
+      "System/UCC.log": "fdd34e9c2f1576f3be5298479ba286e9f42f3a3c8fb543c0550c8b0dd3ee57cd",
+      "System/XrtCompileProbe.u": "6a3d838e7365c750127e550c13ff7ee01baead8ee701317fe0881a0853c27bbb"
+     },
+     "package": {
+      "sha256": "6a3d838e7365c750127e550c13ff7ee01baead8ee701317fe0881a0853c27bbb",
+      "size": 6924,
+      "guid": {
+       "present": true,
+       "hex": "af9e52a41e3b384d8d54f0e5e4c094a9",
+       "version_nibble": 4,
+       "variant_bits": "0x80",
+       "rfc4122_v4": true
+      }
+     },
+     "golem": {
+      "sha256": "e5de9b72f8c51502b95019aab665463a520b587819abad3a0fb379a037b8a4f5",
+      "size": 64,
+      "guid": {
+       "present": true,
+       "hex": "795e35520773424399b94c0f441a48a3",
+       "version_nibble": 4,
+       "variant_bits": "0x80",
+       "rfc4122_v4": true
+      }
+     },
+     "input_digest": "995312037f3ba77a3848e874fbb35c5392101e48f525f49696211b8b70f1c9f0",
+     "seconds": 1.902
+    },
+    {
+     "run": "compile_xrt1",
+     "dir": "experiments/xrt/results/raw/compile/20261023-130658-30bdb7ac/v3/compile_xrt1",
+     "classification": "SUCCESS",
+     "exit_code": 0,
+     "stdout_sha256": "b6284b34ac20d89c11729b935c096432d030d60301a040e81a24ce6f83e36653",
+     "written": {
+      "System/Golem.u": "cd4e56fe6898662a41d447a3bcb4158eb3ec5541e499c569c5f698c5d2e9702e",
+      "System/UCC.log": "6a4dfcc0f3ef82b5073e6dba077feef20a576960d002ddf3d79d5a28a0c192db",
+      "System/XrtCompileProbe.u": "4428a75da4e227c5773b773db106f18270f6691621616b3f02267e8cb818c9b1"
+     },
+     "package": {
+      "sha256": "4428a75da4e227c5773b773db106f18270f6691621616b3f02267e8cb818c9b1",
+      "size": 6924,
+      "guid": {
+       "present": true,
+       "hex": "14087baa70b2124fa866ef20339c0730",
+       "version_nibble": 4,
+       "variant_bits": "0x80",
+       "rfc4122_v4": true
+      }
+     },
+     "golem": {
+      "sha256": "cd4e56fe6898662a41d447a3bcb4158eb3ec5541e499c569c5f698c5d2e9702e",
+      "size": 64,
+      "guid": {
+       "present": true,
+       "hex": "b1a4e4d453080c42be6dffc1c38ec30d",
+       "version_nibble": 4,
+       "variant_bits": "0x80",
+       "rfc4122_v4": true
+      }
+     },
+     "input_digest": "995312037f3ba77a3848e874fbb35c5392101e48f525f49696211b8b70f1c9f0",
+     "seconds": 6.454
+    },
+    {
+     "run": "compile_xrt2",
+     "dir": "experiments/xrt/results/raw/compile/20261023-130658-30bdb7ac/v3/compile_xrt2",
+     "classification": "SUCCESS",
+     "exit_code": 0,
+     "stdout_sha256": "b6284b34ac20d89c11729b935c096432d030d60301a040e81a24ce6f83e36653",
+     "written": {
+      "System/Golem.u": "3f9ce0b1a3b6af3b09cea01e5a91e65f8bdad762c12a9ec19480074de61e4f06",
+      "System/UCC.log": "0218539c066825967cc050620d3368cfd4d9a0ecffcd5ee9a3ab753d26e3e313",
+      "System/XrtCompileProbe.u": "13e09e26feebf0dcc66705b8a4dcafb72fb9091ce1e34d41073b86c579f7eef0"
+     },
+     "package": {
+      "sha256": "13e09e26feebf0dcc66705b8a4dcafb72fb9091ce1e34d41073b86c579f7eef0",
+      "size": 6924,
+      "guid": {
+       "present": true,
+       "hex": "df1babf31551ba4bb436c82a8029e864",
+       "version_nibble": 4,
+       "variant_bits": "0x80",
+       "rfc4122_v4": true
+      }
+     },
+     "golem": {
+      "sha256": "3f9ce0b1a3b6af3b09cea01e5a91e65f8bdad762c12a9ec19480074de61e4f06",
+      "size": 64,
+      "guid": {
+       "present": true,
+       "hex": "72ecae0c09beab40be75eb3ebde5580b",
+       "version_nibble": 4,
+       "variant_bits": "0x80",
+       "rfc4122_v4": true
+      }
+     },
+     "input_digest": "995312037f3ba77a3848e874fbb35c5392101e48f525f49696211b8b70f1c9f0",
+     "seconds": 6.429
+    }
+   ],
+   "package_pairs": [
+    {
+     "a": "original1",
+     "b": "original2",
+     "sha256": [
+      "ab37b0b0bc3e9217780b32e64c97efdedfa9d7848b908eb9b31d73a1979333ea",
+      "6a3d838e7365c750127e550c13ff7ee01baead8ee701317fe0881a0853c27bbb"
+     ],
+     "size": [
+      6924,
+      6924
+     ],
+     "classification": "guid_only",
+     "differing_ranges": [
+      [
+       36,
+       52
+      ]
+     ],
+     "unresolved_ranges": [],
+     "guid": [
+      "870982e0aa96164ca5a9ece17e4f86d4",
+      "af9e52a41e3b384d8d54f0e5e4c094a9"
+     ],
+     "structure_parsed": true,
+     "structural_differences": []
+    },
+    {
+     "a": "original1",
+     "b": "xrt1",
+     "sha256": [
+      "ab37b0b0bc3e9217780b32e64c97efdedfa9d7848b908eb9b31d73a1979333ea",
+      "4428a75da4e227c5773b773db106f18270f6691621616b3f02267e8cb818c9b1"
+     ],
+     "size": [
+      6924,
+      6924
+     ],
+     "classification": "guid_only",
+     "differing_ranges": [
+      [
+       36,
+       52
+      ]
+     ],
+     "unresolved_ranges": [],
+     "guid": [
+      "870982e0aa96164ca5a9ece17e4f86d4",
+      "14087baa70b2124fa866ef20339c0730"
+     ],
+     "structure_parsed": true,
+     "structural_differences": []
+    },
+    {
+     "a": "original1",
+     "b": "xrt2",
+     "sha256": [
+      "ab37b0b0bc3e9217780b32e64c97efdedfa9d7848b908eb9b31d73a1979333ea",
+      "13e09e26feebf0dcc66705b8a4dcafb72fb9091ce1e34d41073b86c579f7eef0"
+     ],
+     "size": [
+      6924,
+      6924
+     ],
+     "classification": "guid_only",
+     "differing_ranges": [
+      [
+       36,
+       52
+      ]
+     ],
+     "unresolved_ranges": [],
+     "guid": [
+      "870982e0aa96164ca5a9ece17e4f86d4",
+      "df1babf31551ba4bb436c82a8029e864"
+     ],
+     "structure_parsed": true,
+     "structural_differences": []
+    },
+    {
+     "a": "original2",
+     "b": "xrt1",
+     "sha256": [
+      "6a3d838e7365c750127e550c13ff7ee01baead8ee701317fe0881a0853c27bbb",
+      "4428a75da4e227c5773b773db106f18270f6691621616b3f02267e8cb818c9b1"
+     ],
+     "size": [
+      6924,
+      6924
+     ],
+     "classification": "guid_only",
+     "differing_ranges": [
+      [
+       36,
+       52
+      ]
+     ],
+     "unresolved_ranges": [],
+     "guid": [
+      "af9e52a41e3b384d8d54f0e5e4c094a9",
+      "14087baa70b2124fa866ef20339c0730"
+     ],
+     "structure_parsed": true,
+     "structural_differences": []
+    },
+    {
+     "a": "original2",
+     "b": "xrt2",
+     "sha256": [
+      "6a3d838e7365c750127e550c13ff7ee01baead8ee701317fe0881a0853c27bbb",
+      "13e09e26feebf0dcc66705b8a4dcafb72fb9091ce1e34d41073b86c579f7eef0"
+     ],
+     "size": [
+      6924,
+      6924
+     ],
+     "classification": "guid_only",
+     "differing_ranges": [
+      [
+       36,
+       52
+      ]
+     ],
+     "unresolved_ranges": [],
+     "guid": [
+      "af9e52a41e3b384d8d54f0e5e4c094a9",
+      "df1babf31551ba4bb436c82a8029e864"
+     ],
+     "structure_parsed": true,
+     "structural_differences": []
+    },
+    {
+     "a": "xrt1",
+     "b": "xrt2",
+     "sha256": [
+      "4428a75da4e227c5773b773db106f18270f6691621616b3f02267e8cb818c9b1",
+      "13e09e26feebf0dcc66705b8a4dcafb72fb9091ce1e34d41073b86c579f7eef0"
+     ],
+     "size": [
+      6924,
+      6924
+     ],
+     "classification": "guid_only",
+     "differing_ranges": [
+      [
+       36,
+       52
+      ]
+     ],
+     "unresolved_ranges": [],
+     "guid": [
+      "14087baa70b2124fa866ef20339c0730",
+      "df1babf31551ba4bb436c82a8029e864"
+     ],
+     "structure_parsed": true,
+     "structural_differences": []
+    }
+   ],
+   "golem_pairs": [
+    {
+     "a": "original1",
+     "b": "original2",
+     "sha256": [
+      "b997b4f28d532da395aaab243c9712c4f9197568aa07da218dfad2df2034530b",
+      "e5de9b72f8c51502b95019aab665463a520b587819abad3a0fb379a037b8a4f5"
+     ],
+     "size": [
+      64,
+      64
+     ],
+     "classification": "guid_only",
+     "differing_ranges": [
+      [
+       36,
+       52
+      ]
+     ],
+     "unresolved_ranges": [],
+     "guid": [
+      "e5c463233445b54d9c746bede03a2ee0",
+      "795e35520773424399b94c0f441a48a3"
+     ],
+     "structure_parsed": true,
+     "structural_differences": []
+    },
+    {
+     "a": "original1",
+     "b": "xrt1",
+     "sha256": [
+      "b997b4f28d532da395aaab243c9712c4f9197568aa07da218dfad2df2034530b",
+      "cd4e56fe6898662a41d447a3bcb4158eb3ec5541e499c569c5f698c5d2e9702e"
+     ],
+     "size": [
+      64,
+      64
+     ],
+     "classification": "guid_only",
+     "differing_ranges": [
+      [
+       36,
+       52
+      ]
+     ],
+     "unresolved_ranges": [],
+     "guid": [
+      "e5c463233445b54d9c746bede03a2ee0",
+      "b1a4e4d453080c42be6dffc1c38ec30d"
+     ],
+     "structure_parsed": true,
+     "structural_differences": []
+    },
+    {
+     "a": "original1",
+     "b": "xrt2",
+     "sha256": [
+      "b997b4f28d532da395aaab243c9712c4f9197568aa07da218dfad2df2034530b",
+      "3f9ce0b1a3b6af3b09cea01e5a91e65f8bdad762c12a9ec19480074de61e4f06"
+     ],
+     "size": [
+      64,
+      64
+     ],
+     "classification": "guid_only",
+     "differing_ranges": [
+      [
+       36,
+       52
+      ]
+     ],
+     "unresolved_ranges": [],
+     "guid": [
+      "e5c463233445b54d9c746bede03a2ee0",
+      "72ecae0c09beab40be75eb3ebde5580b"
+     ],
+     "structure_parsed": true,
+     "structural_differences": []
+    },
+    {
+     "a": "original2",
+     "b": "xrt1",
+     "sha256": [
+      "e5de9b72f8c51502b95019aab665463a520b587819abad3a0fb379a037b8a4f5",
+      "cd4e56fe6898662a41d447a3bcb4158eb3ec5541e499c569c5f698c5d2e9702e"
+     ],
+     "size": [
+      64,
+      64
+     ],
+     "classification": "guid_only",
+     "differing_ranges": [
+      [
+       36,
+       52
+      ]
+     ],
+     "unresolved_ranges": [],
+     "guid": [
+      "795e35520773424399b94c0f441a48a3",
+      "b1a4e4d453080c42be6dffc1c38ec30d"
+     ],
+     "structure_parsed": true,
+     "structural_differences": []
+    },
+    {
+     "a": "original2",
+     "b": "xrt2",
+     "sha256": [
+      "e5de9b72f8c51502b95019aab665463a520b587819abad3a0fb379a037b8a4f5",
+      "3f9ce0b1a3b6af3b09cea01e5a91e65f8bdad762c12a9ec19480074de61e4f06"
+     ],
+     "size": [
+      64,
+      64
+     ],
+     "classification": "guid_only",
+     "differing_ranges": [
+      [
+       36,
+       52
+      ]
+     ],
+     "unresolved_ranges": [],
+     "guid": [
+      "795e35520773424399b94c0f441a48a3",
+      "72ecae0c09beab40be75eb3ebde5580b"
+     ],
+     "structure_parsed": true,
+     "structural_differences": []
+    },
+    {
+     "a": "xrt1",
+     "b": "xrt2",
+     "sha256": [
+      "cd4e56fe6898662a41d447a3bcb4158eb3ec5541e499c569c5f698c5d2e9702e",
+      "3f9ce0b1a3b6af3b09cea01e5a91e65f8bdad762c12a9ec19480074de61e4f06"
+     ],
+     "size": [
+      64,
+      64
+     ],
+     "classification": "guid_only",
+     "differing_ranges": [
+      [
+       36,
+       44
+      ],
+      [
+       45,
+       52
+      ]
+     ],
+     "unresolved_ranges": [],
+     "guid": [
+      "b1a4e4d453080c42be6dffc1c38ec30d",
+      "72ecae0c09beab40be75eb3ebde5580b"
+     ],
+     "structure_parsed": true,
+     "structural_differences": []
+    }
+   ],
+   "golem_vs_shipped": [
+    {
+     "a": "shipped",
+     "b": "compile_original1",
+     "sha256": [
+      "c9e78920e429d335245a65384ad91ff30d725d99e60c25f932701f70e71b1648",
+      "b997b4f28d532da395aaab243c9712c4f9197568aa07da218dfad2df2034530b"
+     ],
+     "size": [
+      64,
+      64
+     ],
+     "classification": "guid_only",
+     "differing_ranges": [
+      [
+       36,
+       52
+      ]
+     ],
+     "unresolved_ranges": [],
+     "guid": [
+      "6785bfe949e55744808181c3e608b259",
+      "e5c463233445b54d9c746bede03a2ee0"
+     ],
+     "structure_parsed": true,
+     "structural_differences": []
+    },
+    {
+     "a": "shipped",
+     "b": "compile_original2",
+     "sha256": [
+      "c9e78920e429d335245a65384ad91ff30d725d99e60c25f932701f70e71b1648",
+      "e5de9b72f8c51502b95019aab665463a520b587819abad3a0fb379a037b8a4f5"
+     ],
+     "size": [
+      64,
+      64
+     ],
+     "classification": "guid_only",
+     "differing_ranges": [
+      [
+       36,
+       52
+      ]
+     ],
+     "unresolved_ranges": [],
+     "guid": [
+      "6785bfe949e55744808181c3e608b259",
+      "795e35520773424399b94c0f441a48a3"
+     ],
+     "structure_parsed": true,
+     "structural_differences": []
+    },
+    {
+     "a": "shipped",
+     "b": "compile_xrt1",
+     "sha256": [
+      "c9e78920e429d335245a65384ad91ff30d725d99e60c25f932701f70e71b1648",
+      "cd4e56fe6898662a41d447a3bcb4158eb3ec5541e499c569c5f698c5d2e9702e"
+     ],
+     "size": [
+      64,
+      64
+     ],
+     "classification": "guid_only",
+     "differing_ranges": [
+      [
+       36,
+       52
+      ]
+     ],
+     "unresolved_ranges": [],
+     "guid": [
+      "6785bfe949e55744808181c3e608b259",
+      "b1a4e4d453080c42be6dffc1c38ec30d"
+     ],
+     "structure_parsed": true,
+     "structural_differences": []
+    },
+    {
+     "a": "shipped",
+     "b": "compile_xrt2",
+     "sha256": [
+      "c9e78920e429d335245a65384ad91ff30d725d99e60c25f932701f70e71b1648",
+      "3f9ce0b1a3b6af3b09cea01e5a91e65f8bdad762c12a9ec19480074de61e4f06"
+     ],
+     "size": [
+      64,
+      64
+     ],
+     "classification": "guid_only",
+     "differing_ranges": [
+      [
+       36,
+       52
+      ]
+     ],
+     "unresolved_ranges": [],
+     "guid": [
+      "6785bfe949e55744808181c3e608b259",
+      "72ecae0c09beab40be75eb3ebde5580b"
+     ],
+     "structure_parsed": true,
+     "structural_differences": []
+    }
+   ],
+   "exec": {
+    "fixture_failure": false,
+    "runs": [
+     {
+      "combo": "A",
+      "package": "original",
+      "engine": "original",
+      "dir": "experiments/xrt/results/raw/compile/20261023-130658-30bdb7ac/v3/exec_A",
+      "exit_code": 0,
+      "xcp_lines": [
+       "XCP tag=charlie-3 greeting=from-defaults",
+       "XCP shapes=square:square/4/9,triangle/3/10 total=19",
+       "XCP history=1 last=19",
+       "XCP sum10=55 twice=42",
+       "XCP grades=7:C 14:C 21:A ",
+       "XCP do=12 default=3 isa=True",
+       "XCP done"
+      ],
+      "matches_expected": true,
+      "stdout_sha256": "371e5b3de4792e56d95da9a3cc5a8816ccc9260c72cf65d9276c17c7d141e214",
+      "loaded_package_sha256": "ab37b0b0bc3e9217780b32e64c97efdedfa9d7848b908eb9b31d73a1979333ea"
+     },
+     {
+      "combo": "B",
+      "package": "original",
+      "engine": "xrt",
+      "dir": "experiments/xrt/results/raw/compile/20261023-130658-30bdb7ac/v3/exec_B",
+      "exit_code": 0,
+      "xcp_lines": [
+       "XCP tag=charlie-3 greeting=from-defaults",
+       "XCP shapes=square:square/4/9,triangle/3/10 total=19",
+       "XCP history=1 last=19",
+       "XCP sum10=55 twice=42",
+       "XCP grades=7:C 14:C 21:A ",
+       "XCP do=12 default=3 isa=True",
+       "XCP done"
+      ],
+      "matches_expected": true,
+      "stdout_sha256": "371e5b3de4792e56d95da9a3cc5a8816ccc9260c72cf65d9276c17c7d141e214",
+      "loaded_package_sha256": "ab37b0b0bc3e9217780b32e64c97efdedfa9d7848b908eb9b31d73a1979333ea"
+     },
+     {
+      "combo": "C",
+      "package": "xrt",
+      "engine": "original",
+      "dir": "experiments/xrt/results/raw/compile/20261023-130658-30bdb7ac/v3/exec_C",
+      "exit_code": 0,
+      "xcp_lines": [
+       "XCP tag=charlie-3 greeting=from-defaults",
+       "XCP shapes=square:square/4/9,triangle/3/10 total=19",
+       "XCP history=1 last=19",
+       "XCP sum10=55 twice=42",
+       "XCP grades=7:C 14:C 21:A ",
+       "XCP do=12 default=3 isa=True",
+       "XCP done"
+      ],
+      "matches_expected": true,
+      "stdout_sha256": "371e5b3de4792e56d95da9a3cc5a8816ccc9260c72cf65d9276c17c7d141e214",
+      "loaded_package_sha256": "4428a75da4e227c5773b773db106f18270f6691621616b3f02267e8cb818c9b1"
+     },
+     {
+      "combo": "D",
+      "package": "xrt",
+      "engine": "xrt",
+      "dir": "experiments/xrt/results/raw/compile/20261023-130658-30bdb7ac/v3/exec_D",
+      "exit_code": 0,
+      "xcp_lines": [
+       "XCP tag=charlie-3 greeting=from-defaults",
+       "XCP shapes=square:square/4/9,triangle/3/10 total=19",
+       "XCP history=1 last=19",
+       "XCP sum10=55 twice=42",
+       "XCP grades=7:C 14:C 21:A ",
+       "XCP do=12 default=3 isa=True",
+       "XCP done"
+      ],
+      "matches_expected": true,
+      "stdout_sha256": "371e5b3de4792e56d95da9a3cc5a8816ccc9260c72cf65d9276c17c7d141e214",
+      "loaded_package_sha256": "4428a75da4e227c5773b773db106f18270f6691621616b3f02267e8cb818c9b1"
+     }
+    ]
+   },
+   "checks": [
+    {
+     "group": "compile_original1",
+     "ok": true,
+     "checks": [
+      {
+       "check": "artifacts of this run present and consistent (run id, exit code, stdout, UCC.log, written files)",
+       "ok": true
+      },
+      {
+       "check": "XrtCompileProbe.u absent before the run (fresh sandbox, nothing from an earlier run)",
+       "ok": true
+      },
+      {
+       "check": "no XrtCompileProbe.* in the sandbox before the run except the staged sources and the ini",
+       "ok": true
+      },
+      {
+       "check": "staged sources are exactly the variant's sources (SHA-256)",
+       "ok": true
+      },
+      {
+       "check": "configuration: [Editor.EditorEngine] EditPackages = Core, XrtCompileProbe",
+       "ok": true
+      },
+      {
+       "check": "the sandbox ini before the run is the recorded derived ini (SHA-256)",
+       "ok": true
+      },
+      {
+       "check": "compile classified SUCCESS",
+       "ok": true
+      },
+      {
+       "check": "no unexpected write (only Golem.u and XrtCompileProbe.ini changed, UCC.log and XrtCompileProbe.u created)",
+       "ok": true
+      },
+      {
+       "check": "shipped Golem.u preserved from before the run (SHA-256 verified)",
+       "ok": true
+      },
+      {
+       "check": "Golem.u re-save differs from the shipped Golem.u at most in the GUID (documented exception)",
+       "ok": true
+      }
+     ]
+    },
+    {
+     "group": "compile_original2",
+     "ok": true,
+     "checks": [
+      {
+       "check": "artifacts of this run present and consistent (run id, exit code, stdout, UCC.log, written files)",
+       "ok": true
+      },
+      {
+       "check": "XrtCompileProbe.u absent before the run (fresh sandbox, nothing from an earlier run)",
+       "ok": true
+      },
+      {
+       "check": "no XrtCompileProbe.* in the sandbox before the run except the staged sources and the ini",
+       "ok": true
+      },
+      {
+       "check": "staged sources are exactly the variant's sources (SHA-256)",
+       "ok": true
+      },
+      {
+       "check": "configuration: [Editor.EditorEngine] EditPackages = Core, XrtCompileProbe",
+       "ok": true
+      },
+      {
+       "check": "the sandbox ini before the run is the recorded derived ini (SHA-256)",
+       "ok": true
+      },
+      {
+       "check": "compile classified SUCCESS",
+       "ok": true
+      },
+      {
+       "check": "no unexpected write (only Golem.u and XrtCompileProbe.ini changed, UCC.log and XrtCompileProbe.u created)",
+       "ok": true
+      },
+      {
+       "check": "shipped Golem.u preserved from before the run (SHA-256 verified)",
+       "ok": true
+      },
+      {
+       "check": "Golem.u re-save differs from the shipped Golem.u at most in the GUID (documented exception)",
+       "ok": true
+      }
+     ]
+    },
+    {
+     "group": "compile_xrt1",
+     "ok": true,
+     "checks": [
+      {
+       "check": "artifacts of this run present and consistent (run id, exit code, stdout, UCC.log, written files)",
+       "ok": true
+      },
+      {
+       "check": "XrtCompileProbe.u absent before the run (fresh sandbox, nothing from an earlier run)",
+       "ok": true
+      },
+      {
+       "check": "no XrtCompileProbe.* in the sandbox before the run except the staged sources and the ini",
+       "ok": true
+      },
+      {
+       "check": "staged sources are exactly the variant's sources (SHA-256)",
+       "ok": true
+      },
+      {
+       "check": "configuration: [Editor.EditorEngine] EditPackages = Core, XrtCompileProbe",
+       "ok": true
+      },
+      {
+       "check": "the sandbox ini before the run is the recorded derived ini (SHA-256)",
+       "ok": true
+      },
+      {
+       "check": "compile classified SUCCESS",
+       "ok": true
+      },
+      {
+       "check": "no unexpected write (only Golem.u and XrtCompileProbe.ini changed, UCC.log and XrtCompileProbe.u created)",
+       "ok": true
+      },
+      {
+       "check": "shipped Golem.u preserved from before the run (SHA-256 verified)",
+       "ok": true
+      },
+      {
+       "check": "Golem.u re-save differs from the shipped Golem.u at most in the GUID (documented exception)",
+       "ok": true
+      }
+     ]
+    },
+    {
+     "group": "compile_xrt1/translated_compile_evidence",
+     "ok": true,
+     "checks": [
+      {
+       "check": "runtime report of this run present and well formed (run id, schema 2)",
+       "ok": true
+      },
+      {
+       "check": "report run id equals the run's id",
+       "ok": true
+      },
+      {
+       "check": "report outcome 'exited'",
+       "ok": true
+      },
+      {
+       "check": "report exit code equals the process exit code",
+       "ok": true
+      },
+      {
+       "check": "no fatal or timeout event",
+       "ok": true
+      },
+      {
+       "check": "no XRT FATAL / XRT TIMEOUT diagnostic on stderr",
+       "ok": true
+      },
+      {
+       "check": "event timeline complete (events_dropped == 0)",
+       "ok": true
+      },
+      {
+       "check": "process exit completed (process_exit_complete with the exit code)",
+       "ok": true
+      },
+      {
+       "check": "every mapped module was lifted from the sandbox file of the same name (SHA-256)",
+       "ok": true
+      },
+      {
+       "check": "guest command line equals the original's (sandbox UCC.exe and the same arguments)",
+       "ok": true
+      },
+      {
+       "check": "staged source read: file_open ok of <sandbox>\\XrtCompileProbe\\Classes\\XrtCompileProbe.uc",
+       "ok": true
+      },
+      {
+       "check": "staged source read: file_open ok of <sandbox>\\XrtCompileProbe\\Classes\\XrtProbeShape.uc",
+       "ok": true
+      },
+      {
+       "check": "staged source read: file_open ok of <sandbox>\\XrtCompileProbe\\Classes\\XrtProbeSquare.uc",
+       "ok": true
+      },
+      {
+       "check": "staged source read: file_open ok of <sandbox>\\XrtCompileProbe\\Classes\\XrtProbeTriangle.uc",
+       "ok": true
+      },
+      {
+       "check": "Editor.dll mapped and translated code executed (functions_executed > 0)",
+       "ok": true
+      },
+      {
+       "check": "Editor.dll executed UEditorEngine::InitEditor (hit rva 68290)",
+       "ok": true
+      },
+      {
+       "check": "Editor.dll executed UEditorEngine::MakeScripts (hit rva 85a50)",
+       "ok": true
+      },
+      {
+       "check": "package saved by this run: MoveFile to <sandbox>\\System\\XrtCompileProbe.u ok",
+       "ok": true
+      },
+      {
+       "check": "package GUID (header bytes 36..51) equals the create_guid bytes preceding the save",
+       "ok": true
+      },
+      {
+       "check": "Golem.u re-save: GUID equals the create_guid bytes preceding its save",
+       "ok": true
+      },
+      {
+       "check": "UnrImp.gpi unloaded (dll_unloaded)",
+       "ok": true
+      }
+     ]
+    },
+    {
+     "group": "compile_xrt2",
+     "ok": true,
+     "checks": [
+      {
+       "check": "artifacts of this run present and consistent (run id, exit code, stdout, UCC.log, written files)",
+       "ok": true
+      },
+      {
+       "check": "XrtCompileProbe.u absent before the run (fresh sandbox, nothing from an earlier run)",
+       "ok": true
+      },
+      {
+       "check": "no XrtCompileProbe.* in the sandbox before the run except the staged sources and the ini",
+       "ok": true
+      },
+      {
+       "check": "staged sources are exactly the variant's sources (SHA-256)",
+       "ok": true
+      },
+      {
+       "check": "configuration: [Editor.EditorEngine] EditPackages = Core, XrtCompileProbe",
+       "ok": true
+      },
+      {
+       "check": "the sandbox ini before the run is the recorded derived ini (SHA-256)",
+       "ok": true
+      },
+      {
+       "check": "compile classified SUCCESS",
+       "ok": true
+      },
+      {
+       "check": "no unexpected write (only Golem.u and XrtCompileProbe.ini changed, UCC.log and XrtCompileProbe.u created)",
+       "ok": true
+      },
+      {
+       "check": "shipped Golem.u preserved from before the run (SHA-256 verified)",
+       "ok": true
+      },
+      {
+       "check": "Golem.u re-save differs from the shipped Golem.u at most in the GUID (documented exception)",
+       "ok": true
+      }
+     ]
+    },
+    {
+     "group": "compile_xrt2/translated_compile_evidence",
+     "ok": true,
+     "checks": [
+      {
+       "check": "runtime report of this run present and well formed (run id, schema 2)",
+       "ok": true
+      },
+      {
+       "check": "report run id equals the run's id",
+       "ok": true
+      },
+      {
+       "check": "report outcome 'exited'",
+       "ok": true
+      },
+      {
+       "check": "report exit code equals the process exit code",
+       "ok": true
+      },
+      {
+       "check": "no fatal or timeout event",
+       "ok": true
+      },
+      {
+       "check": "no XRT FATAL / XRT TIMEOUT diagnostic on stderr",
+       "ok": true
+      },
+      {
+       "check": "event timeline complete (events_dropped == 0)",
+       "ok": true
+      },
+      {
+       "check": "process exit completed (process_exit_complete with the exit code)",
+       "ok": true
+      },
+      {
+       "check": "every mapped module was lifted from the sandbox file of the same name (SHA-256)",
+       "ok": true
+      },
+      {
+       "check": "guest command line equals the original's (sandbox UCC.exe and the same arguments)",
+       "ok": true
+      },
+      {
+       "check": "staged source read: file_open ok of <sandbox>\\XrtCompileProbe\\Classes\\XrtCompileProbe.uc",
+       "ok": true
+      },
+      {
+       "check": "staged source read: file_open ok of <sandbox>\\XrtCompileProbe\\Classes\\XrtProbeShape.uc",
+       "ok": true
+      },
+      {
+       "check": "staged source read: file_open ok of <sandbox>\\XrtCompileProbe\\Classes\\XrtProbeSquare.uc",
+       "ok": true
+      },
+      {
+       "check": "staged source read: file_open ok of <sandbox>\\XrtCompileProbe\\Classes\\XrtProbeTriangle.uc",
+       "ok": true
+      },
+      {
+       "check": "Editor.dll mapped and translated code executed (functions_executed > 0)",
+       "ok": true
+      },
+      {
+       "check": "Editor.dll executed UEditorEngine::InitEditor (hit rva 68290)",
+       "ok": true
+      },
+      {
+       "check": "Editor.dll executed UEditorEngine::MakeScripts (hit rva 85a50)",
+       "ok": true
+      },
+      {
+       "check": "package saved by this run: MoveFile to <sandbox>\\System\\XrtCompileProbe.u ok",
+       "ok": true
+      },
+      {
+       "check": "package GUID (header bytes 36..51) equals the create_guid bytes preceding the save",
+       "ok": true
+      },
+      {
+       "check": "Golem.u re-save: GUID equals the create_guid bytes preceding its save",
+       "ok": true
+      },
+      {
+       "check": "UnrImp.gpi unloaded (dll_unloaded)",
+       "ok": true
+      }
+     ]
+    },
+    {
+     "group": "compile_run_comparisons",
+     "ok": true,
+     "checks": [
+      {
+       "check": "every compile run produced judgeable artifacts",
+       "ok": true
+      },
+      {
+       "check": "original1 vs original2: same exit code",
+       "ok": true
+      },
+      {
+       "check": "original1 vs original2: stdout identical after normalise_stdout",
+       "ok": true
+      },
+      {
+       "check": "original1 vs original2: same error/diagnostic lines",
+       "ok": true
+      },
+      {
+       "check": "original1 vs original2: UCC.log identical after normalise_log",
+       "ok": true
+      },
+      {
+       "check": "original1 vs original2: same set of written files",
+       "ok": true
+      },
+      {
+       "check": "original1 vs original2: XrtCompileProbe.ini saved with identical contents",
+       "ok": true
+      },
+      {
+       "check": "original1 vs original2: identical System inputs (SHA-256 of every input file)",
+       "ok": true
+      },
+      {
+       "check": "original1 vs xrt1: same exit code",
+       "ok": true
+      },
+      {
+       "check": "original1 vs xrt1: stdout identical after normalise_stdout",
+       "ok": true
+      },
+      {
+       "check": "original1 vs xrt1: same error/diagnostic lines",
+       "ok": true
+      },
+      {
+       "check": "original1 vs xrt1: UCC.log identical after normalise_log",
+       "ok": true
+      },
+      {
+       "check": "original1 vs xrt1: same set of written files",
+       "ok": true
+      },
+      {
+       "check": "original1 vs xrt1: XrtCompileProbe.ini saved with identical contents",
+       "ok": true
+      },
+      {
+       "check": "original1 vs xrt1: identical System inputs (SHA-256 of every input file)",
+       "ok": true
+      },
+      {
+       "check": "original1 vs xrt2: same exit code",
+       "ok": true
+      },
+      {
+       "check": "original1 vs xrt2: stdout identical after normalise_stdout",
+       "ok": true
+      },
+      {
+       "check": "original1 vs xrt2: same error/diagnostic lines",
+       "ok": true
+      },
+      {
+       "check": "original1 vs xrt2: UCC.log identical after normalise_log",
+       "ok": true
+      },
+      {
+       "check": "original1 vs xrt2: same set of written files",
+       "ok": true
+      },
+      {
+       "check": "original1 vs xrt2: XrtCompileProbe.ini saved with identical contents",
+       "ok": true
+      },
+      {
+       "check": "original1 vs xrt2: identical System inputs (SHA-256 of every input file)",
+       "ok": true
+      }
+     ]
+    },
+    {
+     "group": "packages",
+     "ok": true,
+     "checks": [
+      {
+       "check": "every compile wrote XrtCompileProbe.u",
+       "ok": true
+      },
+      {
+       "check": "XrtCompileProbe.u original1 vs original2: differs at most in the GUID (bytes and structure)",
+       "ok": true
+      },
+      {
+       "check": "XrtCompileProbe.u original1 vs xrt1: differs at most in the GUID (bytes and structure)",
+       "ok": true
+      },
+      {
+       "check": "XrtCompileProbe.u original1 vs xrt2: differs at most in the GUID (bytes and structure)",
+       "ok": true
+      },
+      {
+       "check": "XrtCompileProbe.u original2 vs xrt1: differs at most in the GUID (bytes and structure)",
+       "ok": true
+      },
+      {
+       "check": "XrtCompileProbe.u original2 vs xrt2: differs at most in the GUID (bytes and structure)",
+       "ok": true
+      },
+      {
+       "check": "XrtCompileProbe.u xrt1 vs xrt2: differs at most in the GUID (bytes and structure)",
+       "ok": true
+      },
+      {
+       "check": "every compile created its own package GUID (all distinct)",
+       "ok": true
+      },
+      {
+       "check": "translated packages' GUIDs have the original's RFC 4122 v4 classification",
+       "ok": true
+      },
+      {
+       "check": "Golem.u original1 vs original2: differs at most in the GUID",
+       "ok": true
+      },
+      {
+       "check": "Golem.u original1 vs xrt1: differs at most in the GUID",
+       "ok": true
+      },
+      {
+       "check": "Golem.u original1 vs xrt2: differs at most in the GUID",
+       "ok": true
+      },
+      {
+       "check": "Golem.u original2 vs xrt1: differs at most in the GUID",
+       "ok": true
+      },
+      {
+       "check": "Golem.u original2 vs xrt2: differs at most in the GUID",
+       "ok": true
+      },
+      {
+       "check": "Golem.u xrt1 vs xrt2: differs at most in the GUID",
+       "ok": true
+      }
+     ]
+    },
+    {
+     "group": "exec_A",
+     "ok": true,
+     "checks": [
+      {
+       "check": "artifacts of this run present and consistent (run id, exit code, stdout, UCC.log, written files)",
+       "ok": true
+      },
+      {
+       "check": "package loaded from this invocation's raw compile results (SHA-256 verified)",
+       "ok": true
+      },
+      {
+       "check": "no sources and no other XrtCompileProbe.* in the sandbox (only the package)",
+       "ok": true
+      },
+      {
+       "check": "package bytes unchanged by the run",
+       "ok": true
+      },
+      {
+       "check": "exit code 0",
+       "ok": true
+      },
+      {
+       "check": "XCP lines equal expected.txt (exact, in order)",
+       "ok": true
+      },
+      {
+       "check": "no unexpected write (only UCC.log created)",
+       "ok": true
+      }
+     ]
+    },
+    {
+     "group": "exec_B",
+     "ok": true,
+     "checks": [
+      {
+       "check": "artifacts of this run present and consistent (run id, exit code, stdout, UCC.log, written files)",
+       "ok": true
+      },
+      {
+       "check": "package loaded from this invocation's raw compile results (SHA-256 verified)",
+       "ok": true
+      },
+      {
+       "check": "no sources and no other XrtCompileProbe.* in the sandbox (only the package)",
+       "ok": true
+      },
+      {
+       "check": "package bytes unchanged by the run",
+       "ok": true
+      },
+      {
+       "check": "exit code 0",
+       "ok": true
+      },
+      {
+       "check": "XCP lines equal expected.txt (exact, in order)",
+       "ok": true
+      },
+      {
+       "check": "no unexpected write (only UCC.log created)",
+       "ok": true
+      }
+     ]
+    },
+    {
+     "group": "exec_B/translated_execution_evidence",
+     "ok": true,
+     "checks": [
+      {
+       "check": "runtime report of this run present and well formed (run id, schema 2)",
+       "ok": true
+      },
+      {
+       "check": "report run id equals the run's id",
+       "ok": true
+      },
+      {
+       "check": "report outcome 'exited'",
+       "ok": true
+      },
+      {
+       "check": "report exit code equals the process exit code",
+       "ok": true
+      },
+      {
+       "check": "no fatal or timeout event",
+       "ok": true
+      },
+      {
+       "check": "no XRT FATAL / XRT TIMEOUT diagnostic on stderr",
+       "ok": true
+      },
+      {
+       "check": "event timeline complete (events_dropped == 0)",
+       "ok": true
+      },
+      {
+       "check": "process exit completed (process_exit_complete with the exit code)",
+       "ok": true
+      },
+      {
+       "check": "every mapped module was lifted from the sandbox file of the same name (SHA-256)",
+       "ok": true
+      },
+      {
+       "check": "guest command line equals the original's (sandbox UCC.exe and the same arguments)",
+       "ok": true
+      },
+      {
+       "check": "package opened: file_open ok of <sandbox>\\System\\XrtCompileProbe.u",
+       "ok": true
+      },
+      {
+       "check": "UCommandlet::Main called from UCC.exe",
+       "ok": true
+      },
+      {
+       "check": "script bytecode executed (UObject::ProcessInternal)",
+       "ok": true
+      },
+      {
+       "check": "UObject::execLog called at least once per expected line",
+       "ok": true
+      }
+     ]
+    },
+    {
+     "group": "exec_C",
+     "ok": true,
+     "checks": [
+      {
+       "check": "artifacts of this run present and consistent (run id, exit code, stdout, UCC.log, written files)",
+       "ok": true
+      },
+      {
+       "check": "package loaded from this invocation's raw compile results (SHA-256 verified)",
+       "ok": true
+      },
+      {
+       "check": "no sources and no other XrtCompileProbe.* in the sandbox (only the package)",
+       "ok": true
+      },
+      {
+       "check": "package bytes unchanged by the run",
+       "ok": true
+      },
+      {
+       "check": "exit code 0",
+       "ok": true
+      },
+      {
+       "check": "XCP lines equal expected.txt (exact, in order)",
+       "ok": true
+      },
+      {
+       "check": "no unexpected write (only UCC.log created)",
+       "ok": true
+      }
+     ]
+    },
+    {
+     "group": "exec_D",
+     "ok": true,
+     "checks": [
+      {
+       "check": "artifacts of this run present and consistent (run id, exit code, stdout, UCC.log, written files)",
+       "ok": true
+      },
+      {
+       "check": "package loaded from this invocation's raw compile results (SHA-256 verified)",
+       "ok": true
+      },
+      {
+       "check": "no sources and no other XrtCompileProbe.* in the sandbox (only the package)",
+       "ok": true
+      },
+      {
+       "check": "package bytes unchanged by the run",
+       "ok": true
+      },
+      {
+       "check": "exit code 0",
+       "ok": true
+      },
+      {
+       "check": "XCP lines equal expected.txt (exact, in order)",
+       "ok": true
+      },
+      {
+       "check": "no unexpected write (only UCC.log created)",
+       "ok": true
+      }
+     ]
+    },
+    {
+     "group": "exec_D/translated_execution_evidence",
+     "ok": true,
+     "checks": [
+      {
+       "check": "runtime report of this run present and well formed (run id, schema 2)",
+       "ok": true
+      },
+      {
+       "check": "report run id equals the run's id",
+       "ok": true
+      },
+      {
+       "check": "report outcome 'exited'",
+       "ok": true
+      },
+      {
+       "check": "report exit code equals the process exit code",
+       "ok": true
+      },
+      {
+       "check": "no fatal or timeout event",
+       "ok": true
+      },
+      {
+       "check": "no XRT FATAL / XRT TIMEOUT diagnostic on stderr",
+       "ok": true
+      },
+      {
+       "check": "event timeline complete (events_dropped == 0)",
+       "ok": true
+      },
+      {
+       "check": "process exit completed (process_exit_complete with the exit code)",
+       "ok": true
+      },
+      {
+       "check": "every mapped module was lifted from the sandbox file of the same name (SHA-256)",
+       "ok": true
+      },
+      {
+       "check": "guest command line equals the original's (sandbox UCC.exe and the same arguments)",
+       "ok": true
+      },
+      {
+       "check": "package opened: file_open ok of <sandbox>\\System\\XrtCompileProbe.u",
+       "ok": true
+      },
+      {
+       "check": "UCommandlet::Main called from UCC.exe",
+       "ok": true
+      },
+      {
+       "check": "script bytecode executed (UObject::ProcessInternal)",
+       "ok": true
+      },
+      {
+       "check": "UObject::execLog called at least once per expected line",
+       "ok": true
+      }
+     ]
+    },
+    {
+     "group": "execution_cross_check",
+     "ok": true,
+     "checks": [
+      {
+       "check": "every combination executed",
+       "ok": true
+      },
+      {
+       "check": "fixture ground truth: combination A (original package, original engine) prints expected.txt",
+       "ok": true
+      },
+      {
+       "check": "A vs B: stdout identical after normalise_stdout",
+       "ok": true
+      },
+      {
+       "check": "A vs B: same exit code",
+       "ok": true
+      },
+      {
+       "check": "A vs B: same set of written files",
+       "ok": true
+      },
+      {
+       "check": "A vs B: UCC.log identical after normalise_log",
+       "ok": true
+      },
+      {
+       "check": "A vs C: stdout identical after normalise_stdout",
+       "ok": true
+      },
+      {
+       "check": "A vs C: same exit code",
+       "ok": true
+      },
+      {
+       "check": "A vs C: same set of written files",
+       "ok": true
+      },
+      {
+       "check": "A vs C: UCC.log identical after normalise_log",
+       "ok": true
+      },
+      {
+       "check": "A vs D: stdout identical after normalise_stdout",
+       "ok": true
+      },
+      {
+       "check": "A vs D: same exit code",
+       "ok": true
+      },
+      {
+       "check": "A vs D: same set of written files",
+       "ok": true
+      },
+      {
+       "check": "B vs C: stdout identical after normalise_stdout",
+       "ok": true
+      },
+      {
+       "check": "B vs C: same exit code",
+       "ok": true
+      },
+      {
+       "check": "B vs C: same set of written files",
+       "ok": true
+      },
+      {
+       "check": "B vs D: stdout identical after normalise_stdout",
+       "ok": true
+      },
+      {
+       "check": "B vs D: same exit code",
+       "ok": true
+      },
+      {
+       "check": "B vs D: same set of written files",
+       "ok": true
+      },
+      {
+       "check": "B vs D: UCC.log identical after normalise_log",
+       "ok": true
+      },
+      {
+       "check": "C vs D: stdout identical after normalise_stdout",
+       "ok": true
+      },
+      {
+       "check": "C vs D: same exit code",
+       "ok": true
+      },
+      {
+       "check": "C vs D: same set of written files",
+       "ok": true
+      },
+      {
+       "check": "C vs D: UCC.log identical after normalise_log",
+       "ok": true
+      }
+     ]
+    }
+   ]
+  },
+  "invalid": {
+   "verdict": "PASS",
+   "compiles": [
+    {
+     "run": "compile_original1",
+     "dir": "experiments/xrt/results/raw/compile/20261023-130658-30bdb7ac/invalid/compile_original1",
+     "classification": "FAILURE",
+     "exit_code": 1,
+     "stdout_sha256": "844c684b8767de6dc2c25a705461ca1821577e148182e365136366a540a76a92",
+     "written": {
+      "System/Golem.u": "8df8775418105ea2177e2d533388c7b81f1a10492a20bbcdfb15648ded945840",
+      "System/UCC.log": "47329c674311eef21fbbde4e60dc62f78008cc0d80fbed5119c84709418636e3"
+     },
+     "package": null,
+     "golem": {
+      "sha256": "8df8775418105ea2177e2d533388c7b81f1a10492a20bbcdfb15648ded945840",
+      "size": 64,
+      "guid": {
+       "present": true,
+       "hex": "6f6c4a3f7f927c49bc8284811f494a28",
+       "version_nibble": 4,
+       "variant_bits": "0x80",
+       "rfc4122_v4": true
+      }
+     },
+     "input_digest": "995312037f3ba77a3848e874fbb35c5392101e48f525f49696211b8b70f1c9f0",
+     "seconds": 1.907
+    },
+    {
+     "run": "compile_original2",
+     "dir": "experiments/xrt/results/raw/compile/20261023-130658-30bdb7ac/invalid/compile_original2",
+     "classification": "FAILURE",
+     "exit_code": 1,
+     "stdout_sha256": "844c684b8767de6dc2c25a705461ca1821577e148182e365136366a540a76a92",
+     "written": {
+      "System/Golem.u": "0faf009d648cc49652d4967ecd23efafb136fcd01ed65f266ff29c01e04765b2",
+      "System/UCC.log": "3c6b632958301d9fa624dd545230b9b15929fb7955b014e31e116fd291809f46"
+     },
+     "package": null,
+     "golem": {
+      "sha256": "0faf009d648cc49652d4967ecd23efafb136fcd01ed65f266ff29c01e04765b2",
+      "size": 64,
+      "guid": {
+       "present": true,
+       "hex": "1b6447d63b96b440a6a96f536f532907",
+       "version_nibble": 4,
+       "variant_bits": "0x80",
+       "rfc4122_v4": true
+      }
+     },
+     "input_digest": "995312037f3ba77a3848e874fbb35c5392101e48f525f49696211b8b70f1c9f0",
+     "seconds": 1.903
+    },
+    {
+     "run": "compile_xrt1",
+     "dir": "experiments/xrt/results/raw/compile/20261023-130658-30bdb7ac/invalid/compile_xrt1",
+     "classification": "FAILURE",
+     "exit_code": 1,
+     "stdout_sha256": "844c684b8767de6dc2c25a705461ca1821577e148182e365136366a540a76a92",
+     "written": {
+      "System/Golem.u": "6c55699d6be4d352cdb430ac6c6057db40f32380fe04cda30c2c7cfe104504cb",
+      "System/UCC.log": "dbbf07bd819f9a5593f46858af73df200a124d1c36c323319bb47ed9d2636090"
+     },
+     "package": null,
+     "golem": {
+      "sha256": "6c55699d6be4d352cdb430ac6c6057db40f32380fe04cda30c2c7cfe104504cb",
+      "size": 64,
+      "guid": {
+       "present": true,
+       "hex": "757ec2dd8a35fa4e897b8bcdfc1a9376",
+       "version_nibble": 4,
+       "variant_bits": "0x80",
+       "rfc4122_v4": true
+      }
+     },
+     "input_digest": "995312037f3ba77a3848e874fbb35c5392101e48f525f49696211b8b70f1c9f0",
+     "seconds": 6.443
+    },
+    {
+     "run": "compile_xrt2",
+     "dir": "experiments/xrt/results/raw/compile/20261023-130658-30bdb7ac/invalid/compile_xrt2",
+     "classification": "FAILURE",
+     "exit_code": 1,
+     "stdout_sha256": "844c684b8767de6dc2c25a705461ca1821577e148182e365136366a540a76a92",
+     "written": {
+      "System/Golem.u": "e141fe0211eb549f281e9f5299f595e356ef7aad3cab99eb87407a3ff545d838",
+      "System/UCC.log": "6640ccb4a38409b69144d933d9af001a0bc3964b1cd4d6f9c3f17fcd9efb0325"
+     },
+     "package": null,
+     "golem": {
+      "sha256": "e141fe0211eb549f281e9f5299f595e356ef7aad3cab99eb87407a3ff545d838",
+      "size": 64,
+      "guid": {
+       "present": true,
+       "hex": "79958a589942da4985a2dd8af25ea219",
+       "version_nibble": 4,
+       "variant_bits": "0x80",
+       "rfc4122_v4": true
+      }
+     },
+     "input_digest": "995312037f3ba77a3848e874fbb35c5392101e48f525f49696211b8b70f1c9f0",
+     "seconds": 6.388
+    }
+   ],
+   "package_pairs": [],
+   "golem_pairs": [
+    {
+     "a": "original1",
+     "b": "original2",
+     "sha256": [
+      "8df8775418105ea2177e2d533388c7b81f1a10492a20bbcdfb15648ded945840",
+      "0faf009d648cc49652d4967ecd23efafb136fcd01ed65f266ff29c01e04765b2"
+     ],
+     "size": [
+      64,
+      64
+     ],
+     "classification": "guid_only",
+     "differing_ranges": [
+      [
+       36,
+       52
+      ]
+     ],
+     "unresolved_ranges": [],
+     "guid": [
+      "6f6c4a3f7f927c49bc8284811f494a28",
+      "1b6447d63b96b440a6a96f536f532907"
+     ],
+     "structure_parsed": true,
+     "structural_differences": []
+    },
+    {
+     "a": "original1",
+     "b": "xrt1",
+     "sha256": [
+      "8df8775418105ea2177e2d533388c7b81f1a10492a20bbcdfb15648ded945840",
+      "6c55699d6be4d352cdb430ac6c6057db40f32380fe04cda30c2c7cfe104504cb"
+     ],
+     "size": [
+      64,
+      64
+     ],
+     "classification": "guid_only",
+     "differing_ranges": [
+      [
+       36,
+       52
+      ]
+     ],
+     "unresolved_ranges": [],
+     "guid": [
+      "6f6c4a3f7f927c49bc8284811f494a28",
+      "757ec2dd8a35fa4e897b8bcdfc1a9376"
+     ],
+     "structure_parsed": true,
+     "structural_differences": []
+    },
+    {
+     "a": "original1",
+     "b": "xrt2",
+     "sha256": [
+      "8df8775418105ea2177e2d533388c7b81f1a10492a20bbcdfb15648ded945840",
+      "e141fe0211eb549f281e9f5299f595e356ef7aad3cab99eb87407a3ff545d838"
+     ],
+     "size": [
+      64,
+      64
+     ],
+     "classification": "guid_only",
+     "differing_ranges": [
+      [
+       36,
+       43
+      ],
+      [
+       44,
+       52
+      ]
+     ],
+     "unresolved_ranges": [],
+     "guid": [
+      "6f6c4a3f7f927c49bc8284811f494a28",
+      "79958a589942da4985a2dd8af25ea219"
+     ],
+     "structure_parsed": true,
+     "structural_differences": []
+    },
+    {
+     "a": "original2",
+     "b": "xrt1",
+     "sha256": [
+      "0faf009d648cc49652d4967ecd23efafb136fcd01ed65f266ff29c01e04765b2",
+      "6c55699d6be4d352cdb430ac6c6057db40f32380fe04cda30c2c7cfe104504cb"
+     ],
+     "size": [
+      64,
+      64
+     ],
+     "classification": "guid_only",
+     "differing_ranges": [
+      [
+       36,
+       52
+      ]
+     ],
+     "unresolved_ranges": [],
+     "guid": [
+      "1b6447d63b96b440a6a96f536f532907",
+      "757ec2dd8a35fa4e897b8bcdfc1a9376"
+     ],
+     "structure_parsed": true,
+     "structural_differences": []
+    },
+    {
+     "a": "original2",
+     "b": "xrt2",
+     "sha256": [
+      "0faf009d648cc49652d4967ecd23efafb136fcd01ed65f266ff29c01e04765b2",
+      "e141fe0211eb549f281e9f5299f595e356ef7aad3cab99eb87407a3ff545d838"
+     ],
+     "size": [
+      64,
+      64
+     ],
+     "classification": "guid_only",
+     "differing_ranges": [
+      [
+       36,
+       52
+      ]
+     ],
+     "unresolved_ranges": [],
+     "guid": [
+      "1b6447d63b96b440a6a96f536f532907",
+      "79958a589942da4985a2dd8af25ea219"
+     ],
+     "structure_parsed": true,
+     "structural_differences": []
+    },
+    {
+     "a": "xrt1",
+     "b": "xrt2",
+     "sha256": [
+      "6c55699d6be4d352cdb430ac6c6057db40f32380fe04cda30c2c7cfe104504cb",
+      "e141fe0211eb549f281e9f5299f595e356ef7aad3cab99eb87407a3ff545d838"
+     ],
+     "size": [
+      64,
+      64
+     ],
+     "classification": "guid_only",
+     "differing_ranges": [
+      [
+       36,
+       52
+      ]
+     ],
+     "unresolved_ranges": [],
+     "guid": [
+      "757ec2dd8a35fa4e897b8bcdfc1a9376",
+      "79958a589942da4985a2dd8af25ea219"
+     ],
+     "structure_parsed": true,
+     "structural_differences": []
+    }
+   ],
+   "golem_vs_shipped": [
+    {
+     "a": "shipped",
+     "b": "compile_original1",
+     "sha256": [
+      "c9e78920e429d335245a65384ad91ff30d725d99e60c25f932701f70e71b1648",
+      "8df8775418105ea2177e2d533388c7b81f1a10492a20bbcdfb15648ded945840"
+     ],
+     "size": [
+      64,
+      64
+     ],
+     "classification": "guid_only",
+     "differing_ranges": [
+      [
+       36,
+       52
+      ]
+     ],
+     "unresolved_ranges": [],
+     "guid": [
+      "6785bfe949e55744808181c3e608b259",
+      "6f6c4a3f7f927c49bc8284811f494a28"
+     ],
+     "structure_parsed": true,
+     "structural_differences": []
+    },
+    {
+     "a": "shipped",
+     "b": "compile_original2",
+     "sha256": [
+      "c9e78920e429d335245a65384ad91ff30d725d99e60c25f932701f70e71b1648",
+      "0faf009d648cc49652d4967ecd23efafb136fcd01ed65f266ff29c01e04765b2"
+     ],
+     "size": [
+      64,
+      64
+     ],
+     "classification": "guid_only",
+     "differing_ranges": [
+      [
+       36,
+       52
+      ]
+     ],
+     "unresolved_ranges": [],
+     "guid": [
+      "6785bfe949e55744808181c3e608b259",
+      "1b6447d63b96b440a6a96f536f532907"
+     ],
+     "structure_parsed": true,
+     "structural_differences": []
+    },
+    {
+     "a": "shipped",
+     "b": "compile_xrt1",
+     "sha256": [
+      "c9e78920e429d335245a65384ad91ff30d725d99e60c25f932701f70e71b1648",
+      "6c55699d6be4d352cdb430ac6c6057db40f32380fe04cda30c2c7cfe104504cb"
+     ],
+     "size": [
+      64,
+      64
+     ],
+     "classification": "guid_only",
+     "differing_ranges": [
+      [
+       36,
+       52
+      ]
+     ],
+     "unresolved_ranges": [],
+     "guid": [
+      "6785bfe949e55744808181c3e608b259",
+      "757ec2dd8a35fa4e897b8bcdfc1a9376"
+     ],
+     "structure_parsed": true,
+     "structural_differences": []
+    },
+    {
+     "a": "shipped",
+     "b": "compile_xrt2",
+     "sha256": [
+      "c9e78920e429d335245a65384ad91ff30d725d99e60c25f932701f70e71b1648",
+      "e141fe0211eb549f281e9f5299f595e356ef7aad3cab99eb87407a3ff545d838"
+     ],
+     "size": [
+      64,
+      64
+     ],
+     "classification": "guid_only",
+     "differing_ranges": [
+      [
+       36,
+       52
+      ]
+     ],
+     "unresolved_ranges": [],
+     "guid": [
+      "6785bfe949e55744808181c3e608b259",
+      "79958a589942da4985a2dd8af25ea219"
+     ],
+     "structure_parsed": true,
+     "structural_differences": []
+    }
+   ],
+   "exec": null,
+   "checks": [
+    {
+     "group": "compile_original1",
+     "ok": true,
+     "checks": [
+      {
+       "check": "artifacts of this run present and consistent (run id, exit code, stdout, UCC.log, written files)",
+       "ok": true
+      },
+      {
+       "check": "XrtCompileProbe.u absent before the run (fresh sandbox, nothing from an earlier run)",
+       "ok": true
+      },
+      {
+       "check": "no XrtCompileProbe.* in the sandbox before the run except the staged sources and the ini",
+       "ok": true
+      },
+      {
+       "check": "staged sources are exactly the variant's sources (SHA-256)",
+       "ok": true
+      },
+      {
+       "check": "configuration: [Editor.EditorEngine] EditPackages = Core, XrtCompileProbe",
+       "ok": true
+      },
+      {
+       "check": "the sandbox ini before the run is the recorded derived ini (SHA-256)",
+       "ok": true
+      },
+      {
+       "check": "compile classified FAILURE",
+       "ok": true
+      },
+      {
+       "check": "no unexpected write (only Golem.u and XrtCompileProbe.ini changed, UCC.log and XrtCompileProbe.u created)",
+       "ok": true
+      },
+      {
+       "check": "XrtCompileProbe.u absent after the run",
+       "ok": true
+      },
+      {
+       "check": "shipped Golem.u preserved from before the run (SHA-256 verified)",
+       "ok": true
+      },
+      {
+       "check": "Golem.u re-save differs from the shipped Golem.u at most in the GUID (documented exception)",
+       "ok": true
+      }
+     ]
+    },
+    {
+     "group": "compile_original2",
+     "ok": true,
+     "checks": [
+      {
+       "check": "artifacts of this run present and consistent (run id, exit code, stdout, UCC.log, written files)",
+       "ok": true
+      },
+      {
+       "check": "XrtCompileProbe.u absent before the run (fresh sandbox, nothing from an earlier run)",
+       "ok": true
+      },
+      {
+       "check": "no XrtCompileProbe.* in the sandbox before the run except the staged sources and the ini",
+       "ok": true
+      },
+      {
+       "check": "staged sources are exactly the variant's sources (SHA-256)",
+       "ok": true
+      },
+      {
+       "check": "configuration: [Editor.EditorEngine] EditPackages = Core, XrtCompileProbe",
+       "ok": true
+      },
+      {
+       "check": "the sandbox ini before the run is the recorded derived ini (SHA-256)",
+       "ok": true
+      },
+      {
+       "check": "compile classified FAILURE",
+       "ok": true
+      },
+      {
+       "check": "no unexpected write (only Golem.u and XrtCompileProbe.ini changed, UCC.log and XrtCompileProbe.u created)",
+       "ok": true
+      },
+      {
+       "check": "XrtCompileProbe.u absent after the run",
+       "ok": true
+      },
+      {
+       "check": "shipped Golem.u preserved from before the run (SHA-256 verified)",
+       "ok": true
+      },
+      {
+       "check": "Golem.u re-save differs from the shipped Golem.u at most in the GUID (documented exception)",
+       "ok": true
+      }
+     ]
+    },
+    {
+     "group": "compile_xrt1",
+     "ok": true,
+     "checks": [
+      {
+       "check": "artifacts of this run present and consistent (run id, exit code, stdout, UCC.log, written files)",
+       "ok": true
+      },
+      {
+       "check": "XrtCompileProbe.u absent before the run (fresh sandbox, nothing from an earlier run)",
+       "ok": true
+      },
+      {
+       "check": "no XrtCompileProbe.* in the sandbox before the run except the staged sources and the ini",
+       "ok": true
+      },
+      {
+       "check": "staged sources are exactly the variant's sources (SHA-256)",
+       "ok": true
+      },
+      {
+       "check": "configuration: [Editor.EditorEngine] EditPackages = Core, XrtCompileProbe",
+       "ok": true
+      },
+      {
+       "check": "the sandbox ini before the run is the recorded derived ini (SHA-256)",
+       "ok": true
+      },
+      {
+       "check": "compile classified FAILURE",
+       "ok": true
+      },
+      {
+       "check": "no unexpected write (only Golem.u and XrtCompileProbe.ini changed, UCC.log and XrtCompileProbe.u created)",
+       "ok": true
+      },
+      {
+       "check": "XrtCompileProbe.u absent after the run",
+       "ok": true
+      },
+      {
+       "check": "shipped Golem.u preserved from before the run (SHA-256 verified)",
+       "ok": true
+      },
+      {
+       "check": "Golem.u re-save differs from the shipped Golem.u at most in the GUID (documented exception)",
+       "ok": true
+      }
+     ]
+    },
+    {
+     "group": "compile_xrt1/translated_compile_evidence",
+     "ok": true,
+     "checks": [
+      {
+       "check": "runtime report of this run present and well formed (run id, schema 2)",
+       "ok": true
+      },
+      {
+       "check": "report run id equals the run's id",
+       "ok": true
+      },
+      {
+       "check": "report outcome 'exited'",
+       "ok": true
+      },
+      {
+       "check": "report exit code equals the process exit code",
+       "ok": true
+      },
+      {
+       "check": "no fatal or timeout event",
+       "ok": true
+      },
+      {
+       "check": "no XRT FATAL / XRT TIMEOUT diagnostic on stderr",
+       "ok": true
+      },
+      {
+       "check": "event timeline complete (events_dropped == 0)",
+       "ok": true
+      },
+      {
+       "check": "process exit completed (process_exit_complete with the exit code)",
+       "ok": true
+      },
+      {
+       "check": "every mapped module was lifted from the sandbox file of the same name (SHA-256)",
+       "ok": true
+      },
+      {
+       "check": "guest command line equals the original's (sandbox UCC.exe and the same arguments)",
+       "ok": true
+      },
+      {
+       "check": "staged source read: file_open ok of <sandbox>\\XrtCompileProbe\\Classes\\XrtCompileProbe.uc",
+       "ok": true
+      },
+      {
+       "check": "Editor.dll mapped and translated code executed (functions_executed > 0)",
+       "ok": true
+      },
+      {
+       "check": "Editor.dll executed UEditorEngine::InitEditor (hit rva 68290)",
+       "ok": true
+      },
+      {
+       "check": "Editor.dll executed UEditorEngine::MakeScripts (hit rva 85a50)",
+       "ok": true
+      },
+      {
+       "check": "nothing saved: no successful MoveFile to <sandbox>\\System\\XrtCompileProbe.u",
+       "ok": true
+      },
+      {
+       "check": "Golem.u re-save: GUID equals the create_guid bytes preceding its save",
+       "ok": true
+      }
+     ]
+    },
+    {
+     "group": "compile_xrt2",
+     "ok": true,
+     "checks": [
+      {
+       "check": "artifacts of this run present and consistent (run id, exit code, stdout, UCC.log, written files)",
+       "ok": true
+      },
+      {
+       "check": "XrtCompileProbe.u absent before the run (fresh sandbox, nothing from an earlier run)",
+       "ok": true
+      },
+      {
+       "check": "no XrtCompileProbe.* in the sandbox before the run except the staged sources and the ini",
+       "ok": true
+      },
+      {
+       "check": "staged sources are exactly the variant's sources (SHA-256)",
+       "ok": true
+      },
+      {
+       "check": "configuration: [Editor.EditorEngine] EditPackages = Core, XrtCompileProbe",
+       "ok": true
+      },
+      {
+       "check": "the sandbox ini before the run is the recorded derived ini (SHA-256)",
+       "ok": true
+      },
+      {
+       "check": "compile classified FAILURE",
+       "ok": true
+      },
+      {
+       "check": "no unexpected write (only Golem.u and XrtCompileProbe.ini changed, UCC.log and XrtCompileProbe.u created)",
+       "ok": true
+      },
+      {
+       "check": "XrtCompileProbe.u absent after the run",
+       "ok": true
+      },
+      {
+       "check": "shipped Golem.u preserved from before the run (SHA-256 verified)",
+       "ok": true
+      },
+      {
+       "check": "Golem.u re-save differs from the shipped Golem.u at most in the GUID (documented exception)",
+       "ok": true
+      }
+     ]
+    },
+    {
+     "group": "compile_xrt2/translated_compile_evidence",
+     "ok": true,
+     "checks": [
+      {
+       "check": "runtime report of this run present and well formed (run id, schema 2)",
+       "ok": true
+      },
+      {
+       "check": "report run id equals the run's id",
+       "ok": true
+      },
+      {
+       "check": "report outcome 'exited'",
+       "ok": true
+      },
+      {
+       "check": "report exit code equals the process exit code",
+       "ok": true
+      },
+      {
+       "check": "no fatal or timeout event",
+       "ok": true
+      },
+      {
+       "check": "no XRT FATAL / XRT TIMEOUT diagnostic on stderr",
+       "ok": true
+      },
+      {
+       "check": "event timeline complete (events_dropped == 0)",
+       "ok": true
+      },
+      {
+       "check": "process exit completed (process_exit_complete with the exit code)",
+       "ok": true
+      },
+      {
+       "check": "every mapped module was lifted from the sandbox file of the same name (SHA-256)",
+       "ok": true
+      },
+      {
+       "check": "guest command line equals the original's (sandbox UCC.exe and the same arguments)",
+       "ok": true
+      },
+      {
+       "check": "staged source read: file_open ok of <sandbox>\\XrtCompileProbe\\Classes\\XrtCompileProbe.uc",
+       "ok": true
+      },
+      {
+       "check": "Editor.dll mapped and translated code executed (functions_executed > 0)",
+       "ok": true
+      },
+      {
+       "check": "Editor.dll executed UEditorEngine::InitEditor (hit rva 68290)",
+       "ok": true
+      },
+      {
+       "check": "Editor.dll executed UEditorEngine::MakeScripts (hit rva 85a50)",
+       "ok": true
+      },
+      {
+       "check": "nothing saved: no successful MoveFile to <sandbox>\\System\\XrtCompileProbe.u",
+       "ok": true
+      },
+      {
+       "check": "Golem.u re-save: GUID equals the create_guid bytes preceding its save",
+       "ok": true
+      }
+     ]
+    },
+    {
+     "group": "compile_run_comparisons",
+     "ok": true,
+     "checks": [
+      {
+       "check": "every compile run produced judgeable artifacts",
+       "ok": true
+      },
+      {
+       "check": "original1 vs original2: same exit code",
+       "ok": true
+      },
+      {
+       "check": "original1 vs original2: stdout identical after normalise_stdout",
+       "ok": true
+      },
+      {
+       "check": "original1 vs original2: same error/diagnostic lines",
+       "ok": true
+      },
+      {
+       "check": "original1 vs original2: UCC.log identical after normalise_log",
+       "ok": true
+      },
+      {
+       "check": "original1 vs original2: same set of written files",
+       "ok": true
+      },
+      {
+       "check": "original1 vs original2: XrtCompileProbe.ini saved with identical contents",
+       "ok": true
+      },
+      {
+       "check": "original1 vs original2: identical System inputs (SHA-256 of every input file)",
+       "ok": true
+      },
+      {
+       "check": "original1 vs xrt1: same exit code",
+       "ok": true
+      },
+      {
+       "check": "original1 vs xrt1: stdout identical after normalise_stdout",
+       "ok": true
+      },
+      {
+       "check": "original1 vs xrt1: same error/diagnostic lines",
+       "ok": true
+      },
+      {
+       "check": "original1 vs xrt1: UCC.log identical after normalise_log",
+       "ok": true
+      },
+      {
+       "check": "original1 vs xrt1: same set of written files",
+       "ok": true
+      },
+      {
+       "check": "original1 vs xrt1: XrtCompileProbe.ini saved with identical contents",
+       "ok": true
+      },
+      {
+       "check": "original1 vs xrt1: identical System inputs (SHA-256 of every input file)",
+       "ok": true
+      },
+      {
+       "check": "original1 vs xrt2: same exit code",
+       "ok": true
+      },
+      {
+       "check": "original1 vs xrt2: stdout identical after normalise_stdout",
+       "ok": true
+      },
+      {
+       "check": "original1 vs xrt2: same error/diagnostic lines",
+       "ok": true
+      },
+      {
+       "check": "original1 vs xrt2: UCC.log identical after normalise_log",
+       "ok": true
+      },
+      {
+       "check": "original1 vs xrt2: same set of written files",
+       "ok": true
+      },
+      {
+       "check": "original1 vs xrt2: XrtCompileProbe.ini saved with identical contents",
+       "ok": true
+      },
+      {
+       "check": "original1 vs xrt2: identical System inputs (SHA-256 of every input file)",
+       "ok": true
+      }
+     ]
+    },
+    {
+     "group": "packages",
+     "ok": true,
+     "checks": [
+      {
+       "check": "no compile wrote XrtCompileProbe.u",
+       "ok": true
+      },
+      {
+       "check": "Golem.u original1 vs original2: differs at most in the GUID",
+       "ok": true
+      },
+      {
+       "check": "Golem.u original1 vs xrt1: differs at most in the GUID",
+       "ok": true
+      },
+      {
+       "check": "Golem.u original1 vs xrt2: differs at most in the GUID",
+       "ok": true
+      },
+      {
+       "check": "Golem.u original2 vs xrt1: differs at most in the GUID",
+       "ok": true
+      },
+      {
+       "check": "Golem.u original2 vs xrt2: differs at most in the GUID",
+       "ok": true
+      },
+      {
+       "check": "Golem.u xrt1 vs xrt2: differs at most in the GUID",
+       "ok": true
+      }
+     ]
+    }
+   ]
+  }
+ },
+ "source_change_proof": {
+  "ok": true,
+  "proof": {
+   "packages": {
+    "original": {
+     "v1_sha256": "8564798e9b6316d34303bdda5b935c8e8adc61ae08d44b58517750df128223c0",
+     "v2_sha256": "e4b4bfd0f976a269d6caa3597833b139774aafd2b908d10a714960bd5b908f69",
+     "classification": "other",
+     "differing_ranges": [
+      [
+       24,
+       25
+      ],
+      [
+       32,
+       33
+      ],
+      [
+       36,
+       52
+      ],
+      [
+       389,
+       394
+      ],
+      [
+       395,
+       396
+      ],
+      [
+       918,
+       923
+      ],
+      [
+       924,
+       925
+      ],
+      [
+       1118,
+       1123
+      ],
+      [
+       1124,
+       1125
+      ],
+      [
+       1261,
+       1265
+      ],
+      [
+       1282,
+       1361
+      ],
+      [
+       1363,
+       1368
+      ],
+      [
+       1370,
+       1375
+      ],
+      [
+       1377,
+       1382
+      ],
+      [
+       1384,
+       1389
+      ],
+      [
+       1391,
+       1396
+      ],
+      [
+       1398,
+       1403
+      ],
+      [
+       1405,
+       1410
+      ],
+      [
+       1412,
+       1417
+      ],
+      [
+       1419,
+       1425
+      ]
+     ],
+     "structural_differences": [
+      [
+       "header",
+       "export_offset"
+      ],
+      [
+       "header",
+       "import_offset"
+      ],
+      [
+       "exports",
+       "#2 XrtCompileProbe.XrtCompileProbe.ProbeTag"
+      ],
+      [
+       "exports",
+       "#3 XrtCompileProbe.XrtCompileProbe.ScriptText"
+      ],
+      [
+       "exports",
+       "#4 XrtCompileProbe.XrtCompileProbe.Main"
+      ],
+      [
+       "exports",
+       "#7 XrtCompileProbe.XrtCompileProbe"
+      ],
+      [
+       "exports",
+       "#7 XrtCompileProbe.XrtCompileProbe"
+      ]
+     ]
+    },
+    "xrt": {
+     "v1_sha256": "866a5f6d0d54c42d6ed80b5cdde73fdfda8d55d9cf0503ff2f3736c832ec9a66",
+     "v2_sha256": "99b9474cfd15e4d71be5c0d255a529a7c885383854595a667d55618addb5dfa1",
+     "classification": "other",
+     "differing_ranges": [
+      [
+       24,
+       25
+      ],
+      [
+       32,
+       33
+      ],
+      [
+       36,
+       43
+      ],
+      [
+       44,
+       52
+      ],
+      [
+       389,
+       394
+      ],
+      [
+       395,
+       396
+      ],
+      [
+       918,
+       923
+      ],
+      [
+       924,
+       925
+      ],
+      [
+       1118,
+       1123
+      ],
+      [
+       1124,
+       1125
+      ],
+      [
+       1261,
+       1265
+      ],
+      [
+       1282,
+       1361
+      ],
+      [
+       1363,
+       1368
+      ],
+      [
+       1370,
+       1375
+      ],
+      [
+       1377,
+       1382
+      ],
+      [
+       1384,
+       1389
+      ],
+      [
+       1391,
+       1396
+      ],
+      [
+       1398,
+       1403
+      ],
+      [
+       1405,
+       1410
+      ],
+      [
+       1412,
+       1417
+      ]
+     ],
+     "structural_differences": [
+      [
+       "header",
+       "export_offset"
+      ],
+      [
+       "header",
+       "import_offset"
+      ],
+      [
+       "exports",
+       "#2 XrtCompileProbe.XrtCompileProbe.ProbeTag"
+      ],
+      [
+       "exports",
+       "#3 XrtCompileProbe.XrtCompileProbe.ScriptText"
+      ],
+      [
+       "exports",
+       "#4 XrtCompileProbe.XrtCompileProbe.Main"
+      ],
+      [
+       "exports",
+       "#7 XrtCompileProbe.XrtCompileProbe"
+      ],
+      [
+       "exports",
+       "#7 XrtCompileProbe.XrtCompileProbe"
+      ]
+     ]
+    }
+   },
+   "exec": {
+    "A": {
+     "v1": [
+      "XCP tag=alpha-1 greeting=from-defaults",
+      "XCP done"
+     ],
+     "v2": [
+      "XCP tag=bravo-2 greeting=changed-default",
+      "XCP done"
+     ]
+    },
+    "D": {
+     "v1": [
+      "XCP tag=alpha-1 greeting=from-defaults",
+      "XCP done"
+     ],
+     "v2": [
+      "XCP tag=bravo-2 greeting=changed-default",
+      "XCP done"
+     ]
+    }
+   }
+  },
+  "checks": [
+   {
+    "check": "original compiler: v1 and v2 packages differ (SHA-256)",
+    "ok": true
+   },
+   {
+    "check": "xrt compiler: v1 and v2 packages differ (SHA-256)",
+    "ok": true
+   },
+   {
+    "check": "original compiler: v1 and v2 packages differ outside the GUID (the source change reached the package)",
+    "ok": true
+   },
+   {
+    "check": "xrt compiler: v1 and v2 packages differ outside the GUID (the source change reached the package)",
+    "ok": true
+   },
+   {
+    "check": "v1 original compiles started from a fresh sandbox without XrtCompileProbe.u",
+    "ok": true
+   },
+   {
+    "check": "v1 xrt compiles started from a fresh sandbox without XrtCompileProbe.u",
+    "ok": true
+   },
+   {
+    "check": "v2 original compiles started from a fresh sandbox without XrtCompileProbe.u",
+    "ok": true
+   },
+   {
+    "check": "v2 xrt compiles started from a fresh sandbox without XrtCompileProbe.u",
+    "ok": true
+   },
+   {
+    "check": "combination A prints v1's own tag/greeting ('XCP tag=alpha-1 greeting=from-defaults')",
+    "ok": true
+   },
+   {
+    "check": "combination A prints v2's own tag/greeting ('XCP tag=bravo-2 greeting=changed-default')",
+    "ok": true
+   },
+   {
+    "check": "combination D prints v1's own tag/greeting ('XCP tag=alpha-1 greeting=from-defaults')",
+    "ok": true
+   },
+   {
+    "check": "combination D prints v2's own tag/greeting ('XCP tag=bravo-2 greeting=changed-default')",
+    "ok": true
+   }
+  ]
+ }
+}

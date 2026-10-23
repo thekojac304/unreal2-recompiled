@@ -1,0 +1,64 @@
+{
+  "scope": "read-only integrity observation; cause and timing of Ogg differences unknown",
+  "prior_census": "floor-install-after.json",
+  "current_census": "directmusic-install-final.json",
+  "files": 4757,
+  "differing_files": [
+    "singleplayer\\Music\\M03_fite_loop2.ogg"
+  ],
+  "other_files_unchanged": 4756,
+  "save_metadata_unchanged": true,
+  "ogg_differences": [
+    {
+      "offset": 489527,
+      "snapshot": "6e",
+      "installed": "2e"
+    },
+    {
+      "offset": 489791,
+      "snapshot": "6a",
+      "installed": "2a"
+    }
+  ],
+  "ogg_inputs": {
+    "snapshot": {
+      "sha256": "b6261e7e09ca82b48361702d09ea6d24c7d24a85b4073dd1ff1920f1317318bb",
+      "size": 3677906,
+      "changed_pages": [
+        {
+          "offset": 488957,
+          "body_offset": 489003,
+          "end": 493160,
+          "sequence": 116,
+          "granule": 727488,
+          "stored_crc": "6b159d5a",
+          "computed_crc": "6b159d5a",
+          "valid_crc": true
+        }
+      ],
+      "pcm_sha256": "bf11c32443208022d30f32d94dff650231f863312e3bceb5f3fc05da7fa6e16e",
+      "pcm_bytes": 21403200,
+      "decode_exit": 0
+    },
+    "installed": {
+      "sha256": "413bccc0468b2fa9716e927037646e4c7fc29c699395495d95780a0d3bfce2b4",
+      "size": 3677906,
+      "changed_pages": [
+        {
+          "offset": 488957,
+          "body_offset": 489003,
+          "end": 493160,
+          "sequence": 116,
+          "granule": 727488,
+          "stored_crc": "6b159d5a",
+          "computed_crc": "375940cb",
+          "valid_crc": false
+        }
+      ],
+      "pcm_sha256": "cc60533c15cef5465c5d69fbd694a9603db29f9dc8e54996b42e8972126a07fa",
+      "pcm_bytes": 21378624,
+      "decode_exit": 0
+    }
+  },
+  "sources_unchanged_during_decode": true
+}

@@ -157,6 +157,7 @@ static DWORD WINAPI host_thread_proc(void* p) {
     }
     if (!xrt_exiting)
         xrt_dll_thread_notify(c, 3);                                  /* DLL_THREAD_DETACH, on this thread */
+    xrt_com_thread_cleanup(c);
     t->state = 2;
     xrt_log("thread %d exited with code %u via %s after %llu Sleep calls (%llu contended critical sections, %llu preemptions)",
             t->index, t->exit_code, t->exit_via == 1 ? "ExitThread" : "return from its entry point", t->sleeps, t->cs_waits,

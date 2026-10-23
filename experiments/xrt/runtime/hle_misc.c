@@ -8,6 +8,7 @@
 #include "hle_com.inc"
 #include "hle_dinput.inc"
 #include "hle_d3d8.inc"
+#include "hle_dmusic.inc"
 
 static void hle_timeGetTime(CPU* c) { RET_STD(0, timeGetTime()); }
 static void hle_timeBeginPeriod(CPU* c) { RET_STD(1, timeBeginPeriod(ARG(0))); }
@@ -114,6 +115,7 @@ static void hle_CoCreateGuid(CPU* c) {
 const XrtHle xrt_hle_misc[] = {
     XRT_DINPUT_BINDINGS
     XRT_D3D8_BINDINGS
+    XRT_DMUSIC_BINDINGS
     {"user32.dll","SystemParametersInfoA",hle_SystemParametersInfoA},
     {"user32.dll","SystemParametersInfoW",hle_SystemParametersInfoW},
     {"user32.dll", "FindWindowExA", hle_FindWindowExA},

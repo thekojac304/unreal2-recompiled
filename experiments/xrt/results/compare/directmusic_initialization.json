@@ -1,0 +1,2920 @@
+{
+  "schema": 1,
+  "scope": "DirectMusic characterization and COM/Loader8 capability checkpoint; translated CS_Intro completion not achieved",
+  "original_nosound": {
+    "path": "experiments\\xrt\\results\\raw\\graphics-startup\\4906743bd050-dxvk",
+    "args": [
+      "CS_Intro.un2",
+      "-windowed",
+      "-nosound",
+      "-NOMMX",
+      "-NOSSE"
+    ],
+    "trace": {
+      "path": "experiments\\xrt\\results\\raw\\graphics-startup\\4906743bd050-dxvk\\trace.json",
+      "sha256": "a16edc74d3b9279400d21dcfba80a08e1453cade88439405718da92ebf5e7523"
+    },
+    "music": {
+      "path": "experiments\\xrt\\results\\raw\\graphics-startup\\4906743bd050-dxvk\\music.jsonl",
+      "sha256": "d37549e3eaecee252b29c6315a8344392e4f86a0fee6476adbe31f6de1455c77"
+    },
+    "observer": {
+      "path": "experiments/xrt/build/tracer/uctrace.exe",
+      "sha256": "079935e8c7a3d56e3632e2982e459c7acdb748973d69ab1f0a601a9e67626140"
+    },
+    "input_files": 4123,
+    "input_manifest_sha256": "d0c0c74578699055a84fbfb1a2aea02861839aeac3a3af12fbce611d15896a70",
+    "selected_input_hashes": {
+      "System/Engine.dll": "f951becf4069f4976a76c027c04f7acaf73435578190216359c3a9936e618499",
+      "System/Unreal2.exe": "953d15019970a149fd4118cfe91f5d29f9b38d22fa67174ebc9cbab65ad44758",
+      "System/Unreal2.ini": "bcb0c403fa71e7f82a64a8ee06ea3b5ff1f1ec2435b3e4d14756c5b5aaeccac4",
+      "System/Golem.u": "c9e78920e429d335245a65384ad91ff30d725d99e60c25f932701f70e71b1648",
+      "Maps/CS_Intro.un2": "bbdaa7612718eaf27b00910c71de81251393bf5afd5a58d473a0bdd47cc8f69a",
+      "Maps/Entry.un2": "843feca345b244199b0fefb0f6be7c6802b71c453854cf492c45d00409850b94",
+      "Music/Intro.con": "7fb7fbdc46b42e1f5a095cd478a053dcc452e563fdc318f17299f7a89689a156",
+      "System/d3d8.dll": "9152ba43386e756790a66f61cdcee01b3287d156d4161c7456d816faa82fc364",
+      "System/d3d9.dll": "265888c31ca78dffa290c39cb7e50bfb02762590e41927906e46fb32f01497fa"
+    },
+    "world": {
+      "observer_complete_without_drops": true,
+      "selected_map": {
+        "entry_seq": 127,
+        "open_seq": 128,
+        "return_seq": 4730,
+        "world": "0x0ff72800",
+        "actors": {
+          "AActor.eventPreBeginPlay": 268,
+          "AActor.eventBeginPlay": 268,
+          "AActor.eventPostBeginPlay": 268
+        }
+      },
+      "selected_level_initialized": true,
+      "completed_selected_world_ticks": [
+        {
+          "entry_seq": 18527,
+          "ret_seq": 18770,
+          "caller_seq": 18771
+        },
+        {
+          "entry_seq": 21133,
+          "ret_seq": 21134,
+          "caller_seq": 21135
+        },
+        {
+          "entry_seq": 21143,
+          "ret_seq": 21151,
+          "caller_seq": 21152
+        },
+        {
+          "entry_seq": 21162,
+          "ret_seq": 21163,
+          "caller_seq": 21164
+        }
+      ],
+      "game_create_device": [
+        {
+          "call_seq": 18232,
+          "return_seq": 18397,
+          "hresult": "0x00000000"
+        }
+      ],
+      "game_present": [
+        {
+          "call_seq": 18784,
+          "return_seq": 18785,
+          "hresult": "0x00000000"
+        },
+        {
+          "call_seq": 21157,
+          "return_seq": 21158,
+          "hresult": "0x00000000"
+        },
+        {
+          "call_seq": 21171,
+          "return_seq": 21178,
+          "hresult": "0x00000000"
+        }
+      ],
+      "interactive_play_verified": false
+    },
+    "game_calls": [
+      {
+        "method": "CoInitialize",
+        "result": "00000000"
+      },
+      {
+        "method": "Loader8",
+        "result": "00000000"
+      },
+      {
+        "method": "Performance8",
+        "result": "00000000"
+      },
+      {
+        "method": "Performance.InitAudio",
+        "result": "00000000"
+      },
+      {
+        "method": "Loader.SetSearchDirectory",
+        "result": "00000000"
+      },
+      {
+        "method": "Performance.GetDefaultAudioPath",
+        "result": "00000000"
+      },
+      {
+        "method": "AudioPath.GetObjectInPath",
+        "result": "00000000"
+      },
+      {
+        "method": "Graph.InsertTool",
+        "result": "00000000"
+      },
+      {
+        "method": "Graph.Release",
+        "result": "00000001"
+      },
+      {
+        "method": "Loader.LoadObjectFromFile",
+        "result": "00000000"
+      },
+      {
+        "method": "Loader.GetObject",
+        "result": "00000000"
+      },
+      {
+        "method": "Script.Init",
+        "result": "00000000"
+      },
+      {
+        "method": "Loader.ReleaseObjectByUnknown.container",
+        "result": "00000000"
+      },
+      {
+        "method": "Container.Release",
+        "result": "00000000"
+      },
+      {
+        "method": "Performance.SetGlobalParam",
+        "result": "00000000"
+      },
+      {
+        "method": "Script.CallRoutine",
+        "result": "8878121b"
+      },
+      {
+        "method": "Loader.ReleaseObjectByUnknown.script",
+        "result": "00000001"
+      },
+      {
+        "method": "Script.Release",
+        "result": "0000000f"
+      },
+      {
+        "method": "Performance.Stop",
+        "result": "00000000"
+      },
+      {
+        "method": "Performance.CloseDown",
+        "result": "00000000"
+      },
+      {
+        "method": "Performance.Release",
+        "result": "00000012"
+      },
+      {
+        "method": "DirectSound.Release",
+        "result": "00000000"
+      },
+      {
+        "method": "Loader.Release",
+        "result": "00000000"
+      }
+    ],
+    "init_audio": {
+      "directmusic_output_null": true,
+      "sound_output_requested": true,
+      "hwnd": "00000000",
+      "default_path_type": 8,
+      "pchannels": 128,
+      "flags": 63,
+      "params_null": true
+    },
+    "routine_name_empty": true,
+    "audio_stream": {
+      "initialize": [
+        "00000000"
+      ],
+      "start": [
+        "00000000"
+      ]
+    },
+    "call_counts": {
+      "DirectMusic.API.CoInitializeEx.entry": 7,
+      "DirectMusic.execCallRoutine": 1,
+      "DirectMusic.DMCallRoutine": 1,
+      "DirectMusic.shutdown": 2,
+      "DirectMusic.CoInitialize.call": 1,
+      "DirectMusic.API.CoInitialize.entry": 2,
+      "DirectMusic.Loader8.call": 1,
+      "DirectMusic.API.CoCreateInstance.entry": 314,
+      "DirectMusic.Performance8.call": 1,
+      "DirectMusic.Performance.InitAudio.call": 1,
+      "DirectMusic.Performance8.slot44": 1,
+      "DirectMusic.Performance8.slot34": 2,
+      "DirectMusic.Performance8.slot16": 1,
+      "DirectMusic.API.DirectSoundCreate8.entry": 1,
+      "DirectMusic.MMDeviceEnumerator.slot3": 2,
+      "DirectMusic.MMDeviceEnumerator.slot4": 7,
+      "DirectMusic.MMDevice.slot5": 36,
+      "DirectMusic.MMDevice.slot2": 193,
+      "DirectMusic.MMDeviceEnumerator.slot2": 124,
+      "DirectMusic.MMDeviceCollection.slot3": 2,
+      "DirectMusic.MMDeviceCollection.slot4": 13,
+      "DirectMusic.MMDevice.slot4": 122,
+      "DirectMusic.MMDeviceEnumerator.slot0": 30,
+      "DirectMusic.MMDeviceEnumerator.slot1": 32,
+      "DirectMusic.MMDeviceEnumerator.slot5": 93,
+      "DirectMusic.MMDevice.slot0": 78,
+      "DirectMusic.MMDevice.slot1": 40,
+      "DirectMusic.MMDeviceCollection.slot2": 2,
+      "DirectMusic.MMDevice.slot3": 16,
+      "DirectMusic.MMDevice.slot6": 16,
+      "DirectMusic.AudioClient.slot8": 15,
+      "DirectMusic.MMDeviceEnumerator.slot6": 1,
+      "DirectMusic.AudioClient.slot2": 17,
+      "DirectMusic.AudioClient.slot11": 17,
+      "DirectMusic.DirectSound.slot6": 1,
+      "DirectMusic.DirectSound.slot1": 3,
+      "DirectMusic.DirectSound.slot3": 1,
+      "DirectMusic.SoundBuffer.slot5": 1,
+      "DirectMusic.SoundBuffer.slot14": 1,
+      "DirectMusic.Performance8.slot49": 1,
+      "DirectMusic.Performance8.slot48": 1,
+      "DirectMusic.Performance8.slot1": 87,
+      "DirectMusic.DirectSound.slot0": 2,
+      "DirectMusic.DirectSound.slot2": 6,
+      "DirectMusic.AudioClient.slot7": 1,
+      "DirectMusic.AudioClient.slot9": 1,
+      "DirectMusic.AudioClient.slot3": 1,
+      "DirectMusic.AudioClient.slot4": 2,
+      "DirectMusic.AudioClient.slot14": 3,
+      "DirectMusic.AudioClient.slot1": 1,
+      "DirectMusic.AudioClient.slot13": 1,
+      "DirectMusic.AudioRenderClient.slot3": 707,
+      "DirectMusic.AudioClient.slot6": 1414,
+      "DirectMusic.AudioRenderClient.slot4": 707,
+      "DirectMusic.AudioClient.slot10": 1,
+      "DirectMusic.Performance8.slot50": 1,
+      "DirectMusic.Loader.SetSearchDirectory.call": 1,
+      "DirectMusic.Loader8.slot5": 1,
+      "DirectMusic.Performance8.slot13": 47,
+      "DirectMusic.Performance8.slot31": 46,
+      "DirectMusic.Performance.GetDefaultAudioPath.call": 1,
+      "DirectMusic.Performance8.slot51": 1,
+      "DirectMusic.AudioPath.GetObjectInPath.call": 1,
+      "DirectMusic.AudioPath.slot3": 1,
+      "DirectMusic.Performance8.slot18": 1,
+      "DirectMusic.Graph.InsertTool.call": 1,
+      "DirectMusic.Graph.slot4": 1,
+      "DirectMusic.Tool.AddRef.entry": 1,
+      "DirectMusic.Tool.Init.entry": 1,
+      "DirectMusic.Tool.QueryInterface.entry": 2,
+      "DirectMusic.Tool.GetMsgDeliveryType.entry": 1,
+      "DirectMusic.Tool.GetMediaTypeArraySize.entry": 1,
+      "DirectMusic.Tool.GetMediaTypes.entry": 1,
+      "DirectMusic.Tool.Release.entry": 2,
+      "DirectMusic.Graph.Release.call": 1,
+      "DirectMusic.Graph.slot2": 2,
+      "DirectMusic.Loader.LoadObjectFromFile.call": 1,
+      "DirectMusic.Loader8.slot14": 1,
+      "DirectMusic.Loader8.slot3": 44,
+      "DirectMusic.Loader8.slot0": 45,
+      "DirectMusic.Loader8.slot1": 45,
+      "DirectMusic.Loader8.slot4": 17,
+      "DirectMusic.Loader8.slot2": 46,
+      "DirectMusic.Loader.GetObject.call": 1,
+      "DirectMusic.Script.Init.call": 1,
+      "DirectMusic.Script.slot3": 1,
+      "DirectMusic.Performance8.slot0": 86,
+      "DirectMusic.Performance8.slot2": 89,
+      "DirectMusic.Performance8.slot28": 32,
+      "DirectMusic.Loader.ReleaseObjectByUnknown.container.call": 1,
+      "DirectMusic.Loader8.slot13": 2,
+      "DirectMusic.Loader8.slot8": 3,
+      "DirectMusic.Container.Release.call": 1,
+      "DirectMusic.Script.slot2": 19,
+      "DirectMusic.Performance.SetGlobalParam.call": 1,
+      "DirectMusic.Script.CallRoutine.call": 1,
+      "DirectMusic.Script.slot4": 1,
+      "DirectMusic.Loader.ReleaseObjectByUnknown.script.call": 1,
+      "DirectMusic.Script.slot0": 2,
+      "DirectMusic.Script.slot1": 2,
+      "DirectMusic.Script.Release.call": 1,
+      "DirectMusic.Performance.Stop.call": 1,
+      "DirectMusic.Performance8.slot5": 1,
+      "DirectMusic.Performance8.slot36": 6,
+      "DirectMusic.Performance8.slot12": 3,
+      "DirectMusic.Performance.CloseDown.call": 1,
+      "DirectMusic.Performance8.slot38": 2,
+      "DirectMusic.API.CoUninitialize.entry": 5,
+      "DirectMusic.Performance8.slot19": 1,
+      "DirectMusic.AudioPath.slot2": 1,
+      "DirectMusic.AudioPath.slot4": 1,
+      "DirectMusic.Performance8.slot17": 2,
+      "DirectMusic.SoundBuffer.slot2": 1,
+      "DirectMusic.Performance.Release.call": 1,
+      "DirectMusic.DirectSound.Release.call": 1,
+      "DirectMusic.MMDeviceEnumerator.slot7": 1,
+      "DirectMusic.AudioClient.slot12": 1,
+      "DirectMusic.AudioRenderClient.slot2": 1,
+      "DirectMusic.Loader.Release.call": 1,
+      "DirectMusic.Loader8.slot12": 1
+    },
+    "return_value_histograms": {
+      "DirectMusic.API.CoInitializeEx.exit": {
+        "00000000": 6,
+        "80010106": 1
+      },
+      "DirectMusic.API.CoInitialize.exit": {
+        "00000000": 2
+      },
+      "DirectMusic.API.CoCreateInstance.exit": {
+        "00000000": 314
+      },
+      "DirectMusic.Performance8.slot34.exit": {
+        "00000000": 2
+      },
+      "DirectMusic.Performance8.slot16.exit": {
+        "00000000": 1
+      },
+      "DirectMusic.MMDeviceEnumerator.slot3.exit": {
+        "00000000": 2
+      },
+      "DirectMusic.MMDeviceEnumerator.slot4.exit": {
+        "00000000": 7
+      },
+      "DirectMusic.MMDevice.slot5.exit": {
+        "00000000": 36
+      },
+      "DirectMusic.MMDevice.slot2.exit": {
+        "00000000": 59,
+        "00000001": 91,
+        "00000002": 38,
+        "00000003": 5
+      },
+      "DirectMusic.MMDeviceEnumerator.slot2.exit": {
+        "00000001": 17,
+        "00000002": 7,
+        "00000003": 38,
+        "00000004": 40,
+        "00000005": 21,
+        "00000000": 1
+      },
+      "DirectMusic.MMDeviceCollection.slot3.exit": {
+        "00000000": 2
+      },
+      "DirectMusic.MMDeviceCollection.slot4.exit": {
+        "00000000": 13
+      },
+      "DirectMusic.MMDevice.slot4.exit": {
+        "00000000": 122
+      },
+      "DirectMusic.MMDeviceEnumerator.slot1.exit": {
+        "00000003": 6,
+        "00000004": 1,
+        "00000005": 4,
+        "00000006": 21
+      },
+      "DirectMusic.MMDeviceEnumerator.slot0.exit": {
+        "00000000": 30
+      },
+      "DirectMusic.MMDeviceEnumerator.slot5.exit": {
+        "00000000": 93
+      },
+      "DirectMusic.MMDevice.slot1.exit": {
+        "00000003": 35,
+        "00000004": 5
+      },
+      "DirectMusic.MMDevice.slot0.exit": {
+        "00000000": 76,
+        "80004002": 2
+      },
+      "DirectMusic.MMDeviceCollection.slot2.exit": {
+        "00000000": 2
+      },
+      "DirectMusic.MMDevice.slot6.exit": {
+        "00000000": 16
+      },
+      "DirectMusic.MMDevice.slot3.exit": {
+        "00000000": 16
+      },
+      "DirectMusic.AudioClient.slot8.exit": {
+        "00000000": 15
+      },
+      "DirectMusic.MMDeviceEnumerator.slot6.exit": {
+        "00000000": 1
+      },
+      "DirectMusic.AudioClient.slot11.exit": {
+        "88890001": 15,
+        "00000000": 1,
+        "00000001": 1
+      },
+      "DirectMusic.AudioClient.slot2.exit": {
+        "00000000": 16,
+        "00000001": 1
+      },
+      "DirectMusic.API.DirectSoundCreate8.exit": {
+        "00000000": 1
+      },
+      "DirectMusic.DirectSound.slot6.exit": {
+        "00000000": 1
+      },
+      "DirectMusic.DirectSound.slot1.exit": {
+        "00000002": 1,
+        "00000003": 1,
+        "00000004": 1
+      },
+      "DirectMusic.DirectSound.slot3.exit": {
+        "00000000": 1
+      },
+      "DirectMusic.SoundBuffer.slot5.exit": {
+        "00000000": 1
+      },
+      "DirectMusic.SoundBuffer.slot14.exit": {
+        "00000000": 1
+      },
+      "DirectMusic.Performance8.slot1.exit": {
+        "00000002": 2,
+        "00000003": 2,
+        "00000004": 4,
+        "00000005": 3,
+        "00000006": 3,
+        "00000007": 3,
+        "00000008": 3,
+        "00000009": 3,
+        "0000000a": 3,
+        "0000000b": 3,
+        "0000000c": 3,
+        "0000000d": 3,
+        "0000000e": 3,
+        "0000000f": 3,
+        "00000010": 3,
+        "00000011": 3,
+        "00000012": 2,
+        "00000013": 2,
+        "00000014": 2,
+        "00000015": 2,
+        "00000016": 2,
+        "00000017": 2,
+        "00000018": 2,
+        "00000019": 2,
+        "0000001a": 2,
+        "0000001b": 2,
+        "0000001c": 2,
+        "0000001d": 2,
+        "0000001e": 2,
+        "0000001f": 2,
+        "00000020": 2,
+        "00000021": 2,
+        "00000022": 2,
+        "00000023": 2,
+        "00000024": 2,
+        "00000025": 1,
+        "00000065": 1
+      },
+      "DirectMusic.DirectSound.slot0.exit": {
+        "00000000": 2
+      },
+      "DirectMusic.DirectSound.slot2.exit": {
+        "00000002": 2,
+        "00000003": 2,
+        "00000001": 1,
+        "00000000": 1
+      },
+      "DirectMusic.AudioClient.slot7.exit": {
+        "00000000": 1
+      },
+      "DirectMusic.AudioClient.slot9.exit": {
+        "00000000": 1
+      },
+      "DirectMusic.AudioClient.slot3.exit": {
+        "00000000": 1
+      },
+      "DirectMusic.AudioClient.slot4.exit": {
+        "00000000": 2
+      },
+      "DirectMusic.AudioClient.slot14.exit": {
+        "00000000": 3
+      },
+      "DirectMusic.AudioClient.slot1.exit": {
+        "00000003": 1
+      },
+      "DirectMusic.AudioClient.slot13.exit": {
+        "00000000": 1
+      },
+      "DirectMusic.AudioClient.slot6.exit": {
+        "00000000": 1414
+      },
+      "DirectMusic.AudioRenderClient.slot3.exit": {
+        "00000000": 707
+      },
+      "DirectMusic.AudioRenderClient.slot4.exit": {
+        "00000000": 707
+      },
+      "DirectMusic.AudioClient.slot10.exit": {
+        "00000000": 1
+      },
+      "DirectMusic.Performance8.slot48.exit": {
+        "00000000": 1
+      },
+      "DirectMusic.Performance8.slot49.exit": {
+        "00000000": 1
+      },
+      "DirectMusic.Performance8.slot50.exit": {
+        "00000000": 1
+      },
+      "DirectMusic.Performance8.slot44.exit": {
+        "00000000": 1
+      },
+      "DirectMusic.Performance8.slot13.exit": {
+        "00000000": 47
+      },
+      "DirectMusic.Loader8.slot5.exit": {
+        "00000000": 1
+      },
+      "DirectMusic.Performance8.slot31.exit": {
+        "88781161": 46
+      },
+      "DirectMusic.Performance8.slot51.exit": {
+        "00000000": 1
+      },
+      "DirectMusic.Performance8.slot18.exit": {
+        "00000000": 1
+      },
+      "DirectMusic.AudioPath.slot3.exit": {
+        "00000000": 1
+      },
+      "DirectMusic.Tool.AddRef.exit": {
+        "00000002": 1
+      },
+      "DirectMusic.Tool.Init.exit": {
+        "80004001": 1
+      },
+      "DirectMusic.Tool.QueryInterface.exit": {
+        "80004002": 2
+      },
+      "DirectMusic.Tool.GetMsgDeliveryType.exit": {
+        "00000000": 1
+      },
+      "DirectMusic.Tool.GetMediaTypeArraySize.exit": {
+        "00000000": 1
+      },
+      "DirectMusic.Tool.GetMediaTypes.exit": {
+        "00000000": 1
+      },
+      "DirectMusic.Graph.slot4.exit": {
+        "00000000": 1
+      },
+      "DirectMusic.Tool.Release.exit": {
+        "00000001": 1,
+        "00000000": 1
+      },
+      "DirectMusic.Graph.slot2.exit": {
+        "00000001": 1,
+        "00000000": 1
+      },
+      "DirectMusic.Loader8.slot3.exit": {
+        "88781182": 1,
+        "00000000": 42,
+        "08781091": 1
+      },
+      "DirectMusic.Loader8.slot1.exit": {
+        "00000002": 3,
+        "00000003": 1,
+        "00000004": 41
+      },
+      "DirectMusic.Loader8.slot0.exit": {
+        "00000000": 45
+      },
+      "DirectMusic.Loader8.slot4.exit": {
+        "00000000": 17
+      },
+      "DirectMusic.Loader8.slot2.exit": {
+        "00000003": 41,
+        "00000002": 1,
+        "00000001": 3,
+        "00000000": 1
+      },
+      "DirectMusic.Loader8.slot14.exit": {
+        "00000000": 1
+      },
+      "DirectMusic.Performance8.slot0.exit": {
+        "00000000": 54,
+        "80004002": 32
+      },
+      "DirectMusic.Performance8.slot2.exit": {
+        "00000003": 4,
+        "00000004": 3,
+        "00000005": 3,
+        "00000006": 3,
+        "00000007": 3,
+        "00000008": 3,
+        "00000009": 3,
+        "0000000a": 3,
+        "0000000b": 3,
+        "0000000c": 3,
+        "0000000d": 3,
+        "0000000e": 3,
+        "0000000f": 3,
+        "00000010": 3,
+        "00000011": 2,
+        "00000012": 2,
+        "00000013": 2,
+        "00000014": 2,
+        "00000015": 2,
+        "00000016": 2,
+        "00000017": 2,
+        "00000018": 2,
+        "00000019": 2,
+        "0000001a": 2,
+        "0000001b": 2,
+        "0000001c": 2,
+        "0000001d": 2,
+        "0000001e": 2,
+        "0000001f": 2,
+        "00000020": 2,
+        "00000021": 2,
+        "00000022": 2,
+        "00000023": 2,
+        "00000024": 1,
+        "00000002": 2,
+        "00000001": 2,
+        "00000064": 1,
+        "00000063": 1,
+        "00000000": 1
+      },
+      "DirectMusic.Performance8.slot28.exit": {
+        "00000000": 16,
+        "88781162": 16
+      },
+      "DirectMusic.Script.slot3.exit": {
+        "00000000": 1
+      },
+      "DirectMusic.Loader8.slot8.exit": {
+        "00000000": 2,
+        "00000001": 1
+      },
+      "DirectMusic.Loader8.slot13.exit": {
+        "00000000": 1,
+        "00000001": 1
+      },
+      "DirectMusic.Script.slot2.exit": {
+        "00000010": 2,
+        "0000000f": 2,
+        "0000000e": 1,
+        "0000000d": 1,
+        "0000000c": 1,
+        "0000000b": 1,
+        "0000000a": 1,
+        "00000009": 1,
+        "00000008": 1,
+        "00000007": 1,
+        "00000006": 1,
+        "00000005": 1,
+        "00000004": 1,
+        "00000003": 1,
+        "00000002": 1,
+        "00000001": 1,
+        "00000000": 1
+      },
+      "DirectMusic.Script.slot4.exit": {
+        "8878121b": 1
+      },
+      "DirectMusic.Script.slot1.exit": {
+        "00000011": 1,
+        "00000010": 1
+      },
+      "DirectMusic.Script.slot0.exit": {
+        "00000000": 2
+      },
+      "DirectMusic.Performance8.slot36.exit": {
+        "00000000": 6
+      },
+      "DirectMusic.Performance8.slot12.exit": {
+        "00000000": 3
+      },
+      "DirectMusic.Performance8.slot5.exit": {
+        "00000000": 1
+      },
+      "DirectMusic.API.CoUninitialize.exit": {
+        "00000000": 5
+      },
+      "DirectMusic.Performance8.slot19.exit": {
+        "00000000": 1
+      },
+      "DirectMusic.AudioPath.slot2.exit": {
+        "00000001": 1
+      },
+      "DirectMusic.AudioPath.slot4.exit": {
+        "00000000": 1
+      },
+      "DirectMusic.Performance8.slot17.exit": {
+        "00000000": 2
+      },
+      "DirectMusic.SoundBuffer.slot2.exit": {
+        "00000000": 1
+      },
+      "DirectMusic.Performance8.slot38.exit": {
+        "00000000": 2
+      },
+      "DirectMusic.MMDeviceEnumerator.slot7.exit": {
+        "00000000": 1
+      },
+      "DirectMusic.AudioClient.slot12.exit": {
+        "00000000": 1
+      },
+      "DirectMusic.AudioRenderClient.slot2.exit": {
+        "00000000": 1
+      },
+      "DirectMusic.Loader8.slot12.exit": {
+        "00000000": 1
+      }
+    },
+    "classes": [
+      {
+        "clsid": "d2ac2892-b39b-11d1-8704-00600893b1bd",
+        "iid": "19e7c08c-0a44-4e6a-a116-595a7cd5de8c",
+        "context": "00000003",
+        "count": 1
+      },
+      {
+        "clsid": "480ff4b0-28b2-11d1-bef7-00c04fbf8fef",
+        "iid": "d2ac28b5-b39b-11d1-8704-00600893b1bd",
+        "context": "00000001",
+        "count": 1
+      },
+      {
+        "clsid": "d2ac2881-b39b-11d1-8704-00600893b1bd",
+        "iid": "679c4137-c62e-4147-b2b4-9d569acb254c",
+        "context": "00000003",
+        "count": 1
+      },
+      {
+        "clsid": "bcde0395-e52f-467c-8e3d-c4579291692e",
+        "iid": "a95664d2-9614-4f35-a746-de8db63617e6",
+        "context": "00000017",
+        "count": 45
+      },
+      {
+        "clsid": "636b9f10-0c7d-11d1-95b2-0020afdc7421",
+        "iid": "2d3629f7-813d-4939-8508-f05c6b75fd97",
+        "context": "00000003",
+        "count": 1
+      },
+      {
+        "clsid": "58c2b4d0-46e7-11d1-89ac-00a0c9054129",
+        "iid": "09823661-5c85-11d2-afa6-00aa0024d8b6",
+        "context": "00000001",
+        "count": 1
+      },
+      {
+        "clsid": "58c2b4d0-46e7-11d1-89ac-00a0c9054129",
+        "iid": "53cab625-2711-4c9f-9de7-1b7f925f6fc8",
+        "context": "00000001",
+        "count": 1
+      },
+      {
+        "clsid": "9301e380-1f22-11d3-8226-d2fa76255d47",
+        "iid": "d2ac28b5-b39b-11d1-8704-00600893b1bd",
+        "context": "00000001",
+        "count": 3
+      },
+      {
+        "clsid": "810b5013-e88d-11d2-8bc1-00600893b1b6",
+        "iid": "d2ac28b5-b39b-11d1-8704-00600893b1bd",
+        "context": "00000001",
+        "count": 2
+      },
+      {
+        "clsid": "d2ac2882-b39b-11d1-8704-00600893b1bd",
+        "iid": "d2ac28b5-b39b-11d1-8704-00600893b1bd",
+        "context": "00000001",
+        "count": 32
+      },
+      {
+        "clsid": "8a667154-f9cb-11d2-ad8a-0060b0575abc",
+        "iid": "d2ac28b5-b39b-11d1-8704-00600893b1bd",
+        "context": "00000001",
+        "count": 16
+      },
+      {
+        "clsid": "eed36461-9ea5-11d3-9bd1-0080c7150a74",
+        "iid": "f96029a1-4282-11d2-8717-00600893b1bd",
+        "context": "00000003",
+        "count": 16
+      },
+      {
+        "clsid": "4062c116-0270-11d3-8bcb-00600893b1b6",
+        "iid": "00000000-0000-0000-c000-000000000046",
+        "context": "00000001",
+        "count": 16
+      },
+      {
+        "clsid": "d2ac2885-b39b-11d1-8704-00600893b1bd",
+        "iid": "f96029a1-4282-11d2-8717-00600893b1bd",
+        "context": "00000003",
+        "count": 8
+      },
+      {
+        "clsid": "d2ac2888-b39b-11d1-8704-00600893b1bd",
+        "iid": "f96029a1-4282-11d2-8717-00600893b1bd",
+        "context": "00000003",
+        "count": 8
+      },
+      {
+        "clsid": "4108fa85-3586-11d3-8bd7-00600893b1b6",
+        "iid": "f96029a1-4282-11d2-8717-00600893b1bd",
+        "context": "00000003",
+        "count": 7
+      },
+      {
+        "clsid": "995c1cf5-54ff-11d3-8bda-00600893b1b6",
+        "iid": "f96029a1-4282-11d2-8717-00600893b1bd",
+        "context": "00000003",
+        "count": 45
+      },
+      {
+        "clsid": "55a8fd00-4288-11d3-9bd1-8a0d61c88835",
+        "iid": "f96029a1-4282-11d2-8717-00600893b1bd",
+        "context": "00000003",
+        "count": 106
+      },
+      {
+        "clsid": "b54f3741-5b07-11cf-a4b0-00aa004a55e8",
+        "iid": "bb1a2ae1-a4f9-11cf-8f20-00805f2cd064",
+        "context": "00000001",
+        "count": 1
+      },
+      {
+        "clsid": "6c736db1-bd94-11d0-8a23-00aa00b58e10",
+        "iid": "6c736dc1-ab0d-11d0-a2ad-00a0c90f27e8",
+        "context": "00000001",
+        "count": 1
+      },
+      {
+        "clsid": "a861c6e2-fcfc-11d2-8bc9-00600893b1b6",
+        "iid": "00000000-0000-0000-c000-000000000046",
+        "context": "00000001",
+        "count": 1
+      },
+      {
+        "clsid": "d2ac2890-b39b-11d1-8704-00600893b1bd",
+        "iid": "d2ac28bf-b39b-11d1-8704-00600893b1bd",
+        "context": "00000001",
+        "count": 1
+      }
+    ],
+    "queries": [
+      {
+        "method": "DirectMusic.MMDeviceEnumerator.slot0",
+        "iid": "00000000-0000-0000-c000-000000000046",
+        "count": 26
+      },
+      {
+        "method": "DirectMusic.MMDevice.slot0",
+        "iid": "3ade56af-4375-4413-9c91-4c652595ab07",
+        "count": 14
+      },
+      {
+        "method": "DirectMusic.MMDevice.slot0",
+        "iid": "1be09788-6894-4089-8586-9a2a6c265ac5",
+        "count": 32
+      },
+      {
+        "method": "DirectMusic.MMDevice.slot0",
+        "iid": "4ad09240-33fe-47f1-b228-2ab7e800e564",
+        "count": 32
+      },
+      {
+        "method": "DirectMusic.DirectSound.slot0",
+        "iid": "2a8af120-e9de-4132-aaa5-4bdda5f325b8",
+        "count": 1
+      },
+      {
+        "method": "DirectMusic.MMDeviceEnumerator.slot0",
+        "iid": "3e52272f-3c89-45f8-be26-cb3b91ab42a0",
+        "count": 4
+      },
+      {
+        "method": "DirectMusic.DirectSound.slot0",
+        "iid": "c50a7e93-f395-4834-9ef6-7fa99de50966",
+        "count": 1
+      },
+      {
+        "method": "DirectMusic.Tool.QueryInterface.entry",
+        "iid": "0e674303-3b05-11d3-9bd1-f9e7f0a01536",
+        "count": 1
+      },
+      {
+        "method": "DirectMusic.Tool.QueryInterface.entry",
+        "iid": "00000109-0000-0000-c000-000000000046",
+        "count": 1
+      },
+      {
+        "method": "DirectMusic.Loader8.slot0",
+        "iid": "2ffaaca2-5dca-11d2-afa6-00aa0024d8b6",
+        "count": 28
+      },
+      {
+        "method": "DirectMusic.Loader8.slot0",
+        "iid": "3939facd-f6ed-4619-bd16-56603f0151ca",
+        "count": 17
+      },
+      {
+        "method": "DirectMusic.Performance8.slot0",
+        "iid": "679c4137-c62e-4147-b2b4-9d569acb254c",
+        "count": 1
+      },
+      {
+        "method": "DirectMusic.Performance8.slot0",
+        "iid": "00020400-0000-0000-c000-000000000046",
+        "count": 1
+      },
+      {
+        "method": "DirectMusic.Performance8.slot0",
+        "iid": "07d43d03-6523-11d2-871d-00600893b1bd",
+        "count": 51
+      },
+      {
+        "method": "DirectMusic.Performance8.slot0",
+        "iid": "2befc277-5497-11d2-bccb-00a0c922e6eb",
+        "count": 1
+      },
+      {
+        "method": "DirectMusic.Performance8.slot0",
+        "iid": "c87631f5-23be-4986-8836-05832fcc48f9",
+        "count": 32
+      },
+      {
+        "method": "DirectMusic.Script.slot0",
+        "iid": "d2ac28b5-b39b-11d1-8704-00600893b1bd",
+        "count": 1
+      },
+      {
+        "method": "DirectMusic.Script.slot0",
+        "iid": "6a20c217-eb3e-40ec-9f3a-920508702b5e",
+        "count": 1
+      }
+    ],
+    "apartments": [
+      {
+        "seq": 13,
+        "thread": 0,
+        "method": "DirectMusic.API.CoInitializeEx.entry",
+        "result": "75d31500",
+        "stack": [
+          "76814d0d",
+          "00000000",
+          "00000002",
+          "00000000"
+        ]
+      },
+      {
+        "seq": 14,
+        "thread": 0,
+        "method": "DirectMusic.API.CoInitializeEx.exit",
+        "result": "00000000",
+        "stack": [
+          "76814d0d",
+          "00000000",
+          "00000002",
+          "00000000"
+        ]
+      },
+      {
+        "seq": 1060,
+        "thread": 0,
+        "method": "DirectMusic.API.CoInitialize.entry",
+        "result": "00000000",
+        "stack": [
+          "10481785",
+          "00000000",
+          "01db1944",
+          "10480d93"
+        ]
+      },
+      {
+        "seq": 1061,
+        "thread": 0,
+        "method": "DirectMusic.API.CoInitializeEx.entry",
+        "result": "00000000",
+        "stack": [
+          "760ac340",
+          "00000000",
+          "00000002",
+          "005fb3b0"
+        ]
+      },
+      {
+        "seq": 1062,
+        "thread": 0,
+        "method": "DirectMusic.API.CoInitializeEx.exit",
+        "result": "00000000",
+        "stack": [
+          "760ac340",
+          "00000000",
+          "00000002",
+          "005fb3b0"
+        ]
+      },
+      {
+        "seq": 1063,
+        "thread": 0,
+        "method": "DirectMusic.API.CoInitialize.exit",
+        "result": "00000000",
+        "stack": [
+          "10481785",
+          "00000000",
+          "01db1944",
+          "10480d93"
+        ]
+      },
+      {
+        "seq": 1085,
+        "thread": 0,
+        "method": "DirectMusic.API.CoInitializeEx.entry",
+        "result": "00000000",
+        "stack": [
+          "7b3e2be0",
+          "00000000",
+          "00000000",
+          "1af10b00"
+        ]
+      },
+      {
+        "seq": 1086,
+        "thread": 0,
+        "method": "DirectMusic.API.CoInitializeEx.exit",
+        "result": "80010106",
+        "stack": [
+          "7b3e2be0",
+          "00000000",
+          "00000000",
+          "1af10b00"
+        ]
+      },
+      {
+        "seq": 1377,
+        "thread": 7,
+        "method": "DirectMusic.API.CoInitializeEx.entry",
+        "result": "00000000",
+        "stack": [
+          "7b3e49b2",
+          "00000000",
+          "00000000",
+          "1af10b50"
+        ]
+      },
+      {
+        "seq": 1378,
+        "thread": 7,
+        "method": "DirectMusic.API.CoInitializeEx.exit",
+        "result": "00000000",
+        "stack": [
+          "7b3e49b2",
+          "00000000",
+          "00000000",
+          "1af10b50"
+        ]
+      },
+      {
+        "seq": 1656,
+        "thread": 9,
+        "method": "DirectMusic.API.CoInitializeEx.entry",
+        "result": "1b51ffcc",
+        "stack": [
+          "7b4cac1f",
+          "00000000",
+          "00000002",
+          "1b51ff84"
+        ]
+      },
+      {
+        "seq": 1657,
+        "thread": 9,
+        "method": "DirectMusic.API.CoInitializeEx.exit",
+        "result": "00000000",
+        "stack": [
+          "7b4cac1f",
+          "00000000",
+          "00000002",
+          "1b51ff84"
+        ]
+      },
+      {
+        "seq": 1658,
+        "thread": 10,
+        "method": "DirectMusic.API.CoInitialize.entry",
+        "result": "760ac330",
+        "stack": [
+          "7b4cb2cd",
+          "00000000",
+          "1b75ff84",
+          "76945d49"
+        ]
+      },
+      {
+        "seq": 1659,
+        "thread": 10,
+        "method": "DirectMusic.API.CoInitializeEx.entry",
+        "result": "760ac330",
+        "stack": [
+          "760ac340",
+          "00000000",
+          "00000002",
+          "1b75ff74"
+        ]
+      },
+      {
+        "seq": 1660,
+        "thread": 10,
+        "method": "DirectMusic.API.CoInitializeEx.exit",
+        "result": "00000000",
+        "stack": [
+          "760ac340",
+          "00000000",
+          "00000002",
+          "1b75ff74"
+        ]
+      },
+      {
+        "seq": 1661,
+        "thread": 10,
+        "method": "DirectMusic.API.CoInitialize.exit",
+        "result": "00000000",
+        "stack": [
+          "7b4cb2cd",
+          "00000000",
+          "1b75ff84",
+          "76945d49"
+        ]
+      },
+      {
+        "seq": 4134,
+        "thread": 15,
+        "method": "DirectMusic.API.CoInitializeEx.entry",
+        "result": "00000001",
+        "stack": [
+          "7b5494a8",
+          "00000000",
+          "00000002",
+          "10b7e108"
+        ]
+      },
+      {
+        "seq": 4135,
+        "thread": 15,
+        "method": "DirectMusic.API.CoInitializeEx.exit",
+        "result": "00000000",
+        "stack": [
+          "7b5494a8",
+          "00000000",
+          "00000002",
+          "10b7e108"
+        ]
+      },
+      {
+        "seq": 21442,
+        "thread": 10,
+        "method": "DirectMusic.API.CoUninitialize.entry",
+        "result": "00000000",
+        "stack": [
+          "7b4cb2df",
+          "1b75ff84",
+          "76945d49",
+          "10a35990"
+        ]
+      },
+      {
+        "seq": 21447,
+        "thread": 10,
+        "method": "DirectMusic.API.CoUninitialize.exit",
+        "result": "00000000",
+        "stack": [
+          "7b4cb2df",
+          "1b75ff84",
+          "76945d49",
+          "10a35990"
+        ]
+      },
+      {
+        "seq": 21452,
+        "thread": 9,
+        "method": "DirectMusic.API.CoUninitialize.entry",
+        "result": "00000000",
+        "stack": [
+          "7b4cac41",
+          "1b51ff84",
+          "76945d49",
+          "10a35990"
+        ]
+      },
+      {
+        "seq": 21453,
+        "thread": 9,
+        "method": "DirectMusic.API.CoUninitialize.exit",
+        "result": "00000000",
+        "stack": [
+          "7b4cac41",
+          "1b51ff84",
+          "76945d49",
+          "10a35990"
+        ]
+      },
+      {
+        "seq": 21584,
+        "thread": 7,
+        "method": "DirectMusic.API.CoUninitialize.entry",
+        "result": "00000008",
+        "stack": [
+          "7b3e48b1",
+          "7b3e4880",
+          "1af10b50",
+          "1b11ff74"
+        ]
+      },
+      {
+        "seq": 21585,
+        "thread": 7,
+        "method": "DirectMusic.API.CoUninitialize.exit",
+        "result": "00000000",
+        "stack": [
+          "7b3e48b1",
+          "7b3e4880",
+          "1af10b50",
+          "1b11ff74"
+        ]
+      },
+      {
+        "seq": 21844,
+        "thread": 15,
+        "method": "DirectMusic.API.CoUninitialize.entry",
+        "result": "00000000",
+        "stack": [
+          "7b5494e2",
+          "10b7e108",
+          "7b5492a0",
+          "10b7e108"
+        ]
+      },
+      {
+        "seq": 21845,
+        "thread": 15,
+        "method": "DirectMusic.API.CoUninitialize.exit",
+        "result": "00000000",
+        "stack": [
+          "7b5494e2",
+          "10b7e108",
+          "7b5492a0",
+          "10b7e108"
+        ]
+      },
+      {
+        "seq": 21851,
+        "thread": 0,
+        "method": "DirectMusic.API.CoUninitialize.entry",
+        "result": "00997970",
+        "stack": [
+          "76812587",
+          "0096f898",
+          "00000017",
+          "763c2777"
+        ]
+      },
+      {
+        "seq": 21852,
+        "thread": 0,
+        "method": "DirectMusic.API.CoUninitialize.exit",
+        "result": "00000000",
+        "stack": [
+          "76812587",
+          "0096f898",
+          "00000017",
+          "763c2777"
+        ]
+      }
+    ]
+  },
+  "original_sound": {
+    "path": "experiments\\xrt\\results\\raw\\graphics-startup\\7a8c2b9db8e8-dxvk",
+    "args": [
+      "CS_Intro.un2",
+      "-windowed",
+      "-NOMMX",
+      "-NOSSE"
+    ],
+    "trace": {
+      "path": "experiments\\xrt\\results\\raw\\graphics-startup\\7a8c2b9db8e8-dxvk\\trace.json",
+      "sha256": "06fdf13ac1f7ed86bc1cd1888ff748c4f1830c02f1f3dbec2461fe34f144c801"
+    },
+    "music": {
+      "path": "experiments\\xrt\\results\\raw\\graphics-startup\\7a8c2b9db8e8-dxvk\\music.jsonl",
+      "sha256": "74df21e126b769d311c5ce1f9892da88bd74f46864f5df4dcdbfced37cb0a526"
+    },
+    "observer": {
+      "path": "experiments/xrt/build/tracer/uctrace.exe",
+      "sha256": "079935e8c7a3d56e3632e2982e459c7acdb748973d69ab1f0a601a9e67626140"
+    },
+    "input_files": 4123,
+    "input_manifest_sha256": "d0c0c74578699055a84fbfb1a2aea02861839aeac3a3af12fbce611d15896a70",
+    "selected_input_hashes": {
+      "System/Engine.dll": "f951becf4069f4976a76c027c04f7acaf73435578190216359c3a9936e618499",
+      "System/Unreal2.exe": "953d15019970a149fd4118cfe91f5d29f9b38d22fa67174ebc9cbab65ad44758",
+      "System/Unreal2.ini": "bcb0c403fa71e7f82a64a8ee06ea3b5ff1f1ec2435b3e4d14756c5b5aaeccac4",
+      "System/Golem.u": "c9e78920e429d335245a65384ad91ff30d725d99e60c25f932701f70e71b1648",
+      "Maps/CS_Intro.un2": "bbdaa7612718eaf27b00910c71de81251393bf5afd5a58d473a0bdd47cc8f69a",
+      "Maps/Entry.un2": "843feca345b244199b0fefb0f6be7c6802b71c453854cf492c45d00409850b94",
+      "Music/Intro.con": "7fb7fbdc46b42e1f5a095cd478a053dcc452e563fdc318f17299f7a89689a156",
+      "System/d3d8.dll": "9152ba43386e756790a66f61cdcee01b3287d156d4161c7456d816faa82fc364",
+      "System/d3d9.dll": "265888c31ca78dffa290c39cb7e50bfb02762590e41927906e46fb32f01497fa"
+    },
+    "world": {
+      "observer_complete_without_drops": true,
+      "selected_map": {
+        "entry_seq": 127,
+        "open_seq": 128,
+        "return_seq": 5052,
+        "world": "0x10812800",
+        "actors": {
+          "AActor.eventPreBeginPlay": 268,
+          "AActor.eventBeginPlay": 268,
+          "AActor.eventPostBeginPlay": 268
+        }
+      },
+      "selected_level_initialized": true,
+      "completed_selected_world_ticks": [
+        {
+          "entry_seq": 19179,
+          "ret_seq": 19810,
+          "caller_seq": 19811
+        },
+        {
+          "entry_seq": 27552,
+          "ret_seq": 27553,
+          "caller_seq": 27554
+        },
+        {
+          "entry_seq": 27577,
+          "ret_seq": 27584,
+          "caller_seq": 27586
+        },
+        {
+          "entry_seq": 27614,
+          "ret_seq": 27622,
+          "caller_seq": 27623
+        }
+      ],
+      "game_create_device": [
+        {
+          "call_seq": 18736,
+          "return_seq": 18917,
+          "hresult": "0x00000000"
+        }
+      ],
+      "game_present": [
+        {
+          "call_seq": 19830,
+          "return_seq": 19831,
+          "hresult": "0x00000000"
+        },
+        {
+          "call_seq": 27596,
+          "return_seq": 27600,
+          "hresult": "0x00000000"
+        },
+        {
+          "call_seq": 27628,
+          "return_seq": 27629,
+          "hresult": "0x00000000"
+        }
+      ],
+      "interactive_play_verified": false
+    },
+    "game_calls": [
+      {
+        "method": "CoInitialize",
+        "result": "00000000"
+      },
+      {
+        "method": "Loader8",
+        "result": "00000000"
+      },
+      {
+        "method": "Performance8",
+        "result": "00000000"
+      },
+      {
+        "method": "Performance.InitAudio",
+        "result": "00000000"
+      },
+      {
+        "method": "Loader.SetSearchDirectory",
+        "result": "00000000"
+      },
+      {
+        "method": "Performance.GetDefaultAudioPath",
+        "result": "00000000"
+      },
+      {
+        "method": "AudioPath.GetObjectInPath",
+        "result": "00000000"
+      },
+      {
+        "method": "Graph.InsertTool",
+        "result": "00000000"
+      },
+      {
+        "method": "Graph.Release",
+        "result": "00000001"
+      },
+      {
+        "method": "Loader.LoadObjectFromFile",
+        "result": "00000000"
+      },
+      {
+        "method": "Loader.GetObject",
+        "result": "00000000"
+      },
+      {
+        "method": "Script.Init",
+        "result": "00000000"
+      },
+      {
+        "method": "Loader.ReleaseObjectByUnknown.container",
+        "result": "00000000"
+      },
+      {
+        "method": "Container.Release",
+        "result": "00000000"
+      },
+      {
+        "method": "Performance.SetGlobalParam",
+        "result": "00000000"
+      },
+      {
+        "method": "Script.CallRoutine",
+        "result": "8878121b"
+      },
+      {
+        "method": "Loader.ReleaseObjectByUnknown.script",
+        "result": "00000001"
+      },
+      {
+        "method": "Script.Release",
+        "result": "0000000f"
+      },
+      {
+        "method": "Performance.Stop",
+        "result": "00000000"
+      },
+      {
+        "method": "Performance.CloseDown",
+        "result": "00000000"
+      },
+      {
+        "method": "Performance.Release",
+        "result": "00000012"
+      },
+      {
+        "method": "DirectSound.Release",
+        "result": "00000000"
+      },
+      {
+        "method": "Loader.Release",
+        "result": "00000000"
+      }
+    ],
+    "init_audio": {
+      "directmusic_output_null": true,
+      "sound_output_requested": true,
+      "hwnd": "00000000",
+      "default_path_type": 8,
+      "pchannels": 128,
+      "flags": 63,
+      "params_null": true
+    },
+    "routine_name_empty": true,
+    "audio_stream": {
+      "initialize": [
+        "00000000",
+        "00000000"
+      ],
+      "start": [
+        "00000000",
+        "00000000"
+      ]
+    },
+    "call_counts": {
+      "DirectMusic.API.CoInitializeEx.entry": 10,
+      "DirectMusic.execCallRoutine": 1,
+      "DirectMusic.DMCallRoutine": 1,
+      "DirectMusic.shutdown": 2,
+      "DirectMusic.CoInitialize.call": 1,
+      "DirectMusic.API.CoInitialize.entry": 4,
+      "DirectMusic.Loader8.call": 1,
+      "DirectMusic.API.CoCreateInstance.entry": 317,
+      "DirectMusic.Performance8.call": 1,
+      "DirectMusic.Performance.InitAudio.call": 1,
+      "DirectMusic.Performance8.slot44": 1,
+      "DirectMusic.Performance8.slot34": 2,
+      "DirectMusic.Performance8.slot16": 1,
+      "DirectMusic.API.DirectSoundCreate8.entry": 1,
+      "DirectMusic.MMDeviceEnumerator.slot3": 2,
+      "DirectMusic.MMDeviceEnumerator.slot4": 7,
+      "DirectMusic.MMDevice.slot5": 37,
+      "DirectMusic.MMDevice.slot2": 197,
+      "DirectMusic.MMDeviceEnumerator.slot2": 127,
+      "DirectMusic.MMDeviceCollection.slot3": 2,
+      "DirectMusic.MMDeviceCollection.slot4": 13,
+      "DirectMusic.MMDevice.slot4": 123,
+      "DirectMusic.MMDeviceEnumerator.slot0": 30,
+      "DirectMusic.MMDeviceEnumerator.slot1": 32,
+      "DirectMusic.MMDeviceEnumerator.slot5": 94,
+      "DirectMusic.MMDevice.slot0": 81,
+      "DirectMusic.MMDevice.slot1": 40,
+      "DirectMusic.MMDeviceCollection.slot2": 2,
+      "DirectMusic.MMDevice.slot3": 17,
+      "DirectMusic.MMDevice.slot6": 17,
+      "DirectMusic.AudioClient.slot8": 15,
+      "DirectMusic.MMDeviceEnumerator.slot6": 3,
+      "DirectMusic.AudioClient.slot2": 19,
+      "DirectMusic.AudioClient.slot11": 21,
+      "DirectMusic.DirectSound.slot6": 1,
+      "DirectMusic.DirectSound.slot1": 3,
+      "DirectMusic.DirectSound.slot3": 1,
+      "DirectMusic.SoundBuffer.slot5": 1,
+      "DirectMusic.SoundBuffer.slot14": 1,
+      "DirectMusic.Performance8.slot49": 1,
+      "DirectMusic.Performance8.slot48": 1,
+      "DirectMusic.Performance8.slot1": 87,
+      "DirectMusic.DirectSound.slot0": 2,
+      "DirectMusic.DirectSound.slot2": 6,
+      "DirectMusic.AudioClient.slot7": 1,
+      "DirectMusic.AudioClient.slot9": 1,
+      "DirectMusic.AudioClient.slot3": 2,
+      "DirectMusic.AudioClient.slot4": 4,
+      "DirectMusic.AudioClient.slot14": 6,
+      "DirectMusic.AudioClient.slot1": 2,
+      "DirectMusic.AudioClient.slot13": 2,
+      "DirectMusic.AudioRenderClient.slot3": 1631,
+      "DirectMusic.AudioClient.slot6": 3245,
+      "DirectMusic.AudioRenderClient.slot4": 1631,
+      "DirectMusic.AudioClient.slot10": 2,
+      "DirectMusic.Performance8.slot50": 1,
+      "DirectMusic.Loader.SetSearchDirectory.call": 1,
+      "DirectMusic.Loader8.slot5": 1,
+      "DirectMusic.Performance8.slot13": 49,
+      "DirectMusic.Performance8.slot31": 48,
+      "DirectMusic.Performance.GetDefaultAudioPath.call": 1,
+      "DirectMusic.Performance8.slot51": 1,
+      "DirectMusic.AudioPath.GetObjectInPath.call": 1,
+      "DirectMusic.AudioPath.slot3": 1,
+      "DirectMusic.Performance8.slot18": 1,
+      "DirectMusic.Graph.InsertTool.call": 1,
+      "DirectMusic.Graph.slot4": 1,
+      "DirectMusic.Tool.AddRef.entry": 1,
+      "DirectMusic.Tool.Init.entry": 1,
+      "DirectMusic.Tool.QueryInterface.entry": 2,
+      "DirectMusic.Tool.GetMsgDeliveryType.entry": 1,
+      "DirectMusic.Tool.GetMediaTypeArraySize.entry": 1,
+      "DirectMusic.Tool.GetMediaTypes.entry": 1,
+      "DirectMusic.Tool.Release.entry": 2,
+      "DirectMusic.Graph.Release.call": 1,
+      "DirectMusic.Graph.slot2": 2,
+      "DirectMusic.Loader.LoadObjectFromFile.call": 1,
+      "DirectMusic.Loader8.slot14": 1,
+      "DirectMusic.Loader8.slot3": 44,
+      "DirectMusic.Loader8.slot0": 45,
+      "DirectMusic.Loader8.slot1": 45,
+      "DirectMusic.Loader8.slot4": 17,
+      "DirectMusic.Loader8.slot2": 46,
+      "DirectMusic.Loader.GetObject.call": 1,
+      "DirectMusic.Script.Init.call": 1,
+      "DirectMusic.Script.slot3": 1,
+      "DirectMusic.Performance8.slot0": 86,
+      "DirectMusic.Performance8.slot2": 89,
+      "DirectMusic.Performance8.slot28": 32,
+      "DirectMusic.Loader.ReleaseObjectByUnknown.container.call": 1,
+      "DirectMusic.Loader8.slot13": 2,
+      "DirectMusic.Loader8.slot8": 3,
+      "DirectMusic.Container.Release.call": 1,
+      "DirectMusic.Script.slot2": 19,
+      "DirectMusic.Performance.SetGlobalParam.call": 1,
+      "DirectMusic.Script.CallRoutine.call": 1,
+      "DirectMusic.Script.slot4": 1,
+      "DirectMusic.MMDeviceEnumerator.slot7": 3,
+      "DirectMusic.AudioClient.slot0": 1,
+      "DirectMusic.API.CoUninitialize.entry": 6,
+      "DirectMusic.Loader.ReleaseObjectByUnknown.script.call": 1,
+      "DirectMusic.Script.slot0": 2,
+      "DirectMusic.Script.slot1": 2,
+      "DirectMusic.Script.Release.call": 1,
+      "DirectMusic.Performance.Stop.call": 1,
+      "DirectMusic.Performance8.slot5": 1,
+      "DirectMusic.Performance8.slot36": 6,
+      "DirectMusic.Performance8.slot12": 3,
+      "DirectMusic.Performance.CloseDown.call": 1,
+      "DirectMusic.Performance8.slot38": 2,
+      "DirectMusic.Performance8.slot19": 1,
+      "DirectMusic.AudioPath.slot2": 1,
+      "DirectMusic.AudioPath.slot4": 1,
+      "DirectMusic.Performance8.slot17": 2,
+      "DirectMusic.SoundBuffer.slot2": 1,
+      "DirectMusic.Performance.Release.call": 1,
+      "DirectMusic.DirectSound.Release.call": 1,
+      "DirectMusic.AudioClient.slot12": 3,
+      "DirectMusic.AudioRenderClient.slot2": 2,
+      "DirectMusic.Loader.Release.call": 1,
+      "DirectMusic.Loader8.slot12": 1
+    },
+    "return_value_histograms": {
+      "DirectMusic.API.CoInitializeEx.exit": {
+        "00000000": 7,
+        "80010106": 1,
+        "00000001": 2
+      },
+      "DirectMusic.API.CoInitialize.exit": {
+        "00000000": 2,
+        "00000001": 2
+      },
+      "DirectMusic.API.CoCreateInstance.exit": {
+        "00000000": 317
+      },
+      "DirectMusic.Performance8.slot34.exit": {
+        "00000000": 2
+      },
+      "DirectMusic.Performance8.slot16.exit": {
+        "00000000": 1
+      },
+      "DirectMusic.MMDeviceEnumerator.slot3.exit": {
+        "00000000": 2
+      },
+      "DirectMusic.MMDeviceEnumerator.slot4.exit": {
+        "00000000": 7
+      },
+      "DirectMusic.MMDevice.slot5.exit": {
+        "00000000": 37
+      },
+      "DirectMusic.MMDevice.slot2.exit": {
+        "00000000": 60,
+        "00000001": 93,
+        "00000002": 39,
+        "00000003": 5
+      },
+      "DirectMusic.MMDeviceEnumerator.slot2.exit": {
+        "00000001": 17,
+        "00000002": 7,
+        "00000003": 40,
+        "00000004": 41,
+        "00000005": 21,
+        "00000000": 1
+      },
+      "DirectMusic.MMDeviceCollection.slot3.exit": {
+        "00000000": 2
+      },
+      "DirectMusic.MMDeviceCollection.slot4.exit": {
+        "00000000": 13
+      },
+      "DirectMusic.MMDevice.slot4.exit": {
+        "00000000": 123
+      },
+      "DirectMusic.MMDeviceEnumerator.slot1.exit": {
+        "00000003": 6,
+        "00000004": 1,
+        "00000005": 4,
+        "00000006": 21
+      },
+      "DirectMusic.MMDeviceEnumerator.slot0.exit": {
+        "00000000": 30
+      },
+      "DirectMusic.MMDeviceEnumerator.slot5.exit": {
+        "00000000": 94
+      },
+      "DirectMusic.MMDevice.slot1.exit": {
+        "00000003": 35,
+        "00000004": 5
+      },
+      "DirectMusic.MMDevice.slot0.exit": {
+        "00000000": 79,
+        "80004002": 2
+      },
+      "DirectMusic.MMDeviceCollection.slot2.exit": {
+        "00000000": 2
+      },
+      "DirectMusic.MMDevice.slot6.exit": {
+        "00000000": 17
+      },
+      "DirectMusic.MMDevice.slot3.exit": {
+        "00000000": 17
+      },
+      "DirectMusic.AudioClient.slot8.exit": {
+        "00000000": 15
+      },
+      "DirectMusic.MMDeviceEnumerator.slot6.exit": {
+        "00000000": 3
+      },
+      "DirectMusic.AudioClient.slot11.exit": {
+        "88890001": 15,
+        "00000000": 2,
+        "00000001": 4
+      },
+      "DirectMusic.AudioClient.slot2.exit": {
+        "00000000": 17,
+        "00000001": 2
+      },
+      "DirectMusic.API.DirectSoundCreate8.exit": {
+        "00000000": 1
+      },
+      "DirectMusic.DirectSound.slot6.exit": {
+        "00000000": 1
+      },
+      "DirectMusic.DirectSound.slot1.exit": {
+        "00000002": 1,
+        "00000003": 1,
+        "00000004": 1
+      },
+      "DirectMusic.DirectSound.slot3.exit": {
+        "00000000": 1
+      },
+      "DirectMusic.SoundBuffer.slot5.exit": {
+        "00000000": 1
+      },
+      "DirectMusic.SoundBuffer.slot14.exit": {
+        "00000000": 1
+      },
+      "DirectMusic.Performance8.slot1.exit": {
+        "00000002": 2,
+        "00000003": 2,
+        "00000004": 4,
+        "00000005": 3,
+        "00000006": 3,
+        "00000007": 3,
+        "00000008": 3,
+        "00000009": 3,
+        "0000000a": 3,
+        "0000000b": 3,
+        "0000000c": 3,
+        "0000000d": 3,
+        "0000000e": 3,
+        "0000000f": 3,
+        "00000010": 3,
+        "00000011": 3,
+        "00000012": 2,
+        "00000013": 2,
+        "00000014": 2,
+        "00000015": 2,
+        "00000016": 2,
+        "00000017": 2,
+        "00000018": 2,
+        "00000019": 2,
+        "0000001a": 2,
+        "0000001b": 2,
+        "0000001c": 2,
+        "0000001d": 2,
+        "0000001e": 2,
+        "0000001f": 2,
+        "00000020": 2,
+        "00000021": 2,
+        "00000022": 2,
+        "00000023": 2,
+        "00000024": 2,
+        "00000025": 1,
+        "00000065": 1
+      },
+      "DirectMusic.DirectSound.slot0.exit": {
+        "00000000": 2
+      },
+      "DirectMusic.DirectSound.slot2.exit": {
+        "00000002": 2,
+        "00000003": 2,
+        "00000001": 1,
+        "00000000": 1
+      },
+      "DirectMusic.AudioClient.slot7.exit": {
+        "00000000": 1
+      },
+      "DirectMusic.AudioClient.slot9.exit": {
+        "00000000": 1
+      },
+      "DirectMusic.AudioClient.slot3.exit": {
+        "00000000": 2
+      },
+      "DirectMusic.AudioClient.slot4.exit": {
+        "00000000": 4
+      },
+      "DirectMusic.AudioClient.slot14.exit": {
+        "00000000": 6
+      },
+      "DirectMusic.AudioClient.slot1.exit": {
+        "00000003": 1,
+        "00000002": 1
+      },
+      "DirectMusic.AudioClient.slot13.exit": {
+        "00000000": 2
+      },
+      "DirectMusic.AudioClient.slot6.exit": {
+        "00000000": 3214
+      },
+      "DirectMusic.AudioRenderClient.slot3.exit": {
+        "00000000": 1631
+      },
+      "DirectMusic.AudioRenderClient.slot4.exit": {
+        "00000000": 1631
+      },
+      "DirectMusic.AudioClient.slot10.exit": {
+        "00000000": 2
+      },
+      "DirectMusic.Performance8.slot48.exit": {
+        "00000000": 1
+      },
+      "DirectMusic.Performance8.slot49.exit": {
+        "00000000": 1
+      },
+      "DirectMusic.Performance8.slot50.exit": {
+        "00000000": 1
+      },
+      "DirectMusic.Performance8.slot44.exit": {
+        "00000000": 1
+      },
+      "DirectMusic.Performance8.slot13.exit": {
+        "00000000": 49
+      },
+      "DirectMusic.Performance8.slot31.exit": {
+        "88781161": 48
+      },
+      "DirectMusic.Loader8.slot5.exit": {
+        "00000000": 1
+      },
+      "DirectMusic.Performance8.slot51.exit": {
+        "00000000": 1
+      },
+      "DirectMusic.Performance8.slot18.exit": {
+        "00000000": 1
+      },
+      "DirectMusic.AudioPath.slot3.exit": {
+        "00000000": 1
+      },
+      "DirectMusic.Tool.AddRef.exit": {
+        "00000002": 1
+      },
+      "DirectMusic.Tool.Init.exit": {
+        "80004001": 1
+      },
+      "DirectMusic.Tool.QueryInterface.exit": {
+        "80004002": 2
+      },
+      "DirectMusic.Tool.GetMsgDeliveryType.exit": {
+        "00000000": 1
+      },
+      "DirectMusic.Tool.GetMediaTypeArraySize.exit": {
+        "00000000": 1
+      },
+      "DirectMusic.Tool.GetMediaTypes.exit": {
+        "00000000": 1
+      },
+      "DirectMusic.Graph.slot4.exit": {
+        "00000000": 1
+      },
+      "DirectMusic.Tool.Release.exit": {
+        "00000001": 1,
+        "00000000": 1
+      },
+      "DirectMusic.Graph.slot2.exit": {
+        "00000001": 1,
+        "00000000": 1
+      },
+      "DirectMusic.Loader8.slot3.exit": {
+        "88781182": 1,
+        "00000000": 42,
+        "08781091": 1
+      },
+      "DirectMusic.Loader8.slot1.exit": {
+        "00000002": 3,
+        "00000003": 1,
+        "00000004": 41
+      },
+      "DirectMusic.Loader8.slot0.exit": {
+        "00000000": 45
+      },
+      "DirectMusic.Loader8.slot4.exit": {
+        "00000000": 17
+      },
+      "DirectMusic.Loader8.slot2.exit": {
+        "00000003": 41,
+        "00000002": 1,
+        "00000001": 3,
+        "00000000": 1
+      },
+      "DirectMusic.Loader8.slot14.exit": {
+        "00000000": 1
+      },
+      "DirectMusic.Performance8.slot0.exit": {
+        "00000000": 54,
+        "80004002": 32
+      },
+      "DirectMusic.Performance8.slot2.exit": {
+        "00000003": 4,
+        "00000004": 3,
+        "00000005": 3,
+        "00000006": 3,
+        "00000007": 3,
+        "00000008": 3,
+        "00000009": 3,
+        "0000000a": 3,
+        "0000000b": 3,
+        "0000000c": 3,
+        "0000000d": 3,
+        "0000000e": 3,
+        "0000000f": 3,
+        "00000010": 3,
+        "00000011": 2,
+        "00000012": 2,
+        "00000013": 2,
+        "00000014": 2,
+        "00000015": 2,
+        "00000016": 2,
+        "00000017": 2,
+        "00000018": 2,
+        "00000019": 2,
+        "0000001a": 2,
+        "0000001b": 2,
+        "0000001c": 2,
+        "0000001d": 2,
+        "0000001e": 2,
+        "0000001f": 2,
+        "00000020": 2,
+        "00000021": 2,
+        "00000022": 2,
+        "00000023": 2,
+        "00000024": 1,
+        "00000002": 2,
+        "00000001": 2,
+        "00000064": 1,
+        "00000063": 1,
+        "00000000": 1
+      },
+      "DirectMusic.Performance8.slot28.exit": {
+        "00000000": 16,
+        "88781162": 16
+      },
+      "DirectMusic.Script.slot3.exit": {
+        "00000000": 1
+      },
+      "DirectMusic.Loader8.slot8.exit": {
+        "00000000": 2,
+        "00000001": 1
+      },
+      "DirectMusic.Loader8.slot13.exit": {
+        "00000000": 1,
+        "00000001": 1
+      },
+      "DirectMusic.Script.slot2.exit": {
+        "00000010": 2,
+        "0000000f": 2,
+        "0000000e": 1,
+        "0000000d": 1,
+        "0000000c": 1,
+        "0000000b": 1,
+        "0000000a": 1,
+        "00000009": 1,
+        "00000008": 1,
+        "00000007": 1,
+        "00000006": 1,
+        "00000005": 1,
+        "00000004": 1,
+        "00000003": 1,
+        "00000002": 1,
+        "00000001": 1,
+        "00000000": 1
+      },
+      "DirectMusic.Script.slot4.exit": {
+        "8878121b": 1
+      },
+      "DirectMusic.MMDeviceEnumerator.slot7.exit": {
+        "00000000": 3
+      },
+      "DirectMusic.AudioClient.slot0.exit": {
+        "00000000": 1
+      },
+      "DirectMusic.API.CoUninitialize.exit": {
+        "00000000": 6
+      },
+      "DirectMusic.Script.slot1.exit": {
+        "00000011": 1,
+        "00000010": 1
+      },
+      "DirectMusic.Script.slot0.exit": {
+        "00000000": 2
+      },
+      "DirectMusic.Performance8.slot36.exit": {
+        "00000000": 6
+      },
+      "DirectMusic.Performance8.slot12.exit": {
+        "00000000": 3
+      },
+      "DirectMusic.Performance8.slot5.exit": {
+        "00000000": 1
+      },
+      "DirectMusic.Performance8.slot19.exit": {
+        "00000000": 1
+      },
+      "DirectMusic.AudioPath.slot2.exit": {
+        "00000001": 1
+      },
+      "DirectMusic.AudioPath.slot4.exit": {
+        "00000000": 1
+      },
+      "DirectMusic.Performance8.slot17.exit": {
+        "00000000": 2
+      },
+      "DirectMusic.SoundBuffer.slot2.exit": {
+        "00000000": 1
+      },
+      "DirectMusic.Performance8.slot38.exit": {
+        "00000000": 2
+      },
+      "DirectMusic.AudioClient.slot12.exit": {
+        "00000000": 3
+      },
+      "DirectMusic.AudioRenderClient.slot2.exit": {
+        "00000000": 2
+      },
+      "DirectMusic.Loader8.slot12.exit": {
+        "00000000": 1
+      }
+    },
+    "classes": [
+      {
+        "clsid": "d2ac2892-b39b-11d1-8704-00600893b1bd",
+        "iid": "19e7c08c-0a44-4e6a-a116-595a7cd5de8c",
+        "context": "00000003",
+        "count": 1
+      },
+      {
+        "clsid": "480ff4b0-28b2-11d1-bef7-00c04fbf8fef",
+        "iid": "d2ac28b5-b39b-11d1-8704-00600893b1bd",
+        "context": "00000001",
+        "count": 1
+      },
+      {
+        "clsid": "d2ac2881-b39b-11d1-8704-00600893b1bd",
+        "iid": "679c4137-c62e-4147-b2b4-9d569acb254c",
+        "context": "00000003",
+        "count": 1
+      },
+      {
+        "clsid": "bcde0395-e52f-467c-8e3d-c4579291692e",
+        "iid": "a95664d2-9614-4f35-a746-de8db63617e6",
+        "context": "00000017",
+        "count": 46
+      },
+      {
+        "clsid": "636b9f10-0c7d-11d1-95b2-0020afdc7421",
+        "iid": "2d3629f7-813d-4939-8508-f05c6b75fd97",
+        "context": "00000003",
+        "count": 1
+      },
+      {
+        "clsid": "58c2b4d0-46e7-11d1-89ac-00a0c9054129",
+        "iid": "09823661-5c85-11d2-afa6-00aa0024d8b6",
+        "context": "00000001",
+        "count": 1
+      },
+      {
+        "clsid": "58c2b4d0-46e7-11d1-89ac-00a0c9054129",
+        "iid": "53cab625-2711-4c9f-9de7-1b7f925f6fc8",
+        "context": "00000001",
+        "count": 1
+      },
+      {
+        "clsid": "9301e380-1f22-11d3-8226-d2fa76255d47",
+        "iid": "d2ac28b5-b39b-11d1-8704-00600893b1bd",
+        "context": "00000001",
+        "count": 3
+      },
+      {
+        "clsid": "810b5013-e88d-11d2-8bc1-00600893b1b6",
+        "iid": "d2ac28b5-b39b-11d1-8704-00600893b1bd",
+        "context": "00000001",
+        "count": 2
+      },
+      {
+        "clsid": "d2ac2882-b39b-11d1-8704-00600893b1bd",
+        "iid": "d2ac28b5-b39b-11d1-8704-00600893b1bd",
+        "context": "00000001",
+        "count": 32
+      },
+      {
+        "clsid": "8a667154-f9cb-11d2-ad8a-0060b0575abc",
+        "iid": "d2ac28b5-b39b-11d1-8704-00600893b1bd",
+        "context": "00000001",
+        "count": 16
+      },
+      {
+        "clsid": "eed36461-9ea5-11d3-9bd1-0080c7150a74",
+        "iid": "f96029a1-4282-11d2-8717-00600893b1bd",
+        "context": "00000003",
+        "count": 16
+      },
+      {
+        "clsid": "4062c116-0270-11d3-8bcb-00600893b1b6",
+        "iid": "00000000-0000-0000-c000-000000000046",
+        "context": "00000001",
+        "count": 16
+      },
+      {
+        "clsid": "d2ac2885-b39b-11d1-8704-00600893b1bd",
+        "iid": "f96029a1-4282-11d2-8717-00600893b1bd",
+        "context": "00000003",
+        "count": 8
+      },
+      {
+        "clsid": "d2ac2888-b39b-11d1-8704-00600893b1bd",
+        "iid": "f96029a1-4282-11d2-8717-00600893b1bd",
+        "context": "00000003",
+        "count": 8
+      },
+      {
+        "clsid": "4108fa85-3586-11d3-8bd7-00600893b1b6",
+        "iid": "f96029a1-4282-11d2-8717-00600893b1bd",
+        "context": "00000003",
+        "count": 7
+      },
+      {
+        "clsid": "995c1cf5-54ff-11d3-8bda-00600893b1b6",
+        "iid": "f96029a1-4282-11d2-8717-00600893b1bd",
+        "context": "00000003",
+        "count": 45
+      },
+      {
+        "clsid": "55a8fd00-4288-11d3-9bd1-8a0d61c88835",
+        "iid": "f96029a1-4282-11d2-8717-00600893b1bd",
+        "context": "00000003",
+        "count": 106
+      },
+      {
+        "clsid": "b54f3741-5b07-11cf-a4b0-00aa004a55e8",
+        "iid": "bb1a2ae1-a4f9-11cf-8f20-00805f2cd064",
+        "context": "00000001",
+        "count": 1
+      },
+      {
+        "clsid": "6c736db1-bd94-11d0-8a23-00aa00b58e10",
+        "iid": "6c736dc1-ab0d-11d0-a2ad-00a0c90f27e8",
+        "context": "00000001",
+        "count": 1
+      },
+      {
+        "clsid": "a861c6e2-fcfc-11d2-8bc9-00600893b1b6",
+        "iid": "00000000-0000-0000-c000-000000000046",
+        "context": "00000001",
+        "count": 1
+      },
+      {
+        "clsid": "d2ac2890-b39b-11d1-8704-00600893b1bd",
+        "iid": "d2ac28bf-b39b-11d1-8704-00600893b1bd",
+        "context": "00000001",
+        "count": 1
+      },
+      {
+        "clsid": "47d4d946-62e8-11cf-93bc-444553540000",
+        "iid": "279afa83-4981-11ce-a521-0020af0be560",
+        "context": "00000001",
+        "count": 2
+      }
+    ],
+    "queries": [
+      {
+        "method": "DirectMusic.MMDeviceEnumerator.slot0",
+        "iid": "00000000-0000-0000-c000-000000000046",
+        "count": 26
+      },
+      {
+        "method": "DirectMusic.MMDevice.slot0",
+        "iid": "3ade56af-4375-4413-9c91-4c652595ab07",
+        "count": 14
+      },
+      {
+        "method": "DirectMusic.MMDevice.slot0",
+        "iid": "1be09788-6894-4089-8586-9a2a6c265ac5",
+        "count": 33
+      },
+      {
+        "method": "DirectMusic.MMDevice.slot0",
+        "iid": "4ad09240-33fe-47f1-b228-2ab7e800e564",
+        "count": 34
+      },
+      {
+        "method": "DirectMusic.DirectSound.slot0",
+        "iid": "2a8af120-e9de-4132-aaa5-4bdda5f325b8",
+        "count": 1
+      },
+      {
+        "method": "DirectMusic.MMDeviceEnumerator.slot0",
+        "iid": "3e52272f-3c89-45f8-be26-cb3b91ab42a0",
+        "count": 4
+      },
+      {
+        "method": "DirectMusic.DirectSound.slot0",
+        "iid": "c50a7e93-f395-4834-9ef6-7fa99de50966",
+        "count": 1
+      },
+      {
+        "method": "DirectMusic.Tool.QueryInterface.entry",
+        "iid": "0e674303-3b05-11d3-9bd1-f9e7f0a01536",
+        "count": 1
+      },
+      {
+        "method": "DirectMusic.Tool.QueryInterface.entry",
+        "iid": "00000109-0000-0000-c000-000000000046",
+        "count": 1
+      },
+      {
+        "method": "DirectMusic.Loader8.slot0",
+        "iid": "2ffaaca2-5dca-11d2-afa6-00aa0024d8b6",
+        "count": 28
+      },
+      {
+        "method": "DirectMusic.Loader8.slot0",
+        "iid": "3939facd-f6ed-4619-bd16-56603f0151ca",
+        "count": 17
+      },
+      {
+        "method": "DirectMusic.Performance8.slot0",
+        "iid": "679c4137-c62e-4147-b2b4-9d569acb254c",
+        "count": 1
+      },
+      {
+        "method": "DirectMusic.Performance8.slot0",
+        "iid": "00020400-0000-0000-c000-000000000046",
+        "count": 1
+      },
+      {
+        "method": "DirectMusic.Performance8.slot0",
+        "iid": "07d43d03-6523-11d2-871d-00600893b1bd",
+        "count": 51
+      },
+      {
+        "method": "DirectMusic.Performance8.slot0",
+        "iid": "2befc277-5497-11d2-bccb-00a0c922e6eb",
+        "count": 1
+      },
+      {
+        "method": "DirectMusic.Performance8.slot0",
+        "iid": "c87631f5-23be-4986-8836-05832fcc48f9",
+        "count": 32
+      },
+      {
+        "method": "DirectMusic.AudioClient.slot0",
+        "iid": "726778cd-f60a-4eda-82de-e47610cd78aa",
+        "count": 1
+      },
+      {
+        "method": "DirectMusic.Script.slot0",
+        "iid": "d2ac28b5-b39b-11d1-8704-00600893b1bd",
+        "count": 1
+      },
+      {
+        "method": "DirectMusic.Script.slot0",
+        "iid": "6a20c217-eb3e-40ec-9f3a-920508702b5e",
+        "count": 1
+      }
+    ],
+    "apartments": [
+      {
+        "seq": 13,
+        "thread": 0,
+        "method": "DirectMusic.API.CoInitializeEx.entry",
+        "result": "75d31500",
+        "stack": [
+          "76814d0d",
+          "00000000",
+          "00000002",
+          "00000000"
+        ]
+      },
+      {
+        "seq": 14,
+        "thread": 0,
+        "method": "DirectMusic.API.CoInitializeEx.exit",
+        "result": "00000000",
+        "stack": [
+          "76814d0d",
+          "00000000",
+          "00000002",
+          "00000000"
+        ]
+      },
+      {
+        "seq": 1060,
+        "thread": 0,
+        "method": "DirectMusic.API.CoInitialize.entry",
+        "result": "00000000",
+        "stack": [
+          "10481785",
+          "00000000",
+          "01751944",
+          "10480d93"
+        ]
+      },
+      {
+        "seq": 1061,
+        "thread": 0,
+        "method": "DirectMusic.API.CoInitializeEx.entry",
+        "result": "00000000",
+        "stack": [
+          "760ac340",
+          "00000000",
+          "00000002",
+          "005fb3b0"
+        ]
+      },
+      {
+        "seq": 1062,
+        "thread": 0,
+        "method": "DirectMusic.API.CoInitializeEx.exit",
+        "result": "00000000",
+        "stack": [
+          "760ac340",
+          "00000000",
+          "00000002",
+          "005fb3b0"
+        ]
+      },
+      {
+        "seq": 1063,
+        "thread": 0,
+        "method": "DirectMusic.API.CoInitialize.exit",
+        "result": "00000000",
+        "stack": [
+          "10481785",
+          "00000000",
+          "01751944",
+          "10480d93"
+        ]
+      },
+      {
+        "seq": 1085,
+        "thread": 0,
+        "method": "DirectMusic.API.CoInitializeEx.entry",
+        "result": "00000000",
+        "stack": [
+          "7b3e2be0",
+          "00000000",
+          "00000000",
+          "1adc0b00"
+        ]
+      },
+      {
+        "seq": 1086,
+        "thread": 0,
+        "method": "DirectMusic.API.CoInitializeEx.exit",
+        "result": "80010106",
+        "stack": [
+          "7b3e2be0",
+          "00000000",
+          "00000000",
+          "1adc0b00"
+        ]
+      },
+      {
+        "seq": 1377,
+        "thread": 7,
+        "method": "DirectMusic.API.CoInitializeEx.entry",
+        "result": "00000000",
+        "stack": [
+          "7b3e49b2",
+          "00000000",
+          "00000000",
+          "1adc0b50"
+        ]
+      },
+      {
+        "seq": 1378,
+        "thread": 7,
+        "method": "DirectMusic.API.CoInitializeEx.exit",
+        "result": "00000000",
+        "stack": [
+          "7b3e49b2",
+          "00000000",
+          "00000000",
+          "1adc0b50"
+        ]
+      },
+      {
+        "seq": 1656,
+        "thread": 9,
+        "method": "DirectMusic.API.CoInitializeEx.entry",
+        "result": "1b3cffcc",
+        "stack": [
+          "7b4cac1f",
+          "00000000",
+          "00000002",
+          "1b3cff84"
+        ]
+      },
+      {
+        "seq": 1657,
+        "thread": 9,
+        "method": "DirectMusic.API.CoInitializeEx.exit",
+        "result": "00000000",
+        "stack": [
+          "7b4cac1f",
+          "00000000",
+          "00000002",
+          "1b3cff84"
+        ]
+      },
+      {
+        "seq": 1658,
+        "thread": 10,
+        "method": "DirectMusic.API.CoInitialize.entry",
+        "result": "760ac330",
+        "stack": [
+          "7b4cb2cd",
+          "00000000",
+          "1b5cff84",
+          "76945d49"
+        ]
+      },
+      {
+        "seq": 1659,
+        "thread": 10,
+        "method": "DirectMusic.API.CoInitializeEx.entry",
+        "result": "760ac330",
+        "stack": [
+          "760ac340",
+          "00000000",
+          "00000002",
+          "1b5cff74"
+        ]
+      },
+      {
+        "seq": 1660,
+        "thread": 10,
+        "method": "DirectMusic.API.CoInitializeEx.exit",
+        "result": "00000000",
+        "stack": [
+          "760ac340",
+          "00000000",
+          "00000002",
+          "1b5cff74"
+        ]
+      },
+      {
+        "seq": 1661,
+        "thread": 10,
+        "method": "DirectMusic.API.CoInitialize.exit",
+        "result": "00000000",
+        "stack": [
+          "7b4cb2cd",
+          "00000000",
+          "1b5cff84",
+          "76945d49"
+        ]
+      },
+      {
+        "seq": 4414,
+        "thread": 15,
+        "method": "DirectMusic.API.CoInitializeEx.entry",
+        "result": "00000001",
+        "stack": [
+          "7b5494a8",
+          "00000000",
+          "00000002",
+          "0fd1e8d0"
+        ]
+      },
+      {
+        "seq": 4415,
+        "thread": 15,
+        "method": "DirectMusic.API.CoInitializeEx.exit",
+        "result": "00000000",
+        "stack": [
+          "7b5494a8",
+          "00000000",
+          "00000002",
+          "0fd1e8d0"
+        ]
+      },
+      {
+        "seq": 19044,
+        "thread": 0,
+        "method": "DirectMusic.API.CoInitialize.entry",
+        "result": "00005622",
+        "stack": [
+          "30ee34cf",
+          "00000000",
+          "00000000",
+          "1d34bb00"
+        ]
+      },
+      {
+        "seq": 19045,
+        "thread": 0,
+        "method": "DirectMusic.API.CoInitializeEx.entry",
+        "result": "00005622",
+        "stack": [
+          "760ac340",
+          "00000000",
+          "00000002",
+          "760ac330"
+        ]
+      },
+      {
+        "seq": 19046,
+        "thread": 0,
+        "method": "DirectMusic.API.CoInitializeEx.exit",
+        "result": "00000001",
+        "stack": [
+          "760ac340",
+          "00000000",
+          "00000002",
+          "760ac330"
+        ]
+      },
+      {
+        "seq": 19047,
+        "thread": 0,
+        "method": "DirectMusic.API.CoInitialize.exit",
+        "result": "00000001",
+        "stack": [
+          "30ee34cf",
+          "00000000",
+          "00000000",
+          "1d34bb00"
+        ]
+      },
+      {
+        "seq": 19055,
+        "thread": 0,
+        "method": "DirectMusic.API.CoInitialize.entry",
+        "result": "00000000",
+        "stack": [
+          "30ee3610",
+          "00000000",
+          "00000000",
+          "1d34bb00"
+        ]
+      },
+      {
+        "seq": 19056,
+        "thread": 0,
+        "method": "DirectMusic.API.CoInitializeEx.entry",
+        "result": "00000000",
+        "stack": [
+          "760ac340",
+          "00000000",
+          "00000002",
+          "760ac330"
+        ]
+      },
+      {
+        "seq": 19058,
+        "thread": 0,
+        "method": "DirectMusic.API.CoInitializeEx.exit",
+        "result": "00000001",
+        "stack": [
+          "760ac340",
+          "00000000",
+          "00000002",
+          "760ac330"
+        ]
+      },
+      {
+        "seq": 19060,
+        "thread": 0,
+        "method": "DirectMusic.API.CoInitialize.exit",
+        "result": "00000001",
+        "stack": [
+          "30ee3610",
+          "00000000",
+          "00000000",
+          "1d34bb00"
+        ]
+      },
+      {
+        "seq": 19078,
+        "thread": 27,
+        "method": "DirectMusic.API.CoInitializeEx.entry",
+        "result": "3132ffcc",
+        "stack": [
+          "51627d21",
+          "00000000",
+          "00000004",
+          "51627d10"
+        ]
+      },
+      {
+        "seq": 19079,
+        "thread": 27,
+        "method": "DirectMusic.API.CoInitializeEx.exit",
+        "result": "00000000",
+        "stack": [
+          "51627d21",
+          "00000000",
+          "00000004",
+          "51627d10"
+        ]
+      },
+      {
+        "seq": 27909,
+        "thread": 0,
+        "method": "DirectMusic.API.CoUninitialize.entry",
+        "result": "00718d80",
+        "stack": [
+          "76812587",
+          "02ed0938",
+          "00050004",
+          "763b74b4"
+        ]
+      },
+      {
+        "seq": 27910,
+        "thread": 0,
+        "method": "DirectMusic.API.CoUninitialize.exit",
+        "result": "00000000",
+        "stack": [
+          "76812587",
+          "02ed0938",
+          "00050004",
+          "763b74b4"
+        ]
+      },
+      {
+        "seq": 28461,
+        "thread": 10,
+        "method": "DirectMusic.API.CoUninitialize.entry",
+        "result": "00000000",
+        "stack": [
+          "7b4cb2df",
+          "1b5cff84",
+          "76945d49",
+          "0fbc5e48"
+        ]
+      },
+      {
+        "seq": 28472,
+        "thread": 10,
+        "method": "DirectMusic.API.CoUninitialize.exit",
+        "result": "00000000",
+        "stack": [
+          "7b4cb2df",
+          "1b5cff84",
+          "76945d49",
+          "0fbc5e48"
+        ]
+      },
+      {
+        "seq": 28478,
+        "thread": 9,
+        "method": "DirectMusic.API.CoUninitialize.entry",
+        "result": "00000000",
+        "stack": [
+          "7b4cac41",
+          "1b3cff84",
+          "76945d49",
+          "0fbc5e48"
+        ]
+      },
+      {
+        "seq": 28479,
+        "thread": 9,
+        "method": "DirectMusic.API.CoUninitialize.exit",
+        "result": "00000000",
+        "stack": [
+          "7b4cac41",
+          "1b3cff84",
+          "76945d49",
+          "0fbc5e48"
+        ]
+      },
+      {
+        "seq": 28677,
+        "thread": 7,
+        "method": "DirectMusic.API.CoUninitialize.entry",
+        "result": "00000008",
+        "stack": [
+          "7b3e48b1",
+          "7b3e4880",
+          "1adc0b50",
+          "1afcff74"
+        ]
+      },
+      {
+        "seq": 28678,
+        "thread": 7,
+        "method": "DirectMusic.API.CoUninitialize.exit",
+        "result": "00000000",
+        "stack": [
+          "7b3e48b1",
+          "7b3e4880",
+          "1adc0b50",
+          "1afcff74"
+        ]
+      },
+      {
+        "seq": 29073,
+        "thread": 15,
+        "method": "DirectMusic.API.CoUninitialize.entry",
+        "result": "00000000",
+        "stack": [
+          "7b5494e2",
+          "0fd1e8d0",
+          "7b5492a0",
+          "0fd1e8d0"
+        ]
+      },
+      {
+        "seq": 29074,
+        "thread": 15,
+        "method": "DirectMusic.API.CoUninitialize.exit",
+        "result": "00000000",
+        "stack": [
+          "7b5494e2",
+          "0fd1e8d0",
+          "7b5492a0",
+          "0fd1e8d0"
+        ]
+      },
+      {
+        "seq": 29272,
+        "thread": 27,
+        "method": "DirectMusic.API.CoUninitialize.entry",
+        "result": "00000000",
+        "stack": [
+          "51627d44",
+          "51627d10",
+          "51627d10",
+          "3132ff84"
+        ]
+      },
+      {
+        "seq": 29273,
+        "thread": 27,
+        "method": "DirectMusic.API.CoUninitialize.exit",
+        "result": "00000000",
+        "stack": [
+          "51627d44",
+          "51627d10",
+          "51627d10",
+          "3132ff84"
+        ]
+      }
+    ]
+  },
+  "original_game_calls_identical": true,
+  "original_init_audio_identical": true,
+  "original_input_hashes_identical": true,
+  "nosound_starts_real_output_stream": true,
+  "candidate": {
+    "path": "experiments\\xrt\\results\\raw\\level\\20261023-130516-d075f8bc-candidate",
+    "outcome": "DirectMusic Performance8 compatibility gate: native x64 HRESULT 80040154, output NULL; original x86 succeeds. Backend approval required before script/audio integration",
+    "exit_code": 76,
+    "events": 24139,
+    "events_dropped": 0,
+    "entry_loadmap_nonnull_return": {
+      "seq": 23395,
+      "thread": 0,
+      "kind": "engine_loadmap_return",
+      "target": 272174848,
+      "result": 302665728,
+      "actual_return": 272168548,
+      "esp_before": 18928808,
+      "esp_after": 18928828,
+      "return": 272168548,
+      "this": 304460416
+    },
+    "selected_package_postload_return": {
+      "seq": 23933,
+      "thread": 0,
+      "kind": "level_postload_return",
+      "target": 272339296,
+      "esp_before": 18922968,
+      "esp_after": 18922972,
+      "return": 269772740,
+      "actual_return": 269772740,
+      "this": 318056448
+    },
+    "cs_intro_loadmap_return": null,
+    "selected_actor_initialization": "not established",
+    "selected_world": null,
+    "completed_selected_world_ticks": [],
+    "modules_bound_to_actual_inputs": true
+  },
+  "candidate_com": [
+    {
+      "seq": 24132,
+      "thread": 0,
+      "kind": "com_initialize",
+      "extended": 0,
+      "flags": 2,
+      "result": 0,
+      "owned": 1
+    },
+    {
+      "seq": 24133,
+      "thread": 0,
+      "kind": "com_factory",
+      "class": "DirectMusicLoader8",
+      "context": 3,
+      "result": 0,
+      "native_nonnull": 1,
+      "object": 86224
+    },
+    {
+      "seq": 24134,
+      "thread": 0,
+      "kind": "com_factory",
+      "class": "DirectMusicPerformance8",
+      "context": 3,
+      "result": 2147746132,
+      "native_nonnull": 0,
+      "object": 0
+    },
+    {
+      "seq": 24136,
+      "thread": 0,
+      "kind": "com_cleanup",
+      "references_released": 1,
+      "apartment_references_balanced": 1
+    }
+  ],
+  "candidate_identity": {
+    "path": "experiments/xrt/build/directmusic-gate-final/xrt_ucc.exe",
+    "sha256": "81a50ef6668a2378a24bd8e0d2f12a82eb328b61555a7fa5c9505801de21c0bd"
+  },
+  "translated_selected_world_tick_completed": false,
+  "first_blocker": "x64 native Performance8 class unavailable (80040154); explicit capability gate",
+  "independent_script_behavior": "missing-name lookup only, validated against native enumeration/failure; present routines explicitly unsupported",
+  "architecture_decision_pending": "bounded native x86 helper integration versus an independently implemented script/audio backend",
+  "candidate_repeat": {
+    "path": "experiments\\xrt\\results\\raw\\level\\20261023-131646-576d5736-candidate",
+    "outcome": "DirectMusic Performance8 compatibility gate: native x64 HRESULT 80040154, output NULL; original x86 succeeds. Backend approval required before script/audio integration",
+    "exit_code": 76,
+    "events": 24139,
+    "events_dropped": 0,
+    "entry_loadmap_nonnull_return": {
+      "seq": 23395,
+      "thread": 0,
+      "kind": "engine_loadmap_return",
+      "target": 272174848,
+      "result": 302665728,
+      "actual_return": 272168548,
+      "esp_before": 18928808,
+      "esp_after": 18928828,
+      "return": 272168548,
+      "this": 304460416
+    },
+    "selected_package_postload_return": {
+      "seq": 23933,
+      "thread": 0,
+      "kind": "level_postload_return",
+      "target": 272339296,
+      "esp_before": 18922968,
+      "esp_after": 18922972,
+      "return": 269772740,
+      "actual_return": 269772740,
+      "this": 318056448
+    },
+    "cs_intro_loadmap_return": null,
+    "selected_actor_initialization": "not established",
+    "selected_world": null,
+    "completed_selected_world_ticks": [],
+    "modules_bound_to_actual_inputs": true
+  },
+  "candidate_com_reproduced": true,
+  "com_oracle": {
+    "evidence": {
+      "path": "E:\\Unreal2-Port-Investigation\\experiments\\xrt\\results\\raw\\directmusic\\com-c111dd6c3002\\result.json",
+      "sha256": "80e3fa1309fa9d98218f7fe6b7aee20993c54f4a0b1a4264a98e5850c7c67f58"
+    },
+    "pass": true
+  },
+  "native_session": {
+    "evidence": {
+      "path": "E:\\Unreal2-Port-Investigation\\experiments\\xrt\\results\\raw\\directmusic\\session-3da7d65653a3\\result.json",
+      "sha256": "1e6bb64ebfbf4326820aefbaeacef961e1e25f0d83a61e10bc88bd5ac8e7be20"
+    },
+    "pass": true,
+    "parent_pointer_bits": 64,
+    "routine_count": 14,
+    "present_routines_rejected": 14,
+    "missing_results": {
+      "": 2289570331,
+      "__xrt_missing_routine__": 2289570331
+    },
+    "scope": "native child-process feasibility plus independent missing-name failure only; no translated Performance8, script initialization or playback implementation"
+  }
+}

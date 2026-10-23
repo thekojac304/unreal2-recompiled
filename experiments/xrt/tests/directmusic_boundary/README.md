@@ -1,4 +1,21 @@
-# Initial DirectMusic COM dependency observation
+# DirectMusic COM/session oracles
+
+The [current report](../../DIRECTMUSIC_INITIALIZATION.md) records full original initialization, normal
+cleanup, the sound/no-sound comparison, native x86 child feasibility and the explicit translated x64 gate.
+
+```powershell
+cmd /d /c experiments\xrt\tests\directmusic_boundary\build_com.cmd
+cmd /d /c experiments\xrt\tests\directmusic_boundary\build.cmd
+.venv/Scripts/python -I experiments/xrt/tests/directmusic_boundary/session.py
+```
+
+`build_com.cmd` lifts the same PE32 client used by native Windows and checks six positive/four negative
+cases against the real runtime. `session.py` runs a real x86 DirectMusic session from the x64 driver,
+compares 14 native routine names and two missing-name failures with the independent RIFF/name oracle,
+and retains the real x64 factory failure. Present routines are explicitly unsupported by the independent
+code. No translated script/performance backend or IPC bridge is claimed.
+
+## Preserved initial dependency probe
 
 ```powershell
 cmd /d /c experiments\xrt\tests\directmusic_boundary\build.cmd

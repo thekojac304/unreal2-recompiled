@@ -1,4 +1,35 @@
-# Current status: Entry LoadMap completes; CS_Intro reaches completed package PostLoad
+# Current status: owned COM/Loader8 works; authentic Performance8 strategy awaits owner decision
+
+Updated 2026-10-23. Starting clean HEAD `936dcb7` (after `0fcd8b0`) is preserved. The translated client
+executes real STA CoInitialize and native x64 Loader8 creation, then stops explicitly at native x64
+Performance8 `80040154` / NULL. Cleanup releases Loader8 and balances its owned apartment reference.
+**CS_Intro still has only completed package PostLoad: no LoadMap return, selected world or completed tick.**
+
+Fresh original sound/no-sound references both complete CS_Intro initialization, four selected-world ticks
+and three Presents, then exit normally through WM_CLOSE. `-nosound` suppresses the separate ALAudio path
+but **neither DirectMusic device creation nor starting real WASAPI output**. Actual container/script Init
+succeeds; the empty routine call fails with `DMUS_E_SCRIPT_ROUTINE_NOT_FOUND`. No named playback routine
+or tool event executes in this bounded window. Scripts were not omitted.
+
+No compatible x64 script/performance backend was established. Wine's script methods are success stubs;
+the two surveyed portable libraries lack this COM/VBScript path. A real x86 child session reproduces the
+native behavior; an independent name oracle matches 14 routines and the missing-name failure while
+explicitly rejecting present-routine execution. A bounded IPC helper remains a proposal requiring owner
+approval, with its Windows/x86 portability tradeoff stated before implementation.
+
+[Full report and decision](experiments/xrt/DIRECTMUSIC_INITIALIZATION.md),
+[identified evidence](experiments/xrt/results/compare/directmusic_initialization.json).
+COM six positives/four negatives, affected component suites, nine commandlet/VM cases, compiler acceptance,
+traced VMProbe and Python 149 tests (17 expected skips) pass. CRT Gate-F: 51,536 cases, zero mismatches.
+Existing expanded CRT failures, six ACP 932 differences and FPU-status differences remain open.
+
+The read-only audit newly observes a second byte difference in the already disputed Ogg; timing/cause
+remain unknown. Other 4,756 installed files and Save metadata match the prior audit. Both inputs are
+untouched. See [installation integrity findings](experiments/xrt/INSTALLATION_INTEGRITY.md).
+
+---
+
+# Historical status: Entry LoadMap completes; CS_Intro reaches completed package PostLoad
 
 Updated 2026-10-23 (US Eastern). **The translated client completes genuine Entry LoadMap and returns a
 non-null world.** Its second LoadMap opens CS_Intro.un2 and completes that package's ULevel::PostLoad.

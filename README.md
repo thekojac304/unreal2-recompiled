@@ -10,7 +10,14 @@ The original installation was treated as **read-only** throughout, and so was th
 
 ## Status
 
-**Recompilation checkpoint, 2026-10-23:** the translated client completes genuine Entry LoadMap, opens
+**DirectMusic checkpoint, 2026-10-23:** real STA initialization and native x64 Loader8 now work through
+owned guest COM interfaces. Performance8 remains unavailable on x64 and produces an explicit diagnostic.
+The original trace confirms that `-nosound` still creates and starts DirectMusic output and initializes the
+real script. CS_Intro LoadMap return and translated selected-world ticks remain unreached. A bounded
+x86 helper is proposed for owner approval; no full music subsystem was begun.
+See the [measured sequence, implementation limits and decision](experiments/xrt/DIRECTMUSIC_INITIALIZATION.md).
+
+**Earlier recompilation checkpoint, 2026-10-23:** the translated client completes genuine Entry LoadMap, opens
 CS_Intro.un2 and completes its package PostLoad, then stops at the DirectMusic `OLE32!CoInitialize`
 boundary. CS_Intro LoadMap return, selected-world initialization/ticks and translated device/Presents
 remain unreached. The pinned DXVK x64 query backend and measured floor/ceil adapters pass their focused

@@ -1,3 +1,11 @@
+# Current continuation — DirectMusic ownership and native session characterization
+
+The [DirectMusic checkpoint](DIRECTMUSIC_INITIALIZATION.md) supersedes the first CoInitialize blocker
+below. Real STA initialization and Loader8 creation now pass; native x64 Performance8 remains an explicit
+capability stop. CS_Intro LoadMap/selected-world ticks remain unreached. The original sound/no-sound
+comparison and normal cleanup are measured; the proposed bounded x86 helper awaits owner approval.
+The earlier DXVK, CRT, module/package staging and arithmetic findings below remain preserved.
+
 # Entry LoadMap completed; CS_Intro PostLoad completed; DirectMusic boundary — 2026-10-23 (US Eastern)
 
 **The genuine translated Entry LoadMap now returns a non-null world.** The second LoadMap opens

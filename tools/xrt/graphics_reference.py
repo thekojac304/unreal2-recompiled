@@ -40,6 +40,9 @@ def main():
                         help="focused CRT observation: stop after N appCeil returns, recording x87 state")
     parser.add_argument("--stop-after-music-factory", action="store_true",
                         help="observe the original DirectMusic factories and stop after the second return")
+    parser.add_argument("--music-trace", action="store_true", help="read-only DirectMusic argument/memory observation")
+    parser.add_argument("--sound", action="store_true", help="omit -nosound for a controlled original comparison")
+    parser.add_argument("--close-after-present", action="store_true", help="post WM_CLOSE at the bounded Present stop and trace normal cleanup")
     args = parser.parse_args()
     if not 1 <= args.timeout_ms <= 120000:
         parser.error("timeout must be 1..120000 ms")
@@ -170,14 +173,32 @@ def main():
         if not 1 <= args.stop_after_present <= 100:
             parser.error("stop-after-present must be 1..100")
         env.update(UCTRACE_STOP_LABEL="D3D.Present.return.1", UCTRACE_STOP_AFTER=str(args.stop_after_present))
+    if args.music_trace:
+        from music_points import POINTS as MUSIC_POINTS
+        # Replace duplicate music points so each address has one unambiguous label.
+        all_points = [p for p in L.POINTS + extra if not p[2].startswith('DirectMusic.')]
+        import pefile
+        api_points=[]
+        for dll,names in [('ole32',['CoInitialize']),('combase',['CoInitializeEx','CoUninitialize','CoCreateInstance']),
+                          ('dsound',['DirectSoundCreate','DirectSoundCreate8'])]:
+            image=pefile.PE('C:/Windows/SysWOW64/'+dll+'.dll')
+            for e in image.DIRECTORY_ENTRY_EXPORT.symbols:
+                if e.name and e.name.decode() in names and not e.forwarder:
+                    api_points.append((dll+'.dll',e.address,'DirectMusic.API.'+e.name.decode()+'.entry'))
+        points.write_text("".join(f"{m} {r:x} {label}\n" for m,r,label in all_points + MUSIC_POINTS + api_points))
+        env['UCTRACE_MUSIC_LOG'] = str(out / 'music.jsonl')
+    if args.close_after_present:
+        if not args.stop_after_present:parser.error('--close-after-present requires --stop-after-present')
+        env['UCTRACE_CLOSE_ON_STOP']='1'
     if args.capture_client:
         if not args.stop_after_present:
             parser.error("capture-client requires a bounded Present stop")
         env["UCTRACE_CAPTURE_CLIENT"] = str(out / "client.bmp")
-    command = [R.TRACER, str(entries), str(out / "trace.json"), str(out / "stdout.bin"), str(exe)] + L.ARGS
+    game_args = [a for a in L.ARGS if not (args.sound and a == '-nosound')]
+    command = [R.TRACER, str(entries), str(out / "trace.json"), str(out / "stdout.bin"), str(exe)] + game_args
     before = {f.relative_to(root).as_posix(): L.sha(f) for f in root.rglob("*") if f.is_file()}
     meta = {"id": ident, "configuration": args.configuration, "sandbox": str(root), "command": command,
-            "args": L.ARGS, "git": R.git_identity(), "driver": R.file_identity(str(Path(__file__).resolve())),
+            "args": game_args, "git": R.git_identity(), "driver": R.file_identity(str(Path(__file__).resolve())),
             "before": before, "tracer": R.file_identity(R.TRACER), "wrapper": wrapper, "staged_packages": staged,
             "environment": {k: v for k, v in env.items() if k.startswith("UCTRACE_")},
             "graphics_environment": graphics_environment,

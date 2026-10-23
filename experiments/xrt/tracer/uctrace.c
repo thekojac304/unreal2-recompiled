@@ -42,7 +42,7 @@ typedef struct {
     DWORD* hit_order; int nhit;        /* RVAs in first-hit order */
 } Mod;
 
-typedef struct { DWORD addr; BYTE orig; int kind; int mod; int imp; int ev; } BP;   /* kind: 1 func, 2 import, 3 module entry, 4 event only; ev: event point or -1 */
+typedef struct { DWORD addr; BYTE orig; int kind; int mod; int imp; int ev; int music; } BP;   /* kind: 1 func, 2 import, 3 module entry, 4 event only; ev: event point or -1 */
 typedef struct { char name[160]; DWORD addr; int count[MAX_MODS]; int capped; int total; } Imp;
 
 static Mod mods[MAX_MODS]; static int nmods;
@@ -156,6 +156,30 @@ static int thread_index(DWORD tid) {
     return -1;
 }
 static BOOL rd(DWORD a, void* b, SIZE_T n) { SIZE_T got; return ReadProcessMemory(hProc, (LPCVOID)(ULONG_PTR)a, b, n, &got) && got == n; }
+/* Optional sidecar: only DirectMusic points, bounded pointer snapshots. Original
+ * memory is never modified by this observer (apart from normal debugger INT3s). */
+static void music_memory(FILE* f,DWORD addr) {
+    BYTE data[96];
+    fprintf(f,"{\"address\":\"%08lx\",\"bytes\":\"",addr);
+    if(rd(addr,data,sizeof data)) for(unsigned i=0;i<sizeof data;i++) fprintf(f,"%02x",data[i]);
+    fputs("\"}",f);
+}
+static void music_write(const char* label,int seq,int thread,const CONTEXT* ctx,const DWORD* saved) {
+    const char* path=getenv("UCTRACE_MUSIC_LOG");
+    static FILE* f;
+    DWORD stack[16]={0};
+    if(!path)return;
+    if(!f) { f=fopen(path,"w"); if(!f) {fputs("music sidecar open failed\n",stderr);exit(5);} }
+    if(saved)memcpy(stack,saved,sizeof stack);else rd(ctx->Esp,stack,sizeof stack);
+    fprintf(f,"{\"seq\":%d,\"thread\":%d,\"label\":\"%s\",\"eax\":\"%08lx\",\"esp\":\"%08lx\",\"stack\":[",
+            seq,thread,label,ctx->Eax,ctx->Esp);
+    for(int i=0;i<16;i++)fprintf(f,"%s\"%08lx\"",i?",":"",stack[i]);
+    fputs("],\"pointers\":[",f);
+    for(int i=0;i<16;i++){if(i)fputc(',',f);music_memory(f,stack[i]);}
+    fputs("],\"esi\":",f);music_memory(f,ctx->Esi);
+    fputs(",\"ecx\":",f);music_memory(f,ctx->Ecx);
+    fputs("}\n",f);fflush(f);
+}
 static BOOL wr(DWORD a, const void* b, SIZE_T n) {
     SIZE_T got; DWORD old;
     VirtualProtectEx(hProc, (LPVOID)(ULONG_PTR)a, n, PAGE_EXECUTE_READWRITE, &old);
@@ -182,7 +206,7 @@ static int bp_add(DWORD a, int kind, int mod, int imp) {
     if (nbps >= MAX_BP) { fprintf(stderr, "uctrace: too many breakpoints\n"); exit(5); }
     BYTE orig, cc = 0xCC;
     if (!rd(a, &orig, 1) || !wr(a, &cc, 1)) return -1;
-    BP* b = &bps[nbps]; b->addr = a; b->orig = orig; b->kind = kind; b->mod = mod; b->imp = imp; b->ev = -1;
+    BP* b = &bps[nbps]; b->addr = a; b->orig = orig; b->kind = kind; b->mod = mod; b->imp = imp; b->ev = -1; b->music=0;
     bp_map_insert(nbps);
     return nbps++;
 }
@@ -269,12 +293,15 @@ static void load_event_points(const char* path) {
     evlog = malloc(MAX_EVENTS * sizeof(EvRec));
 }
 
+#include "music_trace.inc"
+
 static void log_event(int point, int exc, int thread, const CONTEXT* ctx) {
     int seq = ++ev_seq;
     if (!evlog) return;
     if (nevlog >= MAX_EVENTS) { evdropped++; return; }
     EvRec* r = &evlog[nevlog++];
     r->seq = seq; r->thread = thread; r->point = point; r->exc = exc;
+    music_observe(point,seq,thread,ctx);
     r->esp = ctx->Esp; r->eax = ctx->Eax; r->ebp = ctx->Ebp; r->top = 0;
     r->ecx = ctx->Ecx; r->edx = ctx->Edx; r->esi = ctx->Esi; r->edi = ctx->Edi;
     r->fp_valid = 0;
@@ -292,6 +319,12 @@ static void log_event(int point, int exc, int thread, const CONTEXT* ctx) {
     if (point >= 0) rd(r->args[0], r->text0, sizeof r->text0 - sizeof(WCHAR));
     rd(ctx->Esp, &r->top, 4);
     if (point >= 0 && stop_label && !strcmp(evp[point].label, stop_label) && ++stop_hits == stop_after) {
+        if(getenv("UCTRACE_CLOSE_ON_STOP")) {
+            capture_window=NULL;capture_pid=GetProcessId(hProc);EnumWindows(capture_enum,0);
+            if(!capture_window || !PostMessageW(capture_window,WM_CLOSE,0,0)) {fputs("controlled WM_CLOSE failed\n",stderr);exit(5);}
+            fputs("controlled WM_CLOSE posted to debuggee window\n",stderr);
+            return; /* keep tracing real cleanup until natural exit, with deadline fallback */
+        }
         termination_reason = "event_limit";
         capture_client();
         if (!TerminateProcess(hProc, 0xE0000001u)) { fprintf(stderr, "uctrace: controlled stop failed\n"); exit(5); }
@@ -482,6 +515,11 @@ int main(int argc, char** argv) {
                 GetThreadContext(th, &ctx);
                 ctx.Eip = addr;
                 wr(addr, &b->orig, 1);
+                if(b->music) {
+                    int ti=thread_index(ev.dwThreadId);
+                    music_break(&ctx,ti);
+                    if(ti>=0){ctx.EFlags|=0x100;threads[ti].rearm=addr;}
+                }
                 if (b->ev >= 0) {
                     int ti = thread_index(ev.dwThreadId);
                     log_event(b->ev, -1, ti, &ctx);
