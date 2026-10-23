@@ -20,5 +20,5 @@ if "%WHAT%"=="lifted" goto link
 :runtime
 cl /nologo /c /O2 /Zi /fp:strict /W4 /wd4100 /wd4201 /wd4127 /wd4324 /D_CRT_SECURE_NO_WARNINGS /MP /Iruntime /Fo"%XRT_BUILD_DIR%\obj\rt\\" /Fd"%XRT_BUILD_DIR%\obj\rt\\" runtime\*.c || exit /b 1
 :link
-link /nologo /DEBUG /STACK:0x10000000 /OUT:"%XRT_BUILD_DIR%\xrt_ucc.exe" "%XRT_BUILD_DIR%\obj\gen\*.obj" "%XRT_BUILD_DIR%\obj\rt\*.obj" winmm.lib advapi32.lib ole32.lib bcrypt.lib || exit /b 1
+link /nologo /DEBUG /STACK:0x10000000 /OUT:"%XRT_BUILD_DIR%\xrt_ucc.exe" "%XRT_BUILD_DIR%\obj\gen\*.obj" "%XRT_BUILD_DIR%\obj\rt\*.obj" winmm.lib advapi32.lib ole32.lib bcrypt.lib user32.lib gdi32.lib || exit /b 1
 echo built %XRT_BUILD_DIR%\xrt_ucc.exe

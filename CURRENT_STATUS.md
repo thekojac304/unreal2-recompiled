@@ -1,11 +1,17 @@
-# Current status: compiler reproducible; real client startup blocked before level loading
+# Current status: original map open with dgVoodoo; translated splash passes
 
-Updated 2026-10-22 (US Eastern), fresh build and bounded single-player client investigation.
-**No shipped level or world tick has passed in the translation.** The original client reaches L0 but fails a
-Direct3D8 HAL capability query before LoadMap; the translation stops earlier at the splash bitmap's GetDC call.
-The compiler milestone remains passing. Details and limitations:
-[experiments/xrt/README.md](experiments/xrt/README.md). Component differential tests:
-[experiments/xrt/tests/README.md](experiments/xrt/tests/README.md).
+Updated 2026-10-22 (US Eastern), graphics startup checkpoint. **No completed selected-level initialization,
+simulation tick, or Unreal II world rendering is established.** The original passes its previous D3D8 HAL
+capability failure using dgVoodoo2 2.87.5 x86 over D3D11, enters genuine LoadMap and opens CS_Intro.un2 (G6,
+original only). It stops on a missing SubTFonts dependency. The translated client completes real bitmap/dialog
+splash loading (G3) and stops in Window.dll at KERNEL32!GetModuleHandleW, before UGameEngine::Init (G4 open).
+G5 is open. Standalone x86 device creation/Clear/Present succeeds (G1); this does not prove game rendering.
+
+Exact configuration, hashes, adapter scope, evidence, regressions and next steps:
+[graphics startup handoff](experiments/xrt/GRAPHICS_STARTUP.md),
+[public evidence](experiments/xrt/results/compare/graphics_startup.json).
+Compiler and commandlet/VM milestones remain passing. The earlier bounded experiment below is historical;
+its GetDC and original HAL blockers are superseded by this checkpoint.
 
 ## Working commands (from the workspace root)
 

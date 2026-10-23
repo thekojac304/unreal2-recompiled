@@ -269,9 +269,9 @@ uint32_t xrt_module_export(XrtModule* m, const char* name, uint32_t ordinal) {
 
 /* ---------------------------------------------------------------- import binding */
 static const XrtHle* hle_find(const char* dll, const char* name) {
-    const XrtHle* tabs[3] = {xrt_hle_kernel32, xrt_hle_msvcr70, xrt_hle_misc};
+    const XrtHle* tabs[4] = {xrt_hle_kernel32, xrt_hle_msvcr70, xrt_hle_misc, xrt_hle_gui};
     int t;
-    for (t = 0; t < 3; t++) {
+    for (t = 0; t < (int)(sizeof tabs / sizeof tabs[0]); t++) {
         const XrtHle* h;
         for (h = tabs[t]; h->dll; h++)
             if (!_stricmp(h->dll, dll) && !strcmp(h->name, name))

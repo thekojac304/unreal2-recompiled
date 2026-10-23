@@ -1,0 +1,144 @@
+{
+  "updated_eastern": "2026-10-22",
+  "starting_head": "15a34f4f75a9a2d5743276cd1ec52c26358abe8d",
+  "milestones": {
+    "G0": true,
+    "G1": true,
+    "G2": true,
+    "G3": true,
+    "G4": false,
+    "G5": false,
+    "G6": true
+  },
+  "scope": {
+    "G1": "Standalone x86 clear/present probe only; both adapters",
+    "G6": "Original only: selected-map successful file open after genuine LoadMap entry",
+    "game_rendered_frame_established": false,
+    "completed_selected_level_initialization_established": false,
+    "translated_engine_init_established": false
+  },
+  "original_configurations": {
+    "system": {
+      "raw_directory": "experiments/xrt/results/raw/graphics-startup/a93e67f77825-system",
+      "trace_sha256": "470fdbe20656e75fd1cafdf2e45d397640c08b8039c63efbcaacae01ca59aacc",
+      "complete": true,
+      "caps_hresult": "0x8876086a",
+      "loadmap_entries": 0,
+      "selected_map_opens": [],
+      "loaded_graphics_modules": [
+        {
+          "name": "d3d8.dll",
+          "path": "\\\\?\\C:\\Windows\\SysWOW64\\d3d8.dll"
+        }
+      ],
+      "stop": "Please enable Direct3D acceleration. You can do this by starting dxdiag and enabling Direct3D Acceleration in the Display1/2 tab after installing DirectX 8.1b (or later) and the latest drivers for your graphics card."
+    },
+    "d3d8to9": {
+      "raw_directory": "experiments/xrt/results/raw/graphics-startup/e2c9936344d7-d3d8to9",
+      "trace_sha256": "135789d05af707b6947ec53194c6be0e8d8004a52b32a6f070ab8cb92ca78114",
+      "complete": true,
+      "caps_hresult": "0x8876086a",
+      "loadmap_entries": 0,
+      "selected_map_opens": [],
+      "loaded_graphics_modules": [
+        {
+          "name": "d3d8.dll",
+          "path": "\\\\?\\E:\\Unreal2-Port-Investigation\\sandbox_cmp\\graphics-client\\e2c9936344d7-d3d8to9\\System\\d3d8.dll"
+        },
+        {
+          "name": "d3d9.dll",
+          "path": "\\\\?\\C:\\Windows\\SysWOW64\\d3d9.dll"
+        }
+      ],
+      "stop": "Please enable Direct3D acceleration. You can do this by starting dxdiag and enabling Direct3D Acceleration in the Display1/2 tab after installing DirectX 8.1b (or later) and the latest drivers for your graphics card."
+    },
+    "dgvoodoo": {
+      "raw_directory": "experiments/xrt/results/raw/graphics-startup/0e97fce51f5a-dgvoodoo",
+      "trace_sha256": "c5726ebe56fd674bb90aecee80d57b80ff35123e07789aa5494e74add5f96118",
+      "complete": true,
+      "caps_hresult": "0x00000000",
+      "loadmap_entries": 2,
+      "selected_map_opens": [
+        {
+          "open_seq": 111,
+          "return_seq": 112,
+          "host_file_handle": "0x00000df4"
+        }
+      ],
+      "loaded_graphics_modules": [
+        {
+          "name": "d3d8.dll",
+          "path": "\\\\?\\E:\\Unreal2-Port-Investigation\\sandbox_cmp\\graphics-client\\0e97fce51f5a-dgvoodoo\\System\\d3d8.dll"
+        },
+        {
+          "name": "d3d11.dll",
+          "path": "\\\\?\\C:\\Windows\\SysWOW64\\d3d11.dll"
+        }
+      ],
+      "stop": "Cast of NULL to Font failed"
+    }
+  },
+  "reference": {
+    "wrapper": "dgVoodoo2",
+    "version": "2.87.5",
+    "architecture": "x86",
+    "host_api": "D3D11 feature level 11.0",
+    "windowed": true,
+    "capture_mouse": false,
+    "configuration_sha256": "86d97ac3a5b94990cc7b664970dd7185449fc7cc32f817e469d70651ce78ab89",
+    "wrapper_sha256": "d03e2562178db1fcf3493fc0a0b23a465e35c55d73adb3ec095be866cd662704"
+  },
+  "translated": {
+    "raw_directory": "experiments/xrt/results/raw/level/20261023-032513-635eb0b9-candidate",
+    "report_sha256": "4e66b20ec7da67c5e29da642312f1716824184e2597ba9714b4431e09111ce0a",
+    "callbacks": 28,
+    "first_remaining_blocker": "call to import kernel32.dll!GetModuleHandleW, which has no host implementation (from 11020fca (Window.dll+20fca, in f_11020f70+5a))",
+    "site": "Window.dll+20fca",
+    "next_module_name": "SHELL32.DLL",
+    "binary": {
+      "path": "experiments/xrt/build/graphics-startup-handoff/xrt_ucc.exe",
+      "sha256": "e6cb0b760abcd8e04ab80f6a5c5e2cfc163a4beb067c5d4a03913d524b1bb79d"
+    },
+    "build_identity": {
+      "path": "experiments/xrt/build/graphics-startup-handoff/client-identity.json",
+      "sha256": "aa41f11cbd34ca332ba26c3abe08fbdbded84b922d52793fff0337e71388d421"
+    },
+    "runtime_sources": {
+      "path": "experiments/xrt/runtime",
+      "files": 16,
+      "sha256": "d6cc2d45a628552916f15be9dacb89213f9f844389d01b8218320a27e53dd2f0"
+    }
+  },
+  "validation": {
+    "gui_native_vs_translated": "PASS: bitmap bytes, A/W dialogs, nested callbacks, WINDOWPOS copy-back, cleanup, errors",
+    "python_unit_tests": {
+      "tests": 142,
+      "skipped": 17,
+      "result": "PASS"
+    },
+    "client_lock_tests": {
+      "tests": 3,
+      "result": "PASS"
+    },
+    "existing_client_startup_tests": "PASS",
+    "eh_probe": "PASS: 6 positive and 2 deliberate negative cases",
+    "commandlet_vm_27_runs": "20261023-031210-1ef153dd",
+    "commandlet_vm_9_runs": "20261023-031731-3c3dbfa5",
+    "final_error_guard_3_smoke_runs": "20261023-032141-ae547eae",
+    "handoff_binary_2_smoke_runs": "20261023-032544-2da4ae66",
+    "compiler_full_passes": [
+      "20261023-031255-8dbf2927",
+      "20261023-031742-1cd6692b"
+    ],
+    "compiler_scope_per_invocation": "16 compiles and 12 execution cross-checks",
+    "install_integrity": {
+      "files": 4757,
+      "differences": 0,
+      "save_junction_metadata_unchanged": true
+    }
+  },
+  "next_steps": {
+    "original": "Stage legitimate Textures/SubTFonts.utx in a new isolated copy; observe LoadMap completion and actual-client device/present boundaries.",
+    "translated": "Implement GetModuleHandleW/module identities for observed SHELL32 query, then GetProcAddress/RICHED32 GUI initialization toward UGameEngine::Init."
+  }
+}

@@ -182,5 +182,5 @@ def main():
 
 
 if __name__ == "__main__":
-    with R.CaseLock("level"):
+    with R.CaseLock("level"), R.CaseLock("graphics-client-session"):
         sys.exit(main())

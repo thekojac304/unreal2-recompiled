@@ -124,7 +124,7 @@ typedef struct XrtHle {
     XrtFn fn;                      /* function adapter (NULL for data objects) */
     uint32_t data_size;            /* data object size in guest memory (fn == NULL) */
 } XrtHle;
-extern const XrtHle xrt_hle_kernel32[], xrt_hle_msvcr70[], xrt_hle_misc[];   /* each ends with {0} */
+extern const XrtHle xrt_hle_kernel32[], xrt_hle_msvcr70[], xrt_hle_misc[], xrt_hle_gui[];   /* each ends with {0} */
 
 int xrt_module_count(void);
 XrtModule* xrt_module_get(int i);
@@ -163,7 +163,7 @@ void xrt_set_last_error(CPU* c, uint32_t e);
 uint32_t xrt_get_last_error(CPU* c);
 
 /* handles: guest handle values for host objects */
-enum { XH_FREE, XH_FILE, XH_FIND, XH_THREAD, XH_STD };   /* XH_STD: a host standard handle (GetStdHandle) */
+enum { XH_FREE, XH_FILE, XH_FIND, XH_THREAD, XH_STD, XH_DC, XH_BITMAP, XH_WINDOW, XH_FONT }; /* host objects behind guest tokens */
 uint32_t xrt_handle_new(int type, void* host);
 void* xrt_handle_get(uint32_t h, int type);
 int xrt_handle_type(uint32_t h);

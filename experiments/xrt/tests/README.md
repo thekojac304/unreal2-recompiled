@@ -53,3 +53,10 @@ stale successful results cannot hide them. Recovery measurements: 432,304 instru
 mutations detected; Gate-F CRT 51,536 cases, 0 mismatches; EH probe 6 positive/2 negative expectations met;
 FGlobalMath 16,384 float32 entries and 13 fsin edge cases matched. The exhaustive x87 run was not repeated because
 `xrt_cpu.c` and its relevant helpers are unchanged; its documented double/exponent/tag-word limitations still apply.
+
+## Real GUI boundary (2026-10-22 Eastern)
+
+Run `experiments\xrt\tests\gui_boundary\build.cmd`. The same project-owned x86 DLL is run natively and
+lifted into the actual runtime. PASS covers bitmap BGR readback, A/W resource dialogs, init LPARAM, nested callbacks,
+WINDOWPOS copy-back (host width 81), child lookup, metrics, update, ownership cleanup, invalid second operations,
+and missing resources/error 1814. See [scope and remaining boundaries](../GRAPHICS_STARTUP.md).

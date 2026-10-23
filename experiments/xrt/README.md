@@ -1,3 +1,8 @@
+**Graphics checkpoint (2026-10-22 Eastern):** original opens CS_Intro through LoadMap with dgVoodoo2;
+translated real splash path passes and stops at Window.dll's GetModuleHandleW. G4/G5 and game rendering remain
+open. See [configuration, adapter scope and tests](GRAPHICS_STARTUP.md). Older pre-graphics observations below
+are retained as history.
+
 # X1 translated runtime (`xrt`): UCC.exe and its DLLs as translated code on Windows x64
 
 The original 32-bit `UCC.exe`, `Core.dll`, `Engine.dll`, `GlmLib.dll`, `Editor.dll`, `Window.dll`, `Fire.dll` and

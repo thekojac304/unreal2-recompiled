@@ -13,5 +13,5 @@ if not exist "%XRT_CLIENT_BUILD%\obj\client" mkdir "%XRT_CLIENT_BUILD%\obj\clien
 if not exist "%XRT_CLIENT_BUILD%\obj\rt" mkdir "%XRT_CLIENT_BUILD%\obj\rt"
 cl /nologo /c /O1 /fp:strict /W3 /wd4102 /wd4146 /MP /Iruntime /Fo"%XRT_CLIENT_BUILD%\obj\client\\" gen\unreal2\*.c gen\windrv\*.c gen\d3ddrv\*.c || exit /b 1
 cl /nologo /c /O2 /Zi /fp:strict /W4 /wd4100 /wd4201 /wd4127 /wd4324 /D_CRT_SECURE_NO_WARNINGS /DXRT_WITH_UNREAL2 /MP /Iruntime /Fo"%XRT_CLIENT_BUILD%\obj\rt\\" /Fd"%XRT_CLIENT_BUILD%\obj\rt\\" runtime\*.c || exit /b 1
-link /nologo /DEBUG /STACK:0x10000000 /OUT:"%XRT_CLIENT_BUILD%\xrt_ucc.exe" "%XRT_BASE_BUILD%\obj\gen\*.obj" "%XRT_CLIENT_BUILD%\obj\client\*.obj" "%XRT_CLIENT_BUILD%\obj\rt\*.obj" winmm.lib advapi32.lib ole32.lib bcrypt.lib || exit /b 1
+link /nologo /DEBUG /STACK:0x10000000 /OUT:"%XRT_CLIENT_BUILD%\xrt_ucc.exe" "%XRT_BASE_BUILD%\obj\gen\*.obj" "%XRT_CLIENT_BUILD%\obj\client\*.obj" "%XRT_CLIENT_BUILD%\obj\rt\*.obj" winmm.lib advapi32.lib ole32.lib bcrypt.lib user32.lib gdi32.lib || exit /b 1
 ..\..\.venv\Scripts\python -I ..\..\tools\xrt\client_identity.py --base "%XRT_BASE_BUILD%" --out "%XRT_CLIENT_BUILD%" --record || exit /b 1
