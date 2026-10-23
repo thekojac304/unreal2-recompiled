@@ -32,6 +32,8 @@ def main():
                         help="installed singleplayer package, relative to its root (repeatable)")
     parser.add_argument("--stop-after-present", type=int, default=0,
                         help="controlled stop after N normal game Present returns")
+    parser.add_argument("--capture-client", action="store_true",
+                        help="capture this debuggee's client DC at the controlled Present stop")
     args = parser.parse_args()
     if not 1 <= args.timeout_ms <= 120000:
         parser.error("timeout must be 1..120000 ms")
@@ -115,6 +117,10 @@ def main():
         if not 1 <= args.stop_after_present <= 100:
             parser.error("stop-after-present must be 1..100")
         env.update(UCTRACE_STOP_LABEL="D3D.Present.return.1", UCTRACE_STOP_AFTER=str(args.stop_after_present))
+    if args.capture_client:
+        if not args.stop_after_present:
+            parser.error("capture-client requires a bounded Present stop")
+        env["UCTRACE_CAPTURE_CLIENT"] = str(out / "client.bmp")
     command = [R.TRACER, str(entries), str(out / "trace.json"), str(out / "stdout.bin"), str(exe)] + L.ARGS
     before = {f.relative_to(root).as_posix(): L.sha(f) for f in root.rglob("*") if f.is_file()}
     meta = {"id": ident, "configuration": args.configuration, "sandbox": str(root), "command": command,

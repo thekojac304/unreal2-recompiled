@@ -27,6 +27,7 @@
 #include <stdlib.h>
 #include <string.h>
 #include <windows.h>
+#include <dwmapi.h>
 
 #define MAX_MODS 512 /* The real level client loads more DLLs (including unload/reload records). */
 #define MAX_BP (1 << 18)
@@ -81,6 +82,68 @@ static const char* termination_reason = "natural";
 typedef struct { int imp, thread, seq; DWORD ret, args[8]; char a[3][512]; WCHAR w[3][512]; } CallRec;
 static CallRec* call_records;
 static int ncalls, calls_dropped;
+/* Optional bounded, read-only capture of this debuggee's client rectangle at
+ * the requested event stop. No input, desktop mode, or game render code changes. */
+static DWORD capture_pid;
+static HWND capture_window;
+static BOOL CALLBACK capture_enum(HWND h, LPARAM unused) {
+    DWORD pid=0; RECT r;
+    GetWindowThreadProcessId(h,&pid);
+    if(pid==capture_pid && IsWindowVisible(h) && GetClientRect(h,&r) && r.right>=320 && r.bottom>=200) {
+        capture_window=h; return FALSE;
+    }
+    (void)unused; return TRUE;
+}
+static void capture_client(void) {
+    const char* path=getenv("UCTRACE_CAPTURE_CLIENT");
+    RECT r={0}; HDC source=NULL,dc=NULL; HBITMAP bitmap=NULL; HGDIOBJ old=NULL;
+    BITMAPINFO info; BITMAPFILEHEADER file; void* pixels=NULL; FILE* f=NULL;
+    DWORD bytes; BOOL ok=FALSE; WCHAR title[256];
+    POINT origin={0,0};
+    DPI_AWARENESS_CONTEXT previous_dpi;
+    if(!path) return;
+    previous_dpi=SetThreadDpiAwarenessContext(DPI_AWARENESS_CONTEXT_PER_MONITOR_AWARE_V2);
+    capture_pid=GetProcessId(hProc); capture_window=NULL;
+    EnumWindows(capture_enum,0);
+    if(!capture_window || !GetClientRect(capture_window,&r)) goto done;
+    if(r.right>4096 || r.bottom>4096) goto done;
+    /* A window DC can contain another application's pixels under DWM occlusion.
+     * Refuse such a capture instead of treating desktop content as game output. */
+    for(int i=0;i<5;i++) {
+        POINT p={i==0?r.right/2:(i&1?1:r.right-2),i==0?r.bottom/2:(i&2?1:r.bottom-2)};
+        if(!ClientToScreen(capture_window,&p) || GetAncestor(WindowFromPoint(p),GA_ROOT)!=capture_window) {
+            fprintf(stderr,"client_capture skipped: game client is occluded at sample %d\n",i);
+            goto done;
+        }
+    }
+    memset(&info,0,sizeof info); info.bmiHeader.biSize=sizeof(BITMAPINFOHEADER);
+    info.bmiHeader.biWidth=r.right; info.bmiHeader.biHeight=-r.bottom;
+    info.bmiHeader.biPlanes=1; info.bmiHeader.biBitCount=32; info.bmiHeader.biCompression=BI_RGB;
+    bytes=r.right*r.bottom*4;
+    /* Window DCs can return stale GDI pixels underneath a D3D swapchain. Use
+     * the composed desktop, cropped to this PID-checked client rectangle. */
+    if(!ClientToScreen(capture_window,&origin)) goto done;
+    DwmFlush();
+    source=GetDC(NULL); if(!source) goto done;
+    dc=CreateCompatibleDC(source); if(!dc) goto done;
+    bitmap=CreateDIBSection(source,&info,DIB_RGB_COLORS,&pixels,NULL,0); if(!bitmap) goto done;
+    old=SelectObject(dc,bitmap);
+    if(!BitBlt(dc,0,0,r.right,r.bottom,source,origin.x,origin.y,SRCCOPY|CAPTUREBLT)) goto done;
+    GdiFlush();
+    memset(&file,0,sizeof file); file.bfType=0x4d42; file.bfOffBits=sizeof file+sizeof(BITMAPINFOHEADER); file.bfSize=file.bfOffBits+bytes;
+    f=fopen(path,"wb"); if(!f) goto done;
+    ok=fwrite(&file,sizeof file,1,f)==1 && fwrite(&info.bmiHeader,sizeof(BITMAPINFOHEADER),1,f)==1 && fwrite(pixels,bytes,1,f)==1;
+done:
+    if(f) fclose(f);
+    if(old) SelectObject(dc,old);
+    if(bitmap) DeleteObject(bitmap);
+    if(dc) DeleteDC(dc);
+    if(source) ReleaseDC(NULL,source);
+    title[0]=0;
+    if(capture_window) GetWindowTextW(capture_window,title,256);
+    fprintf(stderr,"client_capture source=composed-desktop-client-crop ok=%d pid=%lu hwnd=%p dimensions=%ldx%ld path=%s title=%ls error=%lu\n",ok,capture_pid,capture_window,capture_window?r.right:0,capture_window?r.bottom:0,path,title,GetLastError());
+    if(previous_dpi) SetThreadDpiAwarenessContext(previous_dpi);
+}
 
 static HANDLE thread_handle(DWORD tid) {
     for (int i = 0; i < nthreads; i++) if (threads[i].tid == tid) return threads[i].h;
@@ -219,6 +282,7 @@ static void log_event(int point, int exc, int thread, const CONTEXT* ctx) {
     rd(ctx->Esp, &r->top, 4);
     if (point >= 0 && stop_label && !strcmp(evp[point].label, stop_label) && ++stop_hits == stop_after) {
         termination_reason = "event_limit";
+        capture_client();
         if (!TerminateProcess(hProc, 0xE0000001u)) { fprintf(stderr, "uctrace: controlled stop failed\n"); exit(5); }
     }
 }
