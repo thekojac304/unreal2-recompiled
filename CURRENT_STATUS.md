@@ -1,21 +1,24 @@
-# Current status: translated UWindowsClient::Init returns; native D3D8 factory is next
+# Current status: translated D3D8 queries pass; genuine LoadMap enters Entry
 
-Updated 2026-10-23 (US Eastern). **D3 passes** in two fresh runs of the identified translated client.
-Real DirectInput8Create returns an owned guest COM interface, and UWindowsClient::Init returns to
-Engine.dll+0x8f5a3. The next reproducible blocker is `d3d8!Direct3DCreate8` at D3DDrv.dll+0x1c6b0, called
-from +0xd8a1. **UGameEngine::Init completion, translated LoadMap, CS_Intro initialization and world ticks
-remain unreached.** No rendering implementation or input bypass was added.
+Updated 2026-10-23 (US Eastern). **Direct3DCreate8(120), adapter enumeration/identifiers, HAL caps and
+observed DXT1/3/5 queries pass** through the pinned official **DXVK 3.1.1 x64 D3D8 + D3D9/Vulkan** pair.
+Guest COM pointers/vtables remain 32-bit; typed host objects retain owned references. All 53 caps words
+match native x86/x64 DXVK. The 18 differences from dgVoodoo remain visible and are not patched.
+
+The translated client now enters real `UGameEngine::LoadMap`, opens `Entry.un2`, and reaches
+`ULevel::PostLoad → UModel::BuildRenderData`. The next failure is unimplemented `msvcr70!floor` at
+`Core.dll+0x17220` inside appRound. **Engine Init and LoadMap have not returned. Translated CreateDevice,
+CS_Intro initialization, world ticks and rendering remain unreached.** This bounded phase stops there.
 
 The original reference remains preserved: CS_Intro LoadMap returns a selected world, actor initialization
 completes, four ticks return to the caller and three game Presents succeed through the pinned dgVoodoo/D3D11
-configuration. Fresh repeats confirm it. Pixel-capture attempts do not verify game content; input/play is untested.
+configuration. Fresh dgVoodoo and DXVK x86 runs both confirm it. Pixel content and input/play remain unverified.
 
 [Current checkpoint and commands](experiments/xrt/GRAPHICS_STARTUP.md),
-[identified results](experiments/xrt/results/compare/directinput_initialization.json).
-The input/COM oracle has 50 identical values and four explicit negatives; the class oracle has 472 values,
-and the binary FILE oracle has 188. Existing GUI,
-module, EH and startup checks pass. Final acceptance: 9 commandlet/VM cases, traced VMProbe, 16 compiler
-invocations/12 execution comparisons, and 149 Python tests (17 expected skips).
+[identified results](experiments/xrt/results/compare/d3d8_initialization.json).
+The new D3D8 oracle compares 945 values across six positive probes and preserves two explicit negatives.
+Input/COM, class, binary FILE, GUI, module, EH and startup checks pass. Commandlet/VM, compiler and Python
+acceptance identities and exact scopes are retained in the checkpoint.
 
 Known CRT baseline (110 mismatches, 1,796 pending) and six freshly reproduced ACP 932 differences remain open.
 The Ogg byte discrepancy fails a page CRC and changes decoded PCM; cause/timing remain unknown and both

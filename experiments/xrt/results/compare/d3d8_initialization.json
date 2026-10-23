@@ -1,0 +1,1503 @@
+{
+  "date": "2026-10-23 US Eastern",
+  "source_commit": "0c57992",
+  "starting_head": "4c2b7452b0320bd28b3115ca984f2e8f09267202",
+  "selected_backend": {
+    "name": "DXVK 3.1.1 Windows x64 D3D8 + matching DXVK D3D9 over Vulkan",
+    "official_release": "https://github.com/doitsujin/dxvk/releases/tag/v3.1.1",
+    "archive_sha256": "40565b4a724aadc4433fa4e010b4b23916d9b1f1baeee64e17186db94f54e608",
+    "d3d8_sha256": "bd65cebf8ece6f80a841a16d98bdf5b76894c172b7ba344180baa17a4d00680c",
+    "d3d9_sha256": "c126316f7478eaff1ad8087702eda5930f2400187b9c8b3592219c34f6632780"
+  },
+  "binary": {
+    "path": "experiments/xrt/build/d3d8-final-checked/xrt_ucc.exe",
+    "sha256": "751c6b8701bbde5dd8ef4693e518f7de9e459cb10da27ef5c481f935af1c9e90"
+  },
+  "build_identity": {
+    "path": "experiments/xrt/build/d3d8-final-checked/client-identity.json",
+    "sha256": "8259f5fe72679738d605afe46d0553e9d208d874cbc6bbc2ff92cdc7383d34af"
+  },
+  "native_matrix": {
+    "path": "experiments/xrt/results/raw/d3d8-native/20c46e4fc67b/results.json",
+    "sha256": "3bda7e05ab96fef1e16521e915f7e537b435d553b4b125a3ee312b733dbae59d"
+  },
+  "native_results": [
+    {
+      "architecture": "x86",
+      "implementation": "system",
+      "process_exit": 0,
+      "query_probe_return": 3,
+      "factory": true,
+      "adapter_count": 2,
+      "caps_hresult": "8876086a",
+      "identifiers": [
+        {
+          "adapter": 0,
+          "hresult": "00000000",
+          "driver": "atidx9loader32.dll",
+          "description": "AMD Radeon RX 7900 XT",
+          "payload_sha256": "2f266bd336aebf42eaa4ca4f35e8152baf7f113f006e46d7a97b5012eff24d94"
+        },
+        {
+          "adapter": 1,
+          "hresult": "00000000",
+          "driver": "atidx9loader32.dll",
+          "description": "AMD Radeon RX 7900 XT",
+          "payload_sha256": "2f266bd336aebf42eaa4ca4f35e8152baf7f113f006e46d7a97b5012eff24d94"
+        }
+      ],
+      "caps": [
+        "00000000",
+        "00000000",
+        "00000000",
+        "00000000",
+        "00000000",
+        "00000000",
+        "00000000",
+        "00000000",
+        "00000000",
+        "00000000",
+        "00000000",
+        "00000000",
+        "00000000",
+        "00000000",
+        "00000000",
+        "00000000",
+        "00000000",
+        "00000000",
+        "00000000",
+        "00000000",
+        "00000000",
+        "00000000",
+        "00000000",
+        "00000000",
+        "00000000",
+        "00000000",
+        "00000000",
+        "00000000",
+        "00000000",
+        "00000000",
+        "00000000",
+        "00000000",
+        "00000000",
+        "00000000",
+        "00000000",
+        "00000000",
+        "00000000",
+        "00000000",
+        "00000000",
+        "00000000",
+        "00000000",
+        "00000000",
+        "00000000",
+        "00000000",
+        "00000000",
+        "00000000",
+        "00000000",
+        "00000000",
+        "00000000",
+        "00000000",
+        "00000000",
+        "00000000",
+        "00000000"
+      ],
+      "stdout": {
+        "path": "experiments/xrt/results/raw/d3d8-native/20c46e4fc67b/x86-system/stdout.txt",
+        "sha256": "155c778cec4fd8c6151c70b33a9e4064f42b4271f4216861970f84cf9438e8f2"
+      },
+      "stderr": {
+        "path": "experiments/xrt/results/raw/d3d8-native/20c46e4fc67b/x86-system/stderr.txt",
+        "sha256": "51fb4a58c2b521ce79509a69dda8b2e8f1e35a07ebf1d1d2b103343861abcb57"
+      },
+      "binary_identities": {
+        "C:\\Windows\\SysWOW64\\d3d8.dll": "d61d6c890592e992804fb5a1ed5fc2ce3413177c9ee67f9babaf1d4955884bb4",
+        "E:\\Unreal2-Port-Investigation\\experiments\\xrt\\build\\d3d8_boundary\\x86\\native.exe": "43e8dce61338d24a2e8d4d239644a70e49c2cc7c68d4c396693874e115f982d4",
+        "E:\\Unreal2-Port-Investigation\\experiments\\xrt\\build\\d3d8_boundary\\x86\\d3dprobe.dll": "a7d8e3ca543fcec1667bd3918e025be8c989795870d2c4481324d7491f8df345"
+      }
+    },
+    {
+      "architecture": "x64",
+      "implementation": "system",
+      "process_exit": 2,
+      "query_probe_return": null,
+      "factory": null,
+      "adapter_count": null,
+      "caps_hresult": null,
+      "identifiers": [],
+      "caps": null,
+      "stdout": {
+        "path": "experiments/xrt/results/raw/d3d8-native/20c46e4fc67b/x64-system/stdout.txt",
+        "sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855"
+      },
+      "stderr": {
+        "path": "experiments/xrt/results/raw/d3d8-native/20c46e4fc67b/x64-system/stderr.txt",
+        "sha256": "c8ee18bfc7492c5cb7244e09b156fffdd73dab18a7f7dc9199f498efafa50b24"
+      },
+      "binary_identities": {
+        "C:\\Windows\\System32\\d3d8.dll": null,
+        "E:\\Unreal2-Port-Investigation\\experiments\\xrt\\build\\d3d8_boundary\\x64\\native.exe": "9774d08eddee73cb020cbb00d72548b008405560a7e2250cb6aa97e6fa221349",
+        "E:\\Unreal2-Port-Investigation\\experiments\\xrt\\build\\d3d8_boundary\\x64\\d3dprobe.dll": "36d5c6eb31d5a0b56da7869519ce103c3c5598fa1f206d27d6fc3dcf7616a7d2"
+      }
+    },
+    {
+      "architecture": "x86",
+      "implementation": "d3d8to9",
+      "process_exit": 0,
+      "query_probe_return": 3,
+      "factory": true,
+      "adapter_count": 2,
+      "caps_hresult": "8876086a",
+      "identifiers": [
+        {
+          "adapter": 0,
+          "hresult": "00000000",
+          "driver": "atidx9loader32.dll",
+          "description": "AMD Radeon RX 7900 XT",
+          "payload_sha256": "2f266bd336aebf42eaa4ca4f35e8152baf7f113f006e46d7a97b5012eff24d94"
+        },
+        {
+          "adapter": 1,
+          "hresult": "00000000",
+          "driver": "atidx9loader32.dll",
+          "description": "AMD Radeon RX 7900 XT",
+          "payload_sha256": "2f266bd336aebf42eaa4ca4f35e8152baf7f113f006e46d7a97b5012eff24d94"
+        }
+      ],
+      "caps": [
+        "a5a5a5a5",
+        "a5a5a5a5",
+        "a5a5a5a5",
+        "a5a5a5a5",
+        "a5a5a5a5",
+        "a5a5a5a5",
+        "a5a5a5a5",
+        "a5a5a5a5",
+        "a5a5a5a5",
+        "a5a5a5a5",
+        "a5a5a5a5",
+        "a5a5a5a5",
+        "a5a5a5a5",
+        "a5a5a5a5",
+        "a5a5a5a5",
+        "a5a5a5a5",
+        "a5a5a5a5",
+        "a5a5a5a5",
+        "a5a5a5a5",
+        "a5a5a5a5",
+        "a5a5a5a5",
+        "a5a5a5a5",
+        "a5a5a5a5",
+        "a5a5a5a5",
+        "a5a5a5a5",
+        "a5a5a5a5",
+        "a5a5a5a5",
+        "a5a5a5a5",
+        "a5a5a5a5",
+        "a5a5a5a5",
+        "a5a5a5a5",
+        "a5a5a5a5",
+        "a5a5a5a5",
+        "a5a5a5a5",
+        "a5a5a5a5",
+        "a5a5a5a5",
+        "a5a5a5a5",
+        "a5a5a5a5",
+        "a5a5a5a5",
+        "a5a5a5a5",
+        "a5a5a5a5",
+        "a5a5a5a5",
+        "a5a5a5a5",
+        "a5a5a5a5",
+        "a5a5a5a5",
+        "a5a5a5a5",
+        "a5a5a5a5",
+        "a5a5a5a5",
+        "a5a5a5a5",
+        "a5a5a5a5",
+        "a5a5a5a5",
+        "a5a5a5a5",
+        "a5a5a5a5"
+      ],
+      "stdout": {
+        "path": "experiments/xrt/results/raw/d3d8-native/20c46e4fc67b/x86-d3d8to9/stdout.txt",
+        "sha256": "82df3c7d0ece5daa7000be39d2de3efdefe003437b3d10df00252397b2383373"
+      },
+      "stderr": {
+        "path": "experiments/xrt/results/raw/d3d8-native/20c46e4fc67b/x86-d3d8to9/stderr.txt",
+        "sha256": "594265121600c5ebef604610120bd70081a007f56a445867b26d623c57b83380"
+      },
+      "binary_identities": {
+        "E:\\Unreal2-Port-Investigation\\experiments\\xrt\\results\\raw\\d3d8-native\\20c46e4fc67b\\x86-d3d8to9\\d3d8.dll": "122928cfe225c25d30decf7184a5d37e490cecf3b58256ba3206c7e1853f8ab8",
+        "E:\\Unreal2-Port-Investigation\\experiments\\xrt\\build\\d3d8_boundary\\x86\\native.exe": "43e8dce61338d24a2e8d4d239644a70e49c2cc7c68d4c396693874e115f982d4",
+        "E:\\Unreal2-Port-Investigation\\experiments\\xrt\\build\\d3d8_boundary\\x86\\d3dprobe.dll": "a7d8e3ca543fcec1667bd3918e025be8c989795870d2c4481324d7491f8df345"
+      }
+    },
+    {
+      "architecture": "x86",
+      "implementation": "dgvoodoo",
+      "process_exit": 0,
+      "query_probe_return": 0,
+      "factory": true,
+      "adapter_count": 2,
+      "caps_hresult": "00000000",
+      "identifiers": [
+        {
+          "adapter": 0,
+          "hresult": "00000000",
+          "driver": "dgvdumd.dll",
+          "description": "AMD Radeon RX 7900 XT (dgVoodoo DX API Layer)",
+          "payload_sha256": "41170f12d31d6d0d95658cd63dd6a780e4e03ce407992799aed3c075ae95b0e5"
+        },
+        {
+          "adapter": 1,
+          "hresult": "00000000",
+          "driver": "dgvdumd.dll",
+          "description": "AMD Radeon RX 7900 XT (dgVoodoo DX API Layer)",
+          "payload_sha256": "41170f12d31d6d0d95658cd63dd6a780e4e03ce407992799aed3c075ae95b0e5"
+        }
+      ],
+      "caps": [
+        "00000001",
+        "00000000",
+        "00020000",
+        "200a0000",
+        "00000020",
+        "8000000f",
+        "00000003",
+        "011bbef0",
+        "00000ef2",
+        "00736191",
+        "000000ff",
+        "00001fff",
+        "00001fff",
+        "000000ff",
+        "00084208",
+        "0001ecc5",
+        "07030700",
+        "07030700",
+        "07030700",
+        "0000003f",
+        "0000003f",
+        "0000001f",
+        "00004000",
+        "00004000",
+        "00004000",
+        "00004000",
+        "00004000",
+        "00000010",
+        "51ba43b7",
+        "cb189680",
+        "cb189680",
+        "4b189680",
+        "4b189680",
+        "00000000",
+        "000000ff",
+        "00180008",
+        "03feffff",
+        "00000008",
+        "00000008",
+        "0000007b",
+        "00000008",
+        "00000006",
+        "00000004",
+        "000000ff",
+        "46000000",
+        "01000000",
+        "0fffffff",
+        "00000010",
+        "00010000",
+        "fffe0101",
+        "00000100",
+        "ffff0104",
+        "7f7fffff"
+      ],
+      "stdout": {
+        "path": "experiments/xrt/results/raw/d3d8-native/20c46e4fc67b/x86-dgvoodoo/stdout.txt",
+        "sha256": "ae75700c64735279b75a19cfdd5f0346fa578c6dc01511881f4dd77b4c3671ca"
+      },
+      "stderr": {
+        "path": "experiments/xrt/results/raw/d3d8-native/20c46e4fc67b/x86-dgvoodoo/stderr.txt",
+        "sha256": "0630d6b54a207474ad2f1abfe83386bc3990aa0549bf14a7bc24bc9e33e5b46e"
+      },
+      "binary_identities": {
+        "E:\\Unreal2-Port-Investigation\\experiments\\xrt\\results\\raw\\d3d8-native\\20c46e4fc67b\\x86-dgvoodoo\\d3d8.dll": "d03e2562178db1fcf3493fc0a0b23a465e35c55d73adb3ec095be866cd662704",
+        "E:\\Unreal2-Port-Investigation\\experiments\\xrt\\build\\d3d8_boundary\\x86\\native.exe": "43e8dce61338d24a2e8d4d239644a70e49c2cc7c68d4c396693874e115f982d4",
+        "E:\\Unreal2-Port-Investigation\\experiments\\xrt\\build\\d3d8_boundary\\x86\\d3dprobe.dll": "a7d8e3ca543fcec1667bd3918e025be8c989795870d2c4481324d7491f8df345"
+      }
+    },
+    {
+      "architecture": "x86",
+      "implementation": "dxvk",
+      "process_exit": 0,
+      "query_probe_return": 0,
+      "factory": true,
+      "adapter_count": 2,
+      "caps_hresult": "00000000",
+      "identifiers": [
+        {
+          "adapter": 0,
+          "hresult": "00000000",
+          "driver": "aticfx32.dll",
+          "description": "AMD Radeon RX 7900 XT",
+          "payload_sha256": "c1dc338ee2560b3f53f156e77795f1e23cc32e801cefb6f9f18967916f88c338"
+        },
+        {
+          "adapter": 1,
+          "hresult": "00000000",
+          "driver": "aticfx32.dll",
+          "description": "AMD Radeon RX 7900 XT",
+          "payload_sha256": "c1dc338ee2560b3f53f156e77795f1e23cc32e801cefb6f9f18967916f88c338"
+        }
+      ],
+      "caps": [
+        "00000001",
+        "00000000",
+        "00020000",
+        "200a0000",
+        "00000020",
+        "8000000f",
+        "00000001",
+        "001bbef0",
+        "00000ff2",
+        "00736191",
+        "000000ff",
+        "00001fff",
+        "00001fff",
+        "000000ff",
+        "00084208",
+        "0001ecc5",
+        "07030700",
+        "07030700",
+        "07030700",
+        "0000003f",
+        "0000003f",
+        "0000001f",
+        "00004000",
+        "00004000",
+        "00002000",
+        "00002000",
+        "00002000",
+        "00000010",
+        "501502f9",
+        "c7000000",
+        "c7000000",
+        "47000000",
+        "47000000",
+        "00000000",
+        "000000ff",
+        "00100008",
+        "03ffffff",
+        "00000008",
+        "00000008",
+        "0000007b",
+        "00000008",
+        "00000006",
+        "00000004",
+        "00000000",
+        "45ffff00",
+        "00555555",
+        "00ffffff",
+        "00000010",
+        "000001fc",
+        "fffe0101",
+        "00000100",
+        "ffff0104",
+        "7f7fffff"
+      ],
+      "stdout": {
+        "path": "experiments/xrt/results/raw/d3d8-native/20c46e4fc67b/x86-dxvk/stdout.txt",
+        "sha256": "c2c0725c656826edfa3f00e2ed037954a8b46b818dad399e3bd4cfc2258b74ff"
+      },
+      "stderr": {
+        "path": "experiments/xrt/results/raw/d3d8-native/20c46e4fc67b/x86-dxvk/stderr.txt",
+        "sha256": "6f315854298814f33bac647714f34b63d07212df86badd344749b79439dcf801"
+      },
+      "binary_identities": {
+        "E:\\Unreal2-Port-Investigation\\experiments\\xrt\\results\\raw\\d3d8-native\\20c46e4fc67b\\x86-dxvk\\d3d8.dll": "9152ba43386e756790a66f61cdcee01b3287d156d4161c7456d816faa82fc364",
+        "E:\\Unreal2-Port-Investigation\\experiments\\xrt\\build\\d3d8_boundary\\x86\\native.exe": "43e8dce61338d24a2e8d4d239644a70e49c2cc7c68d4c396693874e115f982d4",
+        "E:\\Unreal2-Port-Investigation\\experiments\\xrt\\build\\d3d8_boundary\\x86\\d3dprobe.dll": "a7d8e3ca543fcec1667bd3918e025be8c989795870d2c4481324d7491f8df345",
+        "E:\\Unreal2-Port-Investigation\\experiments\\xrt\\results\\raw\\d3d8-native\\20c46e4fc67b\\x86-dxvk\\d3d9.dll": "265888c31ca78dffa290c39cb7e50bfb02762590e41927906e46fb32f01497fa"
+      }
+    },
+    {
+      "architecture": "x64",
+      "implementation": "dxvk",
+      "process_exit": 0,
+      "query_probe_return": 0,
+      "factory": true,
+      "adapter_count": 2,
+      "caps_hresult": "00000000",
+      "identifiers": [
+        {
+          "adapter": 0,
+          "hresult": "00000000",
+          "driver": "aticfx64.dll",
+          "description": "AMD Radeon RX 7900 XT",
+          "payload_sha256": "96aff22320e1e82a07280ea74e832d3a67568f5ecb39c02c0fd3898ce2a5e9f2"
+        },
+        {
+          "adapter": 1,
+          "hresult": "00000000",
+          "driver": "aticfx64.dll",
+          "description": "AMD Radeon RX 7900 XT",
+          "payload_sha256": "96aff22320e1e82a07280ea74e832d3a67568f5ecb39c02c0fd3898ce2a5e9f2"
+        }
+      ],
+      "caps": [
+        "00000001",
+        "00000000",
+        "00020000",
+        "200a0000",
+        "00000020",
+        "8000000f",
+        "00000001",
+        "001bbef0",
+        "00000ff2",
+        "00736191",
+        "000000ff",
+        "00001fff",
+        "00001fff",
+        "000000ff",
+        "00084208",
+        "0001ecc5",
+        "07030700",
+        "07030700",
+        "07030700",
+        "0000003f",
+        "0000003f",
+        "0000001f",
+        "00004000",
+        "00004000",
+        "00002000",
+        "00002000",
+        "00002000",
+        "00000010",
+        "501502f9",
+        "c7000000",
+        "c7000000",
+        "47000000",
+        "47000000",
+        "00000000",
+        "000000ff",
+        "00100008",
+        "03ffffff",
+        "00000008",
+        "00000008",
+        "0000007b",
+        "00000008",
+        "00000006",
+        "00000004",
+        "00000000",
+        "45ffff00",
+        "00555555",
+        "00ffffff",
+        "00000010",
+        "000001fc",
+        "fffe0101",
+        "00000100",
+        "ffff0104",
+        "7f7fffff"
+      ],
+      "stdout": {
+        "path": "experiments/xrt/results/raw/d3d8-native/20c46e4fc67b/x64-dxvk/stdout.txt",
+        "sha256": "c2edb335f1725d2632a8c0a79e7feb9bbfa238050e6a3d584f7993ce4cf3f4c2"
+      },
+      "stderr": {
+        "path": "experiments/xrt/results/raw/d3d8-native/20c46e4fc67b/x64-dxvk/stderr.txt",
+        "sha256": "42939073d4532c0a3872b1a992fea0701be7524984b418626fcc630794bdd14e"
+      },
+      "binary_identities": {
+        "E:\\Unreal2-Port-Investigation\\experiments\\xrt\\results\\raw\\d3d8-native\\20c46e4fc67b\\x64-dxvk\\d3d8.dll": "bd65cebf8ece6f80a841a16d98bdf5b76894c172b7ba344180baa17a4d00680c",
+        "E:\\Unreal2-Port-Investigation\\experiments\\xrt\\build\\d3d8_boundary\\x64\\native.exe": "9774d08eddee73cb020cbb00d72548b008405560a7e2250cb6aa97e6fa221349",
+        "E:\\Unreal2-Port-Investigation\\experiments\\xrt\\build\\d3d8_boundary\\x64\\d3dprobe.dll": "36d5c6eb31d5a0b56da7869519ce103c3c5598fa1f206d27d6fc3dcf7616a7d2",
+        "E:\\Unreal2-Port-Investigation\\experiments\\xrt\\results\\raw\\d3d8-native\\20c46e4fc67b\\x64-dxvk\\d3d9.dll": "c126316f7478eaff1ad8087702eda5930f2400187b9c8b3592219c34f6632780"
+      }
+    }
+  ],
+  "dxvk_x86_x64_caps_identical": true,
+  "dxvk_x86_x64_identifier_difference": "Driver aticfx32.dll versus aticfx64.dll; meaningful remaining bytes identical; native x64 tail padding excluded from guest payload",
+  "dxvk_x86_x64_query_word_differences": [
+    {
+      "word": 4,
+      "x86": "32337866",
+      "x64": "34367866"
+    },
+    {
+      "word": 272,
+      "x86": "32337866",
+      "x64": "34367866"
+    }
+  ],
+  "dgvoodoo_dxvk_caps_differences": [
+    {
+      "word": 6,
+      "dgvoodoo": "00000003",
+      "dxvk": "00000001",
+      "field": "CursorCaps"
+    },
+    {
+      "word": 7,
+      "dgvoodoo": "011bbef0",
+      "dxvk": "001bbef0",
+      "field": "DevCaps"
+    },
+    {
+      "word": 8,
+      "dgvoodoo": "00000ef2",
+      "dxvk": "00000ff2",
+      "field": "PrimitiveMiscCaps"
+    },
+    {
+      "word": 24,
+      "dgvoodoo": "00004000",
+      "dxvk": "00002000",
+      "field": "MaxVolumeExtent"
+    },
+    {
+      "word": 25,
+      "dgvoodoo": "00004000",
+      "dxvk": "00002000",
+      "field": "MaxTextureRepeat"
+    },
+    {
+      "word": 26,
+      "dgvoodoo": "00004000",
+      "dxvk": "00002000",
+      "field": "MaxTextureAspectRatio"
+    },
+    {
+      "word": 28,
+      "dgvoodoo": "51ba43b7",
+      "dxvk": "501502f9",
+      "field": "MaxVertexW"
+    },
+    {
+      "word": 29,
+      "dgvoodoo": "cb189680",
+      "dxvk": "c7000000",
+      "field": "GuardBandLeft"
+    },
+    {
+      "word": 30,
+      "dgvoodoo": "cb189680",
+      "dxvk": "c7000000",
+      "field": "GuardBandTop"
+    },
+    {
+      "word": 31,
+      "dgvoodoo": "4b189680",
+      "dxvk": "47000000",
+      "field": "GuardBandRight"
+    },
+    {
+      "word": 32,
+      "dgvoodoo": "4b189680",
+      "dxvk": "47000000",
+      "field": "GuardBandBottom"
+    },
+    {
+      "word": 35,
+      "dgvoodoo": "00180008",
+      "dxvk": "00100008",
+      "field": "FVFCaps"
+    },
+    {
+      "word": 36,
+      "dgvoodoo": "03feffff",
+      "dxvk": "03ffffff",
+      "field": "TextureOpCaps"
+    },
+    {
+      "word": 43,
+      "dgvoodoo": "000000ff",
+      "dxvk": "00000000",
+      "field": "MaxVertexBlendMatrixIndex"
+    },
+    {
+      "word": 44,
+      "dgvoodoo": "46000000",
+      "dxvk": "45ffff00",
+      "field": "MaxPointSize"
+    },
+    {
+      "word": 45,
+      "dgvoodoo": "01000000",
+      "dxvk": "00555555",
+      "field": "MaxPrimitiveCount"
+    },
+    {
+      "word": 46,
+      "dgvoodoo": "0fffffff",
+      "dxvk": "00ffffff",
+      "field": "MaxVertexIndex"
+    },
+    {
+      "word": 48,
+      "dgvoodoo": "00010000",
+      "dxvk": "000001fc",
+      "field": "MaxStreamStride"
+    }
+  ],
+  "dgvoodoo_x64_audit": {
+    "path": "experiments/xrt/results/raw/dgvoodoo-x64-interface-audit.json",
+    "sha256": "3526c15205c7efbdadbdf4b645e6975d9ca8bb8029b024235f1821d59f0baf08"
+  },
+  "oracle": {
+    "results": {
+      "path": "experiments/xrt/results/raw/d3d8-checkpoint-20261023/oracles/results.json",
+      "sha256": "14d692f5beb39b2082a9fdbc1c4d9c9be913b3058c463a211b470db9465a2f93"
+    },
+    "pass": true,
+    "positive_probes": {
+      "probe_queries": 593,
+      "probe_lifetime": 16,
+      "probe_formats": 4,
+      "probe_errors": 323,
+      "probe_guards": 7,
+      "probe_leak": 2
+    },
+    "identical_values": 945,
+    "negative_probes": [
+      "stale guest interface",
+      "unmeasured RegisterSoftwareDevice"
+    ],
+    "comparison": "Identical PE32 lifted fixture versus native x64 source; all values identical, no output normalization"
+  },
+  "candidates": [
+    {
+      "directory": "experiments/xrt/results/raw/level/20261023-054132-3e55d09f-candidate",
+      "report": {
+        "path": "experiments/xrt/results/raw/level/20261023-054132-3e55d09f-candidate/report.json",
+        "sha256": "56dfdc14e858c6bcd9300090d9a38e3e2c2bf91874d0da4457a033f2573e4643"
+      },
+      "metadata": {
+        "path": "experiments/xrt/results/raw/level/20261023-054132-3e55d09f-candidate/meta.json",
+        "sha256": "ca545577fe6d3f4b373fa9daec4c0e6b41bdd0dbed2eb2bb192ae6db06115224"
+      },
+      "events_recorded": 23274,
+      "events_dropped": 0,
+      "factory": {
+        "seq": 23123,
+        "thread": 0,
+        "kind": "d3d8_create",
+        "version": 120,
+        "object": 86160,
+        "non_null": true,
+        "caller": 110549158
+      },
+      "queries": [
+        {
+          "seq": 23121,
+          "thread": 0,
+          "kind": "d3d8_backend",
+          "module": "d3d8.dll",
+          "path": "E:\\Unreal2-Port-Investigation\\third_party\\graphics\\dxvk-v3.1.1\\dxvk-3.1.1\\x64\\d3d8.dll"
+        },
+        {
+          "seq": 23122,
+          "thread": 0,
+          "kind": "d3d8_backend",
+          "module": "d3d9.dll",
+          "path": "E:\\Unreal2-Port-Investigation\\third_party\\graphics\\dxvk-v3.1.1\\dxvk-3.1.1\\x64\\d3d9.dll"
+        },
+        {
+          "seq": 23124,
+          "thread": 0,
+          "kind": "d3d8",
+          "method": "GetAdapterCount",
+          "object": 86160,
+          "adapter": 0,
+          "argument": 0,
+          "result": 2,
+          "caller": 110549209
+        },
+        {
+          "seq": 23125,
+          "thread": 0,
+          "kind": "d3d8",
+          "method": "GetAdapterIdentifier",
+          "object": 86160,
+          "adapter": 0,
+          "argument": 2,
+          "result": 0,
+          "caller": 110549358
+        },
+        {
+          "seq": 23160,
+          "thread": 0,
+          "kind": "d3d8",
+          "method": "GetAdapterIdentifier",
+          "object": 86160,
+          "adapter": 1,
+          "argument": 2,
+          "result": 0,
+          "caller": 110549358
+        },
+        {
+          "seq": 23195,
+          "thread": 0,
+          "kind": "d3d8",
+          "method": "GetDeviceCaps",
+          "object": 86160,
+          "adapter": 0,
+          "argument": 1,
+          "result": 0,
+          "caller": 110549687
+        },
+        {
+          "seq": 23203,
+          "thread": 0,
+          "kind": "d3d8_format",
+          "adapter": 0,
+          "type": 1,
+          "adapter_format": 22,
+          "usage": 0,
+          "resource": 3,
+          "format": 827611204,
+          "result": 0,
+          "caller": 110550423
+        },
+        {
+          "seq": 23204,
+          "thread": 0,
+          "kind": "d3d8_format",
+          "adapter": 0,
+          "type": 1,
+          "adapter_format": 22,
+          "usage": 0,
+          "resource": 3,
+          "format": 861165636,
+          "result": 0,
+          "caller": 110550467
+        },
+        {
+          "seq": 23205,
+          "thread": 0,
+          "kind": "d3d8_format",
+          "adapter": 0,
+          "type": 1,
+          "adapter_format": 22,
+          "usage": 0,
+          "resource": 3,
+          "format": 894720068,
+          "result": 0,
+          "caller": 110550511
+        }
+      ],
+      "loadmap_call": {
+        "seq": 23207,
+        "thread": 0,
+        "kind": "engine_loadmap_call",
+        "target": 272174848,
+        "esp": 18928808,
+        "return": 272168548,
+        "this": 304460416,
+        "arg0": 18937032
+      },
+      "entry_open": {
+        "seq": 23213,
+        "thread": 0,
+        "kind": "file_open",
+        "path": "..\\Maps\\Entry.un2",
+        "resolved": "<sandbox>\\Maps\\Entry.un2",
+        "access": "0x80000000",
+        "disposition": 3,
+        "ok": true
+      },
+      "first_remaining_failure": {
+        "seq": 23271,
+        "thread": 0,
+        "kind": "fatal",
+        "code": 75,
+        "message": "call to import msvcr70.dll!floor, which has no host implementation (from 10117220 (Core.dll+17220, in f_10117210+10 ?appRound@@YAHM@Z))"
+      },
+      "cleanup": [
+        {
+          "seq": 23272,
+          "thread": 0,
+          "kind": "d3d8_cleanup",
+          "references_released": 1
+        },
+        {
+          "seq": 23273,
+          "thread": 0,
+          "kind": "sticky_restore",
+          "result": 1,
+          "flags": 2
+        },
+        {
+          "seq": 23274,
+          "thread": 0,
+          "kind": "dinput_cleanup",
+          "references_released": 1
+        }
+      ],
+      "milestones": {
+        "windows_client_init_returned": true,
+        "engine_init_entered": true,
+        "loadmap_entered": true,
+        "entry_postload_entered": true,
+        "loadmap_returned": false,
+        "engine_init_returned": false,
+        "cs_intro_opened": false,
+        "create_device_attempted": false,
+        "device_created": false,
+        "rendering_claimed": false
+      }
+    },
+    {
+      "directory": "experiments/xrt/results/raw/level/20261023-054153-7a282de1-candidate",
+      "report": {
+        "path": "experiments/xrt/results/raw/level/20261023-054153-7a282de1-candidate/report.json",
+        "sha256": "8fd5eb0642e8396b73f9ae68fca4a6f36dc2173b216b8b8fe656df46442f99a2"
+      },
+      "metadata": {
+        "path": "experiments/xrt/results/raw/level/20261023-054153-7a282de1-candidate/meta.json",
+        "sha256": "e4ac073673a80ba4b5c88fbf01f7baa88e97241d847b5f62a6c28fb76ad66f12"
+      },
+      "events_recorded": 23274,
+      "events_dropped": 0,
+      "factory": {
+        "seq": 23123,
+        "thread": 0,
+        "kind": "d3d8_create",
+        "version": 120,
+        "object": 86160,
+        "non_null": true,
+        "caller": 110549158
+      },
+      "queries": [
+        {
+          "seq": 23121,
+          "thread": 0,
+          "kind": "d3d8_backend",
+          "module": "d3d8.dll",
+          "path": "E:\\Unreal2-Port-Investigation\\third_party\\graphics\\dxvk-v3.1.1\\dxvk-3.1.1\\x64\\d3d8.dll"
+        },
+        {
+          "seq": 23122,
+          "thread": 0,
+          "kind": "d3d8_backend",
+          "module": "d3d9.dll",
+          "path": "E:\\Unreal2-Port-Investigation\\third_party\\graphics\\dxvk-v3.1.1\\dxvk-3.1.1\\x64\\d3d9.dll"
+        },
+        {
+          "seq": 23124,
+          "thread": 0,
+          "kind": "d3d8",
+          "method": "GetAdapterCount",
+          "object": 86160,
+          "adapter": 0,
+          "argument": 0,
+          "result": 2,
+          "caller": 110549209
+        },
+        {
+          "seq": 23125,
+          "thread": 0,
+          "kind": "d3d8",
+          "method": "GetAdapterIdentifier",
+          "object": 86160,
+          "adapter": 0,
+          "argument": 2,
+          "result": 0,
+          "caller": 110549358
+        },
+        {
+          "seq": 23160,
+          "thread": 0,
+          "kind": "d3d8",
+          "method": "GetAdapterIdentifier",
+          "object": 86160,
+          "adapter": 1,
+          "argument": 2,
+          "result": 0,
+          "caller": 110549358
+        },
+        {
+          "seq": 23195,
+          "thread": 0,
+          "kind": "d3d8",
+          "method": "GetDeviceCaps",
+          "object": 86160,
+          "adapter": 0,
+          "argument": 1,
+          "result": 0,
+          "caller": 110549687
+        },
+        {
+          "seq": 23203,
+          "thread": 0,
+          "kind": "d3d8_format",
+          "adapter": 0,
+          "type": 1,
+          "adapter_format": 22,
+          "usage": 0,
+          "resource": 3,
+          "format": 827611204,
+          "result": 0,
+          "caller": 110550423
+        },
+        {
+          "seq": 23204,
+          "thread": 0,
+          "kind": "d3d8_format",
+          "adapter": 0,
+          "type": 1,
+          "adapter_format": 22,
+          "usage": 0,
+          "resource": 3,
+          "format": 861165636,
+          "result": 0,
+          "caller": 110550467
+        },
+        {
+          "seq": 23205,
+          "thread": 0,
+          "kind": "d3d8_format",
+          "adapter": 0,
+          "type": 1,
+          "adapter_format": 22,
+          "usage": 0,
+          "resource": 3,
+          "format": 894720068,
+          "result": 0,
+          "caller": 110550511
+        }
+      ],
+      "loadmap_call": {
+        "seq": 23207,
+        "thread": 0,
+        "kind": "engine_loadmap_call",
+        "target": 272174848,
+        "esp": 18928808,
+        "return": 272168548,
+        "this": 304460416,
+        "arg0": 18937032
+      },
+      "entry_open": {
+        "seq": 23213,
+        "thread": 0,
+        "kind": "file_open",
+        "path": "..\\Maps\\Entry.un2",
+        "resolved": "<sandbox>\\Maps\\Entry.un2",
+        "access": "0x80000000",
+        "disposition": 3,
+        "ok": true
+      },
+      "first_remaining_failure": {
+        "seq": 23271,
+        "thread": 0,
+        "kind": "fatal",
+        "code": 75,
+        "message": "call to import msvcr70.dll!floor, which has no host implementation (from 10117220 (Core.dll+17220, in f_10117210+10 ?appRound@@YAHM@Z))"
+      },
+      "cleanup": [
+        {
+          "seq": 23272,
+          "thread": 0,
+          "kind": "d3d8_cleanup",
+          "references_released": 1
+        },
+        {
+          "seq": 23273,
+          "thread": 0,
+          "kind": "sticky_restore",
+          "result": 1,
+          "flags": 2
+        },
+        {
+          "seq": 23274,
+          "thread": 0,
+          "kind": "dinput_cleanup",
+          "references_released": 1
+        }
+      ],
+      "milestones": {
+        "windows_client_init_returned": true,
+        "engine_init_entered": true,
+        "loadmap_entered": true,
+        "entry_postload_entered": true,
+        "loadmap_returned": false,
+        "engine_init_returned": false,
+        "cs_intro_opened": false,
+        "create_device_attempted": false,
+        "device_created": false,
+        "rendering_claimed": false
+      }
+    }
+  ],
+  "original_references": [
+    {
+      "directory": "experiments/xrt/results/raw/graphics-startup/4966768d31be-dgvoodoo",
+      "trace": {
+        "path": "experiments/xrt/results/raw/graphics-startup/4966768d31be-dgvoodoo/trace.json",
+        "sha256": "f4f126ef32d317f8988692ab37bb04708feadc0d68b3401cb5fa6ec43b9014cb"
+      },
+      "meta": {
+        "path": "experiments/xrt/results/raw/graphics-startup/4966768d31be-dgvoodoo/meta.json",
+        "sha256": "bc202b7ead291524bd80cd3793a0d79ac5bd5cadb5d4903f78815ddfd1f5ef80"
+      },
+      "evidence": {
+        "observer_complete_without_drops": true,
+        "selected_map": {
+          "entry_seq": 125,
+          "open_seq": 126,
+          "return_seq": 1054,
+          "world": "0x0fe12800",
+          "actors": {
+            "AActor.eventPreBeginPlay": 268,
+            "AActor.eventBeginPlay": 268,
+            "AActor.eventPostBeginPlay": 268
+          }
+        },
+        "selected_level_initialized": true,
+        "completed_selected_world_ticks": [
+          {
+            "entry_seq": 12341,
+            "ret_seq": 12348,
+            "caller_seq": 12349
+          },
+          {
+            "entry_seq": 12357,
+            "ret_seq": 12358,
+            "caller_seq": 12359
+          },
+          {
+            "entry_seq": 12364,
+            "ret_seq": 12365,
+            "caller_seq": 12366
+          },
+          {
+            "entry_seq": 12374,
+            "ret_seq": 12375,
+            "caller_seq": 12376
+          }
+        ],
+        "game_create_device": [
+          {
+            "call_seq": 12336,
+            "return_seq": 12337,
+            "hresult": "0x00000000"
+          }
+        ],
+        "game_present": [
+          {
+            "call_seq": 12354,
+            "return_seq": 12355,
+            "hresult": "0x00000000"
+          },
+          {
+            "call_seq": 12371,
+            "return_seq": 12372,
+            "hresult": "0x00000000"
+          },
+          {
+            "call_seq": 12381,
+            "return_seq": 12382,
+            "hresult": "0x00000000"
+          }
+        ],
+        "interactive_play_verified": false
+      },
+      "query_events": [
+        {
+          "seq": 54,
+          "thread": 0,
+          "label": "D3D.Direct3DCreate8.call",
+          "rva": "0xd8a1",
+          "sdk_version": 120
+        },
+        {
+          "seq": 55,
+          "thread": 0,
+          "label": "D3D.Direct3DCreate8.return",
+          "rva": "0xd8a6",
+          "non_null": true
+        },
+        {
+          "seq": 56,
+          "thread": 0,
+          "label": "D3D.GetAdapterCount.return",
+          "rva": "0xd8d9",
+          "count": 2
+        },
+        {
+          "seq": 57,
+          "thread": 0,
+          "label": "D3D.GetAdapterIdentifier.call",
+          "rva": "0xd96b",
+          "arguments": {
+            "adapter": 0,
+            "flags": 2
+          }
+        },
+        {
+          "seq": 58,
+          "thread": 0,
+          "label": "D3D.GetAdapterIdentifier.return",
+          "rva": "0xd96e",
+          "hresult": "0x00000000"
+        },
+        {
+          "seq": 59,
+          "thread": 0,
+          "label": "D3D.GetAdapterIdentifier.call",
+          "rva": "0xd96b",
+          "arguments": {
+            "adapter": 1,
+            "flags": 2
+          }
+        },
+        {
+          "seq": 60,
+          "thread": 0,
+          "label": "D3D.GetAdapterIdentifier.return",
+          "rva": "0xd96e",
+          "hresult": "0x00000000"
+        },
+        {
+          "seq": 61,
+          "thread": 0,
+          "label": "D3D.GetDeviceCaps.call",
+          "rva": "0xdab4",
+          "arguments": {
+            "adapter": 0,
+            "device_type": 1
+          }
+        },
+        {
+          "seq": 62,
+          "thread": 0,
+          "label": "D3D.GetDeviceCaps.return",
+          "rva": "0xdab7",
+          "hresult": "0x00000000"
+        },
+        {
+          "seq": 63,
+          "thread": 0,
+          "label": "D3D.CheckDeviceFormat.call.1",
+          "rva": "0xdd94",
+          "arguments": {
+            "adapter": 0,
+            "device_type": 1,
+            "adapter_format": 22,
+            "usage": 0,
+            "resource_type": 3,
+            "format": 827611204
+          }
+        },
+        {
+          "seq": 64,
+          "thread": 0,
+          "label": "D3D.CheckDeviceFormat.return.1",
+          "rva": "0xdd97",
+          "hresult": "0x00000000"
+        },
+        {
+          "seq": 65,
+          "thread": 0,
+          "label": "D3D.CheckDeviceFormat.call.2",
+          "rva": "0xddc0",
+          "arguments": {
+            "adapter": 0,
+            "device_type": 1,
+            "adapter_format": 22,
+            "usage": 0,
+            "resource_type": 3,
+            "format": 861165636
+          }
+        },
+        {
+          "seq": 66,
+          "thread": 0,
+          "label": "D3D.CheckDeviceFormat.return.2",
+          "rva": "0xddc3",
+          "hresult": "0x00000000"
+        },
+        {
+          "seq": 67,
+          "thread": 0,
+          "label": "D3D.CheckDeviceFormat.call.3",
+          "rva": "0xddec",
+          "arguments": {
+            "adapter": 0,
+            "device_type": 1,
+            "adapter_format": 22,
+            "usage": 0,
+            "resource_type": 3,
+            "format": 894720068
+          }
+        },
+        {
+          "seq": 68,
+          "thread": 0,
+          "label": "D3D.CheckDeviceFormat.return.3",
+          "rva": "0xddef",
+          "hresult": "0x00000000"
+        }
+      ]
+    },
+    {
+      "directory": "experiments/xrt/results/raw/graphics-startup/10ed5e4816cd-dxvk",
+      "trace": {
+        "path": "experiments/xrt/results/raw/graphics-startup/10ed5e4816cd-dxvk/trace.json",
+        "sha256": "4e4043698dd85b114fb1b18ac9c00406575f621168c747de623a0216ee7e58d0"
+      },
+      "meta": {
+        "path": "experiments/xrt/results/raw/graphics-startup/10ed5e4816cd-dxvk/meta.json",
+        "sha256": "f5bc3ec619a24704684e4cce87fb4fdd21b84a486495a05b8387901746abb3c0"
+      },
+      "evidence": {
+        "observer_complete_without_drops": true,
+        "selected_map": {
+          "entry_seq": 125,
+          "open_seq": 126,
+          "return_seq": 1054,
+          "world": "0x0ffb2800",
+          "actors": {
+            "AActor.eventPreBeginPlay": 268,
+            "AActor.eventBeginPlay": 268,
+            "AActor.eventPostBeginPlay": 268
+          }
+        },
+        "selected_level_initialized": true,
+        "completed_selected_world_ticks": [
+          {
+            "entry_seq": 12341,
+            "ret_seq": 12348,
+            "caller_seq": 12349
+          },
+          {
+            "entry_seq": 12357,
+            "ret_seq": 12358,
+            "caller_seq": 12359
+          },
+          {
+            "entry_seq": 12364,
+            "ret_seq": 12365,
+            "caller_seq": 12366
+          },
+          {
+            "entry_seq": 12374,
+            "ret_seq": 12375,
+            "caller_seq": 12376
+          }
+        ],
+        "game_create_device": [
+          {
+            "call_seq": 12336,
+            "return_seq": 12337,
+            "hresult": "0x00000000"
+          }
+        ],
+        "game_present": [
+          {
+            "call_seq": 12354,
+            "return_seq": 12355,
+            "hresult": "0x00000000"
+          },
+          {
+            "call_seq": 12371,
+            "return_seq": 12372,
+            "hresult": "0x00000000"
+          },
+          {
+            "call_seq": 12381,
+            "return_seq": 12382,
+            "hresult": "0x00000000"
+          }
+        ],
+        "interactive_play_verified": false
+      },
+      "query_events": [
+        {
+          "seq": 54,
+          "thread": 0,
+          "label": "D3D.Direct3DCreate8.call",
+          "rva": "0xd8a1",
+          "sdk_version": 120
+        },
+        {
+          "seq": 55,
+          "thread": 0,
+          "label": "D3D.Direct3DCreate8.return",
+          "rva": "0xd8a6",
+          "non_null": true
+        },
+        {
+          "seq": 56,
+          "thread": 0,
+          "label": "D3D.GetAdapterCount.return",
+          "rva": "0xd8d9",
+          "count": 2
+        },
+        {
+          "seq": 57,
+          "thread": 0,
+          "label": "D3D.GetAdapterIdentifier.call",
+          "rva": "0xd96b",
+          "arguments": {
+            "adapter": 0,
+            "flags": 2
+          }
+        },
+        {
+          "seq": 58,
+          "thread": 0,
+          "label": "D3D.GetAdapterIdentifier.return",
+          "rva": "0xd96e",
+          "hresult": "0x00000000"
+        },
+        {
+          "seq": 59,
+          "thread": 0,
+          "label": "D3D.GetAdapterIdentifier.call",
+          "rva": "0xd96b",
+          "arguments": {
+            "adapter": 1,
+            "flags": 2
+          }
+        },
+        {
+          "seq": 60,
+          "thread": 0,
+          "label": "D3D.GetAdapterIdentifier.return",
+          "rva": "0xd96e",
+          "hresult": "0x00000000"
+        },
+        {
+          "seq": 61,
+          "thread": 0,
+          "label": "D3D.GetDeviceCaps.call",
+          "rva": "0xdab4",
+          "arguments": {
+            "adapter": 0,
+            "device_type": 1
+          }
+        },
+        {
+          "seq": 62,
+          "thread": 0,
+          "label": "D3D.GetDeviceCaps.return",
+          "rva": "0xdab7",
+          "hresult": "0x00000000"
+        },
+        {
+          "seq": 63,
+          "thread": 0,
+          "label": "D3D.CheckDeviceFormat.call.1",
+          "rva": "0xdd94",
+          "arguments": {
+            "adapter": 0,
+            "device_type": 1,
+            "adapter_format": 22,
+            "usage": 0,
+            "resource_type": 3,
+            "format": 827611204
+          }
+        },
+        {
+          "seq": 64,
+          "thread": 0,
+          "label": "D3D.CheckDeviceFormat.return.1",
+          "rva": "0xdd97",
+          "hresult": "0x00000000"
+        },
+        {
+          "seq": 65,
+          "thread": 0,
+          "label": "D3D.CheckDeviceFormat.call.2",
+          "rva": "0xddc0",
+          "arguments": {
+            "adapter": 0,
+            "device_type": 1,
+            "adapter_format": 22,
+            "usage": 0,
+            "resource_type": 3,
+            "format": 861165636
+          }
+        },
+        {
+          "seq": 66,
+          "thread": 0,
+          "label": "D3D.CheckDeviceFormat.return.2",
+          "rva": "0xddc3",
+          "hresult": "0x00000000"
+        },
+        {
+          "seq": 67,
+          "thread": 0,
+          "label": "D3D.CheckDeviceFormat.call.3",
+          "rva": "0xddec",
+          "arguments": {
+            "adapter": 0,
+            "device_type": 1,
+            "adapter_format": 22,
+            "usage": 0,
+            "resource_type": 3,
+            "format": 894720068
+          }
+        },
+        {
+          "seq": 68,
+          "thread": 0,
+          "label": "D3D.CheckDeviceFormat.return.3",
+          "rva": "0xddef",
+          "hresult": "0x00000000"
+        }
+      ]
+    }
+  ],
+  "validation": {
+    "commandlets": {
+      "path": "experiments/xrt/results/raw/runs/20261023-054132-b297c1b1/summary.json",
+      "sha256": "35bbf28abdd3db54a446d22986469f035ab5b339319b42e64c64df568eb033cb"
+    },
+    "compiler": {
+      "path": "experiments/xrt/results/raw/compile/20261023-054133-02d92c01/summary.json",
+      "sha256": "a847b7d125bddc891e5896bd611466b0d6e0b7853420162b761f965488722c66"
+    },
+    "python": "149 tests OK, 17 expected skips",
+    "component_checks": [
+      "D3D8",
+      "DirectInput",
+      "GUI",
+      "class",
+      "module",
+      "binary FILE",
+      "C++ EH six positive/two negative",
+      "startup/memory"
+    ],
+    "known_issues": {
+      "expanded_crt_baseline": "110 mismatches / 1796 pending, preserved, no exhaustive repeat",
+      "fopen_0": "fresh reproducible difference",
+      "acp_932": "fresh 6 differences"
+    }
+  },
+  "installation_audit": {
+    "before": {
+      "path": "experiments/xrt/results/raw/d3d8-install-before.json",
+      "sha256": "05f79e8d4dc25a39b9d4481c2be89fe6a8bd1fe9fc9a11eb5b092a3627fd1ca4"
+    },
+    "after": {
+      "path": "experiments/xrt/results/raw/d3d8-install-after.json",
+      "sha256": "5fc60ff3b6e8c9c16f6e78d7b7f1e61475ccb9481b8ddbd7b1d264a804e675cb"
+    },
+    "files_compared": 4757,
+    "additional_file_differences": 0,
+    "save_metadata_matches": true,
+    "ogg_finding": "Prior unexplained discrepancy remains unresolved and unrepaired"
+  },
+  "bounds": {
+    "custom_renderer_added": false,
+    "create_device_implemented": false,
+    "android_work_started": false,
+    "push_made": false,
+    "next_boundary": "Focused msvcr70 x86 / translated floor oracle, then resume genuine engine initialization"
+  },
+  "report_generator": {
+    "path": "out/d3d8_checkpoint_report.py",
+    "sha256": "458dea35ee763eba63be26d6cd22e5c25b603e6454111e24be45313e586af080"
+  }
+}

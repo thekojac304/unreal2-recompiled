@@ -1,3 +1,138 @@
+# D3D8 creation and queries / translated LoadMap entry — 2026-10-23 (US Eastern)
+
+**The translated D3D8 creation/query boundary works through DXVK 3.1.1 x64.**
+The real client obtains a guest COM object, enumerates two adapters, obtains both identifiers and HAL
+caps, and passes its DXT1/3/5 format queries. It then enters genuine `UGameEngine::LoadMap`
+(`Engine.dll+0x90f00`) from `UGameEngine::Init`, opens `Entry.un2`, and reaches
+`ULevel::PostLoad → UModel::BuildRenderData`. The first remaining failure is the unimplemented
+`msvcr70.dll!floor` import at `Core.dll+0x17220`, returning to `+0x17226` inside `appRound`.
+
+**No translated CreateDevice call or device exists at this checkpoint.** Engine Init and LoadMap have
+not returned; CS_Intro, selected-world initialization, ticks, Presents and pixels remain unreached.
+The experiment stops at this newly observed CRT boundary. No large renderer, capability override,
+initialization bypass or Android implementation was added.
+
+Starting HEAD was clean at `4c2b7452b0320bd28b3115ca984f2e8f09267202`; `8076749` was its parent.
+Source/oracles are committed locally as `0c57992`. No push was made. Prior checkpoints remain intact.
+Structured evidence, full caps and all differences: [d3d8_initialization.json](results/compare/d3d8_initialization.json).
+
+## Backend selection from actual artifacts and executions
+
+Selected: official [DXVK 3.1.1](https://github.com/doitsujin/dxvk/releases/tag/v3.1.1), Windows PE32+
+`x64/d3d8.dll` plus the **matching DXVK** `x64/d3d9.dll`, over the system Vulkan loader and AMD GPU.
+Both binaries are PE machine `0x8664`; D3D8 exports `Direct3DCreate8` and imports D3D9. Native loader
+paths and DXVK logs verify the pair, Vulkan loader and actual adapter, rather than inferring a backend
+from filenames. The runtime also records both actual loaded module paths. The driver verifies both
+binary hashes/architectures before execution and supplies an empty local config with shader caching
+disabled. It makes no changes to global DLL search, drivers, registry, graphics settings or the install.
+
+| Actual implementation | Factory / initial query behavior | Selection consequence |
+|---|---|---|
+| Windows SysWOW64 D3D8, x86 | Factory and identifiers succeed; HAL caps `8876086a` | Reproduces the known host D3D8 failure |
+| Windows System32 D3D8, x64 | File absent on this host; explicit load fails with error 126 | No native host implementation available there |
+| crosire d3d8to9 1.16.0, official x86 binary | Factory/identifiers succeed; HAL caps `8876086a`; actual system D3D9 loaded | This measured path is unsuitable here; no claim that source cannot be built for x64 |
+| dgVoodoo2 2.87.5, x86 D3D8/D3D11 | Initial queries and original game device/Presents succeed | Preserved reference; its official archive has **only D3D9** under MS/x64 |
+| DXVK 3.1.1, x86 and x64 D3D8/D3D9 | Factory, identifiers and HAL caps succeed in both; matching DXVK D3D9 and Vulkan loaded | Selected for the translated host boundary |
+
+The dgVoodoo archive's x64 D3D9 binary is itself audited: machine `0x8664`, `Direct3DCreate9` and
+`Direct3DCreate9Ex` exports, **no Direct3DCreate8**. Neither it nor an x86 D3D8 binary is silently
+substituted for an x64 D3D8 interface. See raw `dgvoodoo-x64-interface-audit.json`.
+
+Pinned SHA-256:
+
+- Official DXVK archive: `40565b4a724aadc4433fa4e010b4b23916d9b1f1baeee64e17186db94f54e608`
+  (matches the official release-asset digest).
+- x64 D3D8: `bd65cebf8ece6f80a841a16d98bdf5b76894c172b7ba344180baa17a4d00680c`.
+- x64 D3D9: `c126316f7478eaff1ad8087702eda5930f2400187b9c8b3592219c34f6632780`.
+- x86 D3D8: `9152ba43386e756790a66f61cdcee01b3287d156d4161c7456d816faa82fc364`.
+- x86 D3D9: `265888c31ca78dffa290c39cb7e50bfb02762590e41927906e46fb32f01497fa`.
+
+## Measured calls, ABI and legitimate differences
+
+The focused project-owned oracle is compiled as x86 and x64; the identical PE32 fixture is also lifted
+and executed by the real x64 runtime. Native instruction observers confirm the actual game arguments:
+
+1. D3DDrv `d8a1`: `Direct3DCreate8(120)`; do not substitute the modern header's SDK macro (220).
+2. `d8d6`: `GetAdapterCount()` returns 2.
+3. `d96b`: `GetAdapterIdentifier(adapter=0, then 1, flags=2, output)` returns S_OK.
+4. `dab4`: `GetDeviceCaps(adapter=0, deviceType=1/HAL, output)` returns S_OK.
+5. `dd94/ddc0/ddec`: `CheckDeviceFormat(0, HAL, X8R8G8B8=22, usage=0, TEXTURE=3,
+   DXT1/DXT3/DXT5)` returns S_OK for each.
+
+All **53 caps DWORDs are identical between native DXVK x86 and x64**. The only meaningful identifier
+differences are `aticfx32.dll` versus `aticfx64.dll` in Driver; both full raw outputs remain preserved.
+There are **18 caps-word differences between dgVoodoo and DXVK**, including CursorCaps, DevCaps,
+PrimitiveMiscCaps, texture volume/repeat/aspect limits, guard bands, FVFCaps, TextureOpCaps, vertex
+blend/point/index/primitive limits and MaxStreamStride. Both report hardware rasterization and the
+same shader versions; they are different implementations with different limits. The public JSON
+lists every differing word and both values. No caps bits or limits are copied from dgVoodoo into DXVK.
+
+`hle_com.inc` shares guest memory validation, vtable allocation and IUnknown identity with DirectInput.
+Each D3D8 object has a 4-byte guest vtable pointer; all sixteen slots contain guest adapters or named
+fatal traps. Typed `D8Interface*` host objects and owned reference counts live only in their separate
+table. QueryInterface supports the measured IDirect3D8/IUnknown identity and real failed IIDs; AddRef,
+Release, independent objects, stale tombstones and shutdown ownership are exercised. Six positive
+probes have **945 identical logged values** against native x64, including two outstanding references
+released at shutdown. Two deliberate stale/unimplemented-method probes retain fatal diagnostics.
+
+The identifier's 1,068 guest bytes correspond to the meaningful fields of a 1,072-byte x64 host
+structure. Its extra tail padding is never copied to the guest. Caps are 212 pointer-free bytes in
+both ABIs. Canary tests preserve adjacent guest words; invalid-adapter tests compare actual HRESULTs
+and every output byte. Output storage is initialized from the caller before host queries, preserving
+backend error behavior. Every remaining interface method, including CreateDevice, is explicitly
+unsupported until observed and measured. No host HWND, COM pointer or vtable enters guest memory.
+
+## Execution and regression evidence
+
+Final build: `build/d3d8-final-checked/xrt_ucc.exe`; its binary/source/object identities are in the
+public JSON and `client-identity.json`. Binary SHA-256:
+`751c6b8701bbde5dd8ef4693e518f7de9e459cb10da27ef5c481f935af1c9e90`.
+All runtime/client sources were freshly compiled without
+warnings, and reused generated objects were checked against the unchanged accepted full checkpoint.
+Two final runs (`20261023-054132-3e55d09f-candidate`, `20261023-054153-7a282de1-candidate`) each have
+**23,274 events and zero dropped events**, matching queries and the same first fatal.
+
+The LoadMap call is seq 23207, with engine caller `+0x8f664`; Entry opens at seq 23270 and the fatal is
+23271. There is no LoadMap-return event. Cleanup releases one D3D8 reference and the existing DirectInput
+reference and restores StickyKeys successfully. Opening Entry does not establish CS_Intro initialization.
+
+Fresh original comparisons use the same isolated content and exact dgVoodoo config:
+`4966768d31be-dgvoodoo` and `10ed5e4816cd-dxvk`. Both complete selected CS_Intro initialization with
+268 of each actor lifecycle event, **four returned selected-world ticks**, game CreateDevice S_OK and
+three normal Presents S_OK. Traces are complete with no dropped records. This measures original-client
+compatibility despite caps differences; it makes no translated device or visual-content claim.
+
+Final oracle copies, raw logs and hash manifest: `results/raw/d3d8-checkpoint-20261023/`.
+The native matrix is `results/raw/d3d8-native/20c46e4fc67b/`. DirectInput, GUI, class, module, binary FILE,
+exception and startup/memory regressions pass. Python: **149 tests, 17 expected skips**. Commandlet/VM
+and compiler acceptance identities are recorded in the public JSON, including checks on the final binary.
+The final nine-case invocation is `20261023-054132-b297c1b1`; final compiler invocation is
+`20261023-054133-02d92c01` (16 compiles including four expected invalid-source failures, 12 execution
+cross-checks). Component regressions tested the shared COM change; the final D3D8 padding adjustment
+was followed by the D3D8 oracle/canaries and these final-binary acceptance runs.
+The expanded CRT baseline remains 110 mismatches / 1,796 pending (not rerun exhaustively); focused
+fopen.0 still differs, and fresh ACP 932 comparison retains six differences. Expectations are unchanged.
+Read-only census finds all 4,757 installation files unchanged, no added/removed files, and matching
+Save metadata. The prior Ogg discrepancy remains unresolved.
+
+Two early native-matrix attempts failed during fixture development and are excluded from acceptance;
+their raw output is retained. A concurrent client attempt was rejected by the existing session lock
+before sandbox mutation; only completed, serialized client runs are used above.
+
+```powershell
+cmd /d /c experiments\xrt\tests\d3d8_boundary\build.cmd
+.venv/Scripts/python -I experiments/xrt/tests/d3d8_boundary/native_matrix.py
+$env:XRT_BINARY = 'E:\Unreal2-Port-Investigation\experiments\xrt\build\d3d8-final-checked\xrt_ucc.exe'
+.venv/Scripts/python -I tools/xrt/level_probe.py candidate --d3d8-backend dxvk --timeout-ms 45000
+```
+
+The next bounded experiment is a focused x86 msvcr70 versus translated `floor` oracle for the observed
+appRound operand and x87/CRT state, then resume unchanged engine initialization. Device creation and
+later graphics methods must still advance one observed call at a time. The typed COM boundary leaves
+backend replacement possible, but Windows DXVK DLLs are not an Android backend; no Android work began.
+
+---
+
 # DirectInput / Windows-client initialization checkpoint — 2026-10-23 (US Eastern)
 
 **Translated D3 is reached: `UWindowsClient::Init` returns to its real engine caller.**
