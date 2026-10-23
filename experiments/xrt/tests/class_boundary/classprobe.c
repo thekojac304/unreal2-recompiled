@@ -204,6 +204,7 @@ __declspec(dllexport) int probe_window(void) {
         atom=window_wide?RegisterClassExW(&w):RegisterClassExA(&a);check(atom!=0,1);
         h=window_wide?CreateWindowExW(0,w.lpszClassName,L"fixture",WS_OVERLAPPED,0,0,96,80,NULL,NULL,w.hInstance,(void*)0x12345678):CreateWindowExA(0,a.lpszClassName,"fixture",WS_OVERLAPPED,0,0,96,80,NULL,NULL,a.hInstance,(void*)0x12345678);
         check(h!=NULL,1);check(IsWindow(h),1);check(nccreate_ok,1);check(create_ok,1);check(window_nested,1);
+          { HDC dc=GetDC(h); check(dc!=NULL,1); check(GetDeviceCaps(dc,BITSPIXEL),32); check(ReleaseDC(h,dc),1); check(ReleaseDC(h,dc),0); }
         check(created_child!=NULL,1);check(notify_ok,1);check(notify_child==created_child,1);
         check((int)SendMessageW(created_child,WM_SETFONT,(WPARAM)GetStockObject(DEFAULT_GUI_FONT),FALSE),0);
         check((HFONT)SendMessageW(created_child,WM_GETFONT,0,0)==GetStockObject(DEFAULT_GUI_FONT),1);

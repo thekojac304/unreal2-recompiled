@@ -39,6 +39,8 @@ POINTS = [("Engine.dll", 0x8f460, "UGameEngine.Init"), ("Engine.dll", 0x90f00, "
           ("Engine.dll", 0x6600, "AActor.eventPostBeginPlay"), ("Engine.dll", 0xb2300, "ULevel.SpawnPlayActor"),
           ("Engine.dll", 0x938f0, "UGameEngine.Tick"), ("Engine.dll", 0xb5be0, "ULevel.Tick"),
           ("WinDrv.dll", 0x17c0, "UWindowsClient.Init"), ("WinDrv.dll", 0x3390, "UWindowsViewport.OpenWindow"),
+          ("WinDrv.dll", 0x184b, "DirectInput8Create.call"), ("WinDrv.dll", 0x1850, "DirectInput8Create.return"),
+          ("WinDrv.dll", 0x1939, "UWindowsClient.Init.return"),
           ("WinDrv.dll", 0x49b0, "UWindowsViewport.TryRenderDevice")]
 
 

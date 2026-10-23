@@ -176,6 +176,8 @@ uint32_t xrt_system_module_guest(CPU* c, void* host);
 uint32_t xrt_system_gui_owner(CPU* c, const char* name);
 uint32_t xrt_system_module_generation(CPU* c,uint32_t token);
 void xrt_cleanup_atoms(void);
+void xrt_cleanup_register(void (*fn)(void)); /* owned host resources, also on handled fatal stops */
+void xrt_cleanup_input_settings(void); /* timeout watchdog: no concurrent COM Release */
 
 /* process */
 extern char xrt_sandbox_root[520];         /* writes are only permitted below this directory */

@@ -91,6 +91,8 @@ int xrt_lifted_overlap(uint32_t a, uint32_t size, uint32_t* end) {
 #endif
 
 #ifdef STUB_K32EXTRA
+XrtModule* xrt_module_by_addr(uint32_t p) { xrt_fatal(NULL,XRT_EXIT_UNSUPPORTED,"test harness: module_by_addr(%08x)",p); }
+int xrt_is_committed(uint32_t p,uint32_t n) { xrt_fatal(NULL,XRT_EXIT_UNSUPPORTED,"test harness: is_committed(%08x,%u)",p,n); }
 uint32_t xrt_virtual_alloc(CPU* c, uint32_t size) {
     xrt_fatal(c, XRT_EXIT_UNSUPPORTED, "test harness: xrt_virtual_alloc(%u) reached", size);
 }

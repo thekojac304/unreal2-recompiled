@@ -8,6 +8,7 @@ typedef struct GuiDC
     HDC host;
     HWND window;
     DWORD thread;
+    int acquired;
 } GuiDC;
 static BOOL delete_class_object(uint32_t token, int* handled);
 static HINSTANCE class_module(CPU* c,uint32_t guest);
@@ -15,6 +16,7 @@ static uint32_t class_owner(CPU* c,HINSTANCE host);
 static uint32_t copy_class_string(const void* p,int wide);
 static uint32_t known_font_token(HFONT host);
 static void forget_window_properties(HWND host);
+static HWND window_host(uint32_t h);
 static void begin(CPU *c)
 {
     SetLastError(xrt_get_last_error(c));
@@ -28,20 +30,22 @@ static void hle_GetDC(CPU *c)
     HDC dc;
     GuiDC *g;
     uint32_t result = 0;
-    if (ARG(0))
-        xrt_fatal(c, XRT_EXIT_UNSUPPORTED, "GetDC: non-desktop window unsupported");
+    HWND window=window_host(ARG(0));
+    if(ARG(0) && !window) xrt_fatal(c,XRT_EXIT_UNSUPPORTED,"GetDC: unknown guest window %08x",ARG(0));
     begin(c);
-    dc = GetDC(NULL);
+    dc = GetDC(window);
     end(c);
     if (dc)
     {
         g = (GuiDC *)calloc(1, sizeof *g);
         if (!g)
         {
-            ReleaseDC(NULL, dc);
+            ReleaseDC(window, dc);
             xrt_fatal(c, XRT_EXIT_SETUP, "GetDC allocation");
         }
         g->host = dc;
+        g->window=window;
+        g->acquired=1;
         g->thread = GetCurrentThreadId();
         result = xrt_handle_new(XH_DC, g);
     }
@@ -53,11 +57,11 @@ static void hle_ReleaseDC(CPU *c)
     uint32_t token = ARG(1);
     GuiDC *g = (GuiDC *)xrt_handle_get(token, XH_DC);
     int ok = 0;
-    if (ARG(0))
-        xrt_fatal(c, XRT_EXIT_UNSUPPORTED, "ReleaseDC: non-desktop window unsupported");
+    HWND window=window_host(ARG(0));
+    if(ARG(0) && !window) xrt_fatal(c,XRT_EXIT_UNSUPPORTED,"ReleaseDC: unknown guest window %08x",ARG(0));
     begin(c);
-    if (g && g->window == NULL && g->thread == GetCurrentThreadId())
-        ok = ReleaseDC(NULL, g->host);
+    if (g && g->acquired && g->window == window && g->thread == GetCurrentThreadId())
+        ok = ReleaseDC(window, g->host);
     end(c);
     if (ok)
     {
@@ -66,6 +70,15 @@ static void hle_ReleaseDC(CPU *c)
     }
     xrt_event("gui_release_dc", "\"handle\": %u, \"result\": %d", token, ok);
     RET_STD(2, ok);
+}
+static void hle_GetDeviceCaps(CPU*c) {
+    GuiDC*g=(GuiDC*)xrt_handle_get(ARG(0),XH_DC);
+    int result;
+    if(!g || ARG(1)!=BITSPIXEL)
+        xrt_fatal(c,XRT_EXIT_UNSUPPORTED,"GetDeviceCaps: unmeasured DC/index %08x/%u",ARG(0),ARG(1));
+    begin(c); result=GetDeviceCaps(g->host,BITSPIXEL); end(c);
+    xrt_event("gui_device_caps","\"index\": %u, \"result\": %d",BITSPIXEL,result);
+    RET_STD(2,result);
 }
 static void hle_CreateDIBitmap(CPU *c)
 {
@@ -692,6 +705,7 @@ const XrtHle xrt_hle_gui[] = {{"comctl32.dll", "#17", hle_InitCommonControls},
                               {"user32.dll", "GetSystemMetrics", hle_GetSystemMetrics},
                               {"user32.dll", "GetWindowRect", hle_GetWindowRect},
                               {"gdi32.dll", "GetDIBits", hle_GetDIBits},
+                              {"gdi32.dll", "GetDeviceCaps", hle_GetDeviceCaps},
                               {"user32.dll", "SetWindowPos", hle_SetWindowPos},
                               {"user32.dll", "SendMessageW", hle_SendMessageW},
                               {"user32.dll", "SendMessageA", hle_SendMessageA},

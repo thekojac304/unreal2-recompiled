@@ -341,9 +341,9 @@ XRT_NORETURN void xrt_process_exit(CPU* c, uint32_t code) {
     xrt_stdout_flush();
     xrt_log("process exit complete, exit code %u", code);
     xrt_event("process_exit_complete", "\"code\": %u", code);
+    xrt_cleanup_atoms();
     xrt_report_write(code, "exited");
     fflush(NULL);
-    xrt_cleanup_atoms();
     ExitProcess(code);
 }
 
@@ -369,6 +369,7 @@ static DWORD WINAPI watchdog(void* unused) {
     }
     fflush(stderr);
     xrt_event("timeout", "\"after_ms\": %u", timeout_ms);
+    xrt_cleanup_input_settings();
     xrt_report_write(78, "timeout");
     TerminateProcess(GetCurrentProcess(), 78);
     return 0;

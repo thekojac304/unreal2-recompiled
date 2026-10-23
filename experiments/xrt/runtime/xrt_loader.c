@@ -519,7 +519,17 @@ static void dispatch(CPU* c, uint32_t target, uint32_t site, const char* what) {
         xrt_describe(t, sizeof t, target);
         xrt_fatal(c, XRT_EXIT_TRAP, "%s at %s to %s, which is not a translated function entry or import", what, d, t);
     }
-    fn(c);
+    {
+        XrtModule *m=xrt_module_by_addr(target);
+        int input_init=m && !_stricmp(m->name,"WinDrv.dll") && target-m->base==0x17c0;
+        uint32_t esp=0,ret=0,self=0;
+        if(input_init) {
+            esp=c->r[ESP]; ret=rd32(esp); self=c->r[ECX];
+            xrt_event("client_init_call","\"target\": %u, \"esp\": %u, \"return\": %u, \"this\": %u",target,esp,ret,self);
+        }
+        fn(c);
+        if(input_init) xrt_event("client_init_return","\"target\": %u, \"esp_before\": %u, \"esp_after\": %u, \"return\": %u, \"actual_return\": %u, \"this\": %u",target,esp,c->r[ESP],ret,c->rv,self);
+    }
 }
 
 void xrt_icall(CPU* c, uint32_t target, uint32_t site) { dispatch(c, target, site, "indirect call"); }

@@ -88,6 +88,7 @@ int main(int argc, char** argv) {
         printf("\n");
         fflush(stdout);
     }
+    xrt_cleanup_atoms();
     xrt_report_write(0, "exited");
     return 0;
 }

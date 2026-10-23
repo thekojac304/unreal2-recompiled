@@ -382,7 +382,16 @@ static void hle_GetDriveTypeW(CPU* c){get_drive_type(c,1);}
 /* Global atoms are numeric 16-bit identities. Track only references acquired by
  * this guest, so bounded/fatal stops can release their real host references. */
 static struct {ATOM atom;unsigned refs;} global_atoms[256];
+static void (*host_cleanups[16])(void);
+static unsigned host_cleanup_count;
+void xrt_cleanup_register(void (*fn)(void)) {
+    unsigned i;
+    for(i=0;i<host_cleanup_count;i++) if(host_cleanups[i]==fn) return;
+    if(host_cleanup_count==16) xrt_fatal(NULL,XRT_EXIT_SETUP,"host cleanup table full");
+    host_cleanups[host_cleanup_count++]=fn;
+}
 void xrt_cleanup_atoms(void) {
+    while(host_cleanup_count) host_cleanups[--host_cleanup_count]();
     unsigned i;for(i=0;i<256;i++) while(global_atoms[i].refs) {
         GlobalDeleteAtom(global_atoms[i].atom);global_atoms[i].refs--;
     }
