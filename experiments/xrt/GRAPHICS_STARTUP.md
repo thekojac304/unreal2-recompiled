@@ -1,3 +1,137 @@
+# Level initialization checkpoint — 2026-10-22 (US Eastern)
+
+Starting Git state was clean at `280b25e8f4e8b8c81bf55413e9d50e920cac005b`. The earlier checkpoint and
+all raw runs remain preserved. No pushes, renderer rewrite, Android, audio implementation, editor features,
+or animation work were added.
+
+| Question | Verified result |
+|---|---|
+| Original CS_Intro level initialization completed? | **Yes.** Matched genuine LoadMap call/return, non-null selected ULevel, 268 PreBeginPlay/BeginPlay/PostBeginPlay callbacks each inside that call. |
+| Original selected world executed? | **Yes.** Four ticks on that exact returned ULevel, observed through RET and return to the engine caller. |
+| Game itself created/presented graphics? | **Yes.** Original D3D8 CreateDevice S_OK, initial Present S_OK, then three normal game Present calls S_OK through dgVoodoo/D3D11. |
+| Visible scene or interactive play verified? | **No.** This is world execution and API presentation evidence; no pixel capture, visual-content check or input test was performed. |
+| Translated UGameEngine::Init / LoadMap entered? | **No / no.** It now passes SHELL32 module lookup, both GetProcAddress calls and RICHED32 loading, then fails explicitly at GetClassInfoExW. |
+
+## Original evidence and exact reproduction
+
+Preferred raw run: `experiments/xrt/results/raw/graphics-startup/d1f7f7ddff9e-dgvoodoo/`.
+It has a complete trace, zero dropped events and zero dropped exceptions. The controlled stop is the third
+normal game Present return (`event_limit`, debuggee code `0xe0000001`), not a natural process exit.
+
+- LoadMap entry seq 111; successful selected-map file open seq 112/113; matched LoadMap return seq 1040,
+  selected world `0x0ff52800`. Return shares thread, ESP and caller with entry. Entry-world callbacks/ticks
+  are distinguished from selected-world events.
+- Selected-world tick seq 12327 → RET 12334 → caller 12335, followed by three further completed selected-world
+  ticks. The tick's ECX is the exact selected LoadMap return value. Its caller is Engine.dll+93c1e.
+- Game CreateDevice call/return seq 12322/12323 returns S_OK. Normal game Present returns at seq 12341,
+  12358 and 12368 return S_OK. These are original D3DDrv call sites, not the standalone device probe.
+- D3DDrv+f0ce is IDirect3D8::CreateDevice (seven stack arguments including this, vtable +3c);
+  D3DDrv+f17f is the **initial IDirect3DDevice8::Present**, following Clear at +f165. The latter was
+  initially labelled CreateDevice.3 in exploratory traces; the final driver and evidence correct that label.
+  Normal Present is +b387/+b38a. An alternate branch uses +b3c8/+b3cb.
+
+`tools/xrt/world_evidence.py` reproduces these correlations. Its seven counterexample tests reject a map open
+without LoadMap return, Entry-only ticks, a tick without return to its caller, failed map calls, dropped records,
+and HRESULTs without the observed game call.
+
+Installed singleplayer content was copied into each fresh sandbox (no links). The missing dynamic packages
+were `Textures/SubTFonts.utx`, then `Sounds/U2Player_A.uax`, then `Textures/HUD_Fonts.utx` and
+`Textures/UI_Fonts.utx`; the latter two are named by shipped HUD scripts/localization. Source/destination
+hashes are in each meta.json and in `results/compare/level_initialization.json`. The previously verified
+x86 dgVoodoo2 2.87.5 DLL and exact `86d97ac3...` configuration were retained.
+
+From the workspace root in PowerShell:
+
+```powershell
+.venv/Scripts/python -I tools/xrt/graphics_reference.py dgvoodoo --package Textures/SubTFonts.utx --package Sounds/U2Player_A.uax --package Textures/HUD_Fonts.utx --package Textures/UI_Fonts.utx --stop-after-present 3 --timeout-ms 30000
+.venv/Scripts/python -I tools/xrt/world_evidence.py experiments/xrt/results/raw/graphics-startup/d1f7f7ddff9e-dgvoodoo/trace.json
+```
+
+The first font-only run `0812ccc13ba8-dgvoodoo` exhausted the tracer's 128-module capacity and produced no
+complete trace; it is excluded. The tracer now retains 512 module records and 32768 exception records and
+reports exception overflow explicitly. Final run retains all **11011** first-chance exceptions, including
+32 missing-UISounds exceptions and many UI enum/render-target lookups. These remain visible despite the
+successful level/tick/device milestones. No audio behavior was implemented. The 30-second exploratory
+`f54e61270742-dgvoodoo` run reached repeated ticks/presents but its old exception table saturated; use the final
+bounded run for complete evidence.
+
+## Translated module boundary
+
+Preferred raw run: `experiments/xrt/results/raw/level/20261023-034922-fdde6c7f-candidate/`.
+Final binary/build identity: `experiments/xrt/build/level-init-handoff/{xrt_ucc.exe,client-identity.json}`.
+The build freshly compiles every runtime/client source and verifies reused generated objects from the preserved
+full checkpoint `fresh-20261023-015722-b7ee8987`. Source, object, lift and binary hashes are recorded.
+
+- SHELL32 comes from actual guest PE import membership, independent of incidental host DLL loads. Guest
+  system HMODULEs are typed tokens backed by owned real x64 loader references, with separate guest import and
+  LoadLibrary counts. GetModuleHandleA/W borrows identity without incrementing the guest load count.
+- System32-only host loads are allowlisted. WOW64 PE32 images are mapped solely as non-executable metadata;
+  named/ordinal export existence comes from those x86 tables and must have a matching host named export.
+  Guest GetProcAddress returns guest adapter/trap stubs; host code pointers never enter guest state.
+- Real unadapted exports may be retrieved, but calling them remains an explicit import failure. Stubs are
+  invalidated for calls when the last guest reference is released. FreeLibrary releases owned host/resource
+  mappings and tokens at zero references. Invalid releases match the measured Windows error 126.
+- Translated images retain their existing guest bases, exports and DllMain/refcount behavior. Unloaded images
+  no longer match handles, and explicit module paths must match the loaded image's full path.
+- Remaining limits fail visibly: unsupported system-module backings, host-only/transitive membership queries,
+  unnamed ordinal exports, dynamic system data exports, and freeing a borrowed static import without a dynamic
+  reference. This is the measured startup subset, not a complete Windows loader or GUI implementation.
+
+The final client records: SHELL32 handle seq 211, Shell_NotifyIconW guest stub seq 212,
+SHGetSpecialFolderPathW guest stub seq 213, RICHED32 load seq 215. Neither shell function was called.
+Seq 216 is the exact remaining blocker:
+
+```text
+USER32!GetClassInfoExW
+Window.dll+0xc3b3, WControl::RegisterWindowClass+0x63
+```
+
+The existing real splash and nested translated callback path still completes. The next class-query result
+contains a WNDPROC and handles: copying the host WNDCLASSEXW structure into guest memory would violate pointer
+separation. The smallest translated experiment is an x86/translated oracle for this observed class query,
+then typed prior-WNDPROC identity and CallWindowProc/class registration as actually reached.
+
+```powershell
+$env:XRT_BINARY = 'E:\Unreal2-Port-Investigation\experiments\xrt\build\level-init-handoff\xrt_ucc.exe'
+.venv/Scripts/python -I tools/xrt/level_probe.py candidate --timeout-ms 45000
+cmd /d /c experiments\xrt\tests\module_boundary\build.cmd
+```
+
+The module oracle executes the same project-owned x86 DLL natively and lifted, with identical 38-value logs
+and zero failures. It covers case/extension aliases, NULL/A/W lookup, full paths and wrong paths, absent modules,
+exact-case/missing/data exports, callable adapted exports, filenames, two A/W RichEdit load references,
+borrowed lookup and unload/error behavior. Three deliberate negatives preserve unadapted export calls,
+stale export calls and unmodelled transitive identities as explicit failures.
+
+## Validation, preservation and next experiment
+
+Public identities and run links: `results/compare/level_initialization.json`. The first final build passes all
+nine registered commandlet/VM cases (`20261023-034435-936744b5`) and a full compiler invocation
+(`20261023-034436-0db4f5a4`, 16 compiles + 12 execution cross-checks). The subsequent handoff build repeats these
+checks after the explicit transitive-membership guard; its exact invocation IDs are in the public JSON.
+GUI, client startup/memory and exception oracles pass; exception scope is six positives plus two deliberate
+negative cases. Python suite: 142 tests, 17 expected skips, plus seven new evidence tests. Earlier results remain
+preserved. Existing CRT discrepancies are unchanged; no CRT implementation was modified.
+
+**Install audit is not a clean PASS.** Relative to the prior full checkpoint snapshot, 4757 files compare with
+one unexplained one-byte difference in `singleplayer/Music/M03_fite_loop2.ogg`: offset 489527 is now `0x2e`,
+checkpoint sandbox byte `0x6e`; size and recorded mtime match. Checkpoint SHA-256 is
+`b6261e7e09ca82b48361702d09ea6d24c7d24a85b4073dd1ff1920f1317318bb`; current source hash is
+`6518e44f945853bf935bd674dbc84b9d9a8310beea1bb7262cf240dfd10fa2bf`. Repeated reads agree. There was no full
+install snapshot at this turn's start, so its timing/cause is unestablished. No writes to that file or the install
+were issued, and original/sandbox files have distinct identities and one hard link each. Both are preserved;
+the installation was not repaired. Save-junction metadata matches the checkpoint. Raw audit and byte-offset
+record remain under results/raw/level-init-install-*.json.
+
+The original is now the reference for a running CS_Intro world. A bounded visual/input capture and staging the
+observed UISounds content would further characterize that scene; neither is needed to claim the measured tick
+or API Present. For recompilation, advance the measured class-registration boundary toward UGameEngine::Init
+before any renderer adapter. No interactive gameplay or translated world execution is claimed.
+
+---
+
+# Prior graphics-startup checkpoint — historical at 280b25e
+
 # Graphics startup checkpoint — 2026-10-22 (US Eastern)
 
 The original passes its former HAL-capability barrier with **dgVoodoo2 2.87.5 x86 over D3D11** and opens

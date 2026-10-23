@@ -261,7 +261,11 @@ static void unload(CPU* c, XrtModule* m) {
     ninit = k;
     for (d = dir ? m->base + dir : 0; d && rd32(d + 12); d += 20) {
         XrtModule* dep = xrt_module_by_name((const char*)G2H(m->base + rd32(d + 12)));
-        if (!dep || dep->load_count < 0)
+        if (!dep) {
+            xrt_system_import((const char*)G2H(m->base + rd32(d + 12)), -1);
+            continue;
+        }
+        if (dep->load_count < 0)
             continue;                             /* system DLL (host adapters) or loaded with the process */
         if (dep->load_count > 1)
             dep->load_count--;

@@ -23,8 +23,7 @@ struct XrtModule;
  *                        Window.dll at its preferred base 0x11000000
  * 0x20000000-0x7FEFFFFF  guest heap (malloc/realloc/free, HeapAlloc); stays below 2 GB like the original
  *                        (non large-address-aware) process
- * 0x7FF00000             module handle of kernel32.dll (GetModuleHandle): never committed, so reading the system
- *                        DLL's image faults visibly; GetProcAddress on it resolves to the host adapters */
+ * System module handles are typed opaque tokens backed by owned host loader references. They are not images. */
 #define XRT_RT_BASE 0x00010000u
 #define XRT_RT_END 0x00300000u
 #define XRT_STUB_BASE 0x00300000u
@@ -35,7 +34,6 @@ struct XrtModule;
 #define XRT_STACK_END 0x10000000u
 #define XRT_HEAP_BASE 0x20000000u
 #define XRT_HEAP_END 0x7FF00000u
-#define XRT_KERNEL32_HANDLE 0x7FF00000u
 
 /* exit codes used by the runtime itself (guest exit codes are passed through unchanged) */
 enum { XRT_EXIT_TRAP = 71, XRT_EXIT_BADRET = 72, XRT_EXIT_DIV0 = 73, XRT_EXIT_FAULT = 74, XRT_EXIT_IMPORT = 75,
@@ -140,6 +138,9 @@ uint32_t xrt_call_funclet(CPU* c, uint32_t va);   /* EH funclet call: no args, n
 uint32_t xrt_call_continuation(CPU* c, uint32_t va, uint32_t expected_return);  /* run code at va until it returns */
 uint32_t xrt_hle_data(const char* dll, const char* name);  /* guest address of an HLE data object */
 uint32_t xrt_hle_proc(const char* dll, const char* name);  /* stub address of a host adapter, 0 if there is none */
+uint32_t xrt_hle_export_proc(const char* dll, const char* name); /* proven export: adapter or explicit call trap */
+void xrt_system_import(const char* name, int delta);      /* guest PE import reference, including unload */
+int xrt_system_export_live(const char* name);
 void xrt_module_unmap(XrtModule* m);                       /* FreeLibrary's unmapping, after DLL_PROCESS_DETACH */
 void xrt_imports_report(FILE* f);
 void xrt_sites_enable(const char* names);   /* comma-separated substrings of "dll!function" */
@@ -163,7 +164,7 @@ void xrt_set_last_error(CPU* c, uint32_t e);
 uint32_t xrt_get_last_error(CPU* c);
 
 /* handles: guest handle values for host objects */
-enum { XH_FREE, XH_FILE, XH_FIND, XH_THREAD, XH_STD, XH_DC, XH_BITMAP, XH_WINDOW, XH_FONT }; /* host objects behind guest tokens */
+enum { XH_FREE, XH_FILE, XH_FIND, XH_THREAD, XH_STD, XH_DC, XH_BITMAP, XH_WINDOW, XH_FONT, XH_MODULE }; /* host objects behind guest tokens */
 uint32_t xrt_handle_new(int type, void* host);
 void* xrt_handle_get(uint32_t h, int type);
 int xrt_handle_type(uint32_t h);

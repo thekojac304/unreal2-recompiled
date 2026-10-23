@@ -124,6 +124,12 @@ int xrt_free_library(CPU* c, XrtModule* m) {
 }
 #endif
 
+#if defined(STUB_K32EXTRA) || defined(STUB_K32DEPS)
+uint32_t xrt_hle_export_proc(const char* dll, const char* name) {
+    xrt_fatal(NULL, XRT_EXIT_UNSUPPORTED, "test harness: xrt_hle_export_proc(%s, %s) reached", dll, name);
+}
+#endif
+
 #ifdef STUB_K32DEPS
 char xrt_sandbox_root[520];
 volatile long xrt_exiting;

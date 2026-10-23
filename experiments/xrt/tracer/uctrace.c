@@ -28,7 +28,7 @@
 #include <string.h>
 #include <windows.h>
 
-#define MAX_MODS 128
+#define MAX_MODS 512 /* The real level client loads more DLLs (including unload/reload records). */
 #define MAX_BP (1 << 18)
 #define IMPORT_CAP 20000
 
@@ -305,7 +305,8 @@ static const WCHAR* raw_args_after(const WCHAR* p, int skip) {
 }
 
 typedef struct { DWORD code, addr, ret; int mod; char type[64]; char text[201]; } ExRec;
-static ExRec exs[4096]; static int nexs;
+#define MAX_EXCEPTIONS 32768
+static ExRec exs[MAX_EXCEPTIONS]; static int nexs, exceptions_dropped;
 typedef struct { DWORD newv, mask, caller; } CfRec;
 static CfRec cfs[256]; static int ncfs;
 
@@ -463,7 +464,7 @@ int main(int argc, char** argv) {
                     cont = DBG_CONTINUE;
                 } else cont = DBG_EXCEPTION_NOT_HANDLED;
             } else {
-                if (nexs < 4096) {
+                if (nexs < MAX_EXCEPTIONS) {
                     CONTEXT ctx; ctx.ContextFlags = CONTEXT_FULL; GetThreadContext(th, &ctx);
                     DWORD ret = 0;
                     exs[nexs].type[0] = 0;
@@ -491,7 +492,7 @@ int main(int argc, char** argv) {
                     exs[nexs].code = er->ExceptionCode; exs[nexs].addr = addr; exs[nexs].ret = ret; exs[nexs].mod = mod_of(ret ? ret : addr);
                     if (evlog) log_event(-1, nexs, thread_index(ev.dwThreadId), &ctx);
                     nexs++;
-                }
+                } else exceptions_dropped++;
                 cont = DBG_EXCEPTION_NOT_HANDLED;
             }
             break;
@@ -568,7 +569,7 @@ int main(int argc, char** argv) {
         json_str(jout, exs[i].text);
         fprintf(jout, "}");
     }
-    fprintf(jout, "\n ],\n \"controlfp_calls\": [");
+    fprintf(jout, "\n ],\n \"exceptions_dropped\": %d,\n \"controlfp_calls\": [", exceptions_dropped);
     for (int i = 0; i < ncfs; i++)
         fprintf(jout, "%s{\"new\": \"0x%08lx\", \"mask\": \"0x%08lx\", \"caller\": \"0x%08lx\"}", i ? ", " : "", cfs[i].newv, cfs[i].mask, cfs[i].caller);
     fprintf(jout, "],\n \"event_points\": %d,\n \"events_dropped\": %d,\n \"events\": [", nevp, evdropped);

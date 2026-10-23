@@ -28,6 +28,10 @@ def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("configuration", choices=["system", "d3d8to9", "dgvoodoo"])
     parser.add_argument("--timeout-ms", type=int, default=60000)
+    parser.add_argument("--package", action="append", default=[],
+                        help="installed singleplayer package, relative to its root (repeatable)")
+    parser.add_argument("--stop-after-present", type=int, default=0,
+                        help="controlled stop after N normal game Present returns")
     args = parser.parse_args()
     if not 1 <= args.timeout_ms <= 120000:
         parser.error("timeout must be 1..120000 ms")
@@ -47,6 +51,16 @@ def main():
     out = L.WS / "experiments/xrt/results/raw/graphics-startup" / ident
     out.mkdir(parents=True, exist_ok=False)
     shutil.copytree(L.SB, root)
+    staged = []
+    for relative in args.package:
+        source = (L.SOURCE / relative).resolve()
+        relative = source.relative_to(L.SOURCE.resolve())
+        if source.suffix.lower() not in {".utx", ".u", ".usx", ".uax", ".ugx"} or not source.is_file():
+            raise RuntimeError("expected an installed game package")
+        dest = root / relative
+        dest.parent.mkdir(parents=True, exist_ok=True)
+        shutil.copy2(source, dest)
+        staged.append(dict(R.file_identity(str(source)), destination=relative.as_posix()))
     for source in (L.RAW / "pristine-config").glob("*"):
         shutil.copy2(source, root / "System" / source.name)
     for name in ["Unreal2.log", "Running.ini"]:
@@ -73,16 +87,39 @@ def main():
              ("Window.dll", 0x20e5a, "Splash.CreateDIBitmap.return"),
              ("Unreal2.exe", 0x4191, "Splash.LoadFileToBitmap.return"),
              ("Unreal2.exe", 0x43a5, "Splash.CreateDialog.return")]
+    # Instruction offsets verified against the staged game DLLs. RET points retain EAX;
+    # a nonzero LoadMap result is still paired with actor/tick evidence before a world claim.
+    extra += [("Engine.dll", 0x936a0, "UGameEngine.LoadMap.return"),
+              ("Engine.dll", 0x9389a, "UGameEngine.LoadMap.failure.return"),
+              ("Engine.dll", 0x6c00, "AActor.eventTick"),
+              ("Engine.dll", 0xb63eb, "ULevel.Tick.return"),
+              ("D3DDrv.dll", 0xef95, "D3D.CreateDevice.call.1"),
+              ("D3DDrv.dll", 0xef98, "D3D.CreateDevice.return.1"),
+              ("D3DDrv.dll", 0xf0ce, "D3D.CreateDevice.call.2"),
+              ("D3DDrv.dll", 0xf0d1, "D3D.CreateDevice.return.2"),
+              ("D3DDrv.dll", 0xf17f, "D3D.InitialPresent.call"),
+              ("D3DDrv.dll", 0xf182, "D3D.InitialPresent.return"),
+              ("Engine.dll", 0x93c1e, "UGameEngine.WorldTick.return"),
+              ("Engine.dll", 0x93ca5, "UGameEngine.EntryTick.return"),
+              ("D3DDrv.dll", 0xb2d0, "UD3DRenderDevice.Present"),
+              ("D3DDrv.dll", 0xb387, "D3D.Present.call.1"),
+              ("D3DDrv.dll", 0xb38a, "D3D.Present.return.1"),
+              ("D3DDrv.dll", 0xb3c8, "D3D.Present.call.2"),
+              ("D3DDrv.dll", 0xb3cb, "D3D.Present.return.2")]
     points.write_text("".join(f"{module} {rva:x} {label}\n" for module, rva, label in L.POINTS + extra))
     exe = root / "System/Unreal2.exe"
     env = R.tracer_env(ident)
     env.update(UCTRACE_TIMEOUT_MS=str(args.timeout_ms), UCTRACE_EVENTS=str(points),
                UCTRACE_STOP_LABEL="Launcher.Error.Serialize")
+    if args.stop_after_present:
+        if not 1 <= args.stop_after_present <= 100:
+            parser.error("stop-after-present must be 1..100")
+        env.update(UCTRACE_STOP_LABEL="D3D.Present.return.1", UCTRACE_STOP_AFTER=str(args.stop_after_present))
     command = [R.TRACER, str(entries), str(out / "trace.json"), str(out / "stdout.bin"), str(exe)] + L.ARGS
     before = {f.relative_to(root).as_posix(): L.sha(f) for f in root.rglob("*") if f.is_file()}
     meta = {"id": ident, "configuration": args.configuration, "sandbox": str(root), "command": command,
             "args": L.ARGS, "git": R.git_identity(), "driver": R.file_identity(str(Path(__file__).resolve())),
-            "before": before, "tracer": R.file_identity(R.TRACER), "wrapper": wrapper,
+            "before": before, "tracer": R.file_identity(R.TRACER), "wrapper": wrapper, "staged_packages": staged,
             "environment": {k: v for k, v in env.items() if k.startswith("UCTRACE_")},
             "points_sha256": L.sha(points)}
     L.save(out / "meta.json", meta)
@@ -98,6 +135,10 @@ def main():
         shutil.copy2(root / name, dest)
     meta["deleted"] = sorted(before.keys() - after.keys())
     L.save(out / "meta.json", meta)
+    if not (out / "trace.json").exists():
+        print(out)
+        print("incomplete observer run; no world/frame verdict; see host-output.txt")
+        return 1
     trace = json.loads((out / "trace.json").read_text())
     print(out)
     print("loaded graphics modules:", [(m["name"], m["path"]) for m in trace["modules"]

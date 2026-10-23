@@ -1,0 +1,280 @@
+{
+  "updated_eastern": "2026-10-22",
+  "starting_head": "280b25e8f4e8b8c81bf55413e9d50e920cac005b",
+  "original": {
+    "raw_directory": "experiments/xrt/results/raw/graphics-startup/d1f7f7ddff9e-dgvoodoo",
+    "trace": {
+      "path": "experiments/xrt/results/raw/graphics-startup/d1f7f7ddff9e-dgvoodoo/trace.json",
+      "sha256": "0e43544c3981dc74148ae96b856fbaa5c1e903d71e3b0ad6d0bb0617c4567a34"
+    },
+    "termination_reason": "event_limit",
+    "world_evidence": {
+      "observer_complete_without_drops": true,
+      "selected_map": {
+        "entry_seq": 111,
+        "open_seq": 112,
+        "return_seq": 1040,
+        "world": "0x0ff52800",
+        "actors": {
+          "AActor.eventPreBeginPlay": 268,
+          "AActor.eventBeginPlay": 268,
+          "AActor.eventPostBeginPlay": 268
+        }
+      },
+      "selected_level_initialized": true,
+      "completed_selected_world_ticks": [
+        {
+          "entry_seq": 12327,
+          "ret_seq": 12334,
+          "caller_seq": 12335
+        },
+        {
+          "entry_seq": 12343,
+          "ret_seq": 12344,
+          "caller_seq": 12345
+        },
+        {
+          "entry_seq": 12350,
+          "ret_seq": 12351,
+          "caller_seq": 12352
+        },
+        {
+          "entry_seq": 12360,
+          "ret_seq": 12361,
+          "caller_seq": 12362
+        }
+      ],
+      "game_create_device": [
+        {
+          "call_seq": 12322,
+          "return_seq": 12323,
+          "hresult": "0x00000000"
+        }
+      ],
+      "game_present": [
+        {
+          "call_seq": 12340,
+          "return_seq": 12341,
+          "hresult": "0x00000000"
+        },
+        {
+          "call_seq": 12357,
+          "return_seq": 12358,
+          "hresult": "0x00000000"
+        },
+        {
+          "call_seq": 12367,
+          "return_seq": 12368,
+          "hresult": "0x00000000"
+        }
+      ],
+      "interactive_play_verified": false
+    },
+    "staged_packages": [
+      {
+        "path": "E:\\Launchbox\\Games\\PC Games\\Unreal 2 - The Awakening\\singleplayer\\Textures\\SubTFonts.utx",
+        "sha256": "08c186db89e00eb898671e5bef741b07e2a2b9af24d4ef37ff25a010d40df7e5",
+        "destination": "Textures/SubTFonts.utx"
+      },
+      {
+        "path": "E:\\Launchbox\\Games\\PC Games\\Unreal 2 - The Awakening\\singleplayer\\Sounds\\U2Player_A.uax",
+        "sha256": "ddab17979c1030d8fca8b45fc3736406a2c0bc5e9c4905ac8463eeae242739b3",
+        "destination": "Sounds/U2Player_A.uax"
+      },
+      {
+        "path": "E:\\Launchbox\\Games\\PC Games\\Unreal 2 - The Awakening\\singleplayer\\Textures\\HUD_Fonts.utx",
+        "sha256": "197a3ccfafe11b1a4e40c347cf419569709156a3d01aa3670813644d753affc2",
+        "destination": "Textures/HUD_Fonts.utx"
+      },
+      {
+        "path": "E:\\Launchbox\\Games\\PC Games\\Unreal 2 - The Awakening\\singleplayer\\Textures\\UI_Fonts.utx",
+        "sha256": "9b181043839b1abce6ea0ec4ac41a5fee3b5cd624f37242601527ddfe89e28e5",
+        "destination": "Textures/UI_Fonts.utx"
+      }
+    ],
+    "wrapper": {
+      "path": "third_party/graphics/dgVoodoo2-v2.87.5/extracted/MS/x86/D3D8.dll",
+      "sha256": "d03e2562178db1fcf3493fc0a0b23a465e35c55d73adb3ec095be866cd662704",
+      "version": "2.87.5",
+      "architecture": "x86"
+    },
+    "configuration_sha256": "86d97ac3a5b94990cc7b664970dd7185449fc7cc32f817e469d70651ce78ab89",
+    "exceptions_retained": 11011,
+    "exceptions_dropped": 0,
+    "exception_text_counts": {
+      "Failed to find object 'RenderTarget UIResT.Misc.Common'": 1,
+      "Failed to find object 'Enum UI.EAlignment'": 7148,
+      "Failed to find object 'Enum UI.ERenderStyle'": 1879,
+      "Failed to find object 'Enum Core.ERenderStyle'": 1879,
+      "Failed to find object 'RenderTarget UIResT.Misc.Lean_LRU'": 1,
+      "Failed to find object 'RenderTarget UIResT.HUD.U2HUD'": 9,
+      "Failed to find object 'RenderTarget UIResT.HUD.ScreenTile'": 1,
+      "Failed to find object 'RenderTarget UIResT.UI.UIPieces'": 8,
+      "Failed to find object 'RenderTarget UIResT.HUD.Damage'": 1,
+      "Can't find file for package 'UISounds'": 32,
+      "Failed to find object 'Enum UI.EInputKey'": 17,
+      "Failed to find object 'Enum Core.EInputKey'": 17,
+      "Failed to find object 'RenderTarget UIResT.UI.MenuBackground01d'": 1,
+      "Failed to find object 'RenderTarget UIResT.UI.MenuBackground02d'": 1,
+      "Failed to find object 'RenderTarget UIResT.UI.MenuBackgroundSmall'": 1,
+      "Failed to find object 'RenderTarget UIResT.UI.MissionLog'": 1,
+      "Failed to find object 'RenderTarget UIResT.UI.MissionLog02'": 1,
+      "Failed to find object 'RenderTarget UIResT.Misc.Unreal2strip'": 1,
+      "Failed to find object 'RenderTarget IntroT.UIEffects.Scanlines'": 1,
+      "Failed to find object 'RenderTarget IntroT.Overlays.GhostImage001'": 1,
+      "Failed to find object 'RenderTarget IntroT.Overlays.GhostImage002'": 1,
+      "Failed to find object 'RenderTarget IntroT.Overlays.GhostImage003'": 1,
+      "Failed to find object 'RenderTarget IntroT.Overlays.GhostImage004'": 1,
+      "Failed to find object 'RenderTarget IntroT.Overlays.GhostImage005'": 1,
+      "Failed to find object 'RenderTarget IntroT.Overlays.GhostImage006'": 1,
+      "Failed to find object 'RenderTarget IntroT.Overlays.GhostImage007'": 1,
+      "Failed to find object 'RenderTarget IntroT.Overlays.GhostImage008'": 1,
+      "Failed to find object 'RenderTarget IntroT.Overlays.GhostImage009'": 1,
+      "Failed to find object 'RenderTarget IntroT.Overlays.GhostImage010'": 1,
+      "Failed to find object 'RenderTarget IntroT.Overlays.GhostImage011'": 1
+    },
+    "command": ".venv/Scripts/python -I tools/xrt/graphics_reference.py dgvoodoo --package Textures/SubTFonts.utx --package Sounds/U2Player_A.uax --package Textures/HUD_Fonts.utx --package Textures/UI_Fonts.utx --stop-after-present 3 --timeout-ms 30000"
+  },
+  "translated": {
+    "raw_directory": "experiments/xrt/results/raw/level/20261023-034922-fdde6c7f-candidate",
+    "report": {
+      "path": "experiments/xrt/results/raw/level/20261023-034922-fdde6c7f-candidate/report.json",
+      "sha256": "02caefcb682cc2a627d6f7ad1f2b9a20fe6e285d84c351f3d73b062f6aa7a913"
+    },
+    "binary": {
+      "path": "experiments/xrt/build/level-init-handoff/xrt_ucc.exe",
+      "sha256": "f4fdf12f8d78250752370013e54647254fd666fa6f3dc5b6c5f5ae4e4bf8a08f"
+    },
+    "build_identity": {
+      "path": "experiments/xrt/build/level-init-handoff/client-identity.json",
+      "sha256": "5514437e2e6ccc8e7b9ebb4d452e02e4f4dd2c9f1799b5313536199f060dd293"
+    },
+    "runtime_sources": {
+      "path": "experiments/xrt/runtime",
+      "files": 16,
+      "sha256": "9fb4c2822ba9d459ea97c2209444ad84a06127f7c70fd75740e9da81c02c7114"
+    },
+    "callbacks": 30,
+    "engine_init_entered": false,
+    "loadmap_entered": false,
+    "blocker": "call to import user32.dll!GetClassInfoExW, which has no host implementation (from 1100c3b3 (Window.dll+c3b3, in f_1100c350+63 ?RegisterWindowClass@WControl@@SAP6GJPAUHWND__@@IIJ@ZPBG1@Z))",
+    "module_events": [
+      {
+        "seq": 210,
+        "thread": 0,
+        "kind": "system_module_backed",
+        "module": "shell32.dll",
+        "handle": "0x00001028"
+      },
+      {
+        "seq": 211,
+        "thread": 0,
+        "kind": "get_module_handle",
+        "name": "SHELL32.DLL",
+        "result": "0x00001028"
+      },
+      {
+        "seq": 212,
+        "thread": 0,
+        "kind": "get_proc_address",
+        "module": "shell32.dll",
+        "name": "Shell_NotifyIconW",
+        "result": "0x00301dc0"
+      },
+      {
+        "seq": 213,
+        "thread": 0,
+        "kind": "get_proc_address",
+        "module": "shell32.dll",
+        "name": "SHGetSpecialFolderPathW",
+        "result": "0x00301dd0"
+      },
+      {
+        "seq": 214,
+        "thread": 0,
+        "kind": "system_module_backed",
+        "module": "riched32.dll",
+        "handle": "0x0000102c"
+      },
+      {
+        "seq": 215,
+        "thread": 0,
+        "kind": "load_library",
+        "name": "RICHED32.DLL",
+        "result": "0x0000102c",
+        "site": "0x11021014"
+      },
+      {
+        "seq": 216,
+        "thread": 0,
+        "kind": "fatal",
+        "code": 75,
+        "message": "call to import user32.dll!GetClassInfoExW, which has no host implementation (from 1100c3b3 (Window.dll+c3b3, in f_1100c350+63 ?RegisterWindowClass@WControl@@SAP6GJPAUHWND__@@IIJ@ZPBG1@Z))"
+      }
+    ]
+  },
+  "validation": {
+    "module_oracle": {
+      "pass": true,
+      "matching_log_values": 38,
+      "explicit_negative_exit_codes": [
+        75,
+        75,
+        76
+      ],
+      "results": {
+        "path": "experiments/xrt/build/module_boundary/results.json",
+        "sha256": "bec44743c18eb028c42708904815c4c3c14f98d012cfc5b120a1b601868e28e3"
+      }
+    },
+    "gui_oracle": "PASS final runtime",
+    "client_startup_and_memory_oracle": "PASS final runtime",
+    "eh_oracle": "PASS: six positives and two deliberate negatives, final runtime",
+    "python_suite": {
+      "tests": 142,
+      "skipped": 17,
+      "result": "PASS"
+    },
+    "world_evidence_tests": {
+      "tests": 7,
+      "result": "PASS"
+    },
+    "commandlet_vm_invocations": [
+      "20261023-034435-936744b5",
+      "20261023-034923-abc9cc56"
+    ],
+    "commandlet_vm_runs": 18,
+    "compiler_invocations": [
+      "20261023-034436-0db4f5a4",
+      "20261023-034923-df58fea8"
+    ],
+    "compiler_handoff_result": "PASS",
+    "compiler_scope_per_invocation": "16 compiles and 12 execution cross-checks",
+    "fresh_handoff_build": "all runtime and client sources freshly compiled; reused baseline generated objects SHA-checked; zero warnings"
+  },
+  "install_audit": {
+    "result": "UNEXPLAINED_CHECKPOINT_DIFFERENCE",
+    "files": 4757,
+    "differences": 1,
+    "changed_files": [
+      "singleplayer\\Music\\M03_fite_loop2.ogg"
+    ],
+    "save_junction_metadata_unchanged": true,
+    "difference_offset": 489527,
+    "checkpoint_byte": "0x6e",
+    "current_byte": "0x2e",
+    "checkpoint_hash": "b6261e7e09ca82b48361702d09ea6d24c7d24a85b4073dd1ff1920f1317318bb",
+    "current_hash": "6518e44f945853bf935bd674dbc84b9d9a8310beea1bb7262cf240dfd10fa2bf",
+    "writes_to_install_issued": false,
+    "repair_performed": false,
+    "difference_timing_cause": "unestablished; no full install snapshot at turn start"
+  },
+  "limits": [
+    "No visual-content/input-play verification",
+    "Translated UGameEngine::Init and LoadMap unreached",
+    "UISounds and original UI lookup exceptions remain visible",
+    "Transitive module membership, unsupported system data/unnamed exports, borrowed static FreeLibrary and unadapted ABIs remain explicit failures",
+    "Known CRT discrepancy baseline unchanged"
+  ],
+  "next_experiment": "Native/lifted GetClassInfoExW oracle for Window.dll+c3b3; represent original WNDPROC and handles with guest tokens before class registration/CallWindowProc, then resume toward UGameEngine::Init."
+}

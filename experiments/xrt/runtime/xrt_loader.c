@@ -25,6 +25,7 @@ typedef struct Stub {
     XrtFn fn;                      /* NULL: unbound import, fatal when called */
     uint64_t calls[MAX_MODULES + 1];
     int no_preempt;                /* thread/process termination: never a preemption point (see dispatch) */
+    char export_owner[64];         /* dynamic system export: cannot outlive its guest module */
 } Stub;
 static Stub stubs[(XRT_STUB_END - XRT_STUB_BASE) / XRT_STUB_SIZE - 1];
 static int nstubs;
@@ -67,6 +68,12 @@ XrtModule* xrt_module_by_name(const char* name) {
         size_t hn = strlen(have);
         if (mods[i].unloaded)
             continue;
+        if (strpbrk(name, "\\/:")) {
+            char full[600], loaded[600];
+            if (!GetFullPathNameA(name, sizeof full, full, NULL) ||
+                !GetFullPathNameA(mods[i].path, sizeof loaded, loaded, NULL) || _stricmp(full, loaded))
+                continue;
+        }
         if (!_stricmp(have, want))
             return &mods[i];
         if (hn > 4 && n == hn - 4 && !_strnicmp(have, want, n) && !_stricmp(have + n, ".dll"))
@@ -319,6 +326,18 @@ uint32_t xrt_hle_proc(const char* dll, const char* name) {
     return stub_for(key, h->fn);
 }
 
+uint32_t xrt_hle_export_proc(const char* dll, const char* name) {
+    char key[600];
+    const XrtHle* h = hle_find(dll, name);
+    uint32_t va;
+    if (h && !h->fn)
+        xrt_fatal(NULL, XRT_EXIT_UNSUPPORTED, "dynamic system data export %s!%s is not modelled", dll, name);
+    snprintf(key, sizeof key, "%s!%s", dll, name);
+    va = stub_for(key, h ? h->fn : NULL);
+    snprintf(stubs[(va - XRT_STUB_BASE) / XRT_STUB_SIZE].export_owner, 64, "%s", dll);
+    return va;
+}
+
 void xrt_module_bind_imports(XrtModule* m) {
     uint8_t* hdr = (uint8_t*)G2H(m->base);
     uint32_t pe = *(uint32_t*)(hdr + 0x3C), opt = pe + 24, dir = *(uint32_t*)(hdr + opt + 104), d;
@@ -334,6 +353,8 @@ void xrt_module_bind_imports(XrtModule* m) {
         snprintf(dll_lc, sizeof dll_lc, "%s", dll);
         for (j = 0; dll_lc[j]; j++)
             dll_lc[j] = (char)tolower((unsigned char)dll_lc[j]);
+        if (!target)
+            xrt_system_import(dll_lc, 1);
         for (k = 0; rd32(lookup + 4 * k); k++) {
             uint32_t th = rd32(lookup + 4 * k), value;
             char name[512], key[600];
@@ -467,6 +488,8 @@ static void dispatch(CPU* c, uint32_t target, uint32_t site, const char* what) {
         uint32_t i = (target - XRT_STUB_BASE) / XRT_STUB_SIZE;
         XrtModule* caller = xrt_module_by_addr(site);
         if (!(target & (XRT_STUB_SIZE - 1)) && (int)i < nstubs) {
+            if (stubs[i].export_owner[0] && !xrt_system_export_live(stubs[i].export_owner))
+                xrt_fatal(c, XRT_EXIT_IMPORT, "call to export %s after its guest module was unloaded", stubs[i].name);
             stubs[i].calls[caller ? caller - mods : MAX_MODULES]++;
             if (nsite_names)
                 site_count((int)i, rd32(c->r[ESP]));

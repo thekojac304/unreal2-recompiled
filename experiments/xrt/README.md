@@ -1,7 +1,8 @@
-**Graphics checkpoint (2026-10-22 Eastern):** original opens CS_Intro through LoadMap with dgVoodoo2;
-translated real splash path passes and stops at Window.dll's GetModuleHandleW. G4/G5 and game rendering remain
-open. See [configuration, adapter scope and tests](GRAPHICS_STARTUP.md). Older pre-graphics observations below
-are retained as history.
+**Level checkpoint (2026-10-22 Eastern):** the original completes CS_Intro LoadMap and actor initialization,
+executes selected-world ticks and successfully creates/presents through dgVoodoo2/D3D11. Visual/input play is
+unverified. The translated splash and SHELL32/RICHED32 module path pass; GetClassInfoExW is the next explicit
+blocker before UGameEngine::Init. See [evidence, adapter limits, audit caveat and commands](GRAPHICS_STARTUP.md).
+Older observations below are retained as history.
 
 # X1 translated runtime (`xrt`): UCC.exe and its DLLs as translated code on Windows x64
 

@@ -8,6 +8,7 @@
 #define WIN32_LEAN_AND_MEAN
 #include <windows.h>
 #include <stdlib.h>
+#include <ctype.h>
 #include "xrt_internal.h"
 
 #pragma warning(disable : 4996)   /* GetVersionExA: the guest calls it, so we must too */
@@ -347,35 +348,168 @@ static void hle_GetCommandLineW(CPU* c) {
 static void hle_GetCurrentProcess(CPU* c) { RET_STD(0, 0xFFFFFFFFu); }
 static void hle_GetLastError(CPU* c) { RET_STD(0, xrt_get_last_error(c)); }
 
-static int is_kernel32(const char* name) {
+/* Guest import membership is independent of incidental DLLs loaded by this x64 host.
+ * Each identity owns one real host loader reference while guest imports/LoadLibrary references
+ * exist. GetModuleHandle borrows it. Only verified system DLLs may execute native host code;
+ * arbitrary x86 guest files never reach the host loader. Export addresses remain guest stubs. */
+typedef struct SystemModule {
+    char name[64];
+    HMODULE host;
+    HMODULE image32;               /* non-executable WOW64 export metadata */
+    char path[600];
+    uint32_t token;
+    int imports, loads;
+} SystemModule;
+static SystemModule system_modules[32];
+static int nsystem;
+
+static void module_name(const char* name, char out[64]) {
     const char *b = name, *p;
+    size_t n;
     for (p = name; *p; p++)
-        if (*p == '\\' || *p == '/' || *p == ':')
-            b = p + 1;
-    return !_stricmp(b, "kernel32") || !_stricmp(b, "kernel32.dll");
+        if (*p == '\\' || *p == '/' || *p == ':') b = p + 1;
+    if (strlen(b) > 58)
+        xrt_fatal(NULL, XRT_EXIT_UNSUPPORTED, "module name too long");
+    strcpy(out, b);
+    if (!strchr(out, '.')) strcat(out, ".dll");
+    for (n = 0; out[n]; n++) out[n] = (char)tolower((unsigned char)out[n]);
+}
+static SystemModule* system_named(const char* name, int create) {
+    char norm[64];
+    int i;
+    module_name(name, norm);
+    for (i = 0; i < nsystem; i++)
+        if (!strcmp(norm, system_modules[i].name)) return &system_modules[i];
+    if (!create) return NULL;
+    if (nsystem == 32) xrt_fatal(NULL, XRT_EXIT_SETUP, "system module registry full");
+    strcpy(system_modules[nsystem].name, norm);
+    return &system_modules[nsystem++];
+}
+static int system_supported(const char* name) {
+    static const char* names[] = {"kernel32.dll", "shell32.dll", "riched32.dll", "user32.dll",
+        "gdi32.dll", "comctl32.dll", "advapi32.dll", "ole32.dll", "winmm.dll", "comdlg32.dll", "dbghelp.dll"};
+    unsigned i;
+    for (i = 0; i < sizeof names / sizeof names[0]; i++)
+        if (!strcmp(name, names[i])) return 1;
+    return 0;
+}
+static void system_discard(SystemModule* m) {
+    if (m->host && !m->imports && !m->loads) {
+        if (!FreeLibrary(m->host)) xrt_fatal(NULL, XRT_EXIT_SETUP, "host module release failed");
+        FreeLibrary(m->image32);
+        xrt_handle_free(m->token);
+        m->host = NULL;
+        m->image32 = NULL;
+        m->token = 0;
+    }
+}
+void xrt_system_import(const char* name, int delta) {
+    SystemModule* m = system_named(name, delta > 0);
+    if (!m || m->imports + delta < 0)
+        xrt_fatal(NULL, XRT_EXIT_SETUP, "unbalanced system import reference: %s", name);
+    m->imports += delta;
+    system_discard(m);
+}
+int xrt_system_export_live(const char* name) {
+    SystemModule* m = system_named(name, 0);
+    return m && (m->imports || m->loads);
+}
+static uint32_t system_back(CPU* c, SystemModule* m) {
+    WCHAR w[64], path[600];
+    IMAGE_NT_HEADERS32* nt;
+    BYTE* image;
+    char q[100];
+    if (m->host) return m->token;
+    if (!system_supported(m->name))
+        xrt_fatal(c, XRT_EXIT_UNSUPPORTED, "module identity for imported %s has no compatible host backing", m->name);
+    MultiByteToWideChar(CP_ACP, 0, m->name, -1, w, 64);
+    m->host = LoadLibraryExW(w, NULL, LOAD_LIBRARY_SEARCH_SYSTEM32);
+    if (!m->host) {
+        xrt_set_last_error(c, GetLastError());
+        return 0;
+    }
+    GetModuleFileNameW(m->host, path, 600);
+    WideCharToMultiByte(CP_ACP, 0, path, -1, m->path, sizeof m->path, NULL, NULL);
+    if (!GetSystemWow64DirectoryW(path, 500))
+        xrt_fatal(c, XRT_EXIT_SETUP, "WOW64 system directory unavailable");
+    wcscat(path, L"\\"); wcscat(path, w);
+    m->image32 = LoadLibraryExW(path, NULL, LOAD_LIBRARY_AS_DATAFILE | LOAD_LIBRARY_AS_IMAGE_RESOURCE);
+    if (!m->image32)
+        xrt_fatal(c, XRT_EXIT_SETUP, "cannot inspect x86 exports of %s (error %lu)", m->name, GetLastError());
+    image = (BYTE*)((uintptr_t)m->image32 & ~(uintptr_t)3);
+    nt = (IMAGE_NT_HEADERS32*)(image + ((IMAGE_DOS_HEADER*)image)->e_lfanew);
+    if (nt->Signature != IMAGE_NT_SIGNATURE || nt->FileHeader.Machine != IMAGE_FILE_MACHINE_I386 ||
+        nt->OptionalHeader.Magic != IMAGE_NT_OPTIONAL_HDR32_MAGIC)
+        xrt_fatal(c, XRT_EXIT_SETUP, "system export metadata is not PE32: %s", m->name);
+    m->token = xrt_handle_new(XH_MODULE, m);
+    xrt_event("system_module_backed", "\"module\": %s, \"handle\": \"0x%08x\"",
+              xrt_jstr(q, sizeof q, m->name), m->token);
+    return m->token;
 }
 
-/* GetModuleHandleA: NULL is the mapped executable; a translated module its base; kernel32.dll the
- * runtime's handle for it (XRT_KERNEL32_HANDLE: GetProcAddress on it resolves to host adapters; the system DLL's
- * image is not mapped). Any other name is not loaded in this process: NULL, ERROR_MOD_NOT_FOUND. */
-static void hle_GetModuleHandleA(CPU* c) {
-    uint32_t n = ARG(0);
+static const char* system_export_name(CPU* c, SystemModule* m, const char* name, uint32_t ordinal) {
+    BYTE* image = (BYTE*)((uintptr_t)m->image32 & ~(uintptr_t)3);
+    IMAGE_NT_HEADERS32* nt = (IMAGE_NT_HEADERS32*)(image + ((IMAGE_DOS_HEADER*)image)->e_lfanew);
+    DWORD dir = nt->OptionalHeader.DataDirectory[IMAGE_DIRECTORY_ENTRY_EXPORT].VirtualAddress;
+    IMAGE_EXPORT_DIRECTORY* e;
+    DWORD *names, *funcs, i, index;
+    WORD* ords;
+    if (!dir) return NULL;
+    e = (IMAGE_EXPORT_DIRECTORY*)(image + dir);
+    names = (DWORD*)(image + e->AddressOfNames);
+    funcs = (DWORD*)(image + e->AddressOfFunctions);
+    ords = (WORD*)(image + e->AddressOfNameOrdinals);
+    index = ordinal - e->Base;
+    for (i = 0; i < e->NumberOfNames; i++) {
+        const char* have = (const char*)(image + names[i]);
+        if ((name && !strcmp(name, have)) || (!name && index == ords[i]))
+            return funcs[ords[i]] ? have : NULL;
+    }
+    if (!name && index < e->NumberOfFunctions && funcs[index])
+        xrt_fatal(c, XRT_EXIT_UNSUPPORTED, "GetProcAddress(%s, #%u): unnamed x86 export has no verified host identity", m->name, ordinal);
+    return NULL;
+}
+/* Explicit paths must denote the same system image, including WOW64's System32 redirect. */
+static int system_path_matches(const char* name, SystemModule* m) {
+    WCHAR want[600], full[600], sys[600], wow[600];
+    if (!strpbrk(name, "\\/:")) return 1;
+    MultiByteToWideChar(CP_ACP, 0, name, -1, want, 600);
+    if (!GetFullPathNameW(want, 600, full, NULL)) return 0;
+    GetSystemDirectoryW(sys, 500);
+    GetSystemWow64DirectoryW(wow, 500);
+    MultiByteToWideChar(CP_ACP, 0, m->name, -1, want, 64);
+    wcscat(sys, L"\\"); wcscat(sys, want);
+    wcscat(wow, L"\\"); wcscat(wow, want);
+    return !_wcsicmp(full, sys) || !_wcsicmp(full, wow);
+}
+static uint32_t get_module_handle(CPU* c, const char* name) {
     XrtModule* m;
-    if (!n) {
-        m = xrt_module_get(0);
-        RET_STD(1, m ? m->base : 0);
-        return;
+    SystemModule* sm;
+    uint32_t r = 0;
+    char q[300];
+    if (!name) { m = xrt_module_get(0); return m ? m->base : 0; }
+    m = xrt_module_by_name(name);
+    sm = system_named(name, 0);
+    if (m) r = m->base;
+    else if (sm && (sm->imports || sm->loads) && system_path_matches(name, sm))
+        r = system_back(c, sm);
+    else if (!sm && GetModuleHandleA(name))
+        xrt_fatal(c, XRT_EXIT_UNSUPPORTED, "GetModuleHandle(%s): host-only/transitive module membership is not modelled", name);
+    if (!r) xrt_set_last_error(c, ERROR_MOD_NOT_FOUND);
+    xrt_event("get_module_handle", "\"name\": %s, \"result\": \"0x%08x\"",
+              xrt_jstr(q, sizeof q, name), r);
+    return r;
+}
+static void hle_GetModuleHandleA(CPU* c) {
+    RET_STD(1, get_module_handle(c, ARG(0) ? (const char*)G2H(ARG(0)) : NULL));
+}
+static void hle_GetModuleHandleW(CPU* c) {
+    char a[1200];
+    if (!ARG(0)) { RET_STD(1, get_module_handle(c, NULL)); return; }
+    if (!WideCharToMultiByte(CP_ACP, WC_NO_BEST_FIT_CHARS, (LPCWSTR)G2H(ARG(0)), -1, a, sizeof a, NULL, NULL)) {
+        xrt_set_last_error(c, ERROR_MOD_NOT_FOUND); RET_STD(1, 0); return;
     }
-    if (is_kernel32((const char*)G2H(n))) {
-        xrt_log("GetModuleHandleA(\"%s\") -> %08x (kernel32.dll: host adapters)", (const char*)G2H(n), XRT_KERNEL32_HANDLE);
-        RET_STD(1, XRT_KERNEL32_HANDLE);
-        return;
-    }
-    m = xrt_module_by_name((const char*)G2H(n));
-    xrt_log("GetModuleHandleA(\"%s\") -> %08x", (const char*)G2H(n), m ? m->base : 0);
-    if (!m)
-        xrt_set_last_error(c, ERROR_MOD_NOT_FOUND);
-    RET_STD(1, m ? m->base : 0);
+    RET_STD(1, get_module_handle(c, a));
 }
 
 static XrtModule* module_of_handle(uint32_t h) {
@@ -383,33 +517,36 @@ static XrtModule* module_of_handle(uint32_t h) {
     if (!h)
         return xrt_module_get(0);
     for (i = 0; i < xrt_module_count(); i++)
-        if (xrt_module_get(i)->base == h)
+        if (!xrt_module_get(i)->unloaded && xrt_module_get(i)->base == h)
             return xrt_module_get(i);
     return NULL;
 }
 
 static void hle_GetModuleFileNameA(CPU* c) {
     XrtModule* m = module_of_handle(ARG(0));
+    SystemModule* sm = (SystemModule*)xrt_handle_get(ARG(0), XH_MODULE);
+    const char* path = sm ? sm->path : m ? m->path : NULL;
     uint32_t buf = ARG(1), n = ARG(2), len;
-    if (!m) {
+    if (!path) {
         xrt_set_last_error(c, ERROR_MOD_NOT_FOUND);
         RET_STD(3, 0);
         return;
     }
-    len = (uint32_t)strlen(m->path);
+    len = (uint32_t)strlen(path);
     if (!n) {
         xrt_set_last_error(c, ERROR_INSUFFICIENT_BUFFER);
         RET_STD(3, 0);
         return;
     }
     if (len >= n) {                   /* Vista+ semantics (what the original saw under WOW64) */
-        memcpy(G2H(buf), m->path, n - 1);
+        memcpy(G2H(buf), path, n - 1);
         wr8(buf + n - 1, 0);
         xrt_set_last_error(c, ERROR_INSUFFICIENT_BUFFER);
         RET_STD(3, n);
         return;
     }
-    memcpy(G2H(buf), m->path, len + 1);
+    memcpy(G2H(buf), path, len + 1);
+    xrt_set_last_error(c, ERROR_SUCCESS);
     RET_STD(3, len);
 }
 
@@ -445,6 +582,23 @@ static uint32_t load_library(CPU* c, WCHAR* w, const char* api, uint32_t site) {
         xrt_log("%s(\"%s\") -> translated %s at %08x", api, a, m->name, m->base);
         loadlib_event(a, m->base, site);
         return m->base;
+    }
+    {
+        SystemModule* sm;
+        char norm[64];
+        module_name(a, norm);
+        if (system_supported(norm)) {
+            uint32_t h;
+            sm = system_named(norm, 1);
+            if (!system_path_matches(a, sm))
+                xrt_fatal(c, XRT_EXIT_UNSUPPORTED, "%s: non-system path for %s is not translated", api, a);
+            if (!sm->imports && !sm->loads && base == w && GetFileAttributesW(w) != INVALID_FILE_ATTRIBUTES)
+                xrt_fatal(c, XRT_EXIT_UNSUPPORTED, "%s: local %s cannot be substituted with a host system DLL", api, a);
+            h = system_back(c, sm);
+            if (h) sm->loads++;
+            loadlib_event(a, h, site);
+            return h;
+        }
     }
     if (GetFileAttributesW(w) != INVALID_FILE_ATTRIBUTES) {
         char full[600];
@@ -498,39 +652,40 @@ static void hle_GetPrivateProfileStringA(CPU* c) {
 }
 
 static void hle_FreeLibrary(CPU* c) {
-    XrtModule* m = module_of_handle(ARG(0));
-    RET_STD(1, m ? xrt_free_library(c, m) : 0);
+    SystemModule* sm = (SystemModule*)xrt_handle_get(ARG(0), XH_MODULE);
+    XrtModule* m = ARG(0) ? module_of_handle(ARG(0)) : NULL;
+    if (sm) {
+        if (!sm->loads)
+            xrt_fatal(c, XRT_EXIT_UNSUPPORTED, "FreeLibrary(%s): releasing a borrowed static import is not modelled", sm->name);
+        sm->loads--;
+        system_discard(sm);
+        RET_STD(1, 1); return;
+    }
+    if (!m) { xrt_set_last_error(c, ERROR_MOD_NOT_FOUND); RET_STD(1, 0); return; }
+    RET_STD(1, xrt_free_library(c, m));
 }
 
-/* GetProcAddress: a translated module's export; on kernel32.dll's handle the stub of the host adapter of that name.
- * A kernel32 function without an adapter (or looked up by ordinal) is fatal: whether the original's kernel32 would
- * have returned it or NULL is not modelled. */
 static uint64_t gpa_calls, gpa_misses;
 static void hle_GetProcAddress(CPU* c) {
-    XrtModule* m = module_of_handle(ARG(0));
-    uint32_t n = ARG(1), r;
-    if (ARG(0) == XRT_KERNEL32_HANDLE) {
-        char q[300];
-        if (!(n >> 16))
-            xrt_fatal(c, XRT_EXIT_IMPORT, "GetProcAddress(kernel32.dll, ordinal %u) is not supported", n);
-        if (!(r = xrt_hle_proc("kernel32.dll", (const char*)G2H(n))))
-            xrt_fatal(c, XRT_EXIT_IMPORT, "GetProcAddress(kernel32.dll, \"%s\"): no host adapter for this function",
-                      (const char*)G2H(n));
-        gpa_calls++;
-        xrt_log("GetProcAddress(kernel32.dll, \"%s\") -> adapter stub %08x", (const char*)G2H(n), r);
-        xrt_event("get_proc_address", "\"module\": \"kernel32.dll\", \"name\": %s, \"result\": \"0x%08x\"",
-                  xrt_jstr(q, sizeof q, (const char*)G2H(n)), r);
-        RET_STD(2, r);
-        return;
-    }
-    if (!m || !ARG(0))
-        xrt_fatal(c, XRT_EXIT_IMPORT, "GetProcAddress on module handle %08x, which is not a translated module", ARG(0));
+    XrtModule* m = ARG(0) ? module_of_handle(ARG(0)) : NULL;
+    SystemModule* sm = (SystemModule*)xrt_handle_get(ARG(0), XH_MODULE);
+    uint32_t n = ARG(1), r = 0;
+    char ordinal[24], q[300];
+    const char* name = n >> 16 ? (const char*)G2H(n) : NULL;
     gpa_calls++;
-    r = (n >> 16) ? xrt_module_export(m, (const char*)G2H(n), 0) : xrt_module_export(m, NULL, n & 0xFFFF);
-    if (!r) {
-        gpa_misses++;
-        xrt_set_last_error(c, ERROR_PROC_NOT_FOUND);
-    }
+    if (sm) {
+        const char* real = system_export_name(c, sm, name, n);
+        if (real) {
+            if (!GetProcAddress(sm->host, real))
+                xrt_fatal(c, XRT_EXIT_UNSUPPORTED, "x86 export %s!%s has no host counterpart", sm->name, real);
+            r = xrt_hle_export_proc(sm->name, real);
+        }
+    } else if (m) r = xrt_module_export(m, name, n & 0xffff);
+    else { xrt_set_last_error(c, ERROR_MOD_NOT_FOUND); RET_STD(2, 0); return; }
+    if (!r) { gpa_misses++; xrt_set_last_error(c, ERROR_PROC_NOT_FOUND); }
+    if (!name) { snprintf(ordinal, sizeof ordinal, "#%u", n); name = ordinal; }
+    xrt_event("get_proc_address", "\"module\": \"%s\", \"name\": %s, \"result\": \"0x%08x\"",
+              sm ? sm->name : m->name, xrt_jstr(q, sizeof q, name), r);
     RET_STD(2, r);
 }
 
@@ -1165,6 +1320,7 @@ const XrtHle xrt_hle_kernel32[] = {
     {"kernel32.dll", "GetCurrentProcess", hle_GetCurrentProcess},
     {"kernel32.dll", "GetLastError", hle_GetLastError},
     {"kernel32.dll", "GetModuleHandleA", hle_GetModuleHandleA},
+    {"kernel32.dll", "GetModuleHandleW", hle_GetModuleHandleW},
     {"kernel32.dll", "GetModuleFileNameA", hle_GetModuleFileNameA},
     {"kernel32.dll", "LoadLibraryW", hle_LoadLibraryW},
     {"kernel32.dll", "LoadLibraryA", hle_LoadLibraryA},

@@ -1,17 +1,21 @@
-# Current status: original map open with dgVoodoo; translated splash passes
+# Current status: original CS_Intro world ticks and presents; translated module boundary passes
 
-Updated 2026-10-22 (US Eastern), graphics startup checkpoint. **No completed selected-level initialization,
-simulation tick, or Unreal II world rendering is established.** The original passes its previous D3D8 HAL
-capability failure using dgVoodoo2 2.87.5 x86 over D3D11, enters genuine LoadMap and opens CS_Intro.un2 (G6,
-original only). It stops on a missing SubTFonts dependency. The translated client completes real bitmap/dialog
-splash loading (G3) and stops in Window.dll at KERNEL32!GetModuleHandleW, before UGameEngine::Init (G4 open).
-G5 is open. Standalone x86 device creation/Clear/Present succeeds (G1); this does not prove game rendering.
+Updated 2026-10-22 (US Eastern), level-initialization checkpoint. The original **completes CS_Intro LoadMap
+and actor initialization**, executes ticks on that exact returned world and creates/presents a game D3D8 device
+through dgVoodoo2 2.87.5 x86/D3D11. The preferred bounded run observes four completed selected-world ticks and
+three successful normal Present calls. Visual scene content and interactive play remain unverified.
 
-Exact configuration, hashes, adapter scope, evidence, regressions and next steps:
-[graphics startup handoff](experiments/xrt/GRAPHICS_STARTUP.md),
-[public evidence](experiments/xrt/results/compare/graphics_startup.json).
-Compiler and commandlet/VM milestones remain passing. The earlier bounded experiment below is historical;
-its GetDC and original HAL blockers are superseded by this checkpoint.
+The translated client preserves its real splash/nested callbacks, now passes SHELL32 GetModuleHandleW,
+both GetProcAddress lookups and real RICHED32 loading, then stops explicitly at USER32!GetClassInfoExW in
+Window.dll+0xc3b3. **Translated UGameEngine::Init and LoadMap remain unreached.** No renderer rewrite was added.
+
+Exact evidence, commands, adapter limits and regression identities:
+[checkpoint report](experiments/xrt/GRAPHICS_STARTUP.md),
+[public evidence](experiments/xrt/results/compare/level_initialization.json).
+Missing UISounds and nonfatal UI lookup exceptions remain recorded. Original-install audit detects one unexplained
+byte difference in M03_fite_loop2.ogg from the prior snapshot; it is preserved and documented, with no repair.
+Save metadata matches. Earlier commandlet/compiler/GUI/EH results remain preserved and passing in fresh checks.
+The older sections below retain earlier milestones as history.
 
 ## Working commands (from the workspace root)
 
@@ -136,7 +140,7 @@ sources digest `5be0a285...fe1d`; inputs UCC.exe `84326806...b1ab`, Core.dll `51
 |---|---|---|
 | hellofull (`Core.HelloWorldCommandlet a b c`) | 3 + 1 traced | PASS 4/4 |
 | hello_noargs | 3 + 1 traced | PASS 4/4 |
-| hellonew (`x=1 -flag "two words" back\slash ÃƒÂ¼nÃƒÂ¯`) | 3 + 1 traced | PASS 4/4 |
+| hellonew (`x=1 -flag "two words" back\slash ÃƒÆ’Ã‚Â¼nÃƒÆ’Ã‚Â¯`) | 3 + 1 traced | PASS 4/4 |
 | hellofull_nosse (scalar CPU policy matched, CPU Features line compared) | 3 + 1 traced | PASS 4/4 |
 | simple (`Core.SimpleCommandlet`) | 3 + 1 traced | PASS 4/4 |
 | arraytest (`Core.ArrayTest`) | 3 + 1 traced | PASS 4/4 |
