@@ -7,7 +7,6 @@
 #include <dinput.h>
 
 static const GUID di_iid8w={0xbf798031,0x483a,0x4da2,{0xaa,0x99,0x5d,0x64,0xed,0x36,0x97,0x00}};
-static const GUID di_iunknown={0,0,0,{0xc0,0,0,0,0,0,0,0x46}};
 typedef struct DiObject {
     uint32_t guest, refs, owner, generation;
     IDirectInput8W *input;
@@ -27,8 +26,7 @@ static void di_cleanup(void) {
 
 static int di_guid_equal(const GUID *a,const GUID *b) { return !memcmp(a,b,sizeof *a); }
 static void di_memory(CPU*c,uint32_t p,uint32_t size) {
-    if(!p || !xrt_is_committed(p,size))
-        xrt_fatal(c,XRT_EXIT_UNSUPPORTED,"DirectInput: invalid guest range %08x size %u",p,size);
+    com_memory(c,p,size,"DirectInput");
 }
 static DiObject *di_object(CPU*c,uint32_t p) {
     unsigned i;
@@ -47,7 +45,7 @@ static void di_QueryInterface(CPU*c) {
     memcpy(&iid,G2H(ARG(1)),16);
     hr=o->input->lpVtbl->QueryInterface(o->input,&iid,&q);
     if(SUCCEEDED(hr)) {
-        if(!di_guid_equal(&iid,&di_iid8w) && !di_guid_equal(&iid,&di_iunknown)) {
+        if(!di_guid_equal(&iid,&di_iid8w) && !di_guid_equal(&iid,&com_iunknown)) {
             ((IUnknown*)q)->lpVtbl->Release((IUnknown*)q);
             xrt_fatal(c,XRT_EXIT_UNSUPPORTED,"DirectInput QueryInterface: successful unmodelled IID %08lx",iid.Data1);
         }
@@ -91,8 +89,7 @@ static DiObject*di_wrap(CPU*c,IDirectInput8W*input,uint32_t owner) {
     const char*names[]={"DI.QueryInterface","DI.AddRef","DI.Release","DI.CreateDevice","DI.EnumDevices",
         "DI.GetDeviceStatus","DI.RunControlPanel","DI.Initialize","DI.FindDevice","DI.EnumDevicesBySemantics","DI.ConfigureDevices"};
     if(!di_vtable) {
-        di_vtable=xrt_rt_alloc(sizeof names/sizeof *names*4,4);
-        for(i=0;i<sizeof names/sizeof *names;i++) wr32(di_vtable+4*i,xrt_hle_proc("xrt.com",names[i]));
+        di_vtable=com_vtable(names,sizeof names/sizeof *names);
     }
     for(i=0;i<128;i++) if(!di_objects[i].guest) {o=&di_objects[i];break;}
     if(!o) xrt_fatal(c,XRT_EXIT_SETUP,"DirectInput object table exhausted");

@@ -26,7 +26,7 @@ WRAPPERS = {
 
 def main():
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("configuration", choices=["system", "d3d8to9", "dgvoodoo"])
+    parser.add_argument("configuration", choices=["system", "d3d8to9", "dgvoodoo", "dxvk"])
     parser.add_argument("--timeout-ms", type=int, default=60000)
     parser.add_argument("--package", action="append", default=[],
                         help="installed singleplayer package, relative to its root (repeatable)")
@@ -47,6 +47,12 @@ def main():
         if pefile.PE(str(dll), fast_load=True).FILE_HEADER.Machine != 0x14c:
             raise RuntimeError("wrapper must be x86; it cannot be loaded into the translated x64 host")
         wrapper = dict(R.file_identity(str(dll)), version=version, architecture="x86")
+    elif args.configuration=='dxvk':
+        import graphics_backend as G
+        backend=G.verified_pair('x86')
+        dll=backend/'d3d8.dll'
+        wrapper={'implementation':'DXVK 3.1.1 x86 D3D8 over DXVK D3D9/Vulkan',
+                 'files':[R.file_identity(str(backend/name)) for name in G.HASHES['x86']]}
 
     ident = uuid.uuid4().hex[:12] + "-" + args.configuration
     root = L.WS / "sandbox_cmp/graphics-client" / ident
@@ -77,6 +83,7 @@ def main():
         (root / "System/dgVoodoo.conf").write_text(config)
     if dll:
         shutil.copy2(dll, root / "System/d3d8.dll")
+        if args.configuration=='dxvk':shutil.copy2(backend/'d3d9.dll',root/'System/d3d9.dll')
     elif (root / "System/d3d8.dll").exists():
         raise RuntimeError("system reference contains a local d3d8.dll")
 
@@ -108,9 +115,19 @@ def main():
               ("D3DDrv.dll", 0xb38a, "D3D.Present.return.1"),
               ("D3DDrv.dll", 0xb3c8, "D3D.Present.call.2"),
               ("D3DDrv.dll", 0xb3cb, "D3D.Present.return.2")]
+    extra += [("D3DDrv.dll",0xd8a1,"D3D.Direct3DCreate8.call"),
+              ("D3DDrv.dll",0xd96b,"D3D.GetAdapterIdentifier.call"),
+              ("D3DDrv.dll",0xd96e,"D3D.GetAdapterIdentifier.return"),
+              ("D3DDrv.dll",0xdd94,"D3D.CheckDeviceFormat.call.1"),
+              ("D3DDrv.dll",0xdd97,"D3D.CheckDeviceFormat.return.1"),
+              ("D3DDrv.dll",0xddc0,"D3D.CheckDeviceFormat.call.2"),
+              ("D3DDrv.dll",0xddc3,"D3D.CheckDeviceFormat.return.2"),
+              ("D3DDrv.dll",0xddec,"D3D.CheckDeviceFormat.call.3"),
+              ("D3DDrv.dll",0xddef,"D3D.CheckDeviceFormat.return.3")]
     points.write_text("".join(f"{module} {rva:x} {label}\n" for module, rva, label in L.POINTS + extra))
     exe = root / "System/Unreal2.exe"
     env = R.tracer_env(ident)
+    graphics_environment=G.environment(env,out) if args.configuration=='dxvk' else None
     env.update(UCTRACE_TIMEOUT_MS=str(args.timeout_ms), UCTRACE_EVENTS=str(points),
                UCTRACE_STOP_LABEL="Launcher.Error.Serialize")
     if args.stop_after_present:
@@ -127,6 +144,7 @@ def main():
             "args": L.ARGS, "git": R.git_identity(), "driver": R.file_identity(str(Path(__file__).resolve())),
             "before": before, "tracer": R.file_identity(R.TRACER), "wrapper": wrapper, "staged_packages": staged,
             "environment": {k: v for k, v in env.items() if k.startswith("UCTRACE_")},
+            "graphics_environment": graphics_environment,
             "points_sha256": L.sha(points)}
     L.save(out / "meta.json", meta)
     with (out / "host-output.txt").open("wb") as output:

@@ -108,7 +108,9 @@ def main():
     ap.add_argument("mode", choices=["prepare", "reference", "candidate"])
     ap.add_argument("--timeout-ms", type=int, default=90000)
     ap.add_argument("--minimal", action="store_true", help="reference: milestone breakpoints only, no function/import census")
+    ap.add_argument("--d3d8-backend", choices=["dxvk"], help="candidate: verified official x64 DXVK 3.1.1 D3D8/D3D9 pair")
     a = ap.parse_args()
+    if a.d3d8_backend and a.mode!='candidate':ap.error('--d3d8-backend requires candidate mode')
     if not 1 <= a.timeout_ms <= 600000:
         ap.error("timeout must be 1..600000 ms")
     if a.mode == "prepare":
@@ -162,6 +164,14 @@ def main():
         meta["tracer_environment"] = {k:v for k,v in env.items() if k.startswith("UCTRACE_")}
         meta["points_sha256"] = sha(points)
     else:
+        if a.d3d8_backend:
+            import graphics_backend as G
+            backend=G.verified_pair('x64')
+            env['XRT_D3D8_DIR']=str(backend)
+            meta['graphics_environment']=G.environment(env,out)
+            meta['graphics_environment']['XRT_D3D8_DIR']=str(backend)
+            meta['graphics_backend']={'implementation':'DXVK 3.1.1 x64 D3D8 over DXVK D3D9/Vulkan',
+                                      'files':[R.file_identity(str(backend/name)) for name in G.HASHES['x64']]}
         cmd = [R.XRT, "--guest", str(exe), "--log", str(out / "xrt.log"), "--report", str(out / "report.json"),
                "--run-id", ident, "--timeout-ms", str(a.timeout_ms), "--"] + ARGS
         meta["candidate"] = R.file_identity(R.XRT)
