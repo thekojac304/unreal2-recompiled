@@ -1604,16 +1604,18 @@ static void hle_chdir(CPU* c) {
  * msvcr70's fopen is _fsopen(.., _SH_DENYNO): a FILE from the static _iob entries 3..19 (the first free one, as
  * _getstream takes them) on a lowio descriptor (the first free from 3; 0..2 are the standard handles). Modes r, w,
  * a with '+', 'b', 't' as the DLL parses them; the other mode letters are not modelled (fatal). Only fopen and
- * fclose exist for such a FILE (the measured caller, GlmLib, opens and closes); reading or writing through it
- * reaches an unbound import (fatal). A file opened for writing must be inside the sandbox. */
+ * fclose and bounded binary fread exist for such a FILE. Text reads, writes and
+ * unmeasured stream modes remain explicit failures. A file opened for writing must be inside the sandbox. */
 static HANDLE lowio[64];
+static int lowio_binary[64];
+static uint32_t lowio_buffer[64];
 
 static void hle_fopen(CPU* c) {
     const char* name = (const char*)G2H(ARG(0));
     const char* m = (const char*)G2H(ARG(1));
     DWORD access, disp, e;
     uint32_t stream = 0, flag, k;
-    int fd = 0, rdwr = 0, more = 1;
+    int fd = 0, rdwr = 0, more = 1,binary=0;
     char q[600];
     HANDLE h;
     switch (*m) {
@@ -1632,7 +1634,9 @@ static void hle_fopen(CPU* c) {
             access = GENERIC_READ | GENERIC_WRITE;
             flag = 0x80;
         } else if (*m == 'b' || *m == 't' || *m == '+') {
-            /* binary/text only matter for reads and writes, which are not modelled; a repeated '+' ends parsing */
+            if(*m=='b') binary=1;
+            if(*m=='t') binary=0;
+            /* A repeated '+' ends parsing, as in the measured CRT. */
             more = *m != '+';
         } else if (strchr("cnSRTD", *m)) {
             xrt_fatal(c, XRT_EXIT_UNSUPPORTED, "fopen mode letter '%c' is not modelled", *m);
@@ -1664,10 +1668,90 @@ static void hle_fopen(CPU* c) {
         return;
     }
     lowio[fd] = h;
+    lowio_binary[fd]=binary;
+    lowio_buffer[fd]=0;
     memset(G2H(stream), 0, 32);
     wr32(stream + 12, flag);
     wr32(stream + 16, (uint32_t)fd);
     RET_C(stream);
+}
+static uint32_t file_descriptor(CPU* c,uint32_t f) {
+    uint32_t fd;
+    if(f<iob+3*32 || f>=iob+20*32 || (f-iob)%32 || !(rd32(f+12)&0x83) || (fd=rd32(f+16))>=64 || !lowio[fd])
+        xrt_fatal(c,XRT_EXIT_UNSUPPORTED,"binary stream was not returned by live fopen (%08x)",f);
+    return fd;
+}
+static int binary_read(CPU* c,uint32_t f,uint32_t fd,uint32_t dst,uint32_t bytes) {
+    DWORD got=0,error;
+    SetLastError(xrt_get_last_error(c));
+    if(!ReadFile(lowio[fd],G2H(dst),bytes,&got,NULL)) {
+        error=GetLastError();xrt_set_last_error(c,error);dosmaperr(c,error);
+        wr32(f+12,rd32(f+12)|0x20);return -1;
+    }
+    xrt_set_last_error(c,GetLastError());
+    if(!got) wr32(f+12,rd32(f+12)|0x10);
+    return (int)got;
+}
+static void hle_fread(CPU* c) {
+    uint32_t dst=ARG(0),size=ARG(1),count=ARG(2),f=ARG(3),fd,remaining,total,buffer,capacity,n;
+    int got;
+    /* The CRT wrapper locks its FILE even for zero-sized reads. */
+    fd=file_descriptor(c,f);
+    if(!size || !count) {RET_C(0);return;}
+    if((uint64_t)size*count>0x7fffffffu)
+        xrt_fatal(c,XRT_EXIT_UNSUPPORTED,"fread size overflow/large transfer is unmeasured");
+    if(!lowio_binary[fd]) xrt_fatal(c,XRT_EXIT_UNSUPPORTED,"fread text translation is not implemented");
+    if(!(rd32(f+12)&1)) {
+        xrt_fatal(c,XRT_EXIT_UNSUPPORTED,"fread requires a measured read-only binary stream");
+    }
+    total=remaining=size*count;
+    while(remaining) {
+        buffer=rd32(f+8);capacity=buffer?rd32(f+24):4096;
+        if(buffer && (buffer!=lowio_buffer[fd] || (capacity!=4096 && capacity!=512) || rd32(f)<buffer || rd32(f)>buffer+capacity || rd32(f+4)>buffer+capacity-rd32(f)))
+            xrt_fatal(c,XRT_EXIT_UNSUPPORTED,"fread FILE buffer layout was changed outside supported operations");
+        if(buffer && (int32_t)rd32(f+4)>0) {
+            n=rd32(f+4);if(n>remaining)n=remaining;
+            memcpy(G2H(dst),G2H(rd32(f)),n);wr32(f,rd32(f)+n);wr32(f+4,rd32(f+4)-n);
+        } else if(remaining>=capacity) {
+            wr32(f+24,capacity);
+            n=remaining/capacity*capacity;
+            got=binary_read(c,f,fd,dst,n);if(got<=0)break;
+            n=(uint32_t)got;
+        } else {
+            if(!buffer) {
+                buffer=xrt_heap_alloc(4096);capacity=4096;
+                lowio_buffer[fd]=buffer;
+                wr32(f+8,buffer);wr32(f+24,capacity);wr32(f+12,rd32(f+12)|8);
+            }
+            wr32(f,buffer);wr32(f+4,0);
+            got=binary_read(c,f,fd,buffer,capacity);
+            wr32(f+24,4096); /* _filbuf restores the normal next-fill size after fseek's small read. */
+            if(got<=0)break;
+            wr32(f+4,(uint32_t)got);continue;
+        }
+        dst+=n;remaining-=n;
+    }
+    xrt_event("fread","\"stream\": %u, \"size\": %u, \"count\": %u, \"bytes\": %u, \"flags\": %u",f,size,count,total-remaining,rd32(f+12));
+    RET_C((total-remaining)/size);
+}
+static void hle_fseek(CPU* c) {
+    uint32_t f=ARG(0),fd=file_descriptor(c,f),origin=ARG(2),flags=rd32(f+12);
+    LARGE_INTEGER distance,result;DWORD error;
+    if(!lowio_binary[fd] || !(flags&1) || (flags&0x80))
+        xrt_fatal(c,XRT_EXIT_UNSUPPORTED,"fseek supports measured read-only binary streams");
+    if(origin>2) {set_errno(c,22);RET_C(0xffffffffu);return;}
+    distance.QuadPart=(int32_t)ARG(1);
+    if(origin==1) distance.QuadPart-=(int32_t)rd32(f+4);
+    wr32(f+12,flags&~0x10u);wr32(f,rd32(f+8));wr32(f+4,0);
+    if(flags&8) wr32(f+24,512);
+    SetLastError(xrt_get_last_error(c));
+    if(!SetFilePointerEx(lowio[fd],distance,&result,origin)) {
+        error=GetLastError();xrt_set_last_error(c,error);dosmaperr(c,error);RET_C(0xffffffffu);return;
+    }
+    xrt_set_last_error(c,GetLastError());
+    if(result.QuadPart>0x7fffffff) xrt_fatal(c,XRT_EXIT_UNSUPPORTED,"fseek beyond measured 32-bit file range");
+    xrt_event("fseek","\"stream\": %u, \"offset\": %d, \"origin\": %u, \"position\": %u",f,(int32_t)ARG(1),origin,(uint32_t)result.QuadPart);
+    RET_C(0);
 }
 
 static void hle_fclose(CPU* c) {
@@ -1677,6 +1761,8 @@ static void hle_fclose(CPU* c) {
         xrt_fatal(c, XRT_EXIT_UNSUPPORTED, "fclose of a FILE that fopen did not return (%08x)", f);
     CloseHandle(lowio[fd]);
     lowio[fd] = NULL;
+    if((rd32(f+12)&8) && rd32(f+8)) xrt_heap_free(c,rd32(f+8));
+    lowio_buffer[fd]=0;
     memset(G2H(f), 0, 32);
     RET_C(0);
 }
@@ -1777,6 +1863,8 @@ const XrtHle xrt_hle_msvcr70[] = {
     {"msvcr70.dll", "_chdir", hle_chdir},
     {"msvcr70.dll", "fopen", hle_fopen},
     {"msvcr70.dll", "fclose", hle_fclose},
+    {"msvcr70.dll", "fread", hle_fread},
+    {"msvcr70.dll", "fseek", hle_fseek},
     {"msvcr70.dll", "vsprintf", hle_vsprintf},
     {"msvcr70.dll", "strrchr", hle_strrchr},
     {"msvcr70.dll", "strncpy", hle_strncpy},

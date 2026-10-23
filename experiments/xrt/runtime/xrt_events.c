@@ -16,7 +16,7 @@
 #include <stdlib.h>
 #include "xrt_internal.h"
 
-#define MAX_EVENTS 8192
+#define MAX_EVENTS 32768 /* The real client reads thousands of Golem chunks before its renderer prerequisite. */
 #define EVENT_LEN 448
 #define XRT_MARK_KEEP 8
 #define XRT_WATCH_KEEP 64

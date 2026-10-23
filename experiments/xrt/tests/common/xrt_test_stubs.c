@@ -60,6 +60,9 @@ double xrt_msvcr70_pow(CPU* c, double x, double y, uint32_t* error_type) {
 #endif
 
 #ifdef STUB_CRTDEPS
+uint32_t xrt_get_last_error(CPU* c) {
+    xrt_fatal(c, XRT_EXIT_UNSUPPORTED, "test harness: xrt_get_last_error reached");
+}
 void xrt_set_last_error(CPU* c, uint32_t e) {
     xrt_fatal(c, XRT_EXIT_UNSUPPORTED, "test harness: xrt_set_last_error(%u) reached", e);
 }

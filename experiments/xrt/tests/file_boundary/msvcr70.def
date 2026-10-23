@@ -1,0 +1,7 @@
+LIBRARY msvcr70.dll
+EXPORTS
+fopen
+fclose
+fread
+fseek
+_errno
