@@ -505,6 +505,14 @@ static void dispatch(CPU* c, uint32_t target, uint32_t site, const char* what) {
                 xrt_preempt(c);
             if (!stubs[i].fn) {
                 char d[512];
+                  uint32_t k;
+                  /* Preserve the next measured boundary's raw x86 arguments.
+                   * This is evidence only: no unbound import is implemented. */
+                  for(k=0;k<17 && (uint64_t)c->r[ESP]+4*k+4<=0x100000000ull;k++) {
+                      uint32_t p=c->r[ESP]+4*k;
+                      if(!xrt_is_committed(p,4))break;
+                      xrt_event("unbound_import_stack","\"site\":%u,\"esp\":%u,\"word\":%u,\"value\":%u",site,c->r[ESP],k,rd32(p));
+                  }
                 xrt_describe(d, sizeof d, site);
                 xrt_fatal(c, XRT_EXIT_IMPORT, "call to import %s, which has no host implementation (from %s)", stubs[i].name, d);
             }

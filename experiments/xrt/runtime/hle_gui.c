@@ -25,6 +25,43 @@ static void end(CPU *c)
 {
     xrt_set_last_error(c, GetLastError());
 }
+/* RECT is four guest signed 32-bit fields. Validate every page for both input
+ * and output before touching it; committed alone does not imply writable. */
+static int writable_guest_rect(uint32_t p)
+{
+    uint64_t at=p,limit=(uint64_t)p+16;
+    if(!p || limit>0x100000000ull)return 0;
+    while(at<limit) {
+        MEMORY_BASIC_INFORMATION mbi;DWORD access;uint64_t next;
+        if(!VirtualQuery(xrt_g+at,&mbi,sizeof mbi) || mbi.State!=MEM_COMMIT ||
+            (mbi.Protect&(PAGE_GUARD|PAGE_NOACCESS)))return 0;
+        access=mbi.Protect&0xffu;
+        if(access!=PAGE_READWRITE && access!=PAGE_WRITECOPY &&
+            access!=PAGE_EXECUTE_READWRITE && access!=PAGE_EXECUTE_WRITECOPY)return 0;
+        next=(uint64_t)((uint8_t*)mbi.BaseAddress-xrt_g)+mbi.RegionSize;
+        if(next<=at)return 0;
+        at=next;
+    }
+    return 1;
+}
+static void hle_AdjustWindowRect(CPU* c)
+{
+    uint32_t p=ARG(0),style=ARG(1),menu=ARG(2),esp=c->r[ESP],caller=rd32(esp);
+    RECT rect;BOOL result;
+    xrt_event("gui_adjust_window_rect_call","\"rect\":%u,\"style\":%u,\"menu\":%u,\"esp\":%u,\"return\":%u,\"last_error\":%u",
+        p,style,menu,esp,caller,xrt_get_last_error(c));
+    if(!writable_guest_rect(p))
+        xrt_fatal(c,XRT_EXIT_UNSUPPORTED,"AdjustWindowRect: invalid read/write guest RECT %08x (16 bytes); guest pointer faults unsupported",p);
+    rect.left=(LONG)(int32_t)rd32(p);rect.top=(LONG)(int32_t)rd32(p+4);
+    rect.right=(LONG)(int32_t)rd32(p+8);rect.bottom=(LONG)(int32_t)rd32(p+12);
+    xrt_event("gui_adjust_window_rect_input","\"rect\":%u,\"left\":%ld,\"top\":%ld,\"right\":%ld,\"bottom\":%ld",p,rect.left,rect.top,rect.right,rect.bottom);
+    begin(c);result=AdjustWindowRect(&rect,style,(BOOL)menu);end(c);
+    wr32(p,(uint32_t)rect.left);wr32(p+4,(uint32_t)rect.top);
+    wr32(p+8,(uint32_t)rect.right);wr32(p+12,(uint32_t)rect.bottom);
+    RET_STD(3,result);
+    xrt_event("gui_adjust_window_rect_return","\"rect\":%u,\"left\":%ld,\"top\":%ld,\"right\":%ld,\"bottom\":%ld,\"result\":%u,\"last_error\":%u,\"esp_before\":%u,\"esp_after\":%u,\"return\":%u,\"actual_return\":%u",
+        p,rect.left,rect.top,rect.right,rect.bottom,(unsigned)result,xrt_get_last_error(c),esp,c->r[ESP],caller,c->rv);
+}
 static void hle_GetDC(CPU *c)
 {
     HDC dc;
@@ -677,6 +714,7 @@ static void hle_InitCommonControls(CPU *c)
 }
 #include "hle_gui_classes.inc"
 const XrtHle xrt_hle_gui[] = {{"comctl32.dll", "#17", hle_InitCommonControls},
+                              {"user32.dll", "AdjustWindowRect", hle_AdjustWindowRect},
                               {"user32.dll", "GetFocus", hle_GetFocus},
                               {"user32.dll", "GetClassInfoExW", hle_GetClassInfoExW},
                               {"user32.dll", "GetClassInfoExA", hle_GetClassInfoExA},

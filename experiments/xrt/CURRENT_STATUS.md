@@ -1,3 +1,16 @@
+# AdjustWindowRect passes; viewport creation stops at ImmAssociateContext
+
+2026-10-24, US Eastern. Native/translated RECT, last-error and ABI comparison passes
+3,888 calls plus the exact genuine game RECT. Fresh serial 279-object build and one
+bounded client run pass AdjustWindowRect, then stop at IMM32!ImmAssociateContext
+during viewport window-creation callbacks. Highest verified world milestone remains
+T2: 279 paired lifecycle calls per stage across 278 actors. Init and world ticks
+have not returned; no D3D device, Clear or Present occurred.
+
+[Validated boundary, identities, regressions and next experiment](ADJUSTWINDOWRECT_BOUNDARY.md).
+
+---
+
 # GetFocus passes; bounded continuation stops at AdjustWindowRect
 
 2026-10-24, US Eastern. Fresh serial 279-object build and measured focus fixture

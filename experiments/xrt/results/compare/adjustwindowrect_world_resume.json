@@ -1,0 +1,595 @@
+{
+  "date": "2026-10-24 US Eastern",
+  "disposition": "Bounded milestone complete; stop at ImmAssociateContext; no further API implementation or graphical client session",
+  "starting_head": "ddb93bdca66bd94e98e84d1254767da640f953e6",
+  "accepted_binary": {
+    "path": "E:\\Unreal2-Port-Investigation\\experiments\\xrt\\build\\getfocus-20261024-01\\xrt_ucc.exe",
+    "sha256": "3f2a284a8197970fac19a38b41dda4323debfa699080f220d766457cd4b405b1"
+  },
+  "binary": {
+    "path": "E:\\Unreal2-Port-Investigation\\experiments\\xrt\\build\\adjustwindowrect-20261024-01\\xrt_ucc.exe",
+    "sha256": "e274f465c095abe503b4373e5cb932683bf2b8c135224c41150360b70e243620"
+  },
+  "pdb": {
+    "path": "E:\\Unreal2-Port-Investigation\\experiments\\xrt\\build\\adjustwindowrect-20261024-01\\xrt_ucc.pdb",
+    "sha256": "cb8a18937537e7ddcfbc355ad5c8dfb0f7325a9c7b3c1c218fc2caa648f6ba24"
+  },
+  "runtime": {
+    "path": "experiments/xrt/runtime",
+    "files": 27,
+    "sha256": "343572244b1334506af0d637a51d49650051c96593e8738e995939eef36b6be0"
+  },
+  "generated": {
+    "path": "experiments/xrt/gen",
+    "files": 299,
+    "sha256": "93046d39786d3f4be894370e86a5fed0a26fbc3001e18ae36c12d15686336062"
+  },
+  "source_manifest": "E:\\Unreal2-Port-Investigation\\out\\recovery\\adjustwindowrect-20261024-01\\candidate-sources.json",
+  "build": {
+    "fresh_objects": 279,
+    "generated": 265,
+    "runtime": 14,
+    "serial": true,
+    "historical_object_reuse": false,
+    "warnings": [],
+    "failures": 0
+  },
+  "code": {
+    "unchanged_objects": 277,
+    "expected_changed_objects": [
+      "hle_gui.obj",
+      "xrt_loader.obj"
+    ],
+    "preserved_gui_functions": {
+      "hle_SetKeyboardState": true,
+      "hle_GetKeyState": true,
+      "hle_GetFocus": true
+    },
+    "linked_compared_bytes": 79226692,
+    "linked_differences": []
+  },
+  "fixture": {
+    "passed": true,
+    "cases": 3888,
+    "styles": 12,
+    "rectangles": 9,
+    "menus": 4,
+    "seeds": 3,
+    "placements": 3,
+    "native_translated_identical": true,
+    "return_values": [
+      1
+    ],
+    "last_error_preserved": true,
+    "paired_stdcall_calls": 3888,
+    "nonvolatile_registers_preserved": [
+      "EBP",
+      "EBX",
+      "ESI",
+      "EDI"
+    ],
+    "events_recorded": 11664,
+    "events_dropped": 0,
+    "negatives": [
+      {
+        "case": "null",
+        "native_exception": 3221225477,
+        "translated_exit": 76,
+        "explicitly_unsupported": true
+      },
+      {
+        "case": "low",
+        "native_exception": 3221225477,
+        "translated_exit": 76,
+        "explicitly_unsupported": true
+      },
+      {
+        "case": "uncommitted",
+        "native_exception": 3221225477,
+        "translated_exit": 76,
+        "explicitly_unsupported": true
+      },
+      {
+        "case": "readonly",
+        "native_exception": 3221225477,
+        "translated_exit": 76,
+        "explicitly_unsupported": true
+      },
+      {
+        "case": "noaccess",
+        "native_exception": 3221225477,
+        "translated_exit": 76,
+        "explicitly_unsupported": true
+      },
+      {
+        "case": "partial",
+        "native_exception": 3221225477,
+        "translated_exit": 76,
+        "explicitly_unsupported": true
+      },
+      {
+        "case": "guard",
+        "native_exception": 2147483649,
+        "translated_exit": 76,
+        "explicitly_unsupported": true
+      },
+      {
+        "case": "wrap",
+        "native_exception": 3221225477,
+        "translated_exit": 76,
+        "explicitly_unsupported": true
+      }
+    ]
+  },
+  "exact_game_rect_native_comparison": {
+    "passed": true,
+    "input": {
+      "seq": 74355,
+      "thread": 0,
+      "kind": "gui_adjust_window_rect_input",
+      "rect": 18928744,
+      "left": 100,
+      "top": 100,
+      "right": 1640,
+      "bottom": 1045
+    },
+    "translated_return": {
+      "seq": 74356,
+      "thread": 0,
+      "kind": "gui_adjust_window_rect_return",
+      "rect": 18928744,
+      "left": 92,
+      "top": 69,
+      "right": 1648,
+      "bottom": 1053,
+      "result": 1,
+      "last_error": 0,
+      "esp_before": 18928716,
+      "esp_after": 18928732,
+      "return": 286274902,
+      "actual_return": 286274902
+    },
+    "native_x86": {
+      "exception": 0,
+      "result": 1,
+      "error": 0,
+      "out": [
+        92,
+        69,
+        1648,
+        1053
+      ],
+      "abi": [
+        0,
+        305419896,
+        591751049,
+        878082202,
+        1164413355
+      ],
+      "guards": [
+        165,
+        165
+      ]
+    },
+    "native_artifacts": {
+      "build.txt": "8873658e39f6d54814dd3aa62165325e983630fcca2dccac6f26cda888196a39",
+      "native_actual.exe": "b7c1c88133017efb4716d46f0dd211bc97958313b85d9f094683203a31b51af5",
+      "native_actual.obj": "c1db3ee39069d7c6f2487d248ba824a9dd46c6d51275566a18196332b73b89e5",
+      "result.json": "9f83b55291b253fdebbea2bd67b2be25f792fb139ddd43e366c4730c66cc1307"
+    },
+    "sources": {
+      "out\\recovery\\adjustwindowrect-20261024-01\\native_actual.c": "830e75f75047780dfa374441dcf08cb47c35a94e3d8745361aba057198840e89",
+      "out\\recovery\\adjustwindowrect-20261024-01\\native_actual.cmd": "84ae36a04fda2c20c59e455846c68103428af21e0dd90f86fc07dcfbcf2f4560"
+    },
+    "additional_graphical_client_sessions": 0
+  },
+  "run": "E:\\Unreal2-Port-Investigation\\experiments\\xrt\\results\\raw\\level\\20261024-232919-09836e96-candidate",
+  "events_recorded": 74390,
+  "events_dropped": 0,
+  "events_truncated": 0,
+  "sessions": {
+    "translated_graphical": 1,
+    "native_graphical": 0,
+    "runtime_watchdog_ms": 60000
+  },
+  "milestones": {
+    "T1": true,
+    "T2": true,
+    "T3": false,
+    "T4": false,
+    "T5": false,
+    "T6": false
+  },
+  "selected_world": "0x12f52800",
+  "selected_lifecycle": {
+    "calls": {
+      "PreBeginPlay": 279,
+      "BeginPlay": 279,
+      "PostBeginPlay": 279
+    },
+    "paired_returns": {
+      "PreBeginPlay": 279,
+      "BeginPlay": 279,
+      "PostBeginPlay": 279
+    },
+    "distinct_actors": 278,
+    "unpaired": []
+  },
+  "adjustwindowrect": {
+    "calls": [
+      {
+        "seq": 74354,
+        "thread": 0,
+        "kind": "gui_adjust_window_rect_call",
+        "rect": 18928744,
+        "style": 282001408,
+        "menu": 0,
+        "esp": 18928716,
+        "return": 286274902,
+        "last_error": 0
+      }
+    ],
+    "inputs": [
+      {
+        "seq": 74355,
+        "thread": 0,
+        "kind": "gui_adjust_window_rect_input",
+        "rect": 18928744,
+        "left": 100,
+        "top": 100,
+        "right": 1640,
+        "bottom": 1045
+      }
+    ],
+    "returns": [
+      {
+        "seq": 74356,
+        "thread": 0,
+        "kind": "gui_adjust_window_rect_return",
+        "rect": 18928744,
+        "left": 92,
+        "top": 69,
+        "right": 1648,
+        "bottom": 1053,
+        "result": 1,
+        "last_error": 0,
+        "esp_before": 18928716,
+        "esp_after": 18928732,
+        "return": 286274902,
+        "actual_return": 286274902
+      }
+    ],
+    "pairs": [
+      [
+        74354,
+        74356
+      ]
+    ]
+  },
+  "viewport_progress": {
+    "adjust_returned": true,
+    "create_window_returned": false,
+    "open_window_returned": false,
+    "callback_messages": [
+      36,
+      129,
+      131,
+      1,
+      12
+    ],
+    "call_chain": "OpenWindow -> WWindow::PerformCreateWindowEx -> native creation callback -> UWindowsViewport::ViewportWndProc -> ImmAssociateContext"
+  },
+  "engine_init": {
+    "entries": 1,
+    "pairs": []
+  },
+  "engine_ticks": {
+    "entries": 0,
+    "paired_returns": 0
+  },
+  "selected_level_ticks": {
+    "entries": 0,
+    "paired_returns": 0
+  },
+  "d3d": {
+    "CreateDevice_calls": 0,
+    "real_devices": 0,
+    "Clear": 0,
+    "Present": 0
+  },
+  "first_remaining_blocker": {
+    "seq": 74379,
+    "thread": 0,
+    "kind": "fatal",
+    "code": 75,
+    "message": "call to import imm32.dll!ImmAssociateContext, which has no host implementation (from 11109ed6 (WinDrv.dll+9ed6))"
+  },
+  "remaining_boundary": {
+    "api": "IMM32!ImmAssociateContext",
+    "implemented": false,
+    "source": "E:\\Unreal2-Port-Investigation\\sandbox_inputs\\first-world\\content\\System\\WinDrv.dll",
+    "source_sha256": "df1459bfed2e8a1e006d453d72b804417979783e76387018ba322e0d9a324663",
+    "imports": [
+      {
+        "module": "IMM32.dll",
+        "name": "ImmAssociateContext",
+        "iat": "0x1110b2ac"
+      },
+      {
+        "module": "USER32.dll",
+        "name": "AdjustWindowRect",
+        "iat": "0x1110b378"
+      }
+    ],
+    "thunk": "0x11109ed6",
+    "caller": "0x11105d59",
+    "return_address": "0x11105d5e",
+    "esp": "0x120cb68",
+    "arguments": {
+      "hwnd_guest_token": "0x0000126c",
+      "hIMC": "0x00000000"
+    },
+    "viewport_progress": {
+      "adjust_returned": true,
+      "create_window_returned": false,
+      "open_window_returned": false,
+      "callback_messages": [
+        36,
+        129,
+        131,
+        1,
+        12
+      ],
+      "call_chain": "OpenWindow -> WWindow::PerformCreateWindowEx -> native creation callback -> UWindowsViewport::ViewportWndProc -> ImmAssociateContext"
+    },
+    "next_experiment": "Native/translated ImmAssociateContext(hwnd,NULL) with an owned window, typed HWND/HIMC ownership, native context detach/restore, last-error and stdcall ABI; no broader IME or renderer work."
+  },
+  "regressions": {
+    "affected": {
+      "phase": "affected",
+      "passed": true,
+      "runs": [
+        {
+          "name": "adjustwindowrect_boundary",
+          "command": [
+            "cmd.exe",
+            "/d",
+            "/c",
+            "experiments\\xrt\\tests\\adjustwindowrect_boundary\\build.cmd"
+          ],
+          "cwd": "E:\\Unreal2-Port-Investigation\\sandbox_adjustwindowrect_20261024_01",
+          "exit": 0,
+          "seconds": 4.221185199996398,
+          "log": "E:\\Unreal2-Port-Investigation\\out\\recovery\\adjustwindowrect-20261024-01\\regression-adjustwindowrect_boundary.log",
+          "log_sha256": "2bebb6d61627f45d911248f008ffe6973db92163ed13ea0b1b09ee3aae0a12d2",
+          "warnings": [],
+          "passed": true
+        },
+        {
+          "name": "gui_boundary",
+          "command": [
+            "cmd.exe",
+            "/d",
+            "/c",
+            "experiments\\xrt\\tests\\gui_boundary\\build.cmd"
+          ],
+          "cwd": "E:\\Unreal2-Port-Investigation\\sandbox_adjustwindowrect_20261024_01",
+          "exit": 0,
+          "seconds": 4.103882600000361,
+          "log": "E:\\Unreal2-Port-Investigation\\out\\recovery\\adjustwindowrect-20261024-01\\regression-gui_boundary.log",
+          "log_sha256": "f71e27435d064baa0bb010f493fef88a0798af3f4971971e1cc966592b3b12ca",
+          "warnings": [],
+          "passed": true
+        },
+        {
+          "name": "class_boundary",
+          "command": [
+            "cmd.exe",
+            "/d",
+            "/c",
+            "experiments\\xrt\\tests\\class_boundary\\build.cmd"
+          ],
+          "cwd": "E:\\Unreal2-Port-Investigation\\sandbox_adjustwindowrect_20261024_01",
+          "exit": 0,
+          "seconds": 7.38268500000413,
+          "log": "E:\\Unreal2-Port-Investigation\\out\\recovery\\adjustwindowrect-20261024-01\\regression-class_boundary.log",
+          "log_sha256": "e15ef0f19de96a9652d225cc4f6805860e73b6432b9bc20c66b9516771dbb764",
+          "warnings": [
+            "experiments\\xrt\\tests\\class_boundary\\classprobe.c(150): warning C4133: 'function': incompatible types - from 'LPTSTR' to 'LPCWSTR'"
+          ],
+          "passed": true
+        },
+        {
+          "name": "module_boundary",
+          "command": [
+            "cmd.exe",
+            "/d",
+            "/c",
+            "experiments\\xrt\\tests\\module_boundary\\build.cmd"
+          ],
+          "cwd": "E:\\Unreal2-Port-Investigation\\sandbox_adjustwindowrect_20261024_01",
+          "exit": 0,
+          "seconds": 4.386516899998242,
+          "log": "E:\\Unreal2-Port-Investigation\\out\\recovery\\adjustwindowrect-20261024-01\\regression-module_boundary.log",
+          "log_sha256": "bfe7dae7e6aabd4ffa9e2d7ba5d56300cb71caedc3f8590ac3c15ec47075ff77",
+          "warnings": [],
+          "passed": true
+        },
+        {
+          "name": "focus_boundary",
+          "command": [
+            "cmd.exe",
+            "/d",
+            "/c",
+            "experiments\\xrt\\tests\\focus_boundary\\build.cmd"
+          ],
+          "cwd": "E:\\Unreal2-Port-Investigation\\sandbox_adjustwindowrect_20261024_01",
+          "exit": 0,
+          "seconds": 3.7529085999995004,
+          "log": "E:\\Unreal2-Port-Investigation\\out\\recovery\\adjustwindowrect-20261024-01\\regression-focus_boundary.log",
+          "log_sha256": "2dbfae9aca2e49ec7150255e3c350bdf87dd43d6af2d1a3bcb111e508d1934b8",
+          "warnings": [],
+          "passed": true
+        }
+      ]
+    },
+    "acceptance": {
+      "phase": "acceptance",
+      "passed": true,
+      "runs": [
+        {
+          "name": "tracer-build",
+          "command": [
+            "cmd.exe",
+            "/d",
+            "/c",
+            "experiments\\xrt\\tracer\\build.cmd"
+          ],
+          "cwd": "E:\\Unreal2-Port-Investigation\\sandbox_adjustwindowrect_20261024_01",
+          "exit": 0,
+          "seconds": 1.228269100000034,
+          "log": "E:\\Unreal2-Port-Investigation\\out\\recovery\\adjustwindowrect-20261024-01\\regression-tracer-build.log",
+          "log_sha256": "d8d403c66db825ec1416af80168620214015f86a6d63b39b7500144102a386ea",
+          "warnings": [],
+          "passed": true
+        },
+        {
+          "name": "commandlet-vm",
+          "command": [
+            "E:\\Unreal2-Port-Investigation\\sandbox_adjustwindowrect_20261024_01\\.venv\\Scripts\\python.exe",
+            "-I",
+            "tools/xrt/run_xrt.py",
+            "hellofull",
+            "hello_noargs",
+            "hellonew",
+            "hellofull_nosse",
+            "simple",
+            "arraytest",
+            "hello",
+            "badclass",
+            "vmprobe"
+          ],
+          "cwd": "E:\\Unreal2-Port-Investigation\\sandbox_adjustwindowrect_20261024_01",
+          "exit": 0,
+          "seconds": 103.32151489999524,
+          "log": "E:\\Unreal2-Port-Investigation\\out\\recovery\\adjustwindowrect-20261024-01\\regression-commandlet-vm.log",
+          "log_sha256": "af6b0de29f969fe2cbe4bb83751a4eac9b95757ad7873eaa6949da192d9abd4f",
+          "warnings": [],
+          "passed": true
+        },
+        {
+          "name": "unrealscript-compiler",
+          "command": [
+            "E:\\Unreal2-Port-Investigation\\sandbox_adjustwindowrect_20261024_01\\.venv\\Scripts\\python.exe",
+            "-I",
+            "tools/xrt/compile_xrt.py"
+          ],
+          "cwd": "E:\\Unreal2-Port-Investigation\\sandbox_adjustwindowrect_20261024_01",
+          "exit": 0,
+          "seconds": 183.7141518999997,
+          "log": "E:\\Unreal2-Port-Investigation\\out\\recovery\\adjustwindowrect-20261024-01\\regression-unrealscript-compiler.log",
+          "log_sha256": "f0590e496e0d519595e796a644f90e58e7881c3e4aac7ed46f9f6b54f4e4400c",
+          "warnings": [],
+          "passed": true
+        },
+        {
+          "name": "traced-hello",
+          "command": [
+            "E:\\Unreal2-Port-Investigation\\sandbox_adjustwindowrect_20261024_01\\.venv\\Scripts\\python.exe",
+            "-I",
+            "tools/xrt/run_xrt.py",
+            "hellofull",
+            "--trace"
+          ],
+          "cwd": "E:\\Unreal2-Port-Investigation\\sandbox_adjustwindowrect_20261024_01",
+          "exit": 0,
+          "seconds": 24.805397799995262,
+          "log": "E:\\Unreal2-Port-Investigation\\out\\recovery\\adjustwindowrect-20261024-01\\regression-traced-hello.log",
+          "log_sha256": "2b1edcdf351f9a73233bc320f8f1f8c59857c512c72793cfa346bfc4d19b1750",
+          "warnings": [],
+          "passed": true
+        },
+        {
+          "name": "python",
+          "command": [
+            "E:\\Unreal2-Port-Investigation\\sandbox_adjustwindowrect_20261024_01\\.venv\\Scripts\\python.exe",
+            "-I",
+            "-m",
+            "unittest",
+            "discover",
+            "-s",
+            "tools/xrt/tests",
+            "-v"
+          ],
+          "cwd": "E:\\Unreal2-Port-Investigation\\sandbox_adjustwindowrect_20261024_01",
+          "exit": 0,
+          "seconds": 12.156437699995877,
+          "log": "E:\\Unreal2-Port-Investigation\\out\\recovery\\adjustwindowrect-20261024-01\\regression-python.log",
+          "log_sha256": "e8198d72a66ac72d254a67f9267cd4273ef89589ed1228292639f75f4f6b69cb",
+          "warnings": [],
+          "passed": true
+        }
+      ]
+    },
+    "commandlet_vm_cases_passed": 9,
+    "compiler": "16 compiles, 12 executions, four expected invalid-source failures",
+    "python": {
+      "discovered": 158,
+      "passed": 141,
+      "opt_in_skips": 17
+    }
+  },
+  "integrity": {
+    "protected": {
+      "manifest_sha256": "3e1807c3c1d3c2881e3353ab46d8f571654e19d10b7ded41b88304c71e172173",
+      "files": 4122,
+      "protected_trees": 3,
+      "protected_files": 9
+    },
+    "accepted_outputs_unchanged": true,
+    "candidate_outputs_unchanged": true,
+    "source_identities_unchanged_since_build": true,
+    "original_installation_or_saves_accessed": false,
+    "prior_working_files_preserved": 459,
+    "unexpected_crashes": 0
+  },
+  "cleanup": [
+    {
+      "seq": 74386,
+      "thread": 0,
+      "kind": "dmusic_backend_cleanup",
+      "references_released": 5
+    },
+    {
+      "seq": 74387,
+      "thread": 0,
+      "kind": "com_cleanup",
+      "references_released": 0,
+      "apartment_references_balanced": 1
+    },
+    {
+      "seq": 74388,
+      "thread": 0,
+      "kind": "d3d8_cleanup",
+      "references_released": 1
+    },
+    {
+      "seq": 74389,
+      "thread": 0,
+      "kind": "sticky_restore",
+      "result": 1,
+      "flags": 510
+    },
+    {
+      "seq": 74390,
+      "thread": 0,
+      "kind": "dinput_cleanup",
+      "references_released": 1,
+      "device_references_released": 1
+    }
+  ],
+  "raw_evidence": "E:\\Unreal2-Port-Investigation\\out\\recovery\\adjustwindowrect-20261024-01",
+  "next_experiment": "Native/translated ImmAssociateContext(hwnd,NULL) with an owned window, typed HWND/HIMC ownership, native context detach/restore, last-error and stdcall ABI; no broader IME or renderer work.",
+  "commit_scope": "Only AdjustWindowRect, raw unbound-import argument diagnostics, its fixture, and checkpoint documentation/results. Earlier pending work remains unstaged. The tested executable includes that pinned pending work.",
+  "known_compatibility_findings": "Existing expanded CRT 110 mismatches / 1796 pending, six ACP932 differences and x87 limitations remain open; these unaffected expanded suites were not rerun."
+}
