@@ -1,0 +1,357 @@
+{
+  "date": "2026-10-24 US Eastern",
+  "disposition": "Bounded milestone complete; stop at AdjustWindowRect; no further implementation or graphical client execution",
+  "starting_head": "673a4d3e502549a2b49f9051b6099c41c9a73c38",
+  "accepted_binary": {
+    "path": "E:\\Unreal2-Port-Investigation\\experiments\\xrt\\build\\postram-20261024-174304-d3a9040d-serial01\\xrt_ucc.exe",
+    "sha256": "b0f5985c9ac49b82a9d29e7ef915df898955777fd672085656789deb4c5356dc"
+  },
+  "binary": {
+    "path": "E:\\Unreal2-Port-Investigation\\experiments\\xrt\\build\\getfocus-20261024-01\\xrt_ucc.exe",
+    "sha256": "3f2a284a8197970fac19a38b41dda4323debfa699080f220d766457cd4b405b1"
+  },
+  "runtime": {
+    "path": "experiments/xrt/runtime",
+    "files": 27,
+    "sha256": "3d370307ad606655f0ecb7af0b89c7fabbc8eb5d28acb68a2ec4ba560af14f4a"
+  },
+  "generated": {
+    "path": "experiments/xrt/gen",
+    "files": 299,
+    "sha256": "93046d39786d3f4be894370e86a5fed0a26fbc3001e18ae36c12d15686336062"
+  },
+  "source_manifest": "E:\\Unreal2-Port-Investigation\\out\\recovery\\getfocus-20261024-01\\candidate-sources.json",
+  "build": {
+    "fresh_objects": 279,
+    "generated": 265,
+    "runtime": 14,
+    "serial": true,
+    "historical_object_reuse": false,
+    "warnings": [],
+    "failures": 0
+  },
+  "code": {
+    "unchanged_objects": 278,
+    "expected_changed_object": "hle_gui.obj",
+    "keyboard_const_correction_code_identical": true,
+    "linked_compared_bytes": 79226692,
+    "linked_differences": []
+  },
+  "focus_fixture": {
+    "passed": true,
+    "reads": 48,
+    "events_recorded": 98,
+    "events_dropped": 0,
+    "threads": 2,
+    "fixture_root": "E:\\Unreal2-Port-Investigation\\sandbox_getfocus_20261024_01\\experiments\\xrt\\build\\focus_boundary"
+  },
+  "run": "E:\\Unreal2-Port-Investigation\\experiments\\xrt\\results\\raw\\level\\20261024-225210-f9cde2a9-candidate",
+  "events_recorded": 74363,
+  "events_dropped": 0,
+  "events_truncated": 0,
+  "milestones": {
+    "T1": true,
+    "T2": true,
+    "T3": false,
+    "T4": false,
+    "T5": false,
+    "T6": false
+  },
+  "selected_world": "0x12f52800",
+  "getfocus": {
+    "calls": [
+      {
+        "seq": 74348,
+        "thread": 0,
+        "kind": "gui_get_focus_call",
+        "esp": 18928120,
+        "return": 286279882
+      }
+    ],
+    "returns": [
+      {
+        "seq": 74349,
+        "thread": 0,
+        "kind": "gui_get_focus_return",
+        "esp_before": 18928120,
+        "esp_after": 18928124,
+        "return": 286279882,
+        "actual_return": 286279882,
+        "result": 4128,
+        "last_error": 0
+      }
+    ],
+    "pairs": [
+      [
+        74348,
+        74349
+      ]
+    ]
+  },
+  "selected_lifecycle": {
+    "calls": {
+      "PreBeginPlay": 279,
+      "BeginPlay": 279,
+      "PostBeginPlay": 279
+    },
+    "paired_returns": {
+      "PreBeginPlay": 279,
+      "BeginPlay": 279,
+      "PostBeginPlay": 279
+    },
+    "distinct_actors": 278,
+    "unpaired": []
+  },
+  "engine_init": {
+    "entries": 1,
+    "pairs": []
+  },
+  "engine_ticks": {
+    "entries": 0,
+    "paired_returns": 0
+  },
+  "selected_level_ticks": {
+    "entries": 0,
+    "paired_returns": 0
+  },
+  "d3d": {
+    "CreateDevice": 0,
+    "Clear": 0,
+    "Present": 0,
+    "first_unsupported_method": null
+  },
+  "first_remaining_blocker": {
+    "seq": 74352,
+    "thread": 0,
+    "kind": "fatal",
+    "code": 75,
+    "message": "call to import user32.dll!AdjustWindowRect, which has no host implementation (from 11103550 (WinDrv.dll+3550, in f_11103390+1c0 ?OpenWindow@UWindowsViewport@@UAEXKHHHHH@Z))"
+  },
+  "remaining_boundary": {
+    "api": "USER32!AdjustWindowRect",
+    "site": "0x11103550",
+    "rva": "WinDrv.dll+0x3550",
+    "function": "UWindowsViewport::OpenWindow",
+    "iat": "0x1110b378",
+    "expected_return": "0x11103556"
+  },
+  "regressions": {
+    "affected": {
+      "phase": "affected",
+      "passed": true,
+      "runs": [
+        {
+          "name": "gui_boundary",
+          "command": [
+            "cmd.exe",
+            "/d",
+            "/c",
+            "experiments\\xrt\\tests\\gui_boundary\\build.cmd"
+          ],
+          "cwd": "E:\\Unreal2-Port-Investigation\\sandbox_getfocus_20261024_01",
+          "exit": 0,
+          "seconds": 3.9742560000013327,
+          "log": "E:\\Unreal2-Port-Investigation\\out\\recovery\\getfocus-20261024-01\\regression-gui_boundary.log",
+          "log_sha256": "f71e27435d064baa0bb010f493fef88a0798af3f4971971e1cc966592b3b12ca",
+          "warnings": [],
+          "passed": true
+        },
+        {
+          "name": "class_boundary",
+          "command": [
+            "cmd.exe",
+            "/d",
+            "/c",
+            "experiments\\xrt\\tests\\class_boundary\\build.cmd"
+          ],
+          "cwd": "E:\\Unreal2-Port-Investigation\\sandbox_getfocus_20261024_01",
+          "exit": 0,
+          "seconds": 7.103861399999005,
+          "log": "E:\\Unreal2-Port-Investigation\\out\\recovery\\getfocus-20261024-01\\regression-class_boundary.log",
+          "log_sha256": "e15ef0f19de96a9652d225cc4f6805860e73b6432b9bc20c66b9516771dbb764",
+          "warnings": [
+            "experiments\\xrt\\tests\\class_boundary\\classprobe.c(150): warning C4133: 'function': incompatible types - from 'LPTSTR' to 'LPCWSTR'"
+          ],
+          "passed": true
+        },
+        {
+          "name": "module_boundary",
+          "command": [
+            "cmd.exe",
+            "/d",
+            "/c",
+            "experiments\\xrt\\tests\\module_boundary\\build.cmd"
+          ],
+          "cwd": "E:\\Unreal2-Port-Investigation\\sandbox_getfocus_20261024_01",
+          "exit": 0,
+          "seconds": 4.201253599996562,
+          "log": "E:\\Unreal2-Port-Investigation\\out\\recovery\\getfocus-20261024-01\\regression-module_boundary.log",
+          "log_sha256": "bfe7dae7e6aabd4ffa9e2d7ba5d56300cb71caedc3f8590ac3c15ec47075ff77",
+          "warnings": [],
+          "passed": true
+        }
+      ],
+      "binary_sha256": "3f2a284a8197970fac19a38b41dda4323debfa699080f220d766457cd4b405b1"
+    },
+    "acceptance": {
+      "phase": "acceptance-continuation",
+      "passed": true,
+      "runs": [
+        {
+          "name": "tracer-build",
+          "command": [
+            "cmd.exe",
+            "/d",
+            "/c",
+            "experiments\\xrt\\tracer\\build.cmd"
+          ],
+          "cwd": "E:\\Unreal2-Port-Investigation\\sandbox_getfocus_20261024_01",
+          "exit": 0,
+          "seconds": 1.0833963999975822,
+          "log": "E:\\Unreal2-Port-Investigation\\out\\recovery\\getfocus-20261024-01\\regression-tracer-build.log",
+          "log_sha256": "d8d403c66db825ec1416af80168620214015f86a6d63b39b7500144102a386ea",
+          "warnings": [],
+          "passed": true
+        },
+        {
+          "name": "commandlet-vm-remaining",
+          "command": [
+            "E:\\Unreal2-Port-Investigation\\sandbox_getfocus_20261024_01\\.venv\\Scripts\\python.exe",
+            "-I",
+            "tools/xrt/run_xrt.py",
+            "hello",
+            "badclass",
+            "vmprobe"
+          ],
+          "cwd": "E:\\Unreal2-Port-Investigation\\sandbox_getfocus_20261024_01",
+          "exit": 0,
+          "seconds": 55.32024709999678,
+          "log": "E:\\Unreal2-Port-Investigation\\out\\recovery\\getfocus-20261024-01\\regression-commandlet-vm-remaining.log",
+          "log_sha256": "04f1ffa5f0b8af7943ee19e0f2f8aac3937dabe067926839cbdbe9c92bead9ef",
+          "warnings": [],
+          "passed": true
+        },
+        {
+          "name": "unrealscript-compiler",
+          "command": [
+            "E:\\Unreal2-Port-Investigation\\sandbox_getfocus_20261024_01\\.venv\\Scripts\\python.exe",
+            "-I",
+            "tools/xrt/compile_xrt.py"
+          ],
+          "cwd": "E:\\Unreal2-Port-Investigation\\sandbox_getfocus_20261024_01",
+          "exit": 0,
+          "seconds": 175.5470598000029,
+          "log": "E:\\Unreal2-Port-Investigation\\out\\recovery\\getfocus-20261024-01\\regression-unrealscript-compiler.log",
+          "log_sha256": "0f33a581f8ac16892b87650be08ac4955d69651a443e8943fd292a1c3070eb77",
+          "warnings": [],
+          "passed": true
+        },
+        {
+          "name": "traced-hello",
+          "command": [
+            "E:\\Unreal2-Port-Investigation\\sandbox_getfocus_20261024_01\\.venv\\Scripts\\python.exe",
+            "-I",
+            "tools/xrt/run_xrt.py",
+            "hellofull",
+            "--trace"
+          ],
+          "cwd": "E:\\Unreal2-Port-Investigation\\sandbox_getfocus_20261024_01",
+          "exit": 0,
+          "seconds": 23.40138129999832,
+          "log": "E:\\Unreal2-Port-Investigation\\out\\recovery\\getfocus-20261024-01\\regression-traced-hello.log",
+          "log_sha256": "1b760694e99b281f20c345c8c3f774ac739a8f93215337227af7bd3f3cfa1eb4",
+          "warnings": [],
+          "passed": true
+        },
+        {
+          "name": "python",
+          "command": [
+            "E:\\Unreal2-Port-Investigation\\sandbox_getfocus_20261024_01\\.venv\\Scripts\\python.exe",
+            "-I",
+            "-m",
+            "unittest",
+            "discover",
+            "-s",
+            "tools/xrt/tests",
+            "-v"
+          ],
+          "cwd": "E:\\Unreal2-Port-Investigation\\sandbox_getfocus_20261024_01",
+          "exit": 0,
+          "seconds": 11.471364700002596,
+          "log": "E:\\Unreal2-Port-Investigation\\out\\recovery\\getfocus-20261024-01\\regression-python.log",
+          "log_sha256": "04028c744021f6bc464bf4ce0e0bb35b7b7f2894caf3b8931b1676483787ccaa",
+          "warnings": [],
+          "passed": true
+        }
+      ],
+      "binary_sha256": "3f2a284a8197970fac19a38b41dda4323debfa699080f220d766457cd4b405b1"
+    },
+    "commandlet_vm_cases_passed": 9,
+    "compiler": "16 compiles, 12 executions, four expected invalid-source failures",
+    "python": {
+      "discovered": 158,
+      "passed": 141,
+      "opt_in_skips": 17
+    },
+    "setup_stops": [
+      "Isolated Python sibling-module import corrected before verification",
+      "Missing isolated tracer corrected after six passing commandlet cases; only three unrun cases continued"
+    ]
+  },
+  "integrity": {
+    "protected": {
+      "manifest_sha256": "3e1807c3c1d3c2881e3353ab46d8f571654e19d10b7ded41b88304c71e172173",
+      "files": 4122,
+      "protected_trees": 3,
+      "protected_files": 9
+    },
+    "accepted_outputs_unchanged": true,
+    "candidate_outputs_unchanged": true,
+    "source_identities_unchanged_since_build": true,
+    "original_installation_or_saves_accessed": false,
+    "prior_working_files_preserved": 451,
+    "prior_working_changes": [
+      "experiments/xrt/runtime/hle_gui.c"
+    ],
+    "unexpected_crashes": 0
+  },
+  "cleanup": [
+    {
+      "seq": 74359,
+      "thread": 0,
+      "kind": "dmusic_backend_cleanup",
+      "references_released": 5
+    },
+    {
+      "seq": 74360,
+      "thread": 0,
+      "kind": "com_cleanup",
+      "references_released": 0,
+      "apartment_references_balanced": 1
+    },
+    {
+      "seq": 74361,
+      "thread": 0,
+      "kind": "d3d8_cleanup",
+      "references_released": 1
+    },
+    {
+      "seq": 74362,
+      "thread": 0,
+      "kind": "sticky_restore",
+      "result": 1,
+      "flags": 510
+    },
+    {
+      "seq": 74363,
+      "thread": 0,
+      "kind": "dinput_cleanup",
+      "references_released": 1,
+      "device_references_released": 1
+    }
+  ],
+  "raw_evidence": "E:\\Unreal2-Port-Investigation\\out\\recovery\\getfocus-20261024-01",
+  "known_compatibility_findings": "Existing expanded CRT 110 mismatches / 1796 pending, six ACP932 differences and x87 limitations retained; not rerun or claimed fixed",
+  "next_experiment": "Separately authorized native/translated AdjustWindowRect fixture: measured OpenWindow style/menu combinations, RECT input/output and last-error; implement only if measured, then separately bound any continuation",
+  "commit_scope": "Only GetFocus, its project-owned fixture, and checkpoint documentation/results. Pre-existing uncommitted changes remain unstaged, including the corrected SetKeyboardState parameter cast."
+}

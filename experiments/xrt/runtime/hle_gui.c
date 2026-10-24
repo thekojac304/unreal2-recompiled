@@ -190,6 +190,19 @@ static void forget_dead_windows(void)
             memset(&windows[i], 0, sizeof windows[i]);
         }
 }
+/* USER32 queries this calling thread's actual input queue. Never substitute the
+ * active/foreground window or cache focus. Existing GUI tokens also represent
+ * a live focused HWND first encountered here (e.g. a native stock control). */
+static void hle_GetFocus(CPU* c)
+{
+    HWND h;uint32_t result,esp=c->r[ESP],caller=rd32(esp);
+    xrt_event("gui_get_focus_call","\"esp\":%u,\"return\":%u",esp,caller);
+    begin(c);h=GetFocus();end(c);
+    result=window_token(h);
+    RET_STD(0,result);
+    xrt_event("gui_get_focus_return","\"esp_before\":%u,\"esp_after\":%u,\"return\":%u,\"actual_return\":%u,\"result\":%u,\"last_error\":%u",
+        esp,c->r[ESP],caller,c->rv,result,xrt_get_last_error(c));
+}
 static void pack_windowpos(uint32_t p, const WINDOWPOS *w)
 {
     wr32(p, window_token(w->hwnd));
@@ -664,6 +677,7 @@ static void hle_InitCommonControls(CPU *c)
 }
 #include "hle_gui_classes.inc"
 const XrtHle xrt_hle_gui[] = {{"comctl32.dll", "#17", hle_InitCommonControls},
+                              {"user32.dll", "GetFocus", hle_GetFocus},
                               {"user32.dll", "GetClassInfoExW", hle_GetClassInfoExW},
                               {"user32.dll", "GetClassInfoExA", hle_GetClassInfoExA},
                               {"user32.dll", "RegisterClassExW", hle_RegisterClassExW},

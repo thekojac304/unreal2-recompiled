@@ -1,3 +1,14 @@
+# GetFocus passes; bounded continuation stops at AdjustWindowRect
+
+2026-10-24, US Eastern. Fresh serial 279-object build and measured focus fixture
+pass. The one bounded client run returns GetFocus, completes all 279 observed
+selected-world lifecycle calls per stage, then stops at USER32!AdjustWindowRect
+in WinDrv.dll+0x3550. Init and world ticks remain incomplete; no D3D device.
+
+[Verified GetFocus checkpoint, identities, regressions and next boundary](GETFOCUS_BOUNDARY.md).
+
+---
+
 # DirectInput mouse creation works; execution held on compiler instability
 
 2026-10-23, US Eastern. Starting HEAD was clean at
