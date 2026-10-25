@@ -152,6 +152,25 @@ static void d8_GetAdapterDisplayMode(CPU*c) {
     xrt_event("d3d8_display_return","\"this\":%u,\"adapter\":%u,\"output\":%u,\"result\":%u,\"last_error\":%u,\"esp_before\":%u,\"esp_after\":%u,\"return\":%u,\"actual_return\":%u",
         o->guest,adapter,output,(uint32_t)hr,error,esp,c->r[ESP],ret,c->rv);
 }
+static void d8_CheckDepthStencilMatch(CPU*c) {
+    D8Object*o=d8_object(c,ARG(0));
+    UINT adapter=ARG(1),type=ARG(2),af=ARG(3),rt=ARG(4),ds=ARG(5);
+    UINT adapters=o->host->vt->GetAdapterCount(o->host);
+    uint32_t esp=c->r[ESP],ret=rd32(esp);HRESULT hr;
+    DWORD seed=xrt_get_last_error(c),error;
+    xrt_event("d3d8_depth_call","\"this\":%u,\"adapter\":%u,\"type\":%u,\"adapter_format\":%u,\"render_target_format\":%u,\"depth_stencil_format\":%u,\"adapter_count\":%u,\"valid_adapter\":%s,\"last_error_seed\":%u,\"esp\":%u,\"return\":%u",
+        o->guest,adapter,type,af,rt,ds,adapters,adapter<adapters?"true":"false",seed,esp,ret);
+    /* Both pinned native architectures safely reject invalid adapters here.
+     * Forward them to retain the actual HRESULT. DeviceType and AdapterFormat
+     * are not rejected by this backend query, including measured invalid enums.
+     * All five arguments are scalar UINTs; no guest/native pointer is marshalled. */
+    SetLastError(seed);
+    hr=o->host->vt->CheckDepthStencilMatch(o->host,adapter,type,af,rt,ds);error=GetLastError();
+    xrt_set_last_error(c,error);
+    d8_result(c,"CheckDepthStencilMatch",o,adapter,ds,hr);RET_STD(6,hr);
+    xrt_event("d3d8_depth_return","\"this\":%u,\"adapter\":%u,\"type\":%u,\"adapter_format\":%u,\"render_target_format\":%u,\"depth_stencil_format\":%u,\"result\":%u,\"last_error\":%u,\"esp_before\":%u,\"esp_after\":%u,\"return\":%u,\"actual_return\":%u",
+        o->guest,adapter,type,af,rt,ds,(uint32_t)hr,error,esp,c->r[ESP],ret,c->rv);
+}
 static void d8_GetAdapterIdentifier(CPU*c) {
     D8Object*o=d8_object(c,ARG(0));D8Identifier id;HRESULT hr;
     com_memory(c,ARG(3),D8_IDENTIFIER_BYTES,"Direct3D8 identifier");
@@ -180,7 +199,6 @@ static void d8_CheckDeviceFormat(CPU*c) {
 D8_UNSUPPORTED(RegisterSoftwareDevice)
 D8_UNSUPPORTED(CheckDeviceType)
 D8_UNSUPPORTED(CheckDeviceMultiSampleType)
-D8_UNSUPPORTED(CheckDepthStencilMatch)
 D8_UNSUPPORTED(GetAdapterMonitor)
 static void d8_CreateDevice(CPU*c) {
     D8Object*o=d8_object(c,ARG(0));uint32_t pp=ARG(5);

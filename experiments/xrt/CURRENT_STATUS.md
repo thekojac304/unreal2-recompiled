@@ -1,3 +1,16 @@
+# CheckDepthStencilMatch validated; one client stops at CreateDevice
+
+2026-10-25, US Eastern. Native x86/x64 and translated queries agree exactly across the
+53-case depth corpus. The genuine tuple (0,1,22,22,77) returns HRESULT 0x00000000,
+last-error 18, with a paired return to 0x0696ef15. CreateDevice reached:
+True; selected-world completed ticks: 0.
+Fresh serial build, D3D8/affected/compact/compiler/Python checks and integrity pass.
+No device or rendering implementation was added; earlier pending work and checkpoints survive.
+
+[Exact executable, client arguments, milestones and next experiment](D3D8_DEPTH_RENDERER.md).
+
+---
+
 # GetAdapterDisplayMode validated; one client stops at CheckDepthStencilMatch
 
 2026-10-24 phase, US Eastern. Both adapters return actual pinned DXVK display mode
