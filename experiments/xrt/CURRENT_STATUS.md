@@ -1,3 +1,17 @@
+# GetAdapterDisplayMode validated; one client stops at CheckDepthStencilMatch
+
+2026-10-24 phase, US Eastern. Both adapters return actual pinned DXVK display mode
+(2560,1440,240,22), identically across native x86/x64 and translated fixtures.
+The genuine call at D3DDrv.dll+0xec82 pairs its return to 0x0696ec85, HRESULT 0 and
+last-error 18. One client stops at CheckDepthStencilMatch, D3DDrv.dll+0xef12; no device or frame exists.
+Highest world milestone remains T2; OpenWindow/Init do not return; no engine/world tick.
+Fresh 279-object serial build, affected/compact/compiler/Python checks and integrity pass.
+Prior sources, pending work, executable checkpoints and the initial x86 enumeration finding remain.
+
+[Exact executable, comparison, client boundary, regressions and next experiment](D3D8_DISPLAY_RENDERER.md).
+
+---
+
 # EnumAdapterModes validated; one genuine client stops at GetAdapterDisplayMode
 
 2026-10-24, US Eastern. The typed bridge returns actual pinned DXVK modes. Two translated

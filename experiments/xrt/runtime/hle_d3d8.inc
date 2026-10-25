@@ -127,6 +127,31 @@ static void d8_EnumAdapterModes(CPU*c) {
     xrt_event("d3d8_enum_return","\"this\":%u,\"adapter\":%u,\"mode\":%u,\"output\":%u,\"result\":%u,\"last_error\":%u,\"esp_before\":%u,\"esp_after\":%u,\"return\":%u,\"actual_return\":%u",
         o->guest,adapter,index,output,(uint32_t)hr,error,esp,c->r[ESP],ret,c->rv);
 }
+static void d8_GetAdapterDisplayMode(CPU*c) {
+    D8Object*o=d8_object(c,ARG(0));UINT adapter=ARG(1),adapters;
+    uint32_t output=ARG(2),esp=c->r[ESP],ret=rd32(esp);
+    D8Mode mode;HRESULT hr;DWORD error;
+    /* Valid native adapters fault on NULL/nonwritable outputs. Keep those
+     * pointer cases explicit unsupported stops, rather than faulting the host. */
+    if(!output)xrt_fatal(c,XRT_EXIT_UNSUPPORTED,"IDirect3D8::GetAdapterDisplayMode: NULL output is unsupported (measured native write access violation)");
+    d8_mode_output(c,output);
+    adapters=o->host->vt->GetAdapterCount(o->host);
+    mode.width=rd32(output);mode.height=rd32(output+4);
+    mode.refresh=rd32(output+8);mode.format=rd32(output+12);
+    xrt_event("d3d8_display_call","\"this\":%u,\"adapter\":%u,\"output\":%u,\"adapter_count\":%u,\"valid_adapter\":%s,\"esp\":%u,\"return\":%u",
+        o->guest,adapter,output,adapters,adapter<adapters?"true":"false",esp,ret);
+    SetLastError(xrt_get_last_error(c));
+    /* Unlike GetAdapterModeCount, this method checks invalid adapters safely.
+     * Preserve its measured actual failure HRESULT and untouched local output. */
+    hr=o->host->vt->GetAdapterDisplayMode(o->host,adapter,&mode);error=GetLastError();
+    xrt_set_last_error(c,error);
+    wr32(output,mode.width);wr32(output+4,mode.height);
+    wr32(output+8,mode.refresh);wr32(output+12,mode.format);
+    d8_result(c,"GetAdapterDisplayMode",o,adapter,0,hr);d8_words("adapter_display_mode",&mode,4);
+    RET_STD(3,hr);
+    xrt_event("d3d8_display_return","\"this\":%u,\"adapter\":%u,\"output\":%u,\"result\":%u,\"last_error\":%u,\"esp_before\":%u,\"esp_after\":%u,\"return\":%u,\"actual_return\":%u",
+        o->guest,adapter,output,(uint32_t)hr,error,esp,c->r[ESP],ret,c->rv);
+}
 static void d8_GetAdapterIdentifier(CPU*c) {
     D8Object*o=d8_object(c,ARG(0));D8Identifier id;HRESULT hr;
     com_memory(c,ARG(3),D8_IDENTIFIER_BYTES,"Direct3D8 identifier");
@@ -153,7 +178,6 @@ static void d8_CheckDeviceFormat(CPU*c) {
     xrt_event("d3d8_unimplemented","\"method\": \"" #name "\", \"a1\": %u, \"a2\": %u, \"a3\": %u, \"a4\": %u, \"a5\": %u, \"a6\": %u",ARG(1),ARG(2),ARG(3),ARG(4),ARG(5),ARG(6)); \
     xrt_fatal(c,XRT_EXIT_UNSUPPORTED,"IDirect3D8::" #name " is unmeasured (interface %08x, caller %08x)",o->guest,rd32(c->r[ESP])); }
 D8_UNSUPPORTED(RegisterSoftwareDevice)
-D8_UNSUPPORTED(GetAdapterDisplayMode)
 D8_UNSUPPORTED(CheckDeviceType)
 D8_UNSUPPORTED(CheckDeviceMultiSampleType)
 D8_UNSUPPORTED(CheckDepthStencilMatch)
