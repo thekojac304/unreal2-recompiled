@@ -296,6 +296,31 @@ static void hle_GetFocus(CPU* c)
     xrt_event("gui_get_focus_return","\"esp_before\":%u,\"esp_after\":%u,\"return\":%u,\"actual_return\":%u,\"result\":%u,\"last_error\":%u",
         esp,c->r[ESP],caller,c->rv,result,xrt_get_last_error(c));
 }
+/* SetFocus returns USER32's previous HWND, including native reentrant activation
+ * behavior. Never derive it from the requested HWND or a cached focus value. */
+static void hle_SetFocus(CPU* c)
+{
+    uint32_t w=ARG(0),esp=c->r[ESP],caller=rd32(esp),result;
+    HWND hwnd=window_host(w),previous;CPU* suspended=callback_cpu;
+    DWORD owner=hwnd?GetWindowThreadProcessId(hwnd,NULL):0;
+    xrt_event("gui_set_focus_call","\"hwnd\":%u,\"esp\":%u,\"return\":%u,\"last_error\":%u",
+        w,esp,caller,xrt_get_last_error(c));
+    if(w && xrt_handle_type(w)!=XH_FREE && xrt_handle_type(w)!=XH_WINDOW)
+        xrt_fatal(c,XRT_EXIT_UNSUPPORTED,"SetFocus: wrong HWND token type %08x",w);
+    /* Attached input queues and cross-thread callback/baton transfer are outside
+     * this boundary. Native unattached attempts return NULL / error 5. */
+    if(owner && owner!=GetCurrentThreadId())
+        xrt_fatal(c,XRT_EXIT_UNSUPPORTED,"SetFocus: cross-thread window unsupported");
+    if(w && !hwnd) {
+        hwnd=(HWND)(intptr_t)-1;
+        if(IsWindow(hwnd))xrt_fatal(c,XRT_EXIT_SETUP,"SetFocus: invalid HWND sentinel unexpectedly valid");
+    }
+    callback_cpu=c;begin(c);previous=SetFocus(hwnd);end(c);callback_cpu=suspended;
+    result=window_token(previous);
+    RET_STD(1,result);
+    xrt_event("gui_set_focus_return","\"hwnd\":%u,\"result\":%u,\"last_error\":%u,\"esp_before\":%u,\"esp_after\":%u,\"return\":%u,\"actual_return\":%u",
+        w,result,xrt_get_last_error(c),esp,c->r[ESP],caller,c->rv);
+}
 static void pack_windowpos(uint32_t p, const WINDOWPOS *w)
 {
     wr32(p, window_token(w->hwnd));
@@ -773,6 +798,7 @@ const XrtHle xrt_hle_gui[] = {{"comctl32.dll", "#17", hle_InitCommonControls},
                               {"imm32.dll", "ImmAssociateContext", hle_ImmAssociateContext},
                               {"user32.dll", "AdjustWindowRect", hle_AdjustWindowRect},
                               {"user32.dll", "GetFocus", hle_GetFocus},
+                              {"user32.dll", "SetFocus", hle_SetFocus},
                               {"user32.dll", "GetClassInfoExW", hle_GetClassInfoExW},
                               {"user32.dll", "GetClassInfoExA", hle_GetClassInfoExA},
                               {"user32.dll", "RegisterClassExW", hle_RegisterClassExW},

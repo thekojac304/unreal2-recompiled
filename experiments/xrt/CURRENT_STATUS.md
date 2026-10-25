@@ -1,3 +1,17 @@
+# SetFocus validated; bounded continuation stopped
+
+2026-10-24, US Eastern. Real USER32 SetFocus uses typed guest HWND tokens.
+Native/translated fixture, fresh serial build and affected/full acceptance pass.
+The single authorized continuation stops at WM_GETICON (0x007f), ICON_SMALL2 (wParam=2), lParam=0.
+SetFocus calls/paired returns: 1/0;
+viewport CreateWindowEx completed: False; OpenWindow returned: False;
+engine Init returns: 0; selected-world tick returns: 0;
+D3D CreateDevice/Clear/Present: 0/0/0.
+
+[Exact checkpoint and next experiment](SETFOCUS_BOUNDARY.md).
+
+---
+
 # ImmAssociateContext validated; bounded continuation stopped
 
 2026-10-24, US Eastern. Real host IMM32 returns through typed HWND/HIMC tokens.
