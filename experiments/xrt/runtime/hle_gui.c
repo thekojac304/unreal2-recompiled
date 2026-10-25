@@ -17,6 +17,8 @@ static HINSTANCE class_module(CPU* c,uint32_t guest);
 static uint32_t class_owner(CPU* c,HINSTANCE host);
 static uint32_t copy_class_string(const void* p,int wide);
 static uint32_t known_font_token(HFONT host);
+static uint32_t borrowed_icon_token(CPU* c,HICON host);
+static HICON guest_icon(CPU* c,uint32_t token);
 static void forget_window_properties(HWND host);
 static HWND window_host(uint32_t h);
 static void begin(CPU *c)
@@ -321,6 +323,57 @@ static void hle_SetFocus(CPU* c)
     xrt_event("gui_set_focus_return","\"hwnd\":%u,\"result\":%u,\"last_error\":%u,\"esp_before\":%u,\"esp_after\":%u,\"return\":%u,\"actual_return\":%u",
         w,result,xrt_get_last_error(c),esp,c->r[ESP],caller,c->rv);
 }
+/* Optional output is exactly one DWORD, including unaligned/page-edge writes.
+ * A failed HWND query never probes or modifies that output, as measured natively. */
+static int writable_guest_id(uint32_t p) {
+    uint64_t at=p,limit=(uint64_t)p+4;
+    if(!p || limit>0x100000000ull)return 0;
+    while(at<limit) {
+        MEMORY_BASIC_INFORMATION mbi;DWORD access;uint64_t next;
+        if(!VirtualQuery(xrt_g+at,&mbi,sizeof mbi) || mbi.State!=MEM_COMMIT || (mbi.Protect&(PAGE_GUARD|PAGE_NOACCESS)))return 0;
+        access=mbi.Protect&0xffu;
+        if(access!=PAGE_READWRITE && access!=PAGE_WRITECOPY && access!=PAGE_EXECUTE_READWRITE && access!=PAGE_EXECUTE_WRITECOPY)return 0;
+        next=(uint64_t)((uint8_t*)mbi.BaseAddress-xrt_g)+mbi.RegionSize;if(next<=at)return 0;at=next;
+    }
+    return 1;
+}
+static void hle_GetWindowThreadProcessId(CPU* c) {
+    uint32_t w=ARG(0),p=ARG(1),esp=c->r[ESP],caller=rd32(esp);DWORD pid=0,tid;HWND h=window_host(w);
+    xrt_event("gui_window_ids_call","\"hwnd\":%u,\"output\":%u,\"esp\":%u,\"return\":%u,\"last_error\":%u",w,p,esp,caller,xrt_get_last_error(c));
+    if(w && xrt_handle_type(w)!=XH_FREE && xrt_handle_type(w)!=XH_WINDOW)
+        xrt_fatal(c,XRT_EXIT_UNSUPPORTED,"GetWindowThreadProcessId: wrong HWND token type %08x",w);
+    if(w && !h) {h=(HWND)(intptr_t)-1;if(IsWindow(h))xrt_fatal(c,XRT_EXIT_SETUP,"GetWindowThreadProcessId invalid HWND sentinel unexpectedly valid");}
+    begin(c);tid=GetWindowThreadProcessId(h,p?&pid:NULL);end(c);
+    if(tid && p) {
+        if(!writable_guest_id(p))xrt_fatal(c,XRT_EXIT_UNSUPPORTED,"GetWindowThreadProcessId: invalid four-byte output %08x; native output pointer fault path unsupported",p);
+        wr32(p,pid);
+    }
+    RET_STD(2,tid);
+    xrt_event("gui_window_ids_return","\"hwnd\":%u,\"output\":%u,\"result\":%u,\"pid\":%u,\"written\":%u,\"last_error\":%u,\"esp_before\":%u,\"esp_after\":%u,\"return\":%u,\"actual_return\":%u",w,p,tid,pid,tid&&p?1:0,xrt_get_last_error(c),esp,c->r[ESP],caller,c->rv);
+}
+static HWND map_points_window(CPU* c,uint32_t w) {
+    HWND h=window_host(w);
+    if(w && xrt_handle_type(w)!=XH_FREE && xrt_handle_type(w)!=XH_WINDOW)
+        xrt_fatal(c,XRT_EXIT_UNSUPPORTED,"MapWindowPoints: wrong HWND token type %08x",w);
+    if(w && !h) {h=(HWND)(intptr_t)-1;if(IsWindow(h))xrt_fatal(c,XRT_EXIT_SETUP,"MapWindowPoints invalid HWND sentinel unexpectedly valid");}
+    return h;
+}
+static void hle_MapWindowPoints(CPU* c) {
+    uint32_t a=ARG(0),b=ARG(1),p=ARG(2),n=ARG(3),esp=c->r[ESP],caller=rd32(esp),i;
+    POINT points[4];HWND from,to;int result;
+    xrt_event("gui_map_points_call","\"from\":%u,\"to\":%u,\"points\":%u,\"count\":%u,\"esp\":%u,\"return\":%u,\"last_error\":%u",a,b,p,n,esp,caller,xrt_get_last_error(c));
+    if(n<1 || n>4)xrt_fatal(c,XRT_EXIT_UNSUPPORTED,"MapWindowPoints: unmeasured point count %u",n);
+    from=map_points_window(c,a);to=map_points_window(c,b);
+    if(!p || (uint64_t)p+8*n>0x100000000ull)xrt_fatal(c,XRT_EXIT_UNSUPPORTED,"MapWindowPoints: invalid guest point array %08x",p);
+    for(i=0;i<2*n;i++)if(!writable_guest_id(p+4*i))xrt_fatal(c,XRT_EXIT_UNSUPPORTED,"MapWindowPoints: invalid guest point array %08x",p);
+    memcpy(points,G2H(p),8*n);
+    for(i=0;i<n;i++)xrt_event("gui_map_points_input","\"index\":%u,\"x\":%ld,\"y\":%ld",i,points[i].x,points[i].y);
+    begin(c);result=MapWindowPoints(from,to,points,n);end(c);
+    memcpy(G2H(p),points,8*n);
+    for(i=0;i<n;i++)xrt_event("gui_map_points_output","\"index\":%u,\"x\":%ld,\"y\":%ld",i,points[i].x,points[i].y);
+    RET_STD(4,(uint32_t)result);
+    xrt_event("gui_map_points_return","\"from\":%u,\"to\":%u,\"points\":%u,\"count\":%u,\"result\":%u,\"last_error\":%u,\"esp_before\":%u,\"esp_after\":%u,\"return\":%u,\"actual_return\":%u",a,b,p,n,(uint32_t)result,xrt_get_last_error(c),esp,c->r[ESP],caller,c->rv);
+}
 static void pack_windowpos(uint32_t p, const WINDOWPOS *w)
 {
     wr32(p, window_token(w->hwnd));
@@ -387,6 +440,10 @@ static INT_PTR invoke_gui_proc(HWND h, UINT msg, WPARAM wp, LPARAM lp, uint32_t 
     nested.r[ESP] = scratch;
     switch (msg)
     {
+    case WM_GETICON:
+        if(wp>ICON_SMALL2 || lp)
+            xrt_fatal(&nested,XRT_EXIT_UNSUPPORTED,"WM_GETICON: unmeasured selector/DPI %llu/%lld",(unsigned long long)wp,(long long)lp);
+        break;
     case WM_SETTEXT:
         args[3]=copy_class_string((void*)lp,IsWindowUnicode(h));
         break;
@@ -549,6 +606,12 @@ static INT_PTR invoke_gui_proc(HWND h, UINT msg, WPARAM wp, LPARAM lp, uint32_t 
             xrt_fatal(&nested, XRT_EXIT_UNSUPPORTED, "WM_GETFONT returned unknown guest font");
         result = (INT_PTR)font;
     }
+    if(msg==WM_GETICON) {
+        uint32_t token=(uint32_t)result;
+        result=(INT_PTR)guest_icon(&nested,token);
+        xrt_event("gui_get_icon_callback_return","\"hwnd\":%u,\"selector\":%u,\"dpi\":%u,\"icon\":%u,\"last_error\":%u",
+            args[0],args[2],args[3],token,xrt_get_last_error(&nested));
+    }
     if (msg == WM_ERASEBKGND || msg == WM_CTLCOLORSTATIC || msg == WM_CTLCOLORDLG || msg == WM_CTLCOLOREDIT ||
         msg == WM_CTLCOLORBTN)
     {
@@ -703,6 +766,15 @@ static void send_message(CPU *c, int wide)
     LPARAM lp;
     WPARAM wp = ARG(2);
     CPU *prev = callback_cpu;
+    if(msg==WM_GETICON) {
+        uint32_t token;
+        if(wp>ICON_SMALL2 || ARG(3))
+            xrt_fatal(c,XRT_EXIT_UNSUPPORTED,"WM_GETICON: unmeasured selector/DPI %u/%u",(unsigned)wp,ARG(3));
+        callback_cpu=c;begin(c);
+        result=wide?SendMessageW(window_host(ARG(0)),msg,wp,0):SendMessageA(window_host(ARG(0)),msg,wp,0);
+        end(c);callback_cpu=prev;token=borrowed_icon_token(c,(HICON)result);
+        RET_STD(4,token);return;
+    }
     if(msg==WM_SETTEXT || msg==WM_GETTEXTLENGTH) {
         if(msg==WM_SETTEXT && ARG(3) && ARG(3)<0x10000)
             xrt_fatal(c,XRT_EXIT_UNSUPPORTED,"WM_SETTEXT invalid guest string");
@@ -799,6 +871,8 @@ const XrtHle xrt_hle_gui[] = {{"comctl32.dll", "#17", hle_InitCommonControls},
                               {"user32.dll", "AdjustWindowRect", hle_AdjustWindowRect},
                               {"user32.dll", "GetFocus", hle_GetFocus},
                               {"user32.dll", "SetFocus", hle_SetFocus},
+                              {"user32.dll", "GetWindowThreadProcessId", hle_GetWindowThreadProcessId},
+                              {"user32.dll", "MapWindowPoints", hle_MapWindowPoints},
                               {"user32.dll", "GetClassInfoExW", hle_GetClassInfoExW},
                               {"user32.dll", "GetClassInfoExA", hle_GetClassInfoExA},
                               {"user32.dll", "RegisterClassExW", hle_RegisterClassExW},
@@ -811,6 +885,7 @@ const XrtHle xrt_hle_gui[] = {{"comctl32.dll", "#17", hle_InitCommonControls},
                               {"user32.dll", "LoadIconA", hle_LoadIconA},
                               {"user32.dll", "LoadCursorW", hle_LoadCursorW},
                               {"user32.dll", "LoadCursorA", hle_LoadCursorA},
+                              {"user32.dll", "SetCursor", hle_SetCursor},
                               {"gdi32.dll", "CreateSolidBrush", hle_CreateSolidBrush},
                               {"gdi32.dll", "CreateBitmap", hle_CreateBitmap},
                               {"gdi32.dll", "CreatePatternBrush", hle_CreatePatternBrush},

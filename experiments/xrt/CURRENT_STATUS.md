@@ -1,3 +1,17 @@
+# Viewport boundaries validated; three-boundary execution limit reached
+
+2026-10-24, US Eastern. WM_GETICON plus SetCursor, GetWindowThreadProcessId and
+MapWindowPoints pass native/translated fixtures and final regressions. Three genuine
+client continuations stop successively at the latter three APIs. The final map adapter
+has not run in a fourth client: the authorized additional-boundary limit is reached.
+SetFocus, viewport CreateWindowEx, OpenWindow and Engine Init have no paired return.
+Highest verified world milestone remains T2 (279 paired lifecycle returns/stage, 278 actors).
+No selected-world tick or D3D CreateDevice/Clear/Present. Protected inputs and prior work are preserved.
+
+[Exact checkpoint, identities, limits and next experiment](GETICON_VIEWPORT.md).
+
+---
+
 # SetFocus validated; bounded continuation stopped
 
 2026-10-24, US Eastern. Real USER32 SetFocus uses typed guest HWND tokens.

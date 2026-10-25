@@ -96,6 +96,15 @@ void xrt_event(const char* kind, const char* fmt, ...) {
         snprintf(events[seq - 1], EVENT_LEN, "{\"seq\": %lld, \"thread\": %d, \"kind\": \"%s\", \"truncated\": true}", seq,
                  thread, kind);
     }
+    /* Owner-requested continuation bound. The observer emits this event only at
+     * a paired return. Stop before another guest instruction; the report checks
+     * selected-world identity independently. Disabled outside bounded clients. */
+    if(!strcmp(kind,"level_tick_return")) {
+        char bound[2];
+        if(GetEnvironmentVariableA("XRT_STOP_FIRST_LEVEL_TICK",bound,sizeof bound)==1 && bound[0]=='1')
+            xrt_fatal(xrt_cur ? &xrt_cur->cpu : NULL,XRT_EXIT_UNSUPPORTED,"bounded checkpoint: first level Tick returned");
+    }
+
 }
 
 /* Kept in the timeline: the first XRT_MARK_KEEP occurrences, and the first occurrence for each distinct value at

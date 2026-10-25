@@ -1,0 +1,959 @@
+{
+  "date": "2026-10-24 US Eastern",
+  "starting_head": "ebdecc4398ca36ebdb89314f793defd490d7a961",
+  "disposition": "Stopped at three additional boundaries. Final MapWindowPoints adapter has not run in a genuine client.",
+  "additional_boundaries": 3,
+  "client_continuations": 3,
+  "native_game_continuations": 0,
+  "runs": [
+    {
+      "label": "geticon-passed",
+      "run": "E:\\Unreal2-Port-Investigation\\experiments\\xrt\\results\\raw\\level\\20261025-010547-d64081e4-candidate",
+      "binary_sha256": "16831d0bd1cb45f95fbab96b6a12458297bd6c1cf5a7de9d130a60b3b7ed6e67",
+      "events_recorded": 74418,
+      "events_dropped": 0,
+      "first_fatal": {
+        "seq": 74407,
+        "thread": 0,
+        "kind": "fatal",
+        "code": 75,
+        "message": "call to import user32.dll!SetCursor, which has no host implementation (from 11103965 (WinDrv.dll+3965, in f_11103910+55 ?SetModeCursor@UWindowsViewport@@UAEXXZ))"
+      },
+      "setfocus": {
+        "calls": [
+          {
+            "seq": 74368,
+            "thread": 0,
+            "kind": "gui_set_focus_call",
+            "hwnd": 4716,
+            "esp": 18926444,
+            "return": 286285179,
+            "last_error": 0
+          }
+        ],
+        "returns": [],
+        "pairs": []
+      },
+      "world": {
+        "calls": {
+          "PreBeginPlay": 279,
+          "BeginPlay": 279,
+          "PostBeginPlay": 279
+        },
+        "paired_returns": {
+          "PreBeginPlay": 279,
+          "BeginPlay": 279,
+          "PostBeginPlay": 279
+        },
+        "distinct_actors": 278,
+        "unpaired": []
+      },
+      "engine_init": {
+        "entries": 1,
+        "pairs": []
+      },
+      "engine_tick_entries": 0,
+      "completed_engine_ticks": [],
+      "completed_selected_world_ticks": []
+    },
+    {
+      "label": "setcursor-passed",
+      "run": "E:\\Unreal2-Port-Investigation\\experiments\\xrt\\results\\raw\\level\\20261025-011320-c1a38ec7-candidate",
+      "binary_sha256": "beefef48a22ee32f85012d88f626abb56387f1f2cc7d225bdb38f97f3e364107",
+      "events_recorded": 74423,
+      "events_dropped": 0,
+      "first_fatal": {
+        "seq": 74412,
+        "thread": 0,
+        "kind": "fatal",
+        "code": 75,
+        "message": "call to import user32.dll!GetWindowThreadProcessId, which has no host implementation (from 1110607e (WinDrv.dll+607e, in f_1110605b+23))"
+      },
+      "setfocus": {
+        "calls": [
+          {
+            "seq": 74368,
+            "thread": 0,
+            "kind": "gui_set_focus_call",
+            "hwnd": 4716,
+            "esp": 18926444,
+            "return": 286285179,
+            "last_error": 0
+          }
+        ],
+        "returns": [],
+        "pairs": []
+      },
+      "world": {
+        "calls": {
+          "PreBeginPlay": 279,
+          "BeginPlay": 279,
+          "PostBeginPlay": 279
+        },
+        "paired_returns": {
+          "PreBeginPlay": 279,
+          "BeginPlay": 279,
+          "PostBeginPlay": 279
+        },
+        "distinct_actors": 278,
+        "unpaired": []
+      },
+      "engine_init": {
+        "entries": 1,
+        "pairs": []
+      },
+      "engine_tick_entries": 0,
+      "completed_engine_ticks": [],
+      "completed_selected_world_ticks": []
+    },
+    {
+      "label": "windowids-passed",
+      "run": "E:\\Unreal2-Port-Investigation\\experiments\\xrt\\results\\raw\\level\\20261025-011903-024edf63-candidate",
+      "binary_sha256": "be3d417caf417b81634b265ad54d4b92155057eeab19073b737e8de916a2fd16",
+      "events_recorded": 74425,
+      "events_dropped": 0,
+      "first_fatal": {
+        "seq": 74414,
+        "thread": 0,
+        "kind": "fatal",
+        "code": 75,
+        "message": "call to import user32.dll!MapWindowPoints, which has no host implementation (from 1110405d (WinDrv.dll+405d, in f_11103fd0+8d ?SetMouseCapture@UWindowsViewport@@UAEXHHH@Z))"
+      },
+      "setfocus": {
+        "calls": [
+          {
+            "seq": 74368,
+            "thread": 0,
+            "kind": "gui_set_focus_call",
+            "hwnd": 4716,
+            "esp": 18926444,
+            "return": 286285179,
+            "last_error": 0
+          }
+        ],
+        "returns": [],
+        "pairs": []
+      },
+      "world": {
+        "calls": {
+          "PreBeginPlay": 279,
+          "BeginPlay": 279,
+          "PostBeginPlay": 279
+        },
+        "paired_returns": {
+          "PreBeginPlay": 279,
+          "BeginPlay": 279,
+          "PostBeginPlay": 279
+        },
+        "distinct_actors": 278,
+        "unpaired": []
+      },
+      "engine_init": {
+        "entries": 1,
+        "pairs": []
+      },
+      "engine_tick_entries": 0,
+      "completed_engine_ticks": [],
+      "completed_selected_world_ticks": []
+    }
+  ],
+  "final_binary": {
+    "path": "E:\\Unreal2-Port-Investigation\\experiments\\xrt\\build\\mappoints-20261024-01\\xrt_ucc.exe",
+    "sha256": "22158edc85c5bcfcdeffc6aafc80ff63a4a79555bde0d8abc158a4cbea0aa7c2",
+    "client_executed": false
+  },
+  "last_client_binary": {
+    "path": "E:\\Unreal2-Port-Investigation\\experiments\\xrt\\build\\windowids-20261024-01\\xrt_ucc.exe",
+    "sha256": "be3d417caf417b81634b265ad54d4b92155057eeab19073b737e8de916a2fd16"
+  },
+  "binaries": {
+    "geticon-20261024-01": {
+      "xrt_ucc.exe": "7a8aa468f8a30df90b3df777bd6e474526ac5b3c79be63edb97bd7f91207d16d",
+      "xrt_ucc.pdb": "9d08e573cfdd891a6a252a1bf9b322690f99e125e8c666ed6c8c0964a18638c9"
+    },
+    "geticon-20261024-02": {
+      "xrt_ucc.exe": "16831d0bd1cb45f95fbab96b6a12458297bd6c1cf5a7de9d130a60b3b7ed6e67",
+      "xrt_ucc.pdb": "18bd0fc98a0b7f2f7648c0f789e15d2a78dac2564b5595bf1a5a77c5fa47a86e"
+    },
+    "setcursor-20261024-01": {
+      "xrt_ucc.exe": "68c81dbd49fa1929028af549933424e75e5bc353ea2183df416cc43984d4641f",
+      "xrt_ucc.pdb": "548cd697c0ca981a686f485e5618d072b15571369500b905958f1e92dfc63b8c"
+    },
+    "setcursor-20261024-02": {
+      "xrt_ucc.exe": "beefef48a22ee32f85012d88f626abb56387f1f2cc7d225bdb38f97f3e364107",
+      "xrt_ucc.pdb": "ed391c91ee04ba8609a4ce7d9699b198068b6e932df2e769bda08f579f0a72ab"
+    },
+    "windowids-20261024-01": {
+      "xrt_ucc.exe": "be3d417caf417b81634b265ad54d4b92155057eeab19073b737e8de916a2fd16",
+      "xrt_ucc.pdb": "63eb6cb7b68ca47c39bbe0e2e0d3c884a344342d6348260e9fbcd3485b2fcfec"
+    },
+    "mappoints-20261024-01": {
+      "xrt_ucc.exe": "22158edc85c5bcfcdeffc6aafc80ff63a4a79555bde0d8abc158a4cbea0aa7c2",
+      "xrt_ucc.pdb": "a7dc176d8957aa0dceeb6506d99317dac77b0a9003c901e867b2200409f8ec0c"
+    }
+  },
+  "runtime": {
+    "path": "experiments/xrt/runtime",
+    "files": 27,
+    "sha256": "5ccc65cadcd0aef3e4788065e0f9952bf1bdadeb2f6cd8d048b4ee0c0562fda5"
+  },
+  "generated": {
+    "path": "experiments/xrt/gen",
+    "files": 299,
+    "sha256": "93046d39786d3f4be894370e86a5fed0a26fbc3001e18ae36c12d15686336062"
+  },
+  "viewport": {
+    "setfocus_calls": 1,
+    "setfocus_paired_returns": 0,
+    "viewport_hwnd": 4716,
+    "viewport_create_returned": false,
+    "viewport_create_returns": [],
+    "viewport_open_paired_returns": 0,
+    "engine_init_paired_returns": 0,
+    "engine_tick_entries": 0,
+    "engine_tick_paired_returns": 0,
+    "selected_world_tick_paired_returns": 0
+  },
+  "highest_world_milestone": "T2",
+  "selected_world": 318056448,
+  "all_selected_lifecycle": {
+    "calls": {
+      "PreBeginPlay": 279,
+      "BeginPlay": 279,
+      "PostBeginPlay": 279
+    },
+    "paired_returns": {
+      "PreBeginPlay": 279,
+      "BeginPlay": 279,
+      "PostBeginPlay": 279
+    },
+    "distinct_actors": 278,
+    "unpaired": []
+  },
+  "d3d": {
+    "CreateDevice_calls": 0,
+    "real_game_devices": 0,
+    "Clear": 0,
+    "Present": 0
+  },
+  "last_genuine_boundary": {
+    "api": "USER32!MapWindowPoints",
+    "callsite": "WinDrv.dll+0x405d",
+    "address": "0x1110405d",
+    "hwnd_from": 4716,
+    "hwnd_to": 0,
+    "points_pointer": 18925244,
+    "count": 2,
+    "input_points": [
+      [
+        0,
+        0
+      ],
+      [
+        1540,
+        945
+      ]
+    ],
+    "raw_stack": [
+      {
+        "seq": 74397,
+        "thread": 0,
+        "kind": "unbound_import_stack",
+        "site": 286277725,
+        "esp": 18925212,
+        "word": 0,
+        "value": 286277731
+      },
+      {
+        "seq": 74398,
+        "thread": 0,
+        "kind": "unbound_import_stack",
+        "site": 286277725,
+        "esp": 18925212,
+        "word": 1,
+        "value": 4716
+      },
+      {
+        "seq": 74399,
+        "thread": 0,
+        "kind": "unbound_import_stack",
+        "site": 286277725,
+        "esp": 18925212,
+        "word": 2,
+        "value": 0
+      },
+      {
+        "seq": 74400,
+        "thread": 0,
+        "kind": "unbound_import_stack",
+        "site": 286277725,
+        "esp": 18925212,
+        "word": 3,
+        "value": 18925244
+      },
+      {
+        "seq": 74401,
+        "thread": 0,
+        "kind": "unbound_import_stack",
+        "site": 286277725,
+        "esp": 18925212,
+        "word": 4,
+        "value": 2
+      },
+      {
+        "seq": 74402,
+        "thread": 0,
+        "kind": "unbound_import_stack",
+        "site": 286277725,
+        "esp": 18925212,
+        "word": 5,
+        "value": 303730944
+      },
+      {
+        "seq": 74403,
+        "thread": 0,
+        "kind": "unbound_import_stack",
+        "site": 286277725,
+        "esp": 18925212,
+        "word": 6,
+        "value": 4716
+      },
+      {
+        "seq": 74404,
+        "thread": 0,
+        "kind": "unbound_import_stack",
+        "site": 286277725,
+        "esp": 18925212,
+        "word": 7,
+        "value": 0
+      },
+      {
+        "seq": 74405,
+        "thread": 0,
+        "kind": "unbound_import_stack",
+        "site": 286277725,
+        "esp": 18925212,
+        "word": 8,
+        "value": 0
+      },
+      {
+        "seq": 74406,
+        "thread": 0,
+        "kind": "unbound_import_stack",
+        "site": 286277725,
+        "esp": 18925212,
+        "word": 9,
+        "value": 0
+      },
+      {
+        "seq": 74407,
+        "thread": 0,
+        "kind": "unbound_import_stack",
+        "site": 286277725,
+        "esp": 18925212,
+        "word": 10,
+        "value": 1540
+      },
+      {
+        "seq": 74408,
+        "thread": 0,
+        "kind": "unbound_import_stack",
+        "site": 286277725,
+        "esp": 18925212,
+        "word": 11,
+        "value": 945
+      },
+      {
+        "seq": 74409,
+        "thread": 0,
+        "kind": "unbound_import_stack",
+        "site": 286277725,
+        "esp": 18925212,
+        "word": 12,
+        "value": 18925224
+      },
+      {
+        "seq": 74410,
+        "thread": 0,
+        "kind": "unbound_import_stack",
+        "site": 286277725,
+        "esp": 18925212,
+        "word": 13,
+        "value": 18925352
+      },
+      {
+        "seq": 74411,
+        "thread": 0,
+        "kind": "unbound_import_stack",
+        "site": 286277725,
+        "esp": 18925212,
+        "word": 14,
+        "value": 277955440
+      },
+      {
+        "seq": 74412,
+        "thread": 0,
+        "kind": "unbound_import_stack",
+        "site": 286277725,
+        "esp": 18925212,
+        "word": 15,
+        "value": 4294967295
+      },
+      {
+        "seq": 74413,
+        "thread": 0,
+        "kind": "unbound_import_stack",
+        "site": 286277725,
+        "esp": 18925212,
+        "word": 16,
+        "value": 18925364
+      }
+    ],
+    "source_sha256": "df1459bfed2e8a1e006d453d72b804417979783e76387018ba322e0d9a324663"
+  },
+  "next_blocker": "Not observed beyond MapWindowPoints; first remaining validation is a bounded client run of the final adapter.",
+  "fixtures": {
+    "WM_GETICON": {
+      "passed": true,
+      "samples": 1156,
+      "callback_records": 4048,
+      "explicit_unsupported": 3,
+      "result_path": "E:\\Unreal2-Port-Investigation\\sandbox_mappoints_20261024_01\\experiments\\xrt\\build\\geticon_boundary_02\\results.json",
+      "result_sha256": "bc1a27d713199d93e4df7687bc84e807c652344f547ea294fa26fdf61753db1c",
+      "outputs": {
+        "geticonprobe.dll": "d9fa02263ad8af3c112b5341738b8518a0202b570b7b5f3ce25f89eb2df80a02",
+        "native.exe": "39087073c9e591dc4bf6a57b1fee26bfccef7f19c00376d024548596cad106cc",
+        "translated.exe": "d891e8e9fe54815530be12f78500e3e8e8585d9b52ed8e88c9af757408f1efa3"
+      },
+      "runs": [
+        {
+          "mode": "positive",
+          "class_icons": 0,
+          "passed": true,
+          "events_recorded": 907,
+          "events_dropped": 0
+        },
+        {
+          "mode": "positive",
+          "class_icons": 1,
+          "passed": true,
+          "events_recorded": 907,
+          "events_dropped": 0
+        },
+        {
+          "mode": "positive",
+          "class_icons": 2,
+          "passed": true,
+          "events_recorded": 907,
+          "events_dropped": 0
+        },
+        {
+          "mode": "positive",
+          "class_icons": 3,
+          "passed": true,
+          "events_recorded": 907,
+          "events_dropped": 0
+        },
+        {
+          "mode": "wrong-type",
+          "class_icons": 0,
+          "passed": true,
+          "events_recorded": 13,
+          "events_dropped": 0
+        },
+        {
+          "mode": "selector",
+          "class_icons": 0,
+          "passed": true,
+          "events_recorded": 12,
+          "events_dropped": 0
+        },
+        {
+          "mode": "dpi",
+          "class_icons": 0,
+          "passed": true,
+          "events_recorded": 12,
+          "events_dropped": 0
+        }
+      ]
+    },
+    "SetCursor": {
+      "passed": true,
+      "paired_calls": 38,
+      "explicit_unsupported": 2,
+      "result_path": "E:\\Unreal2-Port-Investigation\\sandbox_mappoints_20261024_01\\experiments\\xrt\\build\\setcursor_boundary\\results.json",
+      "result_sha256": "53b3278b061ed7f957427911cb60bbca60a3424d9df2bb5a81b0a77e541018c6",
+      "outputs": {
+        "cursorprobe.dll": "e15bb02cf18de42ceafe6bd2f1a97b19902551559096be84f5b9815c756636b8",
+        "native.exe": "013483f0fadaca1e5d8916c160f4f5172479752222c0381c69ca99d19a1476a9",
+        "translated.exe": "f13f7fcad6ec180aec539a284537479120781f5815b044cde0016deaf794cfd4"
+      },
+      "runs": [
+        {
+          "mode": "positive",
+          "passed": true,
+          "events_recorded": 81,
+          "events_dropped": 0
+        },
+        {
+          "mode": "wrong-type",
+          "passed": true,
+          "events_recorded": 7,
+          "events_dropped": 0
+        },
+        {
+          "mode": "invalid",
+          "passed": true,
+          "events_recorded": 7,
+          "events_dropped": 0
+        }
+      ]
+    },
+    "GetWindowThreadProcessId": {
+      "passed": true,
+      "paired_calls": 34,
+      "explicit_unsupported": 2,
+      "result_path": "E:\\Unreal2-Port-Investigation\\sandbox_mappoints_20261024_01\\experiments\\xrt\\build\\window_ids_boundary\\results.json",
+      "result_sha256": "459a86db6fb4bfe4d8f17bdded9e110e5ef27ec2cf56caf5ecbc1974f087a4d4",
+      "outputs": {
+        "idprobe.dll": "2cbdf3ac54d72bb70e1bfaa52af3733f42e6f58a217e5daf07bfc7b352cde272",
+        "native.exe": "a9620aa710021f5380b293be658010d36c35d4d73b7de9b384191f7878cb661b",
+        "translated.exe": "26f8ee4fc6194c56a614c789202251b0c7b2a8d9ca8806703d2238193f4d5d0a"
+      },
+      "runs": [
+        {
+          "mode": "positive",
+          "passed": true,
+          "events_recorded": 74,
+          "events_dropped": 0
+        },
+        {
+          "mode": "wrong-type",
+          "passed": true,
+          "events_recorded": 5,
+          "events_dropped": 0
+        },
+        {
+          "mode": "bad-output",
+          "passed": true,
+          "events_recorded": 5,
+          "events_dropped": 0
+        }
+      ]
+    },
+    "MapWindowPoints": {
+      "passed": true,
+      "paired_calls": 627,
+      "explicit_unsupported": 3,
+      "result_path": "E:\\Unreal2-Port-Investigation\\sandbox_mappoints_20261024_01\\experiments\\xrt\\build\\mapwindowpoints_boundary_02\\results.json",
+      "result_sha256": "117b391d66a9036cbc8fa97f342c86376e01b48a1e35b28f07b3547696ef68c3",
+      "outputs": {
+        "mapprobe.dll": "b899d62920d6fee4965926d96e964eb5ecd714869010edaaeaadc7069398d313",
+        "native.exe": "ab40fab723f7f50e363836bee8859aae81a4277d298d39c77f8fedeb4baff6b2",
+        "translated.exe": "b2d0846c011cd4df78b57258c3a660800a9f13b5a57f70a0b0faa273ce534a11"
+      },
+      "runs": [
+        {
+          "mode": "positive",
+          "passed": true,
+          "events_recorded": 4362,
+          "events_dropped": 0
+        },
+        {
+          "mode": "wrong-type",
+          "passed": true,
+          "events_recorded": 2,
+          "events_dropped": 0
+        },
+        {
+          "mode": "count-zero",
+          "passed": true,
+          "events_recorded": 2,
+          "events_dropped": 0
+        },
+        {
+          "mode": "bad-points",
+          "passed": true,
+          "events_recorded": 2,
+          "events_dropped": 0
+        }
+      ]
+    }
+  },
+  "regressions": {
+    "affected": {
+      "phase": "affected",
+      "passed": true,
+      "runs": [
+        {
+          "name": "mapwindowpoints_boundary",
+          "command": [
+            "E:\\Unreal2-Port-Investigation\\sandbox_mappoints_20261024_01\\.venv\\Scripts\\python.exe",
+            "-I",
+            "experiments/xrt/tests/mapwindowpoints_boundary/compare.py"
+          ],
+          "cwd": "E:\\Unreal2-Port-Investigation\\sandbox_mappoints_20261024_01",
+          "exit": 0,
+          "seconds": 0.16699870000593364,
+          "log": "E:\\Unreal2-Port-Investigation\\out\\recovery\\geticon-20261024-01\\regression-mapwindowpoints_boundary.log",
+          "log_sha256": "5221cbb892868ab9c31eb5ff6e3de11342dc5f72ed8a29a846028cab50e0d390",
+          "warnings": [],
+          "passed": true
+        },
+        {
+          "name": "window_ids_boundary",
+          "command": [
+            "E:\\Unreal2-Port-Investigation\\sandbox_mappoints_20261024_01\\.venv\\Scripts\\python.exe",
+            "-I",
+            "experiments/xrt/tests/window_ids_boundary/compare.py"
+          ],
+          "cwd": "E:\\Unreal2-Port-Investigation\\sandbox_mappoints_20261024_01",
+          "exit": 0,
+          "seconds": 0.12396529999386985,
+          "log": "E:\\Unreal2-Port-Investigation\\out\\recovery\\geticon-20261024-01\\regression-window_ids_boundary.log",
+          "log_sha256": "2d6c56ab0da321032c3b246aaf29efecd007df8dbffc20da9f041c48924466b5",
+          "warnings": [],
+          "passed": true
+        },
+        {
+          "name": "setcursor_boundary",
+          "command": [
+            "E:\\Unreal2-Port-Investigation\\sandbox_mappoints_20261024_01\\.venv\\Scripts\\python.exe",
+            "-I",
+            "experiments/xrt/tests/setcursor_boundary/compare.py"
+          ],
+          "cwd": "E:\\Unreal2-Port-Investigation\\sandbox_mappoints_20261024_01",
+          "exit": 0,
+          "seconds": 0.15890350000699982,
+          "log": "E:\\Unreal2-Port-Investigation\\out\\recovery\\geticon-20261024-01\\regression-setcursor_boundary.log",
+          "log_sha256": "a34724834fcdba7d12e8fbb5221a4e61b63c378a26b56ad2fcc8bad6f02eb563",
+          "warnings": [],
+          "passed": true
+        },
+        {
+          "name": "geticon_boundary_02",
+          "command": [
+            "E:\\Unreal2-Port-Investigation\\sandbox_mappoints_20261024_01\\.venv\\Scripts\\python.exe",
+            "-I",
+            "experiments/xrt/tests/geticon_boundary/compare.py"
+          ],
+          "cwd": "E:\\Unreal2-Port-Investigation\\sandbox_mappoints_20261024_01",
+          "exit": 0,
+          "seconds": 0.308483900007559,
+          "log": "E:\\Unreal2-Port-Investigation\\out\\recovery\\geticon-20261024-01\\regression-geticon_boundary_02.log",
+          "log_sha256": "56045e527468c0d3567d5274725ce84eea7afbda4ea3ede71386137b5d887605",
+          "warnings": [],
+          "passed": true
+        },
+        {
+          "name": "setfocus_boundary",
+          "command": [
+            "cmd.exe",
+            "/d",
+            "/c",
+            "experiments\\xrt\\tests\\setfocus_boundary\\build.cmd"
+          ],
+          "cwd": "E:\\Unreal2-Port-Investigation\\sandbox_mappoints_20261024_01",
+          "exit": 0,
+          "seconds": 3.625647199995001,
+          "log": "E:\\Unreal2-Port-Investigation\\out\\recovery\\geticon-20261024-01\\regression-setfocus_boundary.log",
+          "log_sha256": "a4b199b597b639876527850b185321751500d7ef4c93ea4be96b813f5f4eb6e2",
+          "warnings": [],
+          "passed": true
+        },
+        {
+          "name": "immassociatecontext_boundary",
+          "command": [
+            "cmd.exe",
+            "/d",
+            "/c",
+            "experiments\\xrt\\tests\\immassociatecontext_boundary\\build.cmd"
+          ],
+          "cwd": "E:\\Unreal2-Port-Investigation\\sandbox_mappoints_20261024_01",
+          "exit": 0,
+          "seconds": 3.5854660000040894,
+          "log": "E:\\Unreal2-Port-Investigation\\out\\recovery\\geticon-20261024-01\\regression-immassociatecontext_boundary.log",
+          "log_sha256": "492253204bc3585ac9eb608b901bcd9c6bf4d0898437783ead3267115677253c",
+          "warnings": [],
+          "passed": true
+        },
+        {
+          "name": "adjustwindowrect_boundary",
+          "command": [
+            "cmd.exe",
+            "/d",
+            "/c",
+            "experiments\\xrt\\tests\\adjustwindowrect_boundary\\build.cmd"
+          ],
+          "cwd": "E:\\Unreal2-Port-Investigation\\sandbox_mappoints_20261024_01",
+          "exit": 0,
+          "seconds": 3.6456627999868942,
+          "log": "E:\\Unreal2-Port-Investigation\\out\\recovery\\geticon-20261024-01\\regression-adjustwindowrect_boundary.log",
+          "log_sha256": "2bebb6d61627f45d911248f008ffe6973db92163ed13ea0b1b09ee3aae0a12d2",
+          "warnings": [],
+          "passed": true
+        },
+        {
+          "name": "gui_boundary",
+          "command": [
+            "cmd.exe",
+            "/d",
+            "/c",
+            "experiments\\xrt\\tests\\gui_boundary\\build.cmd"
+          ],
+          "cwd": "E:\\Unreal2-Port-Investigation\\sandbox_mappoints_20261024_01",
+          "exit": 0,
+          "seconds": 3.7365158000029624,
+          "log": "E:\\Unreal2-Port-Investigation\\out\\recovery\\geticon-20261024-01\\regression-gui_boundary.log",
+          "log_sha256": "f71e27435d064baa0bb010f493fef88a0798af3f4971971e1cc966592b3b12ca",
+          "warnings": [],
+          "passed": true
+        },
+        {
+          "name": "class_boundary",
+          "command": [
+            "cmd.exe",
+            "/d",
+            "/c",
+            "experiments\\xrt\\tests\\class_boundary\\build.cmd"
+          ],
+          "cwd": "E:\\Unreal2-Port-Investigation\\sandbox_mappoints_20261024_01",
+          "exit": 0,
+          "seconds": 6.857177600002615,
+          "log": "E:\\Unreal2-Port-Investigation\\out\\recovery\\geticon-20261024-01\\regression-class_boundary.log",
+          "log_sha256": "e15ef0f19de96a9652d225cc4f6805860e73b6432b9bc20c66b9516771dbb764",
+          "warnings": [
+            "experiments\\xrt\\tests\\class_boundary\\classprobe.c(150): warning C4133: 'function': incompatible types - from 'LPTSTR' to 'LPCWSTR'"
+          ],
+          "passed": true
+        },
+        {
+          "name": "module_boundary",
+          "command": [
+            "cmd.exe",
+            "/d",
+            "/c",
+            "experiments\\xrt\\tests\\module_boundary\\build.cmd"
+          ],
+          "cwd": "E:\\Unreal2-Port-Investigation\\sandbox_mappoints_20261024_01",
+          "exit": 0,
+          "seconds": 4.001933599996846,
+          "log": "E:\\Unreal2-Port-Investigation\\out\\recovery\\geticon-20261024-01\\regression-module_boundary.log",
+          "log_sha256": "bfe7dae7e6aabd4ffa9e2d7ba5d56300cb71caedc3f8590ac3c15ec47075ff77",
+          "warnings": [],
+          "passed": true
+        },
+        {
+          "name": "focus_boundary",
+          "command": [
+            "cmd.exe",
+            "/d",
+            "/c",
+            "experiments\\xrt\\tests\\focus_boundary\\build.cmd"
+          ],
+          "cwd": "E:\\Unreal2-Port-Investigation\\sandbox_mappoints_20261024_01",
+          "exit": 0,
+          "seconds": 3.5425985000038054,
+          "log": "E:\\Unreal2-Port-Investigation\\out\\recovery\\geticon-20261024-01\\regression-focus_boundary.log",
+          "log_sha256": "2dbfae9aca2e49ec7150255e3c350bdf87dd43d6af2d1a3bcb111e508d1934b8",
+          "warnings": [],
+          "passed": true
+        }
+      ]
+    },
+    "acceptance": {
+      "phase": "acceptance",
+      "passed": true,
+      "runs": [
+        {
+          "name": "tracer-build",
+          "command": [
+            "cmd.exe",
+            "/d",
+            "/c",
+            "experiments\\xrt\\tracer\\build.cmd"
+          ],
+          "cwd": "E:\\Unreal2-Port-Investigation\\sandbox_mappoints_20261024_01",
+          "exit": 0,
+          "seconds": 1.073147200004314,
+          "log": "E:\\Unreal2-Port-Investigation\\out\\recovery\\geticon-20261024-01\\regression-tracer-build.log",
+          "log_sha256": "d8d403c66db825ec1416af80168620214015f86a6d63b39b7500144102a386ea",
+          "warnings": [],
+          "passed": true
+        },
+        {
+          "name": "commandlet-vm",
+          "command": [
+            "E:\\Unreal2-Port-Investigation\\sandbox_mappoints_20261024_01\\.venv\\Scripts\\python.exe",
+            "-I",
+            "tools/xrt/run_xrt.py",
+            "hellofull",
+            "hello_noargs",
+            "hellonew",
+            "hellofull_nosse",
+            "simple",
+            "arraytest",
+            "hello",
+            "badclass",
+            "vmprobe"
+          ],
+          "cwd": "E:\\Unreal2-Port-Investigation\\sandbox_mappoints_20261024_01",
+          "exit": 0,
+          "seconds": 97.8923031000013,
+          "log": "E:\\Unreal2-Port-Investigation\\out\\recovery\\geticon-20261024-01\\regression-commandlet-vm.log",
+          "log_sha256": "ab06ac244613405b96b801d3951eced792423ea055a382a5774145527579b12c",
+          "warnings": [],
+          "passed": true
+        },
+        {
+          "name": "unrealscript-compiler",
+          "command": [
+            "E:\\Unreal2-Port-Investigation\\sandbox_mappoints_20261024_01\\.venv\\Scripts\\python.exe",
+            "-I",
+            "tools/xrt/compile_xrt.py"
+          ],
+          "cwd": "E:\\Unreal2-Port-Investigation\\sandbox_mappoints_20261024_01",
+          "exit": 0,
+          "seconds": 177.73304360000475,
+          "log": "E:\\Unreal2-Port-Investigation\\out\\recovery\\geticon-20261024-01\\regression-unrealscript-compiler.log",
+          "log_sha256": "9b21792e67aba9294ef1187abbd8a88f1cb704576d4822175754d0813b1eb2cb",
+          "warnings": [],
+          "passed": true
+        },
+        {
+          "name": "traced-hello",
+          "command": [
+            "E:\\Unreal2-Port-Investigation\\sandbox_mappoints_20261024_01\\.venv\\Scripts\\python.exe",
+            "-I",
+            "tools/xrt/run_xrt.py",
+            "hellofull",
+            "--trace"
+          ],
+          "cwd": "E:\\Unreal2-Port-Investigation\\sandbox_mappoints_20261024_01",
+          "exit": 0,
+          "seconds": 23.41910420000204,
+          "log": "E:\\Unreal2-Port-Investigation\\out\\recovery\\geticon-20261024-01\\regression-traced-hello.log",
+          "log_sha256": "1a2bb58c7f8446032994fee29e6ad219f6ec4e45ed451cb075fadce4b1673e9a",
+          "warnings": [],
+          "passed": true
+        },
+        {
+          "name": "python",
+          "command": [
+            "E:\\Unreal2-Port-Investigation\\sandbox_mappoints_20261024_01\\.venv\\Scripts\\python.exe",
+            "-I",
+            "-m",
+            "unittest",
+            "discover",
+            "-s",
+            "tools/xrt/tests",
+            "-v"
+          ],
+          "cwd": "E:\\Unreal2-Port-Investigation\\sandbox_mappoints_20261024_01",
+          "exit": 0,
+          "seconds": 11.524074799992377,
+          "log": "E:\\Unreal2-Port-Investigation\\out\\recovery\\geticon-20261024-01\\regression-python.log",
+          "log_sha256": "51eaa586a31431f024f0253c87f92033a13a856a0bbea30c8f95488d2daf3a52",
+          "warnings": [],
+          "passed": true
+        }
+      ]
+    }
+  },
+  "code_verification": {
+    "passed": true,
+    "unchanged_code": 277,
+    "preserved_gui_functions": {
+      "hle_SetKeyboardState": true,
+      "hle_GetKeyState": true,
+      "hle_GetFocus": true,
+      "hle_AdjustWindowRect": true,
+      "hle_SetFocus": true
+    },
+    "linked": {
+      "verified_sections": 60076,
+      "verified_bytes_including_relocation_slots": 92499980,
+      "compared_nonrelocation_bytes": 79226692,
+      "differences": [],
+      "unmatched_sections": 4290
+    },
+    "binary_sha256": "22158edc85c5bcfcdeffc6aafc80ff63a4a79555bde0d8abc158a4cbea0aa7c2",
+    "full_evidence": "E:\\Unreal2-Port-Investigation\\out\\recovery\\geticon-20261024-01\\code-verification.json",
+    "full_evidence_sha256": "9546276dfc6bfffd4fefc2a6f1b6b598428d431d93459c9afe16e26c3e43efb9",
+    "objects_compared": 279
+  },
+  "first_tick_guard": {
+    "passed": true,
+    "synthetic_runtime_stop_test": true,
+    "world_milestone_evidence": false,
+    "build": {
+      "0.json": "ad0935f6a7ad257a871051c58cc79452aed3d6b651487e87d9a1aa7f5b605716",
+      "1.json": "6a9389090e4e7269221bcd19555022032b301ffd56b731a903c0826993b31ff6",
+      "absent.json": "ad0935f6a7ad257a871051c58cc79452aed3d6b651487e87d9a1aa7f5b605716",
+      "build.txt": "aec305e91d77df03685f430bbc522b442cb0826b57b6dbd449f3f22dd7050f41",
+      "geticonprobe_000.obj": "dc5b0e8680f5243092356e33def04600c2b6c6445f4c935ae5dff541ad2bc66b",
+      "geticonprobe_table.obj": "4c70dca98c2257b0a3273f01251efe9343b090026e9982acce35975636f09929",
+      "guard.exe": "b8239d23d3149965258381d658f151bc5c09426716b284b64134304e2ede6871",
+      "guardprobe.obj": "81d1ce7712a03cbf88bb6aaa7048bf4d11cc2286e6fe5c72800e278865ac00b2",
+      "hle_gui.obj": "b8b30ead2925b2c08c7929ef4aced8c2f793d691d36d1979eedf4f427f5b4aa3",
+      "hle_kernel32.obj": "95c116549c7e675d11d451a5ddeb87a2332e755fda33e6318ecb4bee4482471f",
+      "hle_misc.obj": "cd5997b466b4ada92052757f7032ba4e5d918dccb1273bc37f73eb512ceb6d3a",
+      "hle_msvcr70.obj": "1018b02356673bdaa599a43cb2493e4eda1837cae4c9603350c133f03706db94",
+      "xrt_cpu.obj": "65d60d7737f10ac76c47c836a61169c86660c7eb4c28a7b145a1f45904dd3051",
+      "xrt_diag.obj": "7e1c7be9c608548b1522dde4dc7875366f6908ca32507dffe96be1d52fae399a",
+      "xrt_eh.obj": "24d54a9d50fe57651b9c4b302c1c89f953d1ad7ed40510a603db7d093214c27a",
+      "xrt_events.obj": "5444ef78a760a4c4d678b19307607db1de884bd856131adc46ed9a2c54165e1e",
+      "xrt_fmt.obj": "d3b932d4d6c8bba4855106d64156f685299bcba7b3ed34feeec44a02ebf4e4c0",
+      "xrt_loader.obj": "3cb3208d6296d486884e16129681f3b158ff602dcadf912c46d6bc49c2d92f4a",
+      "xrt_mem.obj": "ae42b2c028b73b43ff975c1bf4dc3fa987d2741beeca2c84da879fe656ba16a8",
+      "xrt_test_stubs.obj": "5594a156a2b01501d420492f10463b8c370221c07befcdc2b0551886b69963cb",
+      "xrt_thread.obj": "93acbecbb09c04d091d9388b68c7caf9175c66501170d657d30d6db8549de832"
+    },
+    "runs": [
+      {
+        "flag": "absent",
+        "exit": 0,
+        "events_recorded": 3,
+        "events_dropped": 0,
+        "stdout": "",
+        "stderr": ""
+      },
+      {
+        "flag": "0",
+        "exit": 0,
+        "events_recorded": 3,
+        "events_dropped": 0,
+        "stdout": "",
+        "stderr": ""
+      },
+      {
+        "flag": "1",
+        "exit": 76,
+        "events_recorded": 3,
+        "events_dropped": 0,
+        "stdout": "",
+        "stderr": "\nXRT FATAL (exit 76): bounded checkpoint: first level Tick returned\n  guest thread 0 (tid 34468), last instruction 00000000 (outside lifted modules)\n  eax=00000000 ecx=00000000 edx=00000000 ebx=00000000 esp=0110fff0 ebp=00000000 esi=00000000 edi=00000000\n  cf=0 pf=0 zf=0 sf=0 of=0 df=0  fcw=027f fsw=0000 top=0 fs_base=00012000\n  recent function entries (newest first):\n  guest stack (return addresses found scanning up from esp):\n"
+      }
+    ]
+  },
+  "protected": {
+    "manifest_sha256": "3e1807c3c1d3c2881e3353ab46d8f571654e19d10b7ded41b88304c71e172173",
+    "files": 4122,
+    "protected_trees": 3,
+    "protected_files": 9
+  },
+  "source_manifest": "E:\\Unreal2-Port-Investigation\\out\\recovery\\geticon-20261024-01\\candidate-sources.json",
+  "commit_record": "E:\\Unreal2-Port-Investigation\\out\\recovery\\geticon-20261024-01\\commit.json",
+  "known_limits": {
+    "expanded_crt_mismatches": 110,
+    "expanded_crt_pending": 1796,
+    "acp932_differences": 6,
+    "x87": "sticky status, tag/large-input and double-rounding limits remain"
+  },
+  "smallest_next_experiment": "One newly authorized bounded client continuation with mappoints-20261024-01, stopping on its next genuine boundary, D3D device creation or the first paired selected-world tick.",
+  "python": {
+    "tests": 158,
+    "expected_skips": 17,
+    "passed": true
+  }
+}

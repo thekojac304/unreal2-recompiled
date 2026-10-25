@@ -98,6 +98,15 @@ static void* class_object(CPU* c, uint32_t token, int kind) {
         if(class_objects[i].token==token && class_objects[i].kind==kind && class_objects[i].host) return class_objects[i].host;
     xrt_fatal(c,XRT_EXIT_UNSUPPORTED,"unknown class object %08x kind %d",token,kind);
 }
+/* WM_GETICON returns a borrowed HICON. Reuse the typed class-image namespace:
+ * shared LoadIcon handles remain valid across window destruction, and no native
+ * handle bits are stored in guest memory or granted destruction ownership. */
+static uint32_t borrowed_icon_token(CPU* c,HICON host) {
+    return borrow_class_object(c,host,GO_ICON);
+}
+static HICON guest_icon(CPU* c,uint32_t token) {
+    return (HICON)class_object(c,token,GO_ICON);
+}
 static BOOL delete_class_object(uint32_t token,int* handled) {
     unsigned i;
     for(i=0;i<class_object_count;i++) if(class_objects[i].token==token) {
@@ -303,6 +312,8 @@ static void refresh_forwarded_message(UINT msg,uint32_t wp,uint32_t lp,LPARAM ho
 static void call_window_proc(CPU* c,int wide) {
     uint32_t proc=ARG(0),msg=ARG(2); PriorProc* prior=prior_find(c,proc);
     CPU* previous=callback_cpu; LRESULT result; HWND h=window_host(ARG(1)); WPARAM wp; LPARAM lp;
+    if(msg==WM_GETICON)
+        xrt_fatal(c,XRT_EXIT_UNSUPPORTED,"CallWindowProc WM_GETICON result path is unmeasured");
     if(ARG(1) && !h) { xrt_set_last_error(c,ERROR_INVALID_WINDOW_HANDLE); RET_STD(5,0); return; }
     lp=forward_message(c,h,msg,ARG(3),ARG(4),&wp);
     if(!prior) validate_guest_proc(c,proc);
@@ -361,6 +372,7 @@ static void def_window_proc(CPU* c,int wide) {
     result=wide?DefWindowProcW(h,ARG(1),wp,lp):DefWindowProcA(h,ARG(1),wp,lp);
     end(c);callback_cpu=prev;
     refresh_forwarded_message(ARG(1),ARG(2),ARG(3),lp);
+    if(ARG(1)==WM_GETICON)result=borrowed_icon_token(c,(HICON)result);
     RET_STD(4,(uint32_t)result);
 }
 static void create_window(CPU* c,int wide) {
@@ -452,3 +464,14 @@ static void hle_LoadIconW(CPU* c){load_class_image(c,1,0);}
 static void hle_LoadIconA(CPU* c){load_class_image(c,0,0);}
 static void hle_LoadCursorW(CPU* c){load_class_image(c,1,1);}
 static void hle_LoadCursorA(CPU* c){load_class_image(c,0,1);}
+/* Measured current-thread cursor transition. The actual previous HCURSOR may
+ * first enter the guest here; borrow its typed identity without taking ownership. */
+static void hle_SetCursor(CPU* c) {
+    uint32_t token=ARG(0),esp=c->r[ESP],caller=rd32(esp),result;
+    HCURSOR cursor,previous;CPU* suspended=callback_cpu;
+    xrt_event("gui_set_cursor_call","\"cursor\":%u,\"esp\":%u,\"return\":%u,\"last_error\":%u",token,esp,caller,xrt_get_last_error(c));
+    cursor=(HCURSOR)class_object(c,token,GO_CURSOR);
+    callback_cpu=c;begin(c);previous=SetCursor(cursor);end(c);callback_cpu=suspended;
+    result=borrow_class_object(c,previous,GO_CURSOR);RET_STD(1,result);
+    xrt_event("gui_set_cursor_return","\"cursor\":%u,\"result\":%u,\"last_error\":%u,\"esp_before\":%u,\"esp_after\":%u,\"return\":%u,\"actual_return\":%u",token,result,xrt_get_last_error(c),esp,c->r[ESP],caller,c->rv);
+}
