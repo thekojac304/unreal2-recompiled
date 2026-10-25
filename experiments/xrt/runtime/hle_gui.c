@@ -1,6 +1,8 @@
 /* Real USER32/GDI objects behind guest tokens; host pointers never escape. */
 #define WIN32_LEAN_AND_MEAN
 #include <windows.h>
+#include <imm.h>
+#pragma comment(lib,"imm32.lib")
 #include <stdlib.h>
 #include "xrt_internal.h"
 typedef struct GuiDC
@@ -184,6 +186,60 @@ typedef struct GuiWindow
 } GuiWindow;
 static GuiWindow windows[1024];
 static __declspec(thread) CPU *callback_cpu;
+/* Borrowed IMM32 contexts belong to a thread, not to an individual window.
+ * No guest ImmCreate/Destroy/GetContext API is provided. Only returned contexts
+ * can be reassociated on their living guest/host thread. Keep tokens after
+ * window destruction: the shared default context survives. XrtThread records
+ * are never reused, so OS TID reuse cannot revive an expired context. Windows
+ * owns context destruction; the bridge never destroys a borrowed HIMC. */
+typedef struct GuiIMC {
+    HIMC host;
+    XrtThread* owner;
+    DWORD thread;
+    uint32_t token;
+} GuiIMC;
+static GuiIMC input_contexts[128];
+static uint32_t input_context_token(CPU* c,HIMC h) {
+    unsigned i;
+    if(!h)return 0;
+    for(i=0;i<128;i++)if(input_contexts[i].host==h && input_contexts[i].owner==c->thread)
+        return input_contexts[i].token;
+    for(i=0;i<128;i++)if(!input_contexts[i].host) {
+        GuiIMC* p=&input_contexts[i];p->host=h;p->owner=c->thread;p->thread=GetCurrentThreadId();
+        p->token=xrt_handle_new(XH_IMC,p);return p->token;
+    }
+    xrt_fatal(c,XRT_EXIT_SETUP,"ImmAssociateContext: borrowed context table full");
+}
+static void hle_ImmAssociateContext(CPU* c) {
+    uint32_t w=ARG(0),ctx=ARG(1),esp=c->r[ESP],caller=rd32(esp),result;
+    HWND hwnd=window_host(w);HIMC previous,h=NULL;GuiIMC* p;
+    CPU* suspended=callback_cpu;
+    DWORD owner=hwnd?GetWindowThreadProcessId(hwnd,NULL):0;
+    xrt_event("gui_imm_associate_context_call","\"hwnd\":%u,\"context\":%u,\"esp\":%u,\"return\":%u,\"last_error\":%u",w,ctx,esp,caller,xrt_get_last_error(c));
+    if(w && xrt_handle_type(w)!=XH_FREE && xrt_handle_type(w)!=XH_WINDOW)
+        xrt_fatal(c,XRT_EXIT_UNSUPPORTED,"ImmAssociateContext: wrong HWND token type %08x",w);
+    if(owner && owner!=GetCurrentThreadId())
+        xrt_fatal(c,XRT_EXIT_UNSUPPORTED,"ImmAssociateContext: cross-thread window unsupported");
+    if(ctx) {
+        p=(GuiIMC*)xrt_handle_get(ctx,XH_IMC);
+        if(!p)xrt_fatal(c,XRT_EXIT_UNSUPPORTED,"ImmAssociateContext: unknown or wrong-type HIMC token %08x",ctx);
+        if(p->owner!=c->thread || p->owner->state!=1 || p->thread!=GetCurrentThreadId())
+            xrt_fatal(c,XRT_EXIT_UNSUPPORTED,"ImmAssociateContext: foreign or expired thread context unsupported");
+        h=p->host;
+    }
+    /* NULL HWND preserves last-error. Nonzero invalid/destroyed HWNDs instead
+     * fail with ERROR_INVALID_WINDOW_HANDLE. Use the measured invalid -1 host
+     * sentinel so IMM32 supplies the outcome; never cast guest bits to HWND. */
+    if(w && !owner) {
+        hwnd=(HWND)(INT_PTR)-1;
+        if(IsWindow(hwnd))xrt_fatal(c,XRT_EXIT_SETUP,"ImmAssociateContext: invalid HWND sentinel became live");
+    }
+    begin(c);callback_cpu=c;previous=ImmAssociateContext(hwnd,h);end(c);callback_cpu=suspended;
+    if(previous && !owner)xrt_fatal(c,XRT_EXIT_UNSUPPORTED,"ImmAssociateContext: unexpected context from invalid HWND");
+    result=input_context_token(c,previous);
+    RET_STD(2,result);
+    xrt_event("gui_imm_associate_context_return","\"hwnd\":%u,\"context\":%u,\"result\":%u,\"last_error\":%u,\"esp_before\":%u,\"esp_after\":%u,\"return\":%u,\"actual_return\":%u",w,ctx,result,xrt_get_last_error(c),esp,c->r[ESP],caller,c->rv);
+}
 static __declspec(thread) uint32_t creating_proc;
 typedef struct GuiCallbackFrame {
     struct GuiCallbackFrame* previous;
@@ -714,6 +770,7 @@ static void hle_InitCommonControls(CPU *c)
 }
 #include "hle_gui_classes.inc"
 const XrtHle xrt_hle_gui[] = {{"comctl32.dll", "#17", hle_InitCommonControls},
+                              {"imm32.dll", "ImmAssociateContext", hle_ImmAssociateContext},
                               {"user32.dll", "AdjustWindowRect", hle_AdjustWindowRect},
                               {"user32.dll", "GetFocus", hle_GetFocus},
                               {"user32.dll", "GetClassInfoExW", hle_GetClassInfoExW},

@@ -168,7 +168,7 @@ void xrt_set_last_error(CPU* c, uint32_t e);
 uint32_t xrt_get_last_error(CPU* c);
 
 /* handles: guest handle values for host objects */
-enum { XH_FREE, XH_FILE, XH_FIND, XH_THREAD, XH_STD, XH_DC, XH_BITMAP, XH_WINDOW, XH_FONT, XH_MODULE, XH_MUTEX }; /* host objects behind guest tokens */
+enum { XH_FREE, XH_FILE, XH_FIND, XH_THREAD, XH_STD, XH_DC, XH_BITMAP, XH_WINDOW, XH_FONT, XH_MODULE, XH_MUTEX, XH_IMC }; /* host objects behind guest tokens */
 uint32_t xrt_handle_new(int type, void* host);
 void* xrt_handle_get(uint32_t h, int type);
 int xrt_handle_type(uint32_t h);

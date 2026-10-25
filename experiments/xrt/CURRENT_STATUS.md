@@ -1,3 +1,16 @@
+# ImmAssociateContext validated; bounded continuation stopped
+
+2026-10-24, US Eastern. Real host IMM32 returns through typed HWND/HIMC tokens.
+Native/translated fixture, fresh serial build and affected/full acceptance pass.
+The single authorized continuation stops at user32.dll!SetFocus.
+Viewport CreateWindowEx completed: False; OpenWindow returned: False;
+engine Init returns: 0; selected-world tick returns: 0;
+D3D device/Present: 0/0.
+
+[Exact checkpoint and next experiment](IMMASSOCIATECONTEXT_BOUNDARY.md).
+
+---
+
 # AdjustWindowRect passes; viewport creation stops at ImmAssociateContext
 
 2026-10-24, US Eastern. Native/translated RECT, last-error and ABI comparison passes

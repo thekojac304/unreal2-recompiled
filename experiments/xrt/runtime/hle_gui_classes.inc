@@ -366,14 +366,17 @@ static void def_window_proc(CPU* c,int wide) {
 static void create_window(CPU* c,int wide) {
     HINSTANCE instance=class_module(c,ARG(10)); HWND parent=window_host(ARG(8)),h;
     CPU* previous=callback_cpu; uint32_t token=0;
+    uint32_t esp=c->r[ESP],caller=rd32(esp);
     if(ARG(8) && !parent) {xrt_set_last_error(c,ERROR_INVALID_WINDOW_HANDLE);RET_STD(12,0);return;}
     if(ARG(9) && !(ARG(3)&WS_CHILD)) xrt_fatal(c,XRT_EXIT_UNSUPPORTED,"CreateWindowEx menu requires typed mapping");
+    xrt_event("gui_create_window_call","\"wide\":%d,\"style\":%u,\"esp\":%u,\"return\":%u",wide,ARG(3),esp,caller);
     begin(c);callback_cpu=c;
     h=wide?CreateWindowExW(ARG(0),class_string(ARG(1)),class_string(ARG(2)),ARG(3),(int)ARG(4),(int)ARG(5),(int)ARG(6),(int)ARG(7),parent,(HMENU)(uintptr_t)ARG(9),instance,(void*)(uintptr_t)ARG(11)):
         CreateWindowExA(ARG(0),class_string(ARG(1)),class_string(ARG(2)),ARG(3),(int)ARG(4),(int)ARG(5),(int)ARG(6),(int)ARG(7),parent,(HMENU)(uintptr_t)ARG(9),instance,(void*)(uintptr_t)ARG(11));
     end(c); if(h) token=window_token(h);callback_cpu=previous;forget_dead_windows();
     xrt_event("gui_create_window","\"handle\": %u, \"wide\": %d, \"error\": %u",token,wide,xrt_get_last_error(c));
     RET_STD(12,token);
+    xrt_event("gui_create_window_return","\"handle\":%u,\"wide\":%d,\"last_error\":%u,\"esp_before\":%u,\"esp_after\":%u,\"return\":%u,\"actual_return\":%u",token,wide,xrt_get_last_error(c),esp,c->r[ESP],caller,c->rv);
 }
 static void get_window_long(CPU* c,int wide) {
     LONG result; int index=(int)ARG(1);

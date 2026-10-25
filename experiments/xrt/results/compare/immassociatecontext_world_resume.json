@@ -1,0 +1,615 @@
+{
+  "date": "2026-10-24 US Eastern",
+  "disposition": "Bounded ImmAssociateContext milestone complete; stop at recorded boundary.",
+  "starting_head": "d325d87c8c52a8ab8a4da5d2cf94cd78bf5ef944",
+  "binary": {
+    "path": "E:\\Unreal2-Port-Investigation\\experiments\\xrt\\build\\immassociatecontext-20261024-01\\xrt_ucc.exe",
+    "sha256": "511f6016b1bd18f271a3df9ff08d1389fddcd6ca599905c29d82716d45f39b3d"
+  },
+  "pdb": {
+    "path": "E:\\Unreal2-Port-Investigation\\experiments\\xrt\\build\\immassociatecontext-20261024-01\\xrt_ucc.pdb",
+    "sha256": "3f780df5575a97f01ce6c8babb357a2f733b30b22a6fb78ebdd80b2c43de22df"
+  },
+  "accepted_binary": {
+    "path": "E:\\Unreal2-Port-Investigation\\experiments\\xrt\\build\\adjustwindowrect-20261024-01\\xrt_ucc.exe",
+    "sha256": "e274f465c095abe503b4373e5cb932683bf2b8c135224c41150360b70e243620"
+  },
+  "runtime": {
+    "path": "experiments/xrt/runtime",
+    "files": 27,
+    "sha256": "844a74bd5ff180ae79da8a2ad27697ed2bc8946721008b9b5edfc27bc3e09d5e"
+  },
+  "generated": {
+    "path": "experiments/xrt/gen",
+    "files": 299,
+    "sha256": "93046d39786d3f4be894370e86a5fed0a26fbc3001e18ae36c12d15686336062"
+  },
+  "source_manifest": "E:\\Unreal2-Port-Investigation\\out\\recovery\\immassociatecontext-20261024-01\\candidate-sources.json",
+  "build": {
+    "fresh_objects": 279,
+    "generated": 265,
+    "runtime": 14,
+    "serial": true,
+    "historical_object_reuse": false,
+    "warnings": [],
+    "failures": 0,
+    "toolchain_hashes": "E:\\Unreal2-Port-Investigation\\out\\recovery\\immassociatecontext-20261024-01\\preflight.json",
+    "imm32_input_hashes": "E:\\Unreal2-Port-Investigation\\out\\recovery\\immassociatecontext-20261024-01\\imm32-inputs.json"
+  },
+  "code": {
+    "unchanged_objects": 277,
+    "expected_changed_objects": [
+      "hle_gui.obj",
+      "xrt_loader.obj"
+    ],
+    "preserved_gui_functions": {
+      "hle_SetKeyboardState": true,
+      "hle_GetKeyState": true,
+      "hle_GetFocus": true,
+      "hle_AdjustWindowRect": true
+    },
+    "linked_compared_bytes": 79226692,
+    "linked_differences": []
+  },
+  "fixture": {
+    "passed": true,
+    "owned_calls": 56,
+    "invalid_hwnd_calls": 12,
+    "unsupported_cases": 6,
+    "paired_returns": 76,
+    "events_dropped": 0,
+    "identity_state_last_error_and_abi_match": true,
+    "native_foreign_detach_succeeds_but_is_explicitly_unsupported": true
+  },
+  "run": "E:\\Unreal2-Port-Investigation\\experiments\\xrt\\results\\raw\\level\\20261025-000405-21ca7cb1-candidate",
+  "events_recorded": 74396,
+  "events_dropped": 0,
+  "events_truncated": 0,
+  "sessions": {
+    "translated_graphical": 1,
+    "native_graphical": 0,
+    "watchdog_ms": 60000
+  },
+  "milestones": {
+    "T1": true,
+    "T2": true,
+    "T3": false,
+    "T4": false,
+    "T5": false,
+    "T6": false
+  },
+  "selected_world": "0x12f52800",
+  "selected_lifecycle": {
+    "calls": {
+      "PreBeginPlay": 279,
+      "BeginPlay": 279,
+      "PostBeginPlay": 279
+    },
+    "paired_returns": {
+      "PreBeginPlay": 279,
+      "BeginPlay": 279,
+      "PostBeginPlay": 279
+    },
+    "distinct_actors": 278,
+    "unpaired": []
+  },
+  "immassociatecontext": {
+    "calls": [
+      {
+        "seq": 74366,
+        "thread": 0,
+        "kind": "gui_imm_associate_context_call",
+        "hwnd": 4716,
+        "context": 0,
+        "esp": 18926440,
+        "return": 286285150,
+        "last_error": 0
+      }
+    ],
+    "returns": [
+      {
+        "seq": 74367,
+        "thread": 0,
+        "kind": "gui_imm_associate_context_return",
+        "hwnd": 4716,
+        "context": 0,
+        "result": 4720,
+        "last_error": 0,
+        "esp_before": 18926440,
+        "esp_after": 18926452,
+        "return": 286285150,
+        "actual_return": 286285150
+      }
+    ],
+    "pairs": [
+      [
+        74366,
+        74367
+      ]
+    ]
+  },
+  "viewport_progress": {
+    "imm_returned": true,
+    "viewport_hwnd": 4716,
+    "create_window_returned": false,
+    "create_returns": [],
+    "open_window_returned": false,
+    "open_window": {
+      "calls": [
+        {
+          "seq": 74354,
+          "thread": 0,
+          "kind": "viewport_open_call",
+          "target": 286274448,
+          "esp": 18928800,
+          "return": 272169756,
+          "this": 338527744
+        }
+      ],
+      "returns": [],
+      "pairs": []
+    },
+    "creation_calls": [
+      {
+        "seq": 339,
+        "thread": 0,
+        "kind": "gui_create_window_call",
+        "wide": 1,
+        "style": 13565952,
+        "esp": 18937432,
+        "return": 285282578
+      },
+      {
+        "seq": 344,
+        "thread": 0,
+        "kind": "gui_create_window_call",
+        "wide": 1,
+        "style": 1344276676,
+        "esp": 18935844,
+        "return": 285282578
+      },
+      {
+        "seq": 74360,
+        "thread": 0,
+        "kind": "gui_create_window_call",
+        "wide": 1,
+        "style": 282001408,
+        "esp": 18927568,
+        "return": 285282578
+      }
+    ],
+    "creation_returns": [
+      {
+        "seq": 359,
+        "thread": 0,
+        "kind": "gui_create_window_return",
+        "handle": 4164,
+        "wide": 1,
+        "last_error": 0,
+        "esp_before": 18935844,
+        "esp_after": 18935896,
+        "return": 285282578,
+        "actual_return": 285282578
+      },
+      {
+        "seq": 369,
+        "thread": 0,
+        "kind": "gui_create_window_return",
+        "handle": 4160,
+        "wide": 1,
+        "last_error": 0,
+        "esp_before": 18937432,
+        "esp_after": 18937484,
+        "return": 285282578,
+        "actual_return": 285282578
+      }
+    ]
+  },
+  "engine_init": {
+    "entries": 1,
+    "pairs": []
+  },
+  "engine_ticks": {
+    "entries": 0,
+    "paired_returns": 0
+  },
+  "selected_level_ticks": {
+    "entries": 0,
+    "paired_returns": 0
+  },
+  "d3d": {
+    "CreateDevice_calls": 0,
+    "real_devices": 0,
+    "Clear": 0,
+    "Present": 0
+  },
+  "first_remaining_blocker": {
+    "seq": 74385,
+    "thread": 0,
+    "kind": "fatal",
+    "code": 75,
+    "message": "call to import user32.dll!SetFocus, which has no host implementation (from 11105d75 (WinDrv.dll+5d75, in f_11105c60+115 ?ViewportWndProc@UWindowsViewport@@QAEJIIJ@Z))"
+  },
+  "remaining_boundary": {
+    "api": "user32.dll!SetFocus",
+    "fatal": {
+      "seq": 74385,
+      "thread": 0,
+      "kind": "fatal",
+      "code": 75,
+      "message": "call to import user32.dll!SetFocus, which has no host implementation (from 11105d75 (WinDrv.dll+5d75, in f_11105c60+115 ?ViewportWndProc@UWindowsViewport@@QAEJIIJ@Z))"
+    },
+    "caller": {
+      "address": "0x11105d75",
+      "module": "WinDrv.dll",
+      "offset": "0x5d75",
+      "return_address": "0x11105d7b"
+    },
+    "source": {
+      "path": "E:\\Unreal2-Port-Investigation\\sandbox_inputs\\first-world\\content\\System\\WinDrv.dll",
+      "sha256": "df1459bfed2e8a1e006d453d72b804417979783e76387018ba322e0d9a324663"
+    },
+    "import_site": 286285173,
+    "implemented": false
+  },
+  "regressions": {
+    "affected": {
+      "phase": "affected",
+      "passed": true,
+      "runs": [
+        {
+          "name": "immassociatecontext_boundary",
+          "command": [
+            "cmd.exe",
+            "/d",
+            "/c",
+            "experiments\\xrt\\tests\\immassociatecontext_boundary\\build.cmd"
+          ],
+          "cwd": "E:\\Unreal2-Port-Investigation\\sandbox_immassociatecontext_20261024_02",
+          "exit": 0,
+          "seconds": 3.9682518000045093,
+          "log": "E:\\Unreal2-Port-Investigation\\out\\recovery\\immassociatecontext-20261024-01\\regression-immassociatecontext_boundary.log",
+          "log_sha256": "492253204bc3585ac9eb608b901bcd9c6bf4d0898437783ead3267115677253c",
+          "warnings": [],
+          "passed": true
+        },
+        {
+          "name": "adjustwindowrect_boundary",
+          "command": [
+            "cmd.exe",
+            "/d",
+            "/c",
+            "experiments\\xrt\\tests\\adjustwindowrect_boundary\\build.cmd"
+          ],
+          "cwd": "E:\\Unreal2-Port-Investigation\\sandbox_immassociatecontext_20261024_02",
+          "exit": 0,
+          "seconds": 3.7892873999953736,
+          "log": "E:\\Unreal2-Port-Investigation\\out\\recovery\\immassociatecontext-20261024-01\\regression-adjustwindowrect_boundary.log",
+          "log_sha256": "2bebb6d61627f45d911248f008ffe6973db92163ed13ea0b1b09ee3aae0a12d2",
+          "warnings": [],
+          "passed": true
+        },
+        {
+          "name": "gui_boundary",
+          "command": [
+            "cmd.exe",
+            "/d",
+            "/c",
+            "experiments\\xrt\\tests\\gui_boundary\\build.cmd"
+          ],
+          "cwd": "E:\\Unreal2-Port-Investigation\\sandbox_immassociatecontext_20261024_02",
+          "exit": 0,
+          "seconds": 3.924616900010733,
+          "log": "E:\\Unreal2-Port-Investigation\\out\\recovery\\immassociatecontext-20261024-01\\regression-gui_boundary.log",
+          "log_sha256": "f71e27435d064baa0bb010f493fef88a0798af3f4971971e1cc966592b3b12ca",
+          "warnings": [],
+          "passed": true
+        },
+        {
+          "name": "class_boundary",
+          "command": [
+            "cmd.exe",
+            "/d",
+            "/c",
+            "experiments\\xrt\\tests\\class_boundary\\build.cmd"
+          ],
+          "cwd": "E:\\Unreal2-Port-Investigation\\sandbox_immassociatecontext_20261024_02",
+          "exit": 0,
+          "seconds": 7.06153489999997,
+          "log": "E:\\Unreal2-Port-Investigation\\out\\recovery\\immassociatecontext-20261024-01\\regression-class_boundary.log",
+          "log_sha256": "e15ef0f19de96a9652d225cc4f6805860e73b6432b9bc20c66b9516771dbb764",
+          "warnings": [
+            "experiments\\xrt\\tests\\class_boundary\\classprobe.c(150): warning C4133: 'function': incompatible types - from 'LPTSTR' to 'LPCWSTR'"
+          ],
+          "passed": true
+        },
+        {
+          "name": "module_boundary",
+          "command": [
+            "cmd.exe",
+            "/d",
+            "/c",
+            "experiments\\xrt\\tests\\module_boundary\\build.cmd"
+          ],
+          "cwd": "E:\\Unreal2-Port-Investigation\\sandbox_immassociatecontext_20261024_02",
+          "exit": 0,
+          "seconds": 4.146971699999995,
+          "log": "E:\\Unreal2-Port-Investigation\\out\\recovery\\immassociatecontext-20261024-01\\regression-module_boundary.log",
+          "log_sha256": "bfe7dae7e6aabd4ffa9e2d7ba5d56300cb71caedc3f8590ac3c15ec47075ff77",
+          "warnings": [],
+          "passed": true
+        },
+        {
+          "name": "focus_boundary",
+          "command": [
+            "cmd.exe",
+            "/d",
+            "/c",
+            "experiments\\xrt\\tests\\focus_boundary\\build.cmd"
+          ],
+          "cwd": "E:\\Unreal2-Port-Investigation\\sandbox_immassociatecontext_20261024_02",
+          "exit": 0,
+          "seconds": 3.532440499999211,
+          "log": "E:\\Unreal2-Port-Investigation\\out\\recovery\\immassociatecontext-20261024-01\\regression-focus_boundary.log",
+          "log_sha256": "2dbfae9aca2e49ec7150255e3c350bdf87dd43d6af2d1a3bcb111e508d1934b8",
+          "warnings": [],
+          "passed": true
+        }
+      ]
+    },
+    "post-affected": {
+      "phase": "post-affected",
+      "passed": true,
+      "runs": [
+        {
+          "name": "immassociatecontext_boundary",
+          "command": [
+            "E:\\Unreal2-Port-Investigation\\sandbox_immassociatecontext_20261024_02\\.venv\\Scripts\\python.exe",
+            "-I",
+            "experiments/xrt/tests/immassociatecontext_boundary/compare.py"
+          ],
+          "cwd": "E:\\Unreal2-Port-Investigation\\sandbox_immassociatecontext_20261024_02",
+          "exit": 0,
+          "seconds": 0.26539150001190137,
+          "log": "E:\\Unreal2-Port-Investigation\\out\\recovery\\immassociatecontext-20261024-01\\regression-post-immassociatecontext_boundary.log",
+          "log_sha256": "68ee1960e71785024ddfb087e265319538883a52ce4c4927fdf2cb97002bd1cc",
+          "warnings": [],
+          "passed": true
+        },
+        {
+          "name": "adjustwindowrect_boundary",
+          "command": [
+            "E:\\Unreal2-Port-Investigation\\sandbox_immassociatecontext_20261024_02\\.venv\\Scripts\\python.exe",
+            "-I",
+            "experiments/xrt/tests/adjustwindowrect_boundary/compare.py"
+          ],
+          "cwd": "E:\\Unreal2-Port-Investigation\\sandbox_immassociatecontext_20261024_02",
+          "exit": 0,
+          "seconds": 0.35380569999688305,
+          "log": "E:\\Unreal2-Port-Investigation\\out\\recovery\\immassociatecontext-20261024-01\\regression-post-adjustwindowrect_boundary.log",
+          "log_sha256": "c8b9a409996c459b203311f6a17b4ad90217cfbf561cb2bfe559ecc91d3a7c86",
+          "warnings": [],
+          "passed": true
+        },
+        {
+          "name": "gui_boundary",
+          "command": [
+            "E:\\Unreal2-Port-Investigation\\sandbox_immassociatecontext_20261024_02\\.venv\\Scripts\\python.exe",
+            "-I",
+            "experiments/xrt/tests/gui_boundary/compare.py"
+          ],
+          "cwd": "E:\\Unreal2-Port-Investigation\\sandbox_immassociatecontext_20261024_02",
+          "exit": 0,
+          "seconds": 0.12060080000082962,
+          "log": "E:\\Unreal2-Port-Investigation\\out\\recovery\\immassociatecontext-20261024-01\\regression-post-gui_boundary.log",
+          "log_sha256": "9fbc53a0a694ff7125c532ee19bbfd1a34f4f6ca792bdabb542788d091f5d578",
+          "warnings": [],
+          "passed": true
+        },
+        {
+          "name": "class_boundary",
+          "command": [
+            "E:\\Unreal2-Port-Investigation\\sandbox_immassociatecontext_20261024_02\\.venv\\Scripts\\python.exe",
+            "-I",
+            "experiments/xrt/tests/class_boundary/compare.py"
+          ],
+          "cwd": "E:\\Unreal2-Port-Investigation\\sandbox_immassociatecontext_20261024_02",
+          "exit": 0,
+          "seconds": 0.18654419999802485,
+          "log": "E:\\Unreal2-Port-Investigation\\out\\recovery\\immassociatecontext-20261024-01\\regression-post-class_boundary.log",
+          "log_sha256": "d08838ebcf4da5f32b992529490f6d795e4ba92fc391325f43cb969b17c0bbe1",
+          "warnings": [],
+          "passed": true
+        },
+        {
+          "name": "module_boundary",
+          "command": [
+            "E:\\Unreal2-Port-Investigation\\sandbox_immassociatecontext_20261024_02\\.venv\\Scripts\\python.exe",
+            "-I",
+            "experiments/xrt/tests/module_boundary/compare.py"
+          ],
+          "cwd": "E:\\Unreal2-Port-Investigation\\sandbox_immassociatecontext_20261024_02",
+          "exit": 0,
+          "seconds": 0.10552670000470243,
+          "log": "E:\\Unreal2-Port-Investigation\\out\\recovery\\immassociatecontext-20261024-01\\regression-post-module_boundary.log",
+          "log_sha256": "27ede135021d37a27cffce6518b13db230fb006d57ebf30fe1f5b930a1b7a9e9",
+          "warnings": [],
+          "passed": true
+        },
+        {
+          "name": "focus_boundary",
+          "command": [
+            "E:\\Unreal2-Port-Investigation\\sandbox_immassociatecontext_20261024_02\\.venv\\Scripts\\python.exe",
+            "-I",
+            "experiments/xrt/tests/focus_boundary/compare.py"
+          ],
+          "cwd": "E:\\Unreal2-Port-Investigation\\sandbox_immassociatecontext_20261024_02",
+          "exit": 0,
+          "seconds": 0.10429869999643415,
+          "log": "E:\\Unreal2-Port-Investigation\\out\\recovery\\immassociatecontext-20261024-01\\regression-post-focus_boundary.log",
+          "log_sha256": "c7ac4529ac627f5e29c8aee99aaf88babb9ffd7107c0c7c07456e803040e8515",
+          "warnings": [],
+          "passed": true
+        }
+      ]
+    },
+    "acceptance": {
+      "phase": "acceptance",
+      "passed": true,
+      "runs": [
+        {
+          "name": "tracer-build",
+          "command": [
+            "cmd.exe",
+            "/d",
+            "/c",
+            "experiments\\xrt\\tracer\\build.cmd"
+          ],
+          "cwd": "E:\\Unreal2-Port-Investigation\\sandbox_immassociatecontext_20261024_02",
+          "exit": 0,
+          "seconds": 1.0801491999882273,
+          "log": "E:\\Unreal2-Port-Investigation\\out\\recovery\\immassociatecontext-20261024-01\\regression-tracer-build.log",
+          "log_sha256": "d8d403c66db825ec1416af80168620214015f86a6d63b39b7500144102a386ea",
+          "warnings": [],
+          "passed": true
+        },
+        {
+          "name": "commandlet-vm",
+          "command": [
+            "E:\\Unreal2-Port-Investigation\\sandbox_immassociatecontext_20261024_02\\.venv\\Scripts\\python.exe",
+            "-I",
+            "tools/xrt/run_xrt.py",
+            "hellofull",
+            "hello_noargs",
+            "hellonew",
+            "hellofull_nosse",
+            "simple",
+            "arraytest",
+            "hello",
+            "badclass",
+            "vmprobe"
+          ],
+          "cwd": "E:\\Unreal2-Port-Investigation\\sandbox_immassociatecontext_20261024_02",
+          "exit": 0,
+          "seconds": 97.4164763000008,
+          "log": "E:\\Unreal2-Port-Investigation\\out\\recovery\\immassociatecontext-20261024-01\\regression-commandlet-vm.log",
+          "log_sha256": "5e8c281477595e704445b9a2aa85a50ce490f84792a1ac4bac1ec5f51a237a02",
+          "warnings": [],
+          "passed": true
+        },
+        {
+          "name": "unrealscript-compiler",
+          "command": [
+            "E:\\Unreal2-Port-Investigation\\sandbox_immassociatecontext_20261024_02\\.venv\\Scripts\\python.exe",
+            "-I",
+            "tools/xrt/compile_xrt.py"
+          ],
+          "cwd": "E:\\Unreal2-Port-Investigation\\sandbox_immassociatecontext_20261024_02",
+          "exit": 0,
+          "seconds": 176.70443230000092,
+          "log": "E:\\Unreal2-Port-Investigation\\out\\recovery\\immassociatecontext-20261024-01\\regression-unrealscript-compiler.log",
+          "log_sha256": "a88cf2b2123cccc1a1f33f9cf39ce88aa1d6c9158ba0d5cf3f25d3fb8134d2d6",
+          "warnings": [],
+          "passed": true
+        },
+        {
+          "name": "traced-hello",
+          "command": [
+            "E:\\Unreal2-Port-Investigation\\sandbox_immassociatecontext_20261024_02\\.venv\\Scripts\\python.exe",
+            "-I",
+            "tools/xrt/run_xrt.py",
+            "hellofull",
+            "--trace"
+          ],
+          "cwd": "E:\\Unreal2-Port-Investigation\\sandbox_immassociatecontext_20261024_02",
+          "exit": 0,
+          "seconds": 23.347002100010286,
+          "log": "E:\\Unreal2-Port-Investigation\\out\\recovery\\immassociatecontext-20261024-01\\regression-traced-hello.log",
+          "log_sha256": "fa3960cffb5db272153de97e34cfd1e60b3f510cbc3b438bea7c5324c8ac60b6",
+          "warnings": [],
+          "passed": true
+        },
+        {
+          "name": "python",
+          "command": [
+            "E:\\Unreal2-Port-Investigation\\sandbox_immassociatecontext_20261024_02\\.venv\\Scripts\\python.exe",
+            "-I",
+            "-m",
+            "unittest",
+            "discover",
+            "-s",
+            "tools/xrt/tests",
+            "-v"
+          ],
+          "cwd": "E:\\Unreal2-Port-Investigation\\sandbox_immassociatecontext_20261024_02",
+          "exit": 0,
+          "seconds": 11.11663309999858,
+          "log": "E:\\Unreal2-Port-Investigation\\out\\recovery\\immassociatecontext-20261024-01\\regression-python.log",
+          "log_sha256": "656b877077bbe3a2e1c40a9feec269ef4ebf3cfef2ed79fdde847bd536818fe5",
+          "warnings": [],
+          "passed": true
+        }
+      ]
+    }
+  },
+  "commandlet_vm_cases_passed": 9,
+  "compiler": "16 compiles, 12 executions, four expected invalid-source failures",
+  "python": {
+    "discovered": 158,
+    "passed": 141,
+    "opt_in_skips": 17
+  },
+  "integrity": {
+    "protected": {
+      "manifest_sha256": "3e1807c3c1d3c2881e3353ab46d8f571654e19d10b7ded41b88304c71e172173",
+      "files": 4122,
+      "protected_trees": 3,
+      "protected_files": 9
+    },
+    "accepted_outputs_unchanged": true,
+    "candidate_outputs_unchanged": true,
+    "pinned_sources_unchanged": true,
+    "prior_working_files_preserved": 468,
+    "original_installation_or_saves_accessed": false,
+    "unexpected_crashes": 0
+  },
+  "cleanup": [
+    {
+      "seq": 74392,
+      "thread": 0,
+      "kind": "dmusic_backend_cleanup",
+      "references_released": 5
+    },
+    {
+      "seq": 74393,
+      "thread": 0,
+      "kind": "com_cleanup",
+      "references_released": 0,
+      "apartment_references_balanced": 1
+    },
+    {
+      "seq": 74394,
+      "thread": 0,
+      "kind": "d3d8_cleanup",
+      "references_released": 1
+    },
+    {
+      "seq": 74395,
+      "thread": 0,
+      "kind": "sticky_restore",
+      "result": 1,
+      "flags": 510
+    },
+    {
+      "seq": 74396,
+      "thread": 0,
+      "kind": "dinput_cleanup",
+      "references_released": 1,
+      "device_references_released": 1
+    }
+  ],
+  "raw_evidence": "E:\\Unreal2-Port-Investigation\\out\\recovery\\immassociatecontext-20261024-01",
+  "next_experiment": "Measure native x86 versus translated SetFocus on owned windows, including previous-focus identity, NULL/invalid/destroyed HWNDs, last-error, thread ownership, stdcall ABI and reentrant creation callbacks. Add only the measured typed HWND adapter in a separately authorized milestone, then perform one bounded continuation. No renderer expansion.",
+  "commit_scope": "Only the typed IMM32 adapter, creation/OpenWindow return evidence, fixture and checkpoint. Earlier pending changes remain unstaged. Exact tested executable includes those pinned pending sources.",
+  "known_compatibility_findings": "Expanded CRT: 110 mismatches / 1796 pending; ACP932: six differences; existing x87 limitations remain open and are not requalified here."
+}
