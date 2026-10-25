@@ -306,8 +306,41 @@ static void hle_GetForegroundWindow(CPU* c)
     xrt_event("gui_foreground_call","\"esp\":%u,\"return\":%u,\"last_error\":%u",esp,caller,xrt_get_last_error(c));
     begin(c);h=GetForegroundWindow();end(c);
     result=window_token(h);
+    xrt_event("gui_foreground_identity","\"host\":\"%llx\",\"token\":%u,\"roundtrip\":%u",
+        (unsigned long long)(uintptr_t)h,result,window_host(result)==h);
     RET_STD(0,result);
     xrt_event("gui_foreground_return","\"result\":%u,\"last_error\":%u,\"esp_before\":%u,\"esp_after\":%u,\"return\":%u,\"actual_return\":%u",result,xrt_get_last_error(c),esp,c->r[ESP],caller,c->rv);
+}
+/* Measured owned-window foreground request. USER32 decides success and may
+ * synchronously reenter the existing activation/focus callback bridge. */
+static void hle_SetForegroundWindow(CPU* c)
+{
+    uint32_t w=ARG(0),esp=c->r[ESP],caller=rd32(esp);BOOL result;
+    HWND hwnd=window_host(w);CPU* suspended=callback_cpu;
+    xrt_event("gui_set_foreground_call","\"hwnd\":%u,\"esp\":%u,\"return\":%u,\"last_error\":%u",w,esp,caller,xrt_get_last_error(c));
+    if(w && xrt_handle_type(w)!=XH_FREE && xrt_handle_type(w)!=XH_WINDOW)
+        xrt_fatal(c,XRT_EXIT_UNSUPPORTED,"SetForegroundWindow: wrong HWND token type %08x",w);
+    if(w && !hwnd)xrt_fatal(c,XRT_EXIT_UNSUPPORTED,"SetForegroundWindow: unknown HWND token %08x",w);
+    if(hwnd && GetWindowThreadProcessId(hwnd,NULL)!=GetCurrentThreadId())
+        xrt_fatal(c,XRT_EXIT_UNSUPPORTED,"SetForegroundWindow: cross-thread window unmeasured");
+    callback_cpu=c;begin(c);result=SetForegroundWindow(hwnd);end(c);callback_cpu=suspended;
+    RET_STD(1,result);
+    xrt_event("gui_set_foreground_return","\"hwnd\":%u,\"result\":%u,\"last_error\":%u,\"esp_before\":%u,\"esp_after\":%u,\"return\":%u,\"actual_return\":%u",w,(unsigned)result,xrt_get_last_error(c),esp,c->r[ESP],caller,c->rv);
+}
+/* Return USER32's actual previous active HWND through the shared typed map. */
+static void hle_SetActiveWindow(CPU* c)
+{
+    uint32_t w=ARG(0),esp=c->r[ESP],caller=rd32(esp),result;
+    HWND hwnd=window_host(w),previous;CPU* suspended=callback_cpu;
+    xrt_event("gui_set_active_call","\"hwnd\":%u,\"esp\":%u,\"return\":%u,\"last_error\":%u",w,esp,caller,xrt_get_last_error(c));
+    if(w && xrt_handle_type(w)!=XH_FREE && xrt_handle_type(w)!=XH_WINDOW)
+        xrt_fatal(c,XRT_EXIT_UNSUPPORTED,"SetActiveWindow: wrong HWND token type %08x",w);
+    if(w && !hwnd)xrt_fatal(c,XRT_EXIT_UNSUPPORTED,"SetActiveWindow: unknown HWND token %08x",w);
+    if(hwnd && GetWindowThreadProcessId(hwnd,NULL)!=GetCurrentThreadId())
+        xrt_fatal(c,XRT_EXIT_UNSUPPORTED,"SetActiveWindow: cross-thread window unmeasured");
+    callback_cpu=c;begin(c);previous=SetActiveWindow(hwnd);end(c);callback_cpu=suspended;
+    result=window_token(previous);RET_STD(1,result);
+    xrt_event("gui_set_active_return","\"hwnd\":%u,\"result\":%u,\"last_error\":%u,\"esp_before\":%u,\"esp_after\":%u,\"return\":%u,\"actual_return\":%u",w,result,xrt_get_last_error(c),esp,c->r[ESP],caller,c->rv);
 }
 /* SetFocus returns USER32's previous HWND, including native reentrant activation
  * behavior. Never derive it from the requested HWND or a cached focus value. */
@@ -932,6 +965,8 @@ const XrtHle xrt_hle_gui[] = {{"comctl32.dll", "#17", hle_InitCommonControls},
                               {"user32.dll", "SetCapture", hle_SetCapture},
                               {"user32.dll", "ClipCursor", hle_ClipCursor},
                               {"user32.dll", "GetForegroundWindow", hle_GetForegroundWindow},
+                              {"user32.dll", "SetForegroundWindow", hle_SetForegroundWindow},
+                              {"user32.dll", "SetActiveWindow", hle_SetActiveWindow},
                               {"user32.dll", "GetWindowThreadProcessId", hle_GetWindowThreadProcessId},
                               {"user32.dll", "MapWindowPoints", hle_MapWindowPoints},
                               {"user32.dll", "GetClassInfoExW", hle_GetClassInfoExW},

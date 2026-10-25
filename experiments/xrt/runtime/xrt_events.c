@@ -99,6 +99,11 @@ void xrt_event(const char* kind, const char* fmt, ...) {
     /* Owner-requested continuation bound. The observer emits this event only at
      * a paired return. Stop before another guest instruction; the report checks
      * selected-world identity independently. Disabled outside bounded clients. */
+    if(!strcmp(kind,"viewport_open_return") || !strcmp(kind,"engine_init_return")) {
+        char bound[2];
+        if(GetEnvironmentVariableA("XRT_STOP_VIEWPORT_INIT",bound,sizeof bound)==1 && bound[0]=='1')
+            xrt_fatal(xrt_cur ? &xrt_cur->cpu : NULL,XRT_EXIT_UNSUPPORTED,"bounded checkpoint: %s",kind);
+    }
     if(!strcmp(kind,"level_tick_return")) {
         char bound[2];
         if(GetEnvironmentVariableA("XRT_STOP_FIRST_LEVEL_TICK",bound,sizeof bound)==1 && bound[0]=='1')

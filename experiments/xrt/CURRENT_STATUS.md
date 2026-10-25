@@ -1,3 +1,18 @@
+# GetForegroundWindow genuine validation; renderer query stop
+
+2026-10-24, US Eastern. The accepted foreground executable passed a genuine client query:
+actual NULL, last-error 0, paired stdcall return. SetForegroundWindow and SetActiveWindow
+pass native/translated fixtures and genuine client continuations. Three client sessions total;
+two additional boundaries. Final stop: unmeasured IDirect3D8::GetAdapterModeCount(adapter=0),
+D3DDrv.dll+0xe9bd, return 0x0696e9c0. This D3D query is outside the small viewport prerequisite scope.
+No CreateDevice, Clear, Present, OpenWindow/Init return, or selected-world tick.
+Highest world milestone remains T2: 279 paired returns per lifecycle stage across 278 actors.
+Prior pending work and all earlier checkpoints/evidence are preserved.
+
+[Exact binaries, genuine evidence, regression and stop report](FOREGROUND_RENDERER.md).
+
+---
+
 # SetCapture and viewport CreateWindowEx validated; boundary limit reached
 
 2026-10-24, US Eastern. SetCapture, ClipCursor(NULL), window callback 0xae (8,0)

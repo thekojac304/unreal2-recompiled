@@ -531,10 +531,12 @@ static void dispatch(CPU* c, uint32_t target, uint32_t site, const char* what) {
         XrtModule *m=xrt_module_by_addr(target);
         int input_init=m && !_stricmp(m->name,"WinDrv.dll") && target-m->base==0x17c0;
         int viewport_open=m && !_stricmp(m->name,"WinDrv.dll") && target-m->base==0x3390;
+        int viewport_try=m && !_stricmp(m->name,"WinDrv.dll") && target-m->base==0x49b0;
         int loadmap=m && !_stricmp(m->name,"Engine.dll") && target-m->base==0x90f00;
         int postload=m && !_stricmp(m->name,"Engine.dll") && target-m->base==0xb9160;
         uint32_t esp=0,ret=0,self=0;
-        if(input_init || loadmap || postload || viewport_open) { esp=c->r[ESP]; ret=rd32(esp); self=c->r[ECX]; }
+        if(input_init || loadmap || postload || viewport_open || viewport_try) { esp=c->r[ESP]; ret=rd32(esp); self=c->r[ECX]; }
+        if(viewport_try) xrt_event("viewport_try_render_call","\"target\":%u,\"esp\":%u,\"return\":%u,\"this\":%u",target,esp,ret,self);
         if(viewport_open) xrt_event("viewport_open_call","\"target\":%u,\"esp\":%u,\"return\":%u,\"this\":%u",target,esp,ret,self);
         if(input_init) {
             esp=c->r[ESP]; ret=rd32(esp); self=c->r[ECX];
@@ -544,6 +546,7 @@ static void dispatch(CPU* c, uint32_t target, uint32_t site, const char* what) {
             target,c->r[ESP],rd32(c->r[ESP]),c->r[ECX],rd32(c->r[ESP]+4));
         if(postload) xrt_event("level_postload_call","\"target\":%u,\"esp\":%u,\"return\":%u,\"this\":%u",target,esp,ret,self);
         fn(c);
+        if(viewport_try) xrt_event("viewport_try_render_return","\"target\":%u,\"esp_before\":%u,\"esp_after\":%u,\"return\":%u,\"actual_return\":%u,\"this\":%u",target,esp,c->r[ESP],ret,c->rv,self);
         if(viewport_open) xrt_event("viewport_open_return","\"target\":%u,\"esp_before\":%u,\"esp_after\":%u,\"return\":%u,\"actual_return\":%u,\"this\":%u",target,esp,c->r[ESP],ret,c->rv,self);
         if(loadmap) xrt_event("engine_loadmap_return","\"target\":%u,\"result\":%u,\"actual_return\":%u,\"esp_before\":%u,\"esp_after\":%u,\"return\":%u,\"this\":%u",target,c->r[EAX],c->rv,esp,c->r[ESP],ret,self);
         if(postload) xrt_event("level_postload_return","\"target\":%u,\"esp_before\":%u,\"esp_after\":%u,\"return\":%u,\"actual_return\":%u,\"this\":%u",target,esp,c->r[ESP],ret,c->rv,self);
