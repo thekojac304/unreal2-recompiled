@@ -154,7 +154,7 @@ static void d8_device_SetRenderState(CPU*c) {
     D8DeviceObject*o=d8_device_object(c,ARG(0));
     uint32_t state=ARG(1),value=ARG(2),esp=c->r[ESP],ret=rd32(esp);
     HRESULT hr;DWORD error,before,after;CPU*previous;
-    if(!(state==7 && value==1))
+    if(!((state==7 && value==1) || (state==9 && value==2) || (state==29 && value==0) || (state==26 && value==1) || (state==143 && value==1)))
         xrt_fatal(c,76,"IDirect3DDevice8::SetRenderState: unsupported state=%u value=%u (native call refused)",state,value);
     d8_render_ready(c,o);
     xrt_event("d3d8_state_call","\"method\":\"SetRenderState\",\"slot\":50,\"this\":%u,\"state\":%u,\"value\":%u,\"esp\":%u,\"return\":%u",o->guest,state,value,esp,ret);

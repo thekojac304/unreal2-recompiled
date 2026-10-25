@@ -4,6 +4,10 @@
 extern IMAGE_DOS_HEADER __ImageBase;
 __declspec(dllimport)D8Interface*WINAPI Direct3DCreate8(UINT);
 int _fltused;
+#ifndef STATE_TARGET
+#define STATE_TARGET 7
+#define VALUE_TARGET 1
+#endif
 #pragma function(memcpy,memset)
 void*__cdecl memcpy(void*d,const void*s,size_t n){size_t i;for(i=0;i<n;i++)((volatile BYTE*)d)[i]=((const volatile BYTE*)s)[i];return d;}
 void*__cdecl memset(void*d,int v,size_t n){size_t i;for(i=0;i<n;i++)((volatile BYTE*)d)[i]=(BYTE)v;return d;}
@@ -11,7 +15,7 @@ __declspec(dllexport)DWORD probe_case,probe_arg,probe_seed=18,probe_log[512],pro
 static D8Device*d;static HWND window;static unsigned active,callbacks;
 typedef HRESULT(WINAPI*SetFn)(D8Device*,DWORD,DWORD);
 static void logv(DWORD v){probe_log[probe_log_n++]=v;}
-static LRESULT CALLBACK proc(HWND h,UINT m,WPARAM w,LPARAM l){if(active&&m==WM_GETICON){volatile double a=1.25,b=3.5;callbacks++;logv(a*b==4.375);if(probe_case==70)d->vt->Release(d);if(probe_case==71)((SetFn)(*(void***)d)[50])(d,7,1);if(probe_case==72)DestroyWindow(window);if(!w)SendMessageW(h,m,1,0);return 0;}return DefWindowProcW(h,m,w,l);}
+static LRESULT CALLBACK proc(HWND h,UINT m,WPARAM w,LPARAM l){if(active&&m==WM_GETICON){volatile double a=1.25,b=3.5;callbacks++;logv(a*b==4.375);if(probe_case==70)d->vt->Release(d);if(probe_case==71)((SetFn)(*(void***)d)[50])(d,STATE_TARGET,VALUE_TARGET);if(probe_case==72)DestroyWindow(window);if(!w)SendMessageW(h,m,1,0);return 0;}return DefWindowProcW(h,m,w,l);}
 #ifdef _M_IX86
 HRESULT __cdecl bridge_abi(D8Device*,DWORD,DWORD);
 #endif
@@ -20,13 +24,13 @@ __declspec(dllexport)int probe_main(void){
  memset(&wc,0,sizeof wc);wc.cbSize=sizeof wc;wc.lpfnWndProc=proc;wc.hInstance=(HINSTANCE)&__ImageBase;wc.lpszClassName=L"XrtStateProduction";if(!RegisterClassExW(&wc))return 2;
  window=CreateWindowExW(0,wc.lpszClassName,L"Isolated translated SetRenderState fixture",WS_POPUP,20,20,1540,945,NULL,NULL,wc.hInstance,NULL);if(!window)return 3;pp.window=window;
  p=Direct3DCreate8(120);if(!p)return 4;original=p;hr=p->vt->CreateDevice(p,0,1,window,0x42,&pp,&d);logv(hr);logv(d!=NULL);if(FAILED(hr)||!d)return 5;set=(SetFn)(*(void***)d)[50];thisdev=d;
- if(state>=70&&state<=72){state=7;value=1;}
- if(state==250){thisdev=(D8Device*)1;state=7;value=1;}
- if(state==251){d->vt->Release(d);state=7;value=1;}
- if(state==252){state=7;value=1;set=(SetFn)(*(void***)d)[51];}
- if(state==253){logv(p->vt->Release(p));p=NULL;state=7;value=1;}
- if(state==254){thisdev=(D8Device*)p;state=7;value=1;}
- if(state==256){thisdev=NULL;state=7;value=1;}
+ if(state>=70&&state<=72){state=STATE_TARGET;value=VALUE_TARGET;}
+ if(state==250){thisdev=(D8Device*)1;state=STATE_TARGET;value=VALUE_TARGET;}
+ if(state==251){d->vt->Release(d);state=STATE_TARGET;value=VALUE_TARGET;}
+ if(state==252){state=STATE_TARGET;value=VALUE_TARGET;set=(SetFn)(*(void***)d)[51];}
+ if(state==253){logv(p->vt->Release(p));p=NULL;state=STATE_TARGET;value=VALUE_TARGET;}
+ if(state==254){thisdev=(D8Device*)p;state=STATE_TARGET;value=VALUE_TARGET;}
+ if(state==256){thisdev=NULL;state=STATE_TARGET;value=VALUE_TARGET;}
  for(i=0;i<4;i++){
   active=1;SetLastError(probe_seed);
 #ifdef _M_IX86

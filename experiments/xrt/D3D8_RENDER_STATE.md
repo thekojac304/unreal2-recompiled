@@ -1,44 +1,41 @@
-# Measured D3D8 ZENABLE state
+# Measured D3D8 scalar render states
 
 2026-10-25, US Eastern. The typed device adapter forwards exactly
-`SetRenderState(7,1)` to pinned native DXVK. All other state/value tuples and
-production `GetRenderState` stop explicitly. The existing device identity,
-window lifetime, callback context and reentrancy guards apply. No textures,
-buffers, shaders, drawing or additional device methods were added.
+`(7,1)`, `(9,2)`, `(29,0)`, `(26,1)`, and `(143,1)` to pinned native DXVK.
+Every other state/value combination and
+production `GetRenderState` remain explicitly unsupported.
 
-Fresh native x86/x64 characterization and translated fixtures pass for actual
-HRESULT/last-error, a real 0-to-1 readback transition, repeated calls, stdcall,
-nonvolatile registers, x87 values/control/status/TOP, MXCSR and XMM6-XMM15.
-Wrong-type, stale, invalid and NULL device arguments are rejected before native
-forwarding. Parent-first lifetime, nested callbacks, reentrant Release/state
-calls, pinned-window destruction, unsupported GetRenderState and cleanup pass.
+Each newly encountered tuple passed independent native x86/x64 characterization
+and translated fixture checks for actual HRESULT/last-error, real state changes
+and repeats, 256-state readback, stdcall/nonvolatile registers, guest x87,
+MXCSR/XMM preservation, COM identity/lifetime, callbacks, reentrancy guards and
+window cleanup. Invalid-this fixtures call a slot saved from a valid device.
+Prior accepted tuples were freshly rechecked after each bridge extension.
 
-The original invalid-device fixture incorrectly loaded a vtable from `this=1`.
-Its exit-74 evidence remains under `out/recovery/d3d8-render-state-20261025-01`.
-The corrected fixture retains slot 50 from a valid typed device and calls that
-function with invalid `this`; an isolated observer proves adapter entry and
-exit 76 before any native state call. Production implementation source did not
-change during fixture recovery.
+Exactly 4 bounded genuine sessions ran. CreateDevice, Clear, Present and each
+supported SetRenderState have paired actual native and guest returns. Present
+success has no independent visual game-frame verification. The highest verified
+world milestone remains T2. TryRenderDevice, OpenWindow, and Engine Init have
+entries without paired returns. No engine or selected-world Tick completed.
 
-Fresh serial production build: all 279 objects, no reused objects.
-`build/d3d8-render-state-recovery-20261025-01/xrt_ucc.exe`
+Stopped at `SetRenderState` slot 50, caller
+`D3DDrv.dll+0xf213`, arguments
+`{'state': 48, 'value': 0}`.
+The three-additional-combination allowance is exhausted; `(48,0)` remains
+unsupported and was not characterized or implemented.
 
-EXE SHA-256: `c8fdb9cd70658408c6ed86cbe3e10c4a208f4ab68cc4c3ff146e8c9210a4e7c2`
+Final executable: `build/d3d8-gouraud-20261025-04/xrt_ucc.exe`
 
-PDB SHA-256: `fa50547f0113435d9b2e02bbb8a1f7784f04a9d54855d09a0cf13da743aacc51`
+EXE SHA-256: `4f2b5dadb326d0c417a088ee46acc4824384d3788739380612e52dc6526fb9f1`
 
-Fresh D3D8, COM ownership, Clear/Present, GUI/window/callback, compact VM and
-commandlet, compiler and full Python acceptance pass. One genuine translated
-graphical session completes paired CreateDevice, Clear, Present and
-SetRenderState(7,1) returns through the real backend. No game frame was visually
-captured. Viewport/engine/world completion is established only by paired trace
-evidence in the report.
+PDB SHA-256: `d39723bb16d57936116c60553fcefd074c0f8ac6687299bfc701b4f7961807ea`
 
-The next unsupported call is `SetRenderState` with arguments
-`{'state': 9, 'value': 2}`, slot 50, caller
-`0x696f1ac`. It remains unsupported; no second game session ran.
+All 4 builds freshly compiled 279 objects serially. Required D3D8/COM/GUI,
+commandlet/VM, compiler, traced and full Python acceptance passed: 33 stages and
+158 Python tests with zero skips per build. Protected
+inputs, old evidence/builds, pending unrelated work, settings/cursor, locks and
+cleanup passed verification after every session.
 
-Existing CRT, ACP 932 and general x87 limitations remain unchanged.
-
-[Full report](../../out/recovery/d3d8-render-state-recovery-20261025-01/REPORT.txt)
-and [fixture instructions](tests/d3d8_state/README.md).
+[Full report](../../out/recovery/d3d8-gouraud-20261025-01/REPORT.txt) and
+[fixture instructions](tests/d3d8_state/README.md). Earlier ZENABLE recovery
+evidence remains in `out/recovery/d3d8-render-state-recovery-20261025-01`.

@@ -70,7 +70,7 @@ def translated(out,state,value):
     assert 'stale or unknown guest COM interface' in fatal and not calls
     if r['variant']=='observed':
      entry=[e for e in ev if e['kind']=='test_state_adapter_entry'];assert len(entry)==1
-     assert entry[0]['state']==7 and entry[0]['value']==1
+     assert entry[0]['state']==state and entry[0]['value']==value
      if case==250:assert entry[0]['this']==1
      if case==256:assert entry[0]['this']==0
      creation=next(e for e in ev if e['kind']=='d3d8_device_return')
@@ -88,7 +88,7 @@ def translated(out,state,value):
  assert parent_first['exit']==0 and len([e for e in parent_first['events']if e['kind']=='d3d8_state_return'])==4
  code=(out/'source-snapshot/runtime/d3d8_device_slots.inc').read_text();assert code.count('unsupported slot ')==89
  assert not re.search(r'static void d8_device_GetRenderState[^\n]*\bRET_STD\b',code)
- result=dict(passed=True,state=state,value=value,fixture_processes=len(runs),native_x86_x64_translated_logs_equal=True,guest_stdcall_and_x87_equal_native_x86=True,observed_256_state_readbacks_equal=True,suspended_cpu_and_frame_unchanged=True,forced_nested_callbacks_verified=True,reentrancy_and_release_and_window_destruction_refused=True,production_GetRenderState_unsupported=True,unknown_stale_wrong_type_and_null_identity_refused=True,invalid_this_adapter_entry_observed=True,no_native_call_on_guard_failure=True,parent_first_lifetime_verified=True,normal_cleanup_verified=True,fatal_reentrant_backend_retained_until_process_exit=True,only_production_combination=[7,1])
+ result=dict(passed=True,state=state,value=value,fixture_processes=len(runs),native_x86_x64_translated_logs_equal=True,guest_stdcall_and_x87_equal_native_x86=True,observed_256_state_readbacks_equal=True,suspended_cpu_and_frame_unchanged=True,forced_nested_callbacks_verified=True,reentrancy_and_release_and_window_destruction_refused=True,production_GetRenderState_unsupported=True,unknown_stale_wrong_type_and_null_identity_refused=True,invalid_this_adapter_entry_observed=True,no_native_call_on_guard_failure=True,parent_first_lifetime_verified=True,normal_cleanup_verified=True,fatal_reentrant_backend_retained_until_process_exit=True,supported_production_combinations=[[int(a),int(b)]for a,b in re.findall(r'state==(\d+) && value==(\d+)',(out/'source-snapshot/runtime/hle_d3d8_device.inc').read_text())])
  (out/'audit.json').write_text(json.dumps(result,indent=2));print('TRANSLATED DIFFERENTIAL PASS',state,value,flush=True)
 if __name__=='__main__':
  a=argparse.ArgumentParser();a.add_argument('action',choices=['native','translated']);a.add_argument('--out',type=Path,required=True);a.add_argument('--state',type=int,default=7);a.add_argument('--value',type=int,default=1);v=a.parse_args();globals()[v.action](v.out.resolve(),v.state,v.value)
