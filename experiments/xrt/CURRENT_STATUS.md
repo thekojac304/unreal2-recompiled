@@ -1,3 +1,17 @@
+# EnumAdapterModes validated; one genuine client stops at GetAdapterDisplayMode
+
+2026-10-24, US Eastern. The typed bridge returns actual pinned DXVK modes. Two translated
+fixture processes match 7,342 values each; complete enumeration matches repeat native x86/x64.
+The initial x86 format-23 discrepancy remains unresolved. One graphical session completes 154 paired
+mode-count calls (152 each) and 152 paired enumerations, then stops at GetAdapterDisplayMode,
+D3DDrv.dll+0xec82. TryRenderDevice enters; OpenWindow/Init do not return; no engine/world tick
+or CreateDevice is reached. All 17 affected suites and compact/compiler/Python acceptance pass.
+Protected inputs and previous checkpoints are preserved; the 75,534-event trace has zero drops.
+
+[Exact binary, comparisons, client boundary, regression, integrity and next experiment](D3D8_ENUM_RENDERER.md).
+
+---
+
 # GetForegroundWindow genuine validation; renderer query stop
 
 2026-10-24, US Eastern. The accepted foreground executable passed a genuine client query:

@@ -1,0 +1,5683 @@
+{
+  "phase": "D3D8 EnumAdapterModes and one bounded genuine client",
+  "git_base": "1f00c5b2af57efbfd3996733aff98842a8d7007c",
+  "local_commit_record": "out/recovery/d3d8-enum-20261024-01/commit.json",
+  "binary": {
+    "path": "experiments\\xrt\\build\\d3d8-enum-20261024-01\\xrt_ucc.exe",
+    "sha256": "005edc05d720fbc1dbd5ff900716044701eb13a6b010c3c57526636e137657e5"
+  },
+  "fixture": {
+    "path": "experiments\\xrt\\build\\d3d8-enum-fixture-20261024-03",
+    "native_calls": 3504,
+    "native": {
+      "x86-0": [
+        {
+          "adapter": 0,
+          "mode_count": 304,
+          "formats": {
+            "22": 152,
+            "23": 152
+          }
+        },
+        {
+          "adapter": 1,
+          "mode_count": 304,
+          "formats": {
+            "22": 152,
+            "23": 152
+          }
+        }
+      ],
+      "x64-0": [
+        {
+          "adapter": 0,
+          "mode_count": 152,
+          "formats": {
+            "22": 152
+          }
+        },
+        {
+          "adapter": 1,
+          "mode_count": 152,
+          "formats": {
+            "22": 152
+          }
+        }
+      ],
+      "x86-1": [
+        {
+          "adapter": 0,
+          "mode_count": 152,
+          "formats": {
+            "22": 152
+          }
+        },
+        {
+          "adapter": 1,
+          "mode_count": 152,
+          "formats": {
+            "22": 152
+          }
+        }
+      ],
+      "x64-1": [
+        {
+          "adapter": 0,
+          "mode_count": 152,
+          "formats": {
+            "22": 152
+          }
+        },
+        {
+          "adapter": 1,
+          "mode_count": 152,
+          "formats": {
+            "22": 152
+          }
+        }
+      ]
+    },
+    "translated": [
+      {
+        "compared_values": 7342,
+        "events": 3266,
+        "events_dropped": 0,
+        "paired": {
+          "d3d8_mode_count": 33,
+          "d3d8_enum": 736
+        },
+        "report_sha256": "a5ec7658e693a86b39846c96d5d6db19454891935afd8424158b661bef1d819d"
+      },
+      {
+        "compared_values": 7342,
+        "events": 3266,
+        "events_dropped": 0,
+        "paired": {
+          "d3d8_mode_count": 33,
+          "d3d8_enum": 736
+        },
+        "report_sha256": "a5ec7658e693a86b39846c96d5d6db19454891935afd8424158b661bef1d819d"
+      }
+    ],
+    "negative_guards": {
+      "probe_stale": {
+        "exit": 76,
+        "diagnostic": "stale or unknown",
+        "report_sha256": "93b9ab22ac86111cce9c0b51f56b181ec48b6a5dc49dd1264bf326ce417e1e40"
+      },
+      "probe_mode_stale": {
+        "exit": 76,
+        "diagnostic": "stale or unknown",
+        "report_sha256": "2a005c1e349f9d81cff06d489971b644f36d1c4ced1439761b65b36f43f66c83"
+      },
+      "probe_enum_stale": {
+        "exit": 76,
+        "diagnostic": "stale or unknown",
+        "report_sha256": "40319a90f8d4dbbc2746dd281d7e3ec960b6bd4aa56f17df91fcf7938b248478"
+      },
+      "probe_unmeasured": {
+        "exit": 76,
+        "diagnostic": "RegisterSoftwareDevice is unmeasured",
+        "report_sha256": "04a4a26b56fd764a01fa80b0ce8e0f26b8c4b5362e84198dd486cb624f61bf90"
+      },
+      "probe_device_guard": {
+        "exit": 76,
+        "diagnostic": "CreateDevice is unmeasured",
+        "report_sha256": "31e86ca8acbe32b55036f5707df0c536a173744d1d0b6e77386a665909a0873a"
+      },
+      "probe_enum_null": {
+        "exit": 76,
+        "diagnostic": "NULL output is unmeasured",
+        "report_sha256": "fee77ae681a02fc4859906a11b2f04aa155a099851fbe3c84ec19a5159e88122"
+      },
+      "probe_enum_bad_range": {
+        "exit": 76,
+        "diagnostic": "invalid guest range",
+        "report_sha256": "c239903cba8a75a406415d5f5a90acdefb2925db7351813c609628f59c903c39"
+      },
+      "probe_enum_wrap": {
+        "exit": 76,
+        "diagnostic": "invalid guest range",
+        "report_sha256": "9621cf60c30f6a549555728c63436529d6dc2cc44a3a4497ee4364453cfad4f8"
+      },
+      "probe_invalid_count": {
+        "exit": 76,
+        "diagnostic": "unchecked native access refused",
+        "report_sha256": "398b69fbe8bb305c948dd6277b030a1153fb80de0ad2ed9db507da55fc0c5a3f"
+      },
+      "probe_invalid_next": {
+        "exit": 76,
+        "diagnostic": "unchecked native access refused",
+        "report_sha256": "b00259bf3dd96477f702d28b568cb2e7dd37dccb9a298a95f683e39987429b0b"
+      },
+      "probe_invalid_ffff": {
+        "exit": 76,
+        "diagnostic": "unchecked native access refused",
+        "report_sha256": "ff3f716b3b8c7860291b1c23c97c00dfca5ee8b2d660c30c2ea9f08bcd8f45fd"
+      },
+      "probe_invalid_7fffffff": {
+        "exit": 76,
+        "diagnostic": "unchecked native access refused",
+        "report_sha256": "e8733a305214256aef984007db687fe102d8a21ea0520afcda0d57d75fb4fc36"
+      },
+      "probe_invalid_ffffffff": {
+        "exit": 76,
+        "diagnostic": "unchecked native access refused",
+        "report_sha256": "a1fc1453847d9013a9b2943eaa55079401bb55f1a7491506a47d429458e0395b"
+      }
+    },
+    "first_x86_complete_comparison_exact": false,
+    "repeat_x86_x64_translated_exact": true,
+    "unresolved": "Initial x86 additionally enumerates 152 format-23 modes per adapter; no normalization or unconditional cross-architecture equivalence."
+  },
+  "client": {
+    "passed": true,
+    "client_run": "E:\\Unreal2-Port-Investigation\\experiments\\xrt\\results\\raw\\level\\20261025-033603-9f7d9bd2-candidate",
+    "mode_count": [
+      {
+        "adapter": 0,
+        "result": 152,
+        "object": "0x00015090",
+        "entry_seq": 74452,
+        "return_seq": 74454,
+        "return_address": "0x0696e9c0",
+        "callsite": "D3DDrv.dll+0xe9bd"
+      },
+      {
+        "adapter": 0,
+        "result": 152,
+        "object": "0x00015090",
+        "entry_seq": 74455,
+        "return_seq": 74457,
+        "return_address": "0x0696ea06",
+        "callsite": "D3DDrv.dll+0xea03"
+      },
+      {
+        "adapter": 0,
+        "result": 152,
+        "object": "0x00015090",
+        "entry_seq": 74462,
+        "return_seq": 74464,
+        "return_address": "0x0696ea06",
+        "callsite": "D3DDrv.dll+0xea03"
+      },
+      {
+        "adapter": 0,
+        "result": 152,
+        "object": "0x00015090",
+        "entry_seq": 74469,
+        "return_seq": 74471,
+        "return_address": "0x0696ea06",
+        "callsite": "D3DDrv.dll+0xea03"
+      },
+      {
+        "adapter": 0,
+        "result": 152,
+        "object": "0x00015090",
+        "entry_seq": 74476,
+        "return_seq": 74478,
+        "return_address": "0x0696ea06",
+        "callsite": "D3DDrv.dll+0xea03"
+      },
+      {
+        "adapter": 0,
+        "result": 152,
+        "object": "0x00015090",
+        "entry_seq": 74483,
+        "return_seq": 74485,
+        "return_address": "0x0696ea06",
+        "callsite": "D3DDrv.dll+0xea03"
+      },
+      {
+        "adapter": 0,
+        "result": 152,
+        "object": "0x00015090",
+        "entry_seq": 74490,
+        "return_seq": 74492,
+        "return_address": "0x0696ea06",
+        "callsite": "D3DDrv.dll+0xea03"
+      },
+      {
+        "adapter": 0,
+        "result": 152,
+        "object": "0x00015090",
+        "entry_seq": 74497,
+        "return_seq": 74499,
+        "return_address": "0x0696ea06",
+        "callsite": "D3DDrv.dll+0xea03"
+      },
+      {
+        "adapter": 0,
+        "result": 152,
+        "object": "0x00015090",
+        "entry_seq": 74504,
+        "return_seq": 74506,
+        "return_address": "0x0696ea06",
+        "callsite": "D3DDrv.dll+0xea03"
+      },
+      {
+        "adapter": 0,
+        "result": 152,
+        "object": "0x00015090",
+        "entry_seq": 74511,
+        "return_seq": 74513,
+        "return_address": "0x0696ea06",
+        "callsite": "D3DDrv.dll+0xea03"
+      },
+      {
+        "adapter": 0,
+        "result": 152,
+        "object": "0x00015090",
+        "entry_seq": 74518,
+        "return_seq": 74520,
+        "return_address": "0x0696ea06",
+        "callsite": "D3DDrv.dll+0xea03"
+      },
+      {
+        "adapter": 0,
+        "result": 152,
+        "object": "0x00015090",
+        "entry_seq": 74525,
+        "return_seq": 74527,
+        "return_address": "0x0696ea06",
+        "callsite": "D3DDrv.dll+0xea03"
+      },
+      {
+        "adapter": 0,
+        "result": 152,
+        "object": "0x00015090",
+        "entry_seq": 74532,
+        "return_seq": 74534,
+        "return_address": "0x0696ea06",
+        "callsite": "D3DDrv.dll+0xea03"
+      },
+      {
+        "adapter": 0,
+        "result": 152,
+        "object": "0x00015090",
+        "entry_seq": 74539,
+        "return_seq": 74541,
+        "return_address": "0x0696ea06",
+        "callsite": "D3DDrv.dll+0xea03"
+      },
+      {
+        "adapter": 0,
+        "result": 152,
+        "object": "0x00015090",
+        "entry_seq": 74546,
+        "return_seq": 74548,
+        "return_address": "0x0696ea06",
+        "callsite": "D3DDrv.dll+0xea03"
+      },
+      {
+        "adapter": 0,
+        "result": 152,
+        "object": "0x00015090",
+        "entry_seq": 74553,
+        "return_seq": 74555,
+        "return_address": "0x0696ea06",
+        "callsite": "D3DDrv.dll+0xea03"
+      },
+      {
+        "adapter": 0,
+        "result": 152,
+        "object": "0x00015090",
+        "entry_seq": 74560,
+        "return_seq": 74562,
+        "return_address": "0x0696ea06",
+        "callsite": "D3DDrv.dll+0xea03"
+      },
+      {
+        "adapter": 0,
+        "result": 152,
+        "object": "0x00015090",
+        "entry_seq": 74567,
+        "return_seq": 74569,
+        "return_address": "0x0696ea06",
+        "callsite": "D3DDrv.dll+0xea03"
+      },
+      {
+        "adapter": 0,
+        "result": 152,
+        "object": "0x00015090",
+        "entry_seq": 74574,
+        "return_seq": 74576,
+        "return_address": "0x0696ea06",
+        "callsite": "D3DDrv.dll+0xea03"
+      },
+      {
+        "adapter": 0,
+        "result": 152,
+        "object": "0x00015090",
+        "entry_seq": 74581,
+        "return_seq": 74583,
+        "return_address": "0x0696ea06",
+        "callsite": "D3DDrv.dll+0xea03"
+      },
+      {
+        "adapter": 0,
+        "result": 152,
+        "object": "0x00015090",
+        "entry_seq": 74588,
+        "return_seq": 74590,
+        "return_address": "0x0696ea06",
+        "callsite": "D3DDrv.dll+0xea03"
+      },
+      {
+        "adapter": 0,
+        "result": 152,
+        "object": "0x00015090",
+        "entry_seq": 74595,
+        "return_seq": 74597,
+        "return_address": "0x0696ea06",
+        "callsite": "D3DDrv.dll+0xea03"
+      },
+      {
+        "adapter": 0,
+        "result": 152,
+        "object": "0x00015090",
+        "entry_seq": 74602,
+        "return_seq": 74604,
+        "return_address": "0x0696ea06",
+        "callsite": "D3DDrv.dll+0xea03"
+      },
+      {
+        "adapter": 0,
+        "result": 152,
+        "object": "0x00015090",
+        "entry_seq": 74609,
+        "return_seq": 74611,
+        "return_address": "0x0696ea06",
+        "callsite": "D3DDrv.dll+0xea03"
+      },
+      {
+        "adapter": 0,
+        "result": 152,
+        "object": "0x00015090",
+        "entry_seq": 74616,
+        "return_seq": 74618,
+        "return_address": "0x0696ea06",
+        "callsite": "D3DDrv.dll+0xea03"
+      },
+      {
+        "adapter": 0,
+        "result": 152,
+        "object": "0x00015090",
+        "entry_seq": 74623,
+        "return_seq": 74625,
+        "return_address": "0x0696ea06",
+        "callsite": "D3DDrv.dll+0xea03"
+      },
+      {
+        "adapter": 0,
+        "result": 152,
+        "object": "0x00015090",
+        "entry_seq": 74630,
+        "return_seq": 74632,
+        "return_address": "0x0696ea06",
+        "callsite": "D3DDrv.dll+0xea03"
+      },
+      {
+        "adapter": 0,
+        "result": 152,
+        "object": "0x00015090",
+        "entry_seq": 74637,
+        "return_seq": 74639,
+        "return_address": "0x0696ea06",
+        "callsite": "D3DDrv.dll+0xea03"
+      },
+      {
+        "adapter": 0,
+        "result": 152,
+        "object": "0x00015090",
+        "entry_seq": 74644,
+        "return_seq": 74646,
+        "return_address": "0x0696ea06",
+        "callsite": "D3DDrv.dll+0xea03"
+      },
+      {
+        "adapter": 0,
+        "result": 152,
+        "object": "0x00015090",
+        "entry_seq": 74651,
+        "return_seq": 74653,
+        "return_address": "0x0696ea06",
+        "callsite": "D3DDrv.dll+0xea03"
+      },
+      {
+        "adapter": 0,
+        "result": 152,
+        "object": "0x00015090",
+        "entry_seq": 74658,
+        "return_seq": 74660,
+        "return_address": "0x0696ea06",
+        "callsite": "D3DDrv.dll+0xea03"
+      },
+      {
+        "adapter": 0,
+        "result": 152,
+        "object": "0x00015090",
+        "entry_seq": 74665,
+        "return_seq": 74667,
+        "return_address": "0x0696ea06",
+        "callsite": "D3DDrv.dll+0xea03"
+      },
+      {
+        "adapter": 0,
+        "result": 152,
+        "object": "0x00015090",
+        "entry_seq": 74672,
+        "return_seq": 74674,
+        "return_address": "0x0696ea06",
+        "callsite": "D3DDrv.dll+0xea03"
+      },
+      {
+        "adapter": 0,
+        "result": 152,
+        "object": "0x00015090",
+        "entry_seq": 74679,
+        "return_seq": 74681,
+        "return_address": "0x0696ea06",
+        "callsite": "D3DDrv.dll+0xea03"
+      },
+      {
+        "adapter": 0,
+        "result": 152,
+        "object": "0x00015090",
+        "entry_seq": 74686,
+        "return_seq": 74688,
+        "return_address": "0x0696ea06",
+        "callsite": "D3DDrv.dll+0xea03"
+      },
+      {
+        "adapter": 0,
+        "result": 152,
+        "object": "0x00015090",
+        "entry_seq": 74693,
+        "return_seq": 74695,
+        "return_address": "0x0696ea06",
+        "callsite": "D3DDrv.dll+0xea03"
+      },
+      {
+        "adapter": 0,
+        "result": 152,
+        "object": "0x00015090",
+        "entry_seq": 74700,
+        "return_seq": 74702,
+        "return_address": "0x0696ea06",
+        "callsite": "D3DDrv.dll+0xea03"
+      },
+      {
+        "adapter": 0,
+        "result": 152,
+        "object": "0x00015090",
+        "entry_seq": 74707,
+        "return_seq": 74709,
+        "return_address": "0x0696ea06",
+        "callsite": "D3DDrv.dll+0xea03"
+      },
+      {
+        "adapter": 0,
+        "result": 152,
+        "object": "0x00015090",
+        "entry_seq": 74714,
+        "return_seq": 74716,
+        "return_address": "0x0696ea06",
+        "callsite": "D3DDrv.dll+0xea03"
+      },
+      {
+        "adapter": 0,
+        "result": 152,
+        "object": "0x00015090",
+        "entry_seq": 74721,
+        "return_seq": 74723,
+        "return_address": "0x0696ea06",
+        "callsite": "D3DDrv.dll+0xea03"
+      },
+      {
+        "adapter": 0,
+        "result": 152,
+        "object": "0x00015090",
+        "entry_seq": 74728,
+        "return_seq": 74730,
+        "return_address": "0x0696ea06",
+        "callsite": "D3DDrv.dll+0xea03"
+      },
+      {
+        "adapter": 0,
+        "result": 152,
+        "object": "0x00015090",
+        "entry_seq": 74735,
+        "return_seq": 74737,
+        "return_address": "0x0696ea06",
+        "callsite": "D3DDrv.dll+0xea03"
+      },
+      {
+        "adapter": 0,
+        "result": 152,
+        "object": "0x00015090",
+        "entry_seq": 74742,
+        "return_seq": 74744,
+        "return_address": "0x0696ea06",
+        "callsite": "D3DDrv.dll+0xea03"
+      },
+      {
+        "adapter": 0,
+        "result": 152,
+        "object": "0x00015090",
+        "entry_seq": 74749,
+        "return_seq": 74751,
+        "return_address": "0x0696ea06",
+        "callsite": "D3DDrv.dll+0xea03"
+      },
+      {
+        "adapter": 0,
+        "result": 152,
+        "object": "0x00015090",
+        "entry_seq": 74756,
+        "return_seq": 74758,
+        "return_address": "0x0696ea06",
+        "callsite": "D3DDrv.dll+0xea03"
+      },
+      {
+        "adapter": 0,
+        "result": 152,
+        "object": "0x00015090",
+        "entry_seq": 74763,
+        "return_seq": 74765,
+        "return_address": "0x0696ea06",
+        "callsite": "D3DDrv.dll+0xea03"
+      },
+      {
+        "adapter": 0,
+        "result": 152,
+        "object": "0x00015090",
+        "entry_seq": 74770,
+        "return_seq": 74772,
+        "return_address": "0x0696ea06",
+        "callsite": "D3DDrv.dll+0xea03"
+      },
+      {
+        "adapter": 0,
+        "result": 152,
+        "object": "0x00015090",
+        "entry_seq": 74777,
+        "return_seq": 74779,
+        "return_address": "0x0696ea06",
+        "callsite": "D3DDrv.dll+0xea03"
+      },
+      {
+        "adapter": 0,
+        "result": 152,
+        "object": "0x00015090",
+        "entry_seq": 74784,
+        "return_seq": 74786,
+        "return_address": "0x0696ea06",
+        "callsite": "D3DDrv.dll+0xea03"
+      },
+      {
+        "adapter": 0,
+        "result": 152,
+        "object": "0x00015090",
+        "entry_seq": 74791,
+        "return_seq": 74793,
+        "return_address": "0x0696ea06",
+        "callsite": "D3DDrv.dll+0xea03"
+      },
+      {
+        "adapter": 0,
+        "result": 152,
+        "object": "0x00015090",
+        "entry_seq": 74798,
+        "return_seq": 74800,
+        "return_address": "0x0696ea06",
+        "callsite": "D3DDrv.dll+0xea03"
+      },
+      {
+        "adapter": 0,
+        "result": 152,
+        "object": "0x00015090",
+        "entry_seq": 74805,
+        "return_seq": 74807,
+        "return_address": "0x0696ea06",
+        "callsite": "D3DDrv.dll+0xea03"
+      },
+      {
+        "adapter": 0,
+        "result": 152,
+        "object": "0x00015090",
+        "entry_seq": 74812,
+        "return_seq": 74814,
+        "return_address": "0x0696ea06",
+        "callsite": "D3DDrv.dll+0xea03"
+      },
+      {
+        "adapter": 0,
+        "result": 152,
+        "object": "0x00015090",
+        "entry_seq": 74819,
+        "return_seq": 74821,
+        "return_address": "0x0696ea06",
+        "callsite": "D3DDrv.dll+0xea03"
+      },
+      {
+        "adapter": 0,
+        "result": 152,
+        "object": "0x00015090",
+        "entry_seq": 74826,
+        "return_seq": 74828,
+        "return_address": "0x0696ea06",
+        "callsite": "D3DDrv.dll+0xea03"
+      },
+      {
+        "adapter": 0,
+        "result": 152,
+        "object": "0x00015090",
+        "entry_seq": 74833,
+        "return_seq": 74835,
+        "return_address": "0x0696ea06",
+        "callsite": "D3DDrv.dll+0xea03"
+      },
+      {
+        "adapter": 0,
+        "result": 152,
+        "object": "0x00015090",
+        "entry_seq": 74840,
+        "return_seq": 74842,
+        "return_address": "0x0696ea06",
+        "callsite": "D3DDrv.dll+0xea03"
+      },
+      {
+        "adapter": 0,
+        "result": 152,
+        "object": "0x00015090",
+        "entry_seq": 74847,
+        "return_seq": 74849,
+        "return_address": "0x0696ea06",
+        "callsite": "D3DDrv.dll+0xea03"
+      },
+      {
+        "adapter": 0,
+        "result": 152,
+        "object": "0x00015090",
+        "entry_seq": 74854,
+        "return_seq": 74856,
+        "return_address": "0x0696ea06",
+        "callsite": "D3DDrv.dll+0xea03"
+      },
+      {
+        "adapter": 0,
+        "result": 152,
+        "object": "0x00015090",
+        "entry_seq": 74861,
+        "return_seq": 74863,
+        "return_address": "0x0696ea06",
+        "callsite": "D3DDrv.dll+0xea03"
+      },
+      {
+        "adapter": 0,
+        "result": 152,
+        "object": "0x00015090",
+        "entry_seq": 74868,
+        "return_seq": 74870,
+        "return_address": "0x0696ea06",
+        "callsite": "D3DDrv.dll+0xea03"
+      },
+      {
+        "adapter": 0,
+        "result": 152,
+        "object": "0x00015090",
+        "entry_seq": 74875,
+        "return_seq": 74877,
+        "return_address": "0x0696ea06",
+        "callsite": "D3DDrv.dll+0xea03"
+      },
+      {
+        "adapter": 0,
+        "result": 152,
+        "object": "0x00015090",
+        "entry_seq": 74882,
+        "return_seq": 74884,
+        "return_address": "0x0696ea06",
+        "callsite": "D3DDrv.dll+0xea03"
+      },
+      {
+        "adapter": 0,
+        "result": 152,
+        "object": "0x00015090",
+        "entry_seq": 74889,
+        "return_seq": 74891,
+        "return_address": "0x0696ea06",
+        "callsite": "D3DDrv.dll+0xea03"
+      },
+      {
+        "adapter": 0,
+        "result": 152,
+        "object": "0x00015090",
+        "entry_seq": 74896,
+        "return_seq": 74898,
+        "return_address": "0x0696ea06",
+        "callsite": "D3DDrv.dll+0xea03"
+      },
+      {
+        "adapter": 0,
+        "result": 152,
+        "object": "0x00015090",
+        "entry_seq": 74903,
+        "return_seq": 74905,
+        "return_address": "0x0696ea06",
+        "callsite": "D3DDrv.dll+0xea03"
+      },
+      {
+        "adapter": 0,
+        "result": 152,
+        "object": "0x00015090",
+        "entry_seq": 74910,
+        "return_seq": 74912,
+        "return_address": "0x0696ea06",
+        "callsite": "D3DDrv.dll+0xea03"
+      },
+      {
+        "adapter": 0,
+        "result": 152,
+        "object": "0x00015090",
+        "entry_seq": 74917,
+        "return_seq": 74919,
+        "return_address": "0x0696ea06",
+        "callsite": "D3DDrv.dll+0xea03"
+      },
+      {
+        "adapter": 0,
+        "result": 152,
+        "object": "0x00015090",
+        "entry_seq": 74924,
+        "return_seq": 74926,
+        "return_address": "0x0696ea06",
+        "callsite": "D3DDrv.dll+0xea03"
+      },
+      {
+        "adapter": 0,
+        "result": 152,
+        "object": "0x00015090",
+        "entry_seq": 74931,
+        "return_seq": 74933,
+        "return_address": "0x0696ea06",
+        "callsite": "D3DDrv.dll+0xea03"
+      },
+      {
+        "adapter": 0,
+        "result": 152,
+        "object": "0x00015090",
+        "entry_seq": 74938,
+        "return_seq": 74940,
+        "return_address": "0x0696ea06",
+        "callsite": "D3DDrv.dll+0xea03"
+      },
+      {
+        "adapter": 0,
+        "result": 152,
+        "object": "0x00015090",
+        "entry_seq": 74945,
+        "return_seq": 74947,
+        "return_address": "0x0696ea06",
+        "callsite": "D3DDrv.dll+0xea03"
+      },
+      {
+        "adapter": 0,
+        "result": 152,
+        "object": "0x00015090",
+        "entry_seq": 74952,
+        "return_seq": 74954,
+        "return_address": "0x0696ea06",
+        "callsite": "D3DDrv.dll+0xea03"
+      },
+      {
+        "adapter": 0,
+        "result": 152,
+        "object": "0x00015090",
+        "entry_seq": 74959,
+        "return_seq": 74961,
+        "return_address": "0x0696ea06",
+        "callsite": "D3DDrv.dll+0xea03"
+      },
+      {
+        "adapter": 0,
+        "result": 152,
+        "object": "0x00015090",
+        "entry_seq": 74966,
+        "return_seq": 74968,
+        "return_address": "0x0696ea06",
+        "callsite": "D3DDrv.dll+0xea03"
+      },
+      {
+        "adapter": 0,
+        "result": 152,
+        "object": "0x00015090",
+        "entry_seq": 74973,
+        "return_seq": 74975,
+        "return_address": "0x0696ea06",
+        "callsite": "D3DDrv.dll+0xea03"
+      },
+      {
+        "adapter": 0,
+        "result": 152,
+        "object": "0x00015090",
+        "entry_seq": 74980,
+        "return_seq": 74982,
+        "return_address": "0x0696ea06",
+        "callsite": "D3DDrv.dll+0xea03"
+      },
+      {
+        "adapter": 0,
+        "result": 152,
+        "object": "0x00015090",
+        "entry_seq": 74987,
+        "return_seq": 74989,
+        "return_address": "0x0696ea06",
+        "callsite": "D3DDrv.dll+0xea03"
+      },
+      {
+        "adapter": 0,
+        "result": 152,
+        "object": "0x00015090",
+        "entry_seq": 74994,
+        "return_seq": 74996,
+        "return_address": "0x0696ea06",
+        "callsite": "D3DDrv.dll+0xea03"
+      },
+      {
+        "adapter": 0,
+        "result": 152,
+        "object": "0x00015090",
+        "entry_seq": 75001,
+        "return_seq": 75003,
+        "return_address": "0x0696ea06",
+        "callsite": "D3DDrv.dll+0xea03"
+      },
+      {
+        "adapter": 0,
+        "result": 152,
+        "object": "0x00015090",
+        "entry_seq": 75008,
+        "return_seq": 75010,
+        "return_address": "0x0696ea06",
+        "callsite": "D3DDrv.dll+0xea03"
+      },
+      {
+        "adapter": 0,
+        "result": 152,
+        "object": "0x00015090",
+        "entry_seq": 75015,
+        "return_seq": 75017,
+        "return_address": "0x0696ea06",
+        "callsite": "D3DDrv.dll+0xea03"
+      },
+      {
+        "adapter": 0,
+        "result": 152,
+        "object": "0x00015090",
+        "entry_seq": 75022,
+        "return_seq": 75024,
+        "return_address": "0x0696ea06",
+        "callsite": "D3DDrv.dll+0xea03"
+      },
+      {
+        "adapter": 0,
+        "result": 152,
+        "object": "0x00015090",
+        "entry_seq": 75029,
+        "return_seq": 75031,
+        "return_address": "0x0696ea06",
+        "callsite": "D3DDrv.dll+0xea03"
+      },
+      {
+        "adapter": 0,
+        "result": 152,
+        "object": "0x00015090",
+        "entry_seq": 75036,
+        "return_seq": 75038,
+        "return_address": "0x0696ea06",
+        "callsite": "D3DDrv.dll+0xea03"
+      },
+      {
+        "adapter": 0,
+        "result": 152,
+        "object": "0x00015090",
+        "entry_seq": 75043,
+        "return_seq": 75045,
+        "return_address": "0x0696ea06",
+        "callsite": "D3DDrv.dll+0xea03"
+      },
+      {
+        "adapter": 0,
+        "result": 152,
+        "object": "0x00015090",
+        "entry_seq": 75050,
+        "return_seq": 75052,
+        "return_address": "0x0696ea06",
+        "callsite": "D3DDrv.dll+0xea03"
+      },
+      {
+        "adapter": 0,
+        "result": 152,
+        "object": "0x00015090",
+        "entry_seq": 75057,
+        "return_seq": 75059,
+        "return_address": "0x0696ea06",
+        "callsite": "D3DDrv.dll+0xea03"
+      },
+      {
+        "adapter": 0,
+        "result": 152,
+        "object": "0x00015090",
+        "entry_seq": 75064,
+        "return_seq": 75066,
+        "return_address": "0x0696ea06",
+        "callsite": "D3DDrv.dll+0xea03"
+      },
+      {
+        "adapter": 0,
+        "result": 152,
+        "object": "0x00015090",
+        "entry_seq": 75071,
+        "return_seq": 75073,
+        "return_address": "0x0696ea06",
+        "callsite": "D3DDrv.dll+0xea03"
+      },
+      {
+        "adapter": 0,
+        "result": 152,
+        "object": "0x00015090",
+        "entry_seq": 75078,
+        "return_seq": 75080,
+        "return_address": "0x0696ea06",
+        "callsite": "D3DDrv.dll+0xea03"
+      },
+      {
+        "adapter": 0,
+        "result": 152,
+        "object": "0x00015090",
+        "entry_seq": 75085,
+        "return_seq": 75087,
+        "return_address": "0x0696ea06",
+        "callsite": "D3DDrv.dll+0xea03"
+      },
+      {
+        "adapter": 0,
+        "result": 152,
+        "object": "0x00015090",
+        "entry_seq": 75092,
+        "return_seq": 75094,
+        "return_address": "0x0696ea06",
+        "callsite": "D3DDrv.dll+0xea03"
+      },
+      {
+        "adapter": 0,
+        "result": 152,
+        "object": "0x00015090",
+        "entry_seq": 75099,
+        "return_seq": 75101,
+        "return_address": "0x0696ea06",
+        "callsite": "D3DDrv.dll+0xea03"
+      },
+      {
+        "adapter": 0,
+        "result": 152,
+        "object": "0x00015090",
+        "entry_seq": 75106,
+        "return_seq": 75108,
+        "return_address": "0x0696ea06",
+        "callsite": "D3DDrv.dll+0xea03"
+      },
+      {
+        "adapter": 0,
+        "result": 152,
+        "object": "0x00015090",
+        "entry_seq": 75113,
+        "return_seq": 75115,
+        "return_address": "0x0696ea06",
+        "callsite": "D3DDrv.dll+0xea03"
+      },
+      {
+        "adapter": 0,
+        "result": 152,
+        "object": "0x00015090",
+        "entry_seq": 75120,
+        "return_seq": 75122,
+        "return_address": "0x0696ea06",
+        "callsite": "D3DDrv.dll+0xea03"
+      },
+      {
+        "adapter": 0,
+        "result": 152,
+        "object": "0x00015090",
+        "entry_seq": 75127,
+        "return_seq": 75129,
+        "return_address": "0x0696ea06",
+        "callsite": "D3DDrv.dll+0xea03"
+      },
+      {
+        "adapter": 0,
+        "result": 152,
+        "object": "0x00015090",
+        "entry_seq": 75134,
+        "return_seq": 75136,
+        "return_address": "0x0696ea06",
+        "callsite": "D3DDrv.dll+0xea03"
+      },
+      {
+        "adapter": 0,
+        "result": 152,
+        "object": "0x00015090",
+        "entry_seq": 75141,
+        "return_seq": 75143,
+        "return_address": "0x0696ea06",
+        "callsite": "D3DDrv.dll+0xea03"
+      },
+      {
+        "adapter": 0,
+        "result": 152,
+        "object": "0x00015090",
+        "entry_seq": 75148,
+        "return_seq": 75150,
+        "return_address": "0x0696ea06",
+        "callsite": "D3DDrv.dll+0xea03"
+      },
+      {
+        "adapter": 0,
+        "result": 152,
+        "object": "0x00015090",
+        "entry_seq": 75155,
+        "return_seq": 75157,
+        "return_address": "0x0696ea06",
+        "callsite": "D3DDrv.dll+0xea03"
+      },
+      {
+        "adapter": 0,
+        "result": 152,
+        "object": "0x00015090",
+        "entry_seq": 75162,
+        "return_seq": 75164,
+        "return_address": "0x0696ea06",
+        "callsite": "D3DDrv.dll+0xea03"
+      },
+      {
+        "adapter": 0,
+        "result": 152,
+        "object": "0x00015090",
+        "entry_seq": 75169,
+        "return_seq": 75171,
+        "return_address": "0x0696ea06",
+        "callsite": "D3DDrv.dll+0xea03"
+      },
+      {
+        "adapter": 0,
+        "result": 152,
+        "object": "0x00015090",
+        "entry_seq": 75176,
+        "return_seq": 75178,
+        "return_address": "0x0696ea06",
+        "callsite": "D3DDrv.dll+0xea03"
+      },
+      {
+        "adapter": 0,
+        "result": 152,
+        "object": "0x00015090",
+        "entry_seq": 75183,
+        "return_seq": 75185,
+        "return_address": "0x0696ea06",
+        "callsite": "D3DDrv.dll+0xea03"
+      },
+      {
+        "adapter": 0,
+        "result": 152,
+        "object": "0x00015090",
+        "entry_seq": 75190,
+        "return_seq": 75192,
+        "return_address": "0x0696ea06",
+        "callsite": "D3DDrv.dll+0xea03"
+      },
+      {
+        "adapter": 0,
+        "result": 152,
+        "object": "0x00015090",
+        "entry_seq": 75197,
+        "return_seq": 75199,
+        "return_address": "0x0696ea06",
+        "callsite": "D3DDrv.dll+0xea03"
+      },
+      {
+        "adapter": 0,
+        "result": 152,
+        "object": "0x00015090",
+        "entry_seq": 75204,
+        "return_seq": 75206,
+        "return_address": "0x0696ea06",
+        "callsite": "D3DDrv.dll+0xea03"
+      },
+      {
+        "adapter": 0,
+        "result": 152,
+        "object": "0x00015090",
+        "entry_seq": 75211,
+        "return_seq": 75213,
+        "return_address": "0x0696ea06",
+        "callsite": "D3DDrv.dll+0xea03"
+      },
+      {
+        "adapter": 0,
+        "result": 152,
+        "object": "0x00015090",
+        "entry_seq": 75218,
+        "return_seq": 75220,
+        "return_address": "0x0696ea06",
+        "callsite": "D3DDrv.dll+0xea03"
+      },
+      {
+        "adapter": 0,
+        "result": 152,
+        "object": "0x00015090",
+        "entry_seq": 75225,
+        "return_seq": 75227,
+        "return_address": "0x0696ea06",
+        "callsite": "D3DDrv.dll+0xea03"
+      },
+      {
+        "adapter": 0,
+        "result": 152,
+        "object": "0x00015090",
+        "entry_seq": 75232,
+        "return_seq": 75234,
+        "return_address": "0x0696ea06",
+        "callsite": "D3DDrv.dll+0xea03"
+      },
+      {
+        "adapter": 0,
+        "result": 152,
+        "object": "0x00015090",
+        "entry_seq": 75239,
+        "return_seq": 75241,
+        "return_address": "0x0696ea06",
+        "callsite": "D3DDrv.dll+0xea03"
+      },
+      {
+        "adapter": 0,
+        "result": 152,
+        "object": "0x00015090",
+        "entry_seq": 75246,
+        "return_seq": 75248,
+        "return_address": "0x0696ea06",
+        "callsite": "D3DDrv.dll+0xea03"
+      },
+      {
+        "adapter": 0,
+        "result": 152,
+        "object": "0x00015090",
+        "entry_seq": 75253,
+        "return_seq": 75255,
+        "return_address": "0x0696ea06",
+        "callsite": "D3DDrv.dll+0xea03"
+      },
+      {
+        "adapter": 0,
+        "result": 152,
+        "object": "0x00015090",
+        "entry_seq": 75260,
+        "return_seq": 75262,
+        "return_address": "0x0696ea06",
+        "callsite": "D3DDrv.dll+0xea03"
+      },
+      {
+        "adapter": 0,
+        "result": 152,
+        "object": "0x00015090",
+        "entry_seq": 75267,
+        "return_seq": 75269,
+        "return_address": "0x0696ea06",
+        "callsite": "D3DDrv.dll+0xea03"
+      },
+      {
+        "adapter": 0,
+        "result": 152,
+        "object": "0x00015090",
+        "entry_seq": 75274,
+        "return_seq": 75276,
+        "return_address": "0x0696ea06",
+        "callsite": "D3DDrv.dll+0xea03"
+      },
+      {
+        "adapter": 0,
+        "result": 152,
+        "object": "0x00015090",
+        "entry_seq": 75281,
+        "return_seq": 75283,
+        "return_address": "0x0696ea06",
+        "callsite": "D3DDrv.dll+0xea03"
+      },
+      {
+        "adapter": 0,
+        "result": 152,
+        "object": "0x00015090",
+        "entry_seq": 75288,
+        "return_seq": 75290,
+        "return_address": "0x0696ea06",
+        "callsite": "D3DDrv.dll+0xea03"
+      },
+      {
+        "adapter": 0,
+        "result": 152,
+        "object": "0x00015090",
+        "entry_seq": 75295,
+        "return_seq": 75297,
+        "return_address": "0x0696ea06",
+        "callsite": "D3DDrv.dll+0xea03"
+      },
+      {
+        "adapter": 0,
+        "result": 152,
+        "object": "0x00015090",
+        "entry_seq": 75302,
+        "return_seq": 75304,
+        "return_address": "0x0696ea06",
+        "callsite": "D3DDrv.dll+0xea03"
+      },
+      {
+        "adapter": 0,
+        "result": 152,
+        "object": "0x00015090",
+        "entry_seq": 75309,
+        "return_seq": 75311,
+        "return_address": "0x0696ea06",
+        "callsite": "D3DDrv.dll+0xea03"
+      },
+      {
+        "adapter": 0,
+        "result": 152,
+        "object": "0x00015090",
+        "entry_seq": 75316,
+        "return_seq": 75318,
+        "return_address": "0x0696ea06",
+        "callsite": "D3DDrv.dll+0xea03"
+      },
+      {
+        "adapter": 0,
+        "result": 152,
+        "object": "0x00015090",
+        "entry_seq": 75323,
+        "return_seq": 75325,
+        "return_address": "0x0696ea06",
+        "callsite": "D3DDrv.dll+0xea03"
+      },
+      {
+        "adapter": 0,
+        "result": 152,
+        "object": "0x00015090",
+        "entry_seq": 75330,
+        "return_seq": 75332,
+        "return_address": "0x0696ea06",
+        "callsite": "D3DDrv.dll+0xea03"
+      },
+      {
+        "adapter": 0,
+        "result": 152,
+        "object": "0x00015090",
+        "entry_seq": 75337,
+        "return_seq": 75339,
+        "return_address": "0x0696ea06",
+        "callsite": "D3DDrv.dll+0xea03"
+      },
+      {
+        "adapter": 0,
+        "result": 152,
+        "object": "0x00015090",
+        "entry_seq": 75344,
+        "return_seq": 75346,
+        "return_address": "0x0696ea06",
+        "callsite": "D3DDrv.dll+0xea03"
+      },
+      {
+        "adapter": 0,
+        "result": 152,
+        "object": "0x00015090",
+        "entry_seq": 75351,
+        "return_seq": 75353,
+        "return_address": "0x0696ea06",
+        "callsite": "D3DDrv.dll+0xea03"
+      },
+      {
+        "adapter": 0,
+        "result": 152,
+        "object": "0x00015090",
+        "entry_seq": 75358,
+        "return_seq": 75360,
+        "return_address": "0x0696ea06",
+        "callsite": "D3DDrv.dll+0xea03"
+      },
+      {
+        "adapter": 0,
+        "result": 152,
+        "object": "0x00015090",
+        "entry_seq": 75365,
+        "return_seq": 75367,
+        "return_address": "0x0696ea06",
+        "callsite": "D3DDrv.dll+0xea03"
+      },
+      {
+        "adapter": 0,
+        "result": 152,
+        "object": "0x00015090",
+        "entry_seq": 75372,
+        "return_seq": 75374,
+        "return_address": "0x0696ea06",
+        "callsite": "D3DDrv.dll+0xea03"
+      },
+      {
+        "adapter": 0,
+        "result": 152,
+        "object": "0x00015090",
+        "entry_seq": 75379,
+        "return_seq": 75381,
+        "return_address": "0x0696ea06",
+        "callsite": "D3DDrv.dll+0xea03"
+      },
+      {
+        "adapter": 0,
+        "result": 152,
+        "object": "0x00015090",
+        "entry_seq": 75386,
+        "return_seq": 75388,
+        "return_address": "0x0696ea06",
+        "callsite": "D3DDrv.dll+0xea03"
+      },
+      {
+        "adapter": 0,
+        "result": 152,
+        "object": "0x00015090",
+        "entry_seq": 75393,
+        "return_seq": 75395,
+        "return_address": "0x0696ea06",
+        "callsite": "D3DDrv.dll+0xea03"
+      },
+      {
+        "adapter": 0,
+        "result": 152,
+        "object": "0x00015090",
+        "entry_seq": 75400,
+        "return_seq": 75402,
+        "return_address": "0x0696ea06",
+        "callsite": "D3DDrv.dll+0xea03"
+      },
+      {
+        "adapter": 0,
+        "result": 152,
+        "object": "0x00015090",
+        "entry_seq": 75407,
+        "return_seq": 75409,
+        "return_address": "0x0696ea06",
+        "callsite": "D3DDrv.dll+0xea03"
+      },
+      {
+        "adapter": 0,
+        "result": 152,
+        "object": "0x00015090",
+        "entry_seq": 75414,
+        "return_seq": 75416,
+        "return_address": "0x0696ea06",
+        "callsite": "D3DDrv.dll+0xea03"
+      },
+      {
+        "adapter": 0,
+        "result": 152,
+        "object": "0x00015090",
+        "entry_seq": 75421,
+        "return_seq": 75423,
+        "return_address": "0x0696ea06",
+        "callsite": "D3DDrv.dll+0xea03"
+      },
+      {
+        "adapter": 0,
+        "result": 152,
+        "object": "0x00015090",
+        "entry_seq": 75428,
+        "return_seq": 75430,
+        "return_address": "0x0696ea06",
+        "callsite": "D3DDrv.dll+0xea03"
+      },
+      {
+        "adapter": 0,
+        "result": 152,
+        "object": "0x00015090",
+        "entry_seq": 75435,
+        "return_seq": 75437,
+        "return_address": "0x0696ea06",
+        "callsite": "D3DDrv.dll+0xea03"
+      },
+      {
+        "adapter": 0,
+        "result": 152,
+        "object": "0x00015090",
+        "entry_seq": 75442,
+        "return_seq": 75444,
+        "return_address": "0x0696ea06",
+        "callsite": "D3DDrv.dll+0xea03"
+      },
+      {
+        "adapter": 0,
+        "result": 152,
+        "object": "0x00015090",
+        "entry_seq": 75449,
+        "return_seq": 75451,
+        "return_address": "0x0696ea06",
+        "callsite": "D3DDrv.dll+0xea03"
+      },
+      {
+        "adapter": 0,
+        "result": 152,
+        "object": "0x00015090",
+        "entry_seq": 75456,
+        "return_seq": 75458,
+        "return_address": "0x0696ea06",
+        "callsite": "D3DDrv.dll+0xea03"
+      },
+      {
+        "adapter": 0,
+        "result": 152,
+        "object": "0x00015090",
+        "entry_seq": 75463,
+        "return_seq": 75465,
+        "return_address": "0x0696ea06",
+        "callsite": "D3DDrv.dll+0xea03"
+      },
+      {
+        "adapter": 0,
+        "result": 152,
+        "object": "0x00015090",
+        "entry_seq": 75470,
+        "return_seq": 75472,
+        "return_address": "0x0696ea06",
+        "callsite": "D3DDrv.dll+0xea03"
+      },
+      {
+        "adapter": 0,
+        "result": 152,
+        "object": "0x00015090",
+        "entry_seq": 75477,
+        "return_seq": 75479,
+        "return_address": "0x0696ea06",
+        "callsite": "D3DDrv.dll+0xea03"
+      },
+      {
+        "adapter": 0,
+        "result": 152,
+        "object": "0x00015090",
+        "entry_seq": 75484,
+        "return_seq": 75486,
+        "return_address": "0x0696ea06",
+        "callsite": "D3DDrv.dll+0xea03"
+      },
+      {
+        "adapter": 0,
+        "result": 152,
+        "object": "0x00015090",
+        "entry_seq": 75491,
+        "return_seq": 75493,
+        "return_address": "0x0696ea06",
+        "callsite": "D3DDrv.dll+0xea03"
+      },
+      {
+        "adapter": 0,
+        "result": 152,
+        "object": "0x00015090",
+        "entry_seq": 75498,
+        "return_seq": 75500,
+        "return_address": "0x0696ea06",
+        "callsite": "D3DDrv.dll+0xea03"
+      },
+      {
+        "adapter": 0,
+        "result": 152,
+        "object": "0x00015090",
+        "entry_seq": 75505,
+        "return_seq": 75507,
+        "return_address": "0x0696ea06",
+        "callsite": "D3DDrv.dll+0xea03"
+      },
+      {
+        "adapter": 0,
+        "result": 152,
+        "object": "0x00015090",
+        "entry_seq": 75512,
+        "return_seq": 75514,
+        "return_address": "0x0696ea06",
+        "callsite": "D3DDrv.dll+0xea03"
+      },
+      {
+        "adapter": 0,
+        "result": 152,
+        "object": "0x00015090",
+        "entry_seq": 75519,
+        "return_seq": 75521,
+        "return_address": "0x0696ea06",
+        "callsite": "D3DDrv.dll+0xea03"
+      }
+    ],
+    "enumeration": [
+      {
+        "adapter": 0,
+        "index": 0,
+        "hresult": 0,
+        "last_error": 18,
+        "mode": [
+          640,
+          480,
+          240,
+          22
+        ],
+        "entry_seq": 74458,
+        "return_seq": 74461,
+        "output": "0x0120d388",
+        "return_address": "0x0696ea25",
+        "callsite": "D3DDrv.dll+0xea22"
+      },
+      {
+        "adapter": 0,
+        "index": 1,
+        "hresult": 0,
+        "last_error": 18,
+        "mode": [
+          640,
+          480,
+          120,
+          22
+        ],
+        "entry_seq": 74465,
+        "return_seq": 74468,
+        "output": "0x0120d388",
+        "return_address": "0x0696ea25",
+        "callsite": "D3DDrv.dll+0xea22"
+      },
+      {
+        "adapter": 0,
+        "index": 2,
+        "hresult": 0,
+        "last_error": 18,
+        "mode": [
+          640,
+          480,
+          100,
+          22
+        ],
+        "entry_seq": 74472,
+        "return_seq": 74475,
+        "output": "0x0120d388",
+        "return_address": "0x0696ea25",
+        "callsite": "D3DDrv.dll+0xea22"
+      },
+      {
+        "adapter": 0,
+        "index": 3,
+        "hresult": 0,
+        "last_error": 18,
+        "mode": [
+          640,
+          480,
+          75,
+          22
+        ],
+        "entry_seq": 74479,
+        "return_seq": 74482,
+        "output": "0x0120d388",
+        "return_address": "0x0696ea25",
+        "callsite": "D3DDrv.dll+0xea22"
+      },
+      {
+        "adapter": 0,
+        "index": 4,
+        "hresult": 0,
+        "last_error": 18,
+        "mode": [
+          640,
+          480,
+          72,
+          22
+        ],
+        "entry_seq": 74486,
+        "return_seq": 74489,
+        "output": "0x0120d388",
+        "return_address": "0x0696ea25",
+        "callsite": "D3DDrv.dll+0xea22"
+      },
+      {
+        "adapter": 0,
+        "index": 5,
+        "hresult": 0,
+        "last_error": 18,
+        "mode": [
+          640,
+          480,
+          67,
+          22
+        ],
+        "entry_seq": 74493,
+        "return_seq": 74496,
+        "output": "0x0120d388",
+        "return_address": "0x0696ea25",
+        "callsite": "D3DDrv.dll+0xea22"
+      },
+      {
+        "adapter": 0,
+        "index": 6,
+        "hresult": 0,
+        "last_error": 18,
+        "mode": [
+          640,
+          480,
+          60,
+          22
+        ],
+        "entry_seq": 74500,
+        "return_seq": 74503,
+        "output": "0x0120d388",
+        "return_address": "0x0696ea25",
+        "callsite": "D3DDrv.dll+0xea22"
+      },
+      {
+        "adapter": 0,
+        "index": 7,
+        "hresult": 0,
+        "last_error": 18,
+        "mode": [
+          640,
+          480,
+          59,
+          22
+        ],
+        "entry_seq": 74507,
+        "return_seq": 74510,
+        "output": "0x0120d388",
+        "return_address": "0x0696ea25",
+        "callsite": "D3DDrv.dll+0xea22"
+      },
+      {
+        "adapter": 0,
+        "index": 8,
+        "hresult": 0,
+        "last_error": 18,
+        "mode": [
+          640,
+          480,
+          48,
+          22
+        ],
+        "entry_seq": 74514,
+        "return_seq": 74517,
+        "output": "0x0120d388",
+        "return_address": "0x0696ea25",
+        "callsite": "D3DDrv.dll+0xea22"
+      },
+      {
+        "adapter": 0,
+        "index": 9,
+        "hresult": 0,
+        "last_error": 18,
+        "mode": [
+          720,
+          400,
+          240,
+          22
+        ],
+        "entry_seq": 74521,
+        "return_seq": 74524,
+        "output": "0x0120d388",
+        "return_address": "0x0696ea25",
+        "callsite": "D3DDrv.dll+0xea22"
+      },
+      {
+        "adapter": 0,
+        "index": 10,
+        "hresult": 0,
+        "last_error": 18,
+        "mode": [
+          720,
+          400,
+          120,
+          22
+        ],
+        "entry_seq": 74528,
+        "return_seq": 74531,
+        "output": "0x0120d388",
+        "return_address": "0x0696ea25",
+        "callsite": "D3DDrv.dll+0xea22"
+      },
+      {
+        "adapter": 0,
+        "index": 11,
+        "hresult": 0,
+        "last_error": 18,
+        "mode": [
+          720,
+          400,
+          100,
+          22
+        ],
+        "entry_seq": 74535,
+        "return_seq": 74538,
+        "output": "0x0120d388",
+        "return_address": "0x0696ea25",
+        "callsite": "D3DDrv.dll+0xea22"
+      },
+      {
+        "adapter": 0,
+        "index": 12,
+        "hresult": 0,
+        "last_error": 18,
+        "mode": [
+          720,
+          400,
+          75,
+          22
+        ],
+        "entry_seq": 74542,
+        "return_seq": 74545,
+        "output": "0x0120d388",
+        "return_address": "0x0696ea25",
+        "callsite": "D3DDrv.dll+0xea22"
+      },
+      {
+        "adapter": 0,
+        "index": 13,
+        "hresult": 0,
+        "last_error": 18,
+        "mode": [
+          720,
+          400,
+          70,
+          22
+        ],
+        "entry_seq": 74549,
+        "return_seq": 74552,
+        "output": "0x0120d388",
+        "return_address": "0x0696ea25",
+        "callsite": "D3DDrv.dll+0xea22"
+      },
+      {
+        "adapter": 0,
+        "index": 14,
+        "hresult": 0,
+        "last_error": 18,
+        "mode": [
+          720,
+          400,
+          60,
+          22
+        ],
+        "entry_seq": 74556,
+        "return_seq": 74559,
+        "output": "0x0120d388",
+        "return_address": "0x0696ea25",
+        "callsite": "D3DDrv.dll+0xea22"
+      },
+      {
+        "adapter": 0,
+        "index": 15,
+        "hresult": 0,
+        "last_error": 18,
+        "mode": [
+          720,
+          400,
+          48,
+          22
+        ],
+        "entry_seq": 74563,
+        "return_seq": 74566,
+        "output": "0x0120d388",
+        "return_address": "0x0696ea25",
+        "callsite": "D3DDrv.dll+0xea22"
+      },
+      {
+        "adapter": 0,
+        "index": 16,
+        "hresult": 0,
+        "last_error": 18,
+        "mode": [
+          720,
+          480,
+          240,
+          22
+        ],
+        "entry_seq": 74570,
+        "return_seq": 74573,
+        "output": "0x0120d388",
+        "return_address": "0x0696ea25",
+        "callsite": "D3DDrv.dll+0xea22"
+      },
+      {
+        "adapter": 0,
+        "index": 17,
+        "hresult": 0,
+        "last_error": 18,
+        "mode": [
+          720,
+          480,
+          120,
+          22
+        ],
+        "entry_seq": 74577,
+        "return_seq": 74580,
+        "output": "0x0120d388",
+        "return_address": "0x0696ea25",
+        "callsite": "D3DDrv.dll+0xea22"
+      },
+      {
+        "adapter": 0,
+        "index": 18,
+        "hresult": 0,
+        "last_error": 18,
+        "mode": [
+          720,
+          480,
+          100,
+          22
+        ],
+        "entry_seq": 74584,
+        "return_seq": 74587,
+        "output": "0x0120d388",
+        "return_address": "0x0696ea25",
+        "callsite": "D3DDrv.dll+0xea22"
+      },
+      {
+        "adapter": 0,
+        "index": 19,
+        "hresult": 0,
+        "last_error": 18,
+        "mode": [
+          720,
+          480,
+          75,
+          22
+        ],
+        "entry_seq": 74591,
+        "return_seq": 74594,
+        "output": "0x0120d388",
+        "return_address": "0x0696ea25",
+        "callsite": "D3DDrv.dll+0xea22"
+      },
+      {
+        "adapter": 0,
+        "index": 20,
+        "hresult": 0,
+        "last_error": 18,
+        "mode": [
+          720,
+          480,
+          60,
+          22
+        ],
+        "entry_seq": 74598,
+        "return_seq": 74601,
+        "output": "0x0120d388",
+        "return_address": "0x0696ea25",
+        "callsite": "D3DDrv.dll+0xea22"
+      },
+      {
+        "adapter": 0,
+        "index": 21,
+        "hresult": 0,
+        "last_error": 18,
+        "mode": [
+          720,
+          480,
+          59,
+          22
+        ],
+        "entry_seq": 74605,
+        "return_seq": 74608,
+        "output": "0x0120d388",
+        "return_address": "0x0696ea25",
+        "callsite": "D3DDrv.dll+0xea22"
+      },
+      {
+        "adapter": 0,
+        "index": 22,
+        "hresult": 0,
+        "last_error": 18,
+        "mode": [
+          720,
+          480,
+          48,
+          22
+        ],
+        "entry_seq": 74612,
+        "return_seq": 74615,
+        "output": "0x0120d388",
+        "return_address": "0x0696ea25",
+        "callsite": "D3DDrv.dll+0xea22"
+      },
+      {
+        "adapter": 0,
+        "index": 23,
+        "hresult": 0,
+        "last_error": 18,
+        "mode": [
+          800,
+          600,
+          240,
+          22
+        ],
+        "entry_seq": 74619,
+        "return_seq": 74622,
+        "output": "0x0120d388",
+        "return_address": "0x0696ea25",
+        "callsite": "D3DDrv.dll+0xea22"
+      },
+      {
+        "adapter": 0,
+        "index": 24,
+        "hresult": 0,
+        "last_error": 18,
+        "mode": [
+          800,
+          600,
+          120,
+          22
+        ],
+        "entry_seq": 74626,
+        "return_seq": 74629,
+        "output": "0x0120d388",
+        "return_address": "0x0696ea25",
+        "callsite": "D3DDrv.dll+0xea22"
+      },
+      {
+        "adapter": 0,
+        "index": 25,
+        "hresult": 0,
+        "last_error": 18,
+        "mode": [
+          800,
+          600,
+          100,
+          22
+        ],
+        "entry_seq": 74633,
+        "return_seq": 74636,
+        "output": "0x0120d388",
+        "return_address": "0x0696ea25",
+        "callsite": "D3DDrv.dll+0xea22"
+      },
+      {
+        "adapter": 0,
+        "index": 26,
+        "hresult": 0,
+        "last_error": 18,
+        "mode": [
+          800,
+          600,
+          75,
+          22
+        ],
+        "entry_seq": 74640,
+        "return_seq": 74643,
+        "output": "0x0120d388",
+        "return_address": "0x0696ea25",
+        "callsite": "D3DDrv.dll+0xea22"
+      },
+      {
+        "adapter": 0,
+        "index": 27,
+        "hresult": 0,
+        "last_error": 18,
+        "mode": [
+          800,
+          600,
+          72,
+          22
+        ],
+        "entry_seq": 74647,
+        "return_seq": 74650,
+        "output": "0x0120d388",
+        "return_address": "0x0696ea25",
+        "callsite": "D3DDrv.dll+0xea22"
+      },
+      {
+        "adapter": 0,
+        "index": 28,
+        "hresult": 0,
+        "last_error": 18,
+        "mode": [
+          800,
+          600,
+          60,
+          22
+        ],
+        "entry_seq": 74654,
+        "return_seq": 74657,
+        "output": "0x0120d388",
+        "return_address": "0x0696ea25",
+        "callsite": "D3DDrv.dll+0xea22"
+      },
+      {
+        "adapter": 0,
+        "index": 29,
+        "hresult": 0,
+        "last_error": 18,
+        "mode": [
+          800,
+          600,
+          56,
+          22
+        ],
+        "entry_seq": 74661,
+        "return_seq": 74664,
+        "output": "0x0120d388",
+        "return_address": "0x0696ea25",
+        "callsite": "D3DDrv.dll+0xea22"
+      },
+      {
+        "adapter": 0,
+        "index": 30,
+        "hresult": 0,
+        "last_error": 18,
+        "mode": [
+          800,
+          600,
+          48,
+          22
+        ],
+        "entry_seq": 74668,
+        "return_seq": 74671,
+        "output": "0x0120d388",
+        "return_address": "0x0696ea25",
+        "callsite": "D3DDrv.dll+0xea22"
+      },
+      {
+        "adapter": 0,
+        "index": 31,
+        "hresult": 0,
+        "last_error": 18,
+        "mode": [
+          1024,
+          768,
+          240,
+          22
+        ],
+        "entry_seq": 74675,
+        "return_seq": 74678,
+        "output": "0x0120d388",
+        "return_address": "0x0696ea25",
+        "callsite": "D3DDrv.dll+0xea22"
+      },
+      {
+        "adapter": 0,
+        "index": 32,
+        "hresult": 0,
+        "last_error": 18,
+        "mode": [
+          1024,
+          768,
+          120,
+          22
+        ],
+        "entry_seq": 74682,
+        "return_seq": 74685,
+        "output": "0x0120d388",
+        "return_address": "0x0696ea25",
+        "callsite": "D3DDrv.dll+0xea22"
+      },
+      {
+        "adapter": 0,
+        "index": 33,
+        "hresult": 0,
+        "last_error": 18,
+        "mode": [
+          1024,
+          768,
+          100,
+          22
+        ],
+        "entry_seq": 74689,
+        "return_seq": 74692,
+        "output": "0x0120d388",
+        "return_address": "0x0696ea25",
+        "callsite": "D3DDrv.dll+0xea22"
+      },
+      {
+        "adapter": 0,
+        "index": 34,
+        "hresult": 0,
+        "last_error": 18,
+        "mode": [
+          1024,
+          768,
+          75,
+          22
+        ],
+        "entry_seq": 74696,
+        "return_seq": 74699,
+        "output": "0x0120d388",
+        "return_address": "0x0696ea25",
+        "callsite": "D3DDrv.dll+0xea22"
+      },
+      {
+        "adapter": 0,
+        "index": 35,
+        "hresult": 0,
+        "last_error": 18,
+        "mode": [
+          1024,
+          768,
+          70,
+          22
+        ],
+        "entry_seq": 74703,
+        "return_seq": 74706,
+        "output": "0x0120d388",
+        "return_address": "0x0696ea25",
+        "callsite": "D3DDrv.dll+0xea22"
+      },
+      {
+        "adapter": 0,
+        "index": 36,
+        "hresult": 0,
+        "last_error": 18,
+        "mode": [
+          1024,
+          768,
+          60,
+          22
+        ],
+        "entry_seq": 74710,
+        "return_seq": 74713,
+        "output": "0x0120d388",
+        "return_address": "0x0696ea25",
+        "callsite": "D3DDrv.dll+0xea22"
+      },
+      {
+        "adapter": 0,
+        "index": 37,
+        "hresult": 0,
+        "last_error": 18,
+        "mode": [
+          1024,
+          768,
+          48,
+          22
+        ],
+        "entry_seq": 74717,
+        "return_seq": 74720,
+        "output": "0x0120d388",
+        "return_address": "0x0696ea25",
+        "callsite": "D3DDrv.dll+0xea22"
+      },
+      {
+        "adapter": 0,
+        "index": 38,
+        "hresult": 0,
+        "last_error": 18,
+        "mode": [
+          1128,
+          634,
+          240,
+          22
+        ],
+        "entry_seq": 74724,
+        "return_seq": 74727,
+        "output": "0x0120d388",
+        "return_address": "0x0696ea25",
+        "callsite": "D3DDrv.dll+0xea22"
+      },
+      {
+        "adapter": 0,
+        "index": 39,
+        "hresult": 0,
+        "last_error": 18,
+        "mode": [
+          1128,
+          634,
+          120,
+          22
+        ],
+        "entry_seq": 74731,
+        "return_seq": 74734,
+        "output": "0x0120d388",
+        "return_address": "0x0696ea25",
+        "callsite": "D3DDrv.dll+0xea22"
+      },
+      {
+        "adapter": 0,
+        "index": 40,
+        "hresult": 0,
+        "last_error": 18,
+        "mode": [
+          1128,
+          634,
+          100,
+          22
+        ],
+        "entry_seq": 74738,
+        "return_seq": 74741,
+        "output": "0x0120d388",
+        "return_address": "0x0696ea25",
+        "callsite": "D3DDrv.dll+0xea22"
+      },
+      {
+        "adapter": 0,
+        "index": 41,
+        "hresult": 0,
+        "last_error": 18,
+        "mode": [
+          1128,
+          634,
+          75,
+          22
+        ],
+        "entry_seq": 74745,
+        "return_seq": 74748,
+        "output": "0x0120d388",
+        "return_address": "0x0696ea25",
+        "callsite": "D3DDrv.dll+0xea22"
+      },
+      {
+        "adapter": 0,
+        "index": 42,
+        "hresult": 0,
+        "last_error": 18,
+        "mode": [
+          1128,
+          634,
+          60,
+          22
+        ],
+        "entry_seq": 74752,
+        "return_seq": 74755,
+        "output": "0x0120d388",
+        "return_address": "0x0696ea25",
+        "callsite": "D3DDrv.dll+0xea22"
+      },
+      {
+        "adapter": 0,
+        "index": 43,
+        "hresult": 0,
+        "last_error": 18,
+        "mode": [
+          1128,
+          634,
+          48,
+          22
+        ],
+        "entry_seq": 74759,
+        "return_seq": 74762,
+        "output": "0x0120d388",
+        "return_address": "0x0696ea25",
+        "callsite": "D3DDrv.dll+0xea22"
+      },
+      {
+        "adapter": 0,
+        "index": 44,
+        "hresult": 0,
+        "last_error": 18,
+        "mode": [
+          1152,
+          864,
+          240,
+          22
+        ],
+        "entry_seq": 74766,
+        "return_seq": 74769,
+        "output": "0x0120d388",
+        "return_address": "0x0696ea25",
+        "callsite": "D3DDrv.dll+0xea22"
+      },
+      {
+        "adapter": 0,
+        "index": 45,
+        "hresult": 0,
+        "last_error": 18,
+        "mode": [
+          1152,
+          864,
+          120,
+          22
+        ],
+        "entry_seq": 74773,
+        "return_seq": 74776,
+        "output": "0x0120d388",
+        "return_address": "0x0696ea25",
+        "callsite": "D3DDrv.dll+0xea22"
+      },
+      {
+        "adapter": 0,
+        "index": 46,
+        "hresult": 0,
+        "last_error": 18,
+        "mode": [
+          1152,
+          864,
+          100,
+          22
+        ],
+        "entry_seq": 74780,
+        "return_seq": 74783,
+        "output": "0x0120d388",
+        "return_address": "0x0696ea25",
+        "callsite": "D3DDrv.dll+0xea22"
+      },
+      {
+        "adapter": 0,
+        "index": 47,
+        "hresult": 0,
+        "last_error": 18,
+        "mode": [
+          1152,
+          864,
+          75,
+          22
+        ],
+        "entry_seq": 74787,
+        "return_seq": 74790,
+        "output": "0x0120d388",
+        "return_address": "0x0696ea25",
+        "callsite": "D3DDrv.dll+0xea22"
+      },
+      {
+        "adapter": 0,
+        "index": 48,
+        "hresult": 0,
+        "last_error": 18,
+        "mode": [
+          1152,
+          864,
+          60,
+          22
+        ],
+        "entry_seq": 74794,
+        "return_seq": 74797,
+        "output": "0x0120d388",
+        "return_address": "0x0696ea25",
+        "callsite": "D3DDrv.dll+0xea22"
+      },
+      {
+        "adapter": 0,
+        "index": 49,
+        "hresult": 0,
+        "last_error": 18,
+        "mode": [
+          1152,
+          864,
+          48,
+          22
+        ],
+        "entry_seq": 74801,
+        "return_seq": 74804,
+        "output": "0x0120d388",
+        "return_address": "0x0696ea25",
+        "callsite": "D3DDrv.dll+0xea22"
+      },
+      {
+        "adapter": 0,
+        "index": 50,
+        "hresult": 0,
+        "last_error": 18,
+        "mode": [
+          1152,
+          870,
+          240,
+          22
+        ],
+        "entry_seq": 74808,
+        "return_seq": 74811,
+        "output": "0x0120d388",
+        "return_address": "0x0696ea25",
+        "callsite": "D3DDrv.dll+0xea22"
+      },
+      {
+        "adapter": 0,
+        "index": 51,
+        "hresult": 0,
+        "last_error": 18,
+        "mode": [
+          1152,
+          870,
+          120,
+          22
+        ],
+        "entry_seq": 74815,
+        "return_seq": 74818,
+        "output": "0x0120d388",
+        "return_address": "0x0696ea25",
+        "callsite": "D3DDrv.dll+0xea22"
+      },
+      {
+        "adapter": 0,
+        "index": 52,
+        "hresult": 0,
+        "last_error": 18,
+        "mode": [
+          1152,
+          870,
+          100,
+          22
+        ],
+        "entry_seq": 74822,
+        "return_seq": 74825,
+        "output": "0x0120d388",
+        "return_address": "0x0696ea25",
+        "callsite": "D3DDrv.dll+0xea22"
+      },
+      {
+        "adapter": 0,
+        "index": 53,
+        "hresult": 0,
+        "last_error": 18,
+        "mode": [
+          1152,
+          870,
+          75,
+          22
+        ],
+        "entry_seq": 74829,
+        "return_seq": 74832,
+        "output": "0x0120d388",
+        "return_address": "0x0696ea25",
+        "callsite": "D3DDrv.dll+0xea22"
+      },
+      {
+        "adapter": 0,
+        "index": 54,
+        "hresult": 0,
+        "last_error": 18,
+        "mode": [
+          1152,
+          870,
+          60,
+          22
+        ],
+        "entry_seq": 74836,
+        "return_seq": 74839,
+        "output": "0x0120d388",
+        "return_address": "0x0696ea25",
+        "callsite": "D3DDrv.dll+0xea22"
+      },
+      {
+        "adapter": 0,
+        "index": 55,
+        "hresult": 0,
+        "last_error": 18,
+        "mode": [
+          1152,
+          870,
+          48,
+          22
+        ],
+        "entry_seq": 74843,
+        "return_seq": 74846,
+        "output": "0x0120d388",
+        "return_address": "0x0696ea25",
+        "callsite": "D3DDrv.dll+0xea22"
+      },
+      {
+        "adapter": 0,
+        "index": 56,
+        "hresult": 0,
+        "last_error": 18,
+        "mode": [
+          1280,
+          720,
+          240,
+          22
+        ],
+        "entry_seq": 74850,
+        "return_seq": 74853,
+        "output": "0x0120d388",
+        "return_address": "0x0696ea25",
+        "callsite": "D3DDrv.dll+0xea22"
+      },
+      {
+        "adapter": 0,
+        "index": 57,
+        "hresult": 0,
+        "last_error": 18,
+        "mode": [
+          1280,
+          720,
+          120,
+          22
+        ],
+        "entry_seq": 74857,
+        "return_seq": 74860,
+        "output": "0x0120d388",
+        "return_address": "0x0696ea25",
+        "callsite": "D3DDrv.dll+0xea22"
+      },
+      {
+        "adapter": 0,
+        "index": 58,
+        "hresult": 0,
+        "last_error": 18,
+        "mode": [
+          1280,
+          720,
+          100,
+          22
+        ],
+        "entry_seq": 74864,
+        "return_seq": 74867,
+        "output": "0x0120d388",
+        "return_address": "0x0696ea25",
+        "callsite": "D3DDrv.dll+0xea22"
+      },
+      {
+        "adapter": 0,
+        "index": 59,
+        "hresult": 0,
+        "last_error": 18,
+        "mode": [
+          1280,
+          720,
+          75,
+          22
+        ],
+        "entry_seq": 74871,
+        "return_seq": 74874,
+        "output": "0x0120d388",
+        "return_address": "0x0696ea25",
+        "callsite": "D3DDrv.dll+0xea22"
+      },
+      {
+        "adapter": 0,
+        "index": 60,
+        "hresult": 0,
+        "last_error": 18,
+        "mode": [
+          1280,
+          720,
+          60,
+          22
+        ],
+        "entry_seq": 74878,
+        "return_seq": 74881,
+        "output": "0x0120d388",
+        "return_address": "0x0696ea25",
+        "callsite": "D3DDrv.dll+0xea22"
+      },
+      {
+        "adapter": 0,
+        "index": 61,
+        "hresult": 0,
+        "last_error": 18,
+        "mode": [
+          1280,
+          720,
+          59,
+          22
+        ],
+        "entry_seq": 74885,
+        "return_seq": 74888,
+        "output": "0x0120d388",
+        "return_address": "0x0696ea25",
+        "callsite": "D3DDrv.dll+0xea22"
+      },
+      {
+        "adapter": 0,
+        "index": 62,
+        "hresult": 0,
+        "last_error": 18,
+        "mode": [
+          1280,
+          720,
+          50,
+          22
+        ],
+        "entry_seq": 74892,
+        "return_seq": 74895,
+        "output": "0x0120d388",
+        "return_address": "0x0696ea25",
+        "callsite": "D3DDrv.dll+0xea22"
+      },
+      {
+        "adapter": 0,
+        "index": 63,
+        "hresult": 0,
+        "last_error": 18,
+        "mode": [
+          1280,
+          720,
+          48,
+          22
+        ],
+        "entry_seq": 74899,
+        "return_seq": 74902,
+        "output": "0x0120d388",
+        "return_address": "0x0696ea25",
+        "callsite": "D3DDrv.dll+0xea22"
+      },
+      {
+        "adapter": 0,
+        "index": 64,
+        "hresult": 0,
+        "last_error": 18,
+        "mode": [
+          1280,
+          800,
+          240,
+          22
+        ],
+        "entry_seq": 74906,
+        "return_seq": 74909,
+        "output": "0x0120d388",
+        "return_address": "0x0696ea25",
+        "callsite": "D3DDrv.dll+0xea22"
+      },
+      {
+        "adapter": 0,
+        "index": 65,
+        "hresult": 0,
+        "last_error": 18,
+        "mode": [
+          1280,
+          800,
+          120,
+          22
+        ],
+        "entry_seq": 74913,
+        "return_seq": 74916,
+        "output": "0x0120d388",
+        "return_address": "0x0696ea25",
+        "callsite": "D3DDrv.dll+0xea22"
+      },
+      {
+        "adapter": 0,
+        "index": 66,
+        "hresult": 0,
+        "last_error": 18,
+        "mode": [
+          1280,
+          800,
+          100,
+          22
+        ],
+        "entry_seq": 74920,
+        "return_seq": 74923,
+        "output": "0x0120d388",
+        "return_address": "0x0696ea25",
+        "callsite": "D3DDrv.dll+0xea22"
+      },
+      {
+        "adapter": 0,
+        "index": 67,
+        "hresult": 0,
+        "last_error": 18,
+        "mode": [
+          1280,
+          800,
+          75,
+          22
+        ],
+        "entry_seq": 74927,
+        "return_seq": 74930,
+        "output": "0x0120d388",
+        "return_address": "0x0696ea25",
+        "callsite": "D3DDrv.dll+0xea22"
+      },
+      {
+        "adapter": 0,
+        "index": 68,
+        "hresult": 0,
+        "last_error": 18,
+        "mode": [
+          1280,
+          800,
+          60,
+          22
+        ],
+        "entry_seq": 74934,
+        "return_seq": 74937,
+        "output": "0x0120d388",
+        "return_address": "0x0696ea25",
+        "callsite": "D3DDrv.dll+0xea22"
+      },
+      {
+        "adapter": 0,
+        "index": 69,
+        "hresult": 0,
+        "last_error": 18,
+        "mode": [
+          1280,
+          800,
+          48,
+          22
+        ],
+        "entry_seq": 74941,
+        "return_seq": 74944,
+        "output": "0x0120d388",
+        "return_address": "0x0696ea25",
+        "callsite": "D3DDrv.dll+0xea22"
+      },
+      {
+        "adapter": 0,
+        "index": 70,
+        "hresult": 0,
+        "last_error": 18,
+        "mode": [
+          1280,
+          960,
+          240,
+          22
+        ],
+        "entry_seq": 74948,
+        "return_seq": 74951,
+        "output": "0x0120d388",
+        "return_address": "0x0696ea25",
+        "callsite": "D3DDrv.dll+0xea22"
+      },
+      {
+        "adapter": 0,
+        "index": 71,
+        "hresult": 0,
+        "last_error": 18,
+        "mode": [
+          1280,
+          960,
+          120,
+          22
+        ],
+        "entry_seq": 74955,
+        "return_seq": 74958,
+        "output": "0x0120d388",
+        "return_address": "0x0696ea25",
+        "callsite": "D3DDrv.dll+0xea22"
+      },
+      {
+        "adapter": 0,
+        "index": 72,
+        "hresult": 0,
+        "last_error": 18,
+        "mode": [
+          1280,
+          960,
+          100,
+          22
+        ],
+        "entry_seq": 74962,
+        "return_seq": 74965,
+        "output": "0x0120d388",
+        "return_address": "0x0696ea25",
+        "callsite": "D3DDrv.dll+0xea22"
+      },
+      {
+        "adapter": 0,
+        "index": 73,
+        "hresult": 0,
+        "last_error": 18,
+        "mode": [
+          1280,
+          960,
+          75,
+          22
+        ],
+        "entry_seq": 74969,
+        "return_seq": 74972,
+        "output": "0x0120d388",
+        "return_address": "0x0696ea25",
+        "callsite": "D3DDrv.dll+0xea22"
+      },
+      {
+        "adapter": 0,
+        "index": 74,
+        "hresult": 0,
+        "last_error": 18,
+        "mode": [
+          1280,
+          960,
+          60,
+          22
+        ],
+        "entry_seq": 74976,
+        "return_seq": 74979,
+        "output": "0x0120d388",
+        "return_address": "0x0696ea25",
+        "callsite": "D3DDrv.dll+0xea22"
+      },
+      {
+        "adapter": 0,
+        "index": 75,
+        "hresult": 0,
+        "last_error": 18,
+        "mode": [
+          1280,
+          960,
+          48,
+          22
+        ],
+        "entry_seq": 74983,
+        "return_seq": 74986,
+        "output": "0x0120d388",
+        "return_address": "0x0696ea25",
+        "callsite": "D3DDrv.dll+0xea22"
+      },
+      {
+        "adapter": 0,
+        "index": 76,
+        "hresult": 0,
+        "last_error": 18,
+        "mode": [
+          1280,
+          1024,
+          240,
+          22
+        ],
+        "entry_seq": 74990,
+        "return_seq": 74993,
+        "output": "0x0120d388",
+        "return_address": "0x0696ea25",
+        "callsite": "D3DDrv.dll+0xea22"
+      },
+      {
+        "adapter": 0,
+        "index": 77,
+        "hresult": 0,
+        "last_error": 18,
+        "mode": [
+          1280,
+          1024,
+          120,
+          22
+        ],
+        "entry_seq": 74997,
+        "return_seq": 75000,
+        "output": "0x0120d388",
+        "return_address": "0x0696ea25",
+        "callsite": "D3DDrv.dll+0xea22"
+      },
+      {
+        "adapter": 0,
+        "index": 78,
+        "hresult": 0,
+        "last_error": 18,
+        "mode": [
+          1280,
+          1024,
+          100,
+          22
+        ],
+        "entry_seq": 75004,
+        "return_seq": 75007,
+        "output": "0x0120d388",
+        "return_address": "0x0696ea25",
+        "callsite": "D3DDrv.dll+0xea22"
+      },
+      {
+        "adapter": 0,
+        "index": 79,
+        "hresult": 0,
+        "last_error": 18,
+        "mode": [
+          1280,
+          1024,
+          75,
+          22
+        ],
+        "entry_seq": 75011,
+        "return_seq": 75014,
+        "output": "0x0120d388",
+        "return_address": "0x0696ea25",
+        "callsite": "D3DDrv.dll+0xea22"
+      },
+      {
+        "adapter": 0,
+        "index": 80,
+        "hresult": 0,
+        "last_error": 18,
+        "mode": [
+          1280,
+          1024,
+          60,
+          22
+        ],
+        "entry_seq": 75018,
+        "return_seq": 75021,
+        "output": "0x0120d388",
+        "return_address": "0x0696ea25",
+        "callsite": "D3DDrv.dll+0xea22"
+      },
+      {
+        "adapter": 0,
+        "index": 81,
+        "hresult": 0,
+        "last_error": 18,
+        "mode": [
+          1280,
+          1024,
+          48,
+          22
+        ],
+        "entry_seq": 75025,
+        "return_seq": 75028,
+        "output": "0x0120d388",
+        "return_address": "0x0696ea25",
+        "callsite": "D3DDrv.dll+0xea22"
+      },
+      {
+        "adapter": 0,
+        "index": 82,
+        "hresult": 0,
+        "last_error": 18,
+        "mode": [
+          1366,
+          768,
+          240,
+          22
+        ],
+        "entry_seq": 75032,
+        "return_seq": 75035,
+        "output": "0x0120d388",
+        "return_address": "0x0696ea25",
+        "callsite": "D3DDrv.dll+0xea22"
+      },
+      {
+        "adapter": 0,
+        "index": 83,
+        "hresult": 0,
+        "last_error": 18,
+        "mode": [
+          1366,
+          768,
+          120,
+          22
+        ],
+        "entry_seq": 75039,
+        "return_seq": 75042,
+        "output": "0x0120d388",
+        "return_address": "0x0696ea25",
+        "callsite": "D3DDrv.dll+0xea22"
+      },
+      {
+        "adapter": 0,
+        "index": 84,
+        "hresult": 0,
+        "last_error": 18,
+        "mode": [
+          1366,
+          768,
+          100,
+          22
+        ],
+        "entry_seq": 75046,
+        "return_seq": 75049,
+        "output": "0x0120d388",
+        "return_address": "0x0696ea25",
+        "callsite": "D3DDrv.dll+0xea22"
+      },
+      {
+        "adapter": 0,
+        "index": 85,
+        "hresult": 0,
+        "last_error": 18,
+        "mode": [
+          1366,
+          768,
+          75,
+          22
+        ],
+        "entry_seq": 75053,
+        "return_seq": 75056,
+        "output": "0x0120d388",
+        "return_address": "0x0696ea25",
+        "callsite": "D3DDrv.dll+0xea22"
+      },
+      {
+        "adapter": 0,
+        "index": 86,
+        "hresult": 0,
+        "last_error": 18,
+        "mode": [
+          1366,
+          768,
+          60,
+          22
+        ],
+        "entry_seq": 75060,
+        "return_seq": 75063,
+        "output": "0x0120d388",
+        "return_address": "0x0696ea25",
+        "callsite": "D3DDrv.dll+0xea22"
+      },
+      {
+        "adapter": 0,
+        "index": 87,
+        "hresult": 0,
+        "last_error": 18,
+        "mode": [
+          1366,
+          768,
+          48,
+          22
+        ],
+        "entry_seq": 75067,
+        "return_seq": 75070,
+        "output": "0x0120d388",
+        "return_address": "0x0696ea25",
+        "callsite": "D3DDrv.dll+0xea22"
+      },
+      {
+        "adapter": 0,
+        "index": 88,
+        "hresult": 0,
+        "last_error": 18,
+        "mode": [
+          1440,
+          900,
+          240,
+          22
+        ],
+        "entry_seq": 75074,
+        "return_seq": 75077,
+        "output": "0x0120d388",
+        "return_address": "0x0696ea25",
+        "callsite": "D3DDrv.dll+0xea22"
+      },
+      {
+        "adapter": 0,
+        "index": 89,
+        "hresult": 0,
+        "last_error": 18,
+        "mode": [
+          1440,
+          900,
+          120,
+          22
+        ],
+        "entry_seq": 75081,
+        "return_seq": 75084,
+        "output": "0x0120d388",
+        "return_address": "0x0696ea25",
+        "callsite": "D3DDrv.dll+0xea22"
+      },
+      {
+        "adapter": 0,
+        "index": 90,
+        "hresult": 0,
+        "last_error": 18,
+        "mode": [
+          1440,
+          900,
+          100,
+          22
+        ],
+        "entry_seq": 75088,
+        "return_seq": 75091,
+        "output": "0x0120d388",
+        "return_address": "0x0696ea25",
+        "callsite": "D3DDrv.dll+0xea22"
+      },
+      {
+        "adapter": 0,
+        "index": 91,
+        "hresult": 0,
+        "last_error": 18,
+        "mode": [
+          1440,
+          900,
+          75,
+          22
+        ],
+        "entry_seq": 75095,
+        "return_seq": 75098,
+        "output": "0x0120d388",
+        "return_address": "0x0696ea25",
+        "callsite": "D3DDrv.dll+0xea22"
+      },
+      {
+        "adapter": 0,
+        "index": 92,
+        "hresult": 0,
+        "last_error": 18,
+        "mode": [
+          1440,
+          900,
+          60,
+          22
+        ],
+        "entry_seq": 75102,
+        "return_seq": 75105,
+        "output": "0x0120d388",
+        "return_address": "0x0696ea25",
+        "callsite": "D3DDrv.dll+0xea22"
+      },
+      {
+        "adapter": 0,
+        "index": 93,
+        "hresult": 0,
+        "last_error": 18,
+        "mode": [
+          1440,
+          900,
+          48,
+          22
+        ],
+        "entry_seq": 75109,
+        "return_seq": 75112,
+        "output": "0x0120d388",
+        "return_address": "0x0696ea25",
+        "callsite": "D3DDrv.dll+0xea22"
+      },
+      {
+        "adapter": 0,
+        "index": 94,
+        "hresult": 0,
+        "last_error": 18,
+        "mode": [
+          1600,
+          900,
+          240,
+          22
+        ],
+        "entry_seq": 75116,
+        "return_seq": 75119,
+        "output": "0x0120d388",
+        "return_address": "0x0696ea25",
+        "callsite": "D3DDrv.dll+0xea22"
+      },
+      {
+        "adapter": 0,
+        "index": 95,
+        "hresult": 0,
+        "last_error": 18,
+        "mode": [
+          1600,
+          900,
+          120,
+          22
+        ],
+        "entry_seq": 75123,
+        "return_seq": 75126,
+        "output": "0x0120d388",
+        "return_address": "0x0696ea25",
+        "callsite": "D3DDrv.dll+0xea22"
+      },
+      {
+        "adapter": 0,
+        "index": 96,
+        "hresult": 0,
+        "last_error": 18,
+        "mode": [
+          1600,
+          900,
+          100,
+          22
+        ],
+        "entry_seq": 75130,
+        "return_seq": 75133,
+        "output": "0x0120d388",
+        "return_address": "0x0696ea25",
+        "callsite": "D3DDrv.dll+0xea22"
+      },
+      {
+        "adapter": 0,
+        "index": 97,
+        "hresult": 0,
+        "last_error": 18,
+        "mode": [
+          1600,
+          900,
+          75,
+          22
+        ],
+        "entry_seq": 75137,
+        "return_seq": 75140,
+        "output": "0x0120d388",
+        "return_address": "0x0696ea25",
+        "callsite": "D3DDrv.dll+0xea22"
+      },
+      {
+        "adapter": 0,
+        "index": 98,
+        "hresult": 0,
+        "last_error": 18,
+        "mode": [
+          1600,
+          900,
+          60,
+          22
+        ],
+        "entry_seq": 75144,
+        "return_seq": 75147,
+        "output": "0x0120d388",
+        "return_address": "0x0696ea25",
+        "callsite": "D3DDrv.dll+0xea22"
+      },
+      {
+        "adapter": 0,
+        "index": 99,
+        "hresult": 0,
+        "last_error": 18,
+        "mode": [
+          1600,
+          900,
+          48,
+          22
+        ],
+        "entry_seq": 75151,
+        "return_seq": 75154,
+        "output": "0x0120d388",
+        "return_address": "0x0696ea25",
+        "callsite": "D3DDrv.dll+0xea22"
+      },
+      {
+        "adapter": 0,
+        "index": 100,
+        "hresult": 0,
+        "last_error": 18,
+        "mode": [
+          1600,
+          1200,
+          240,
+          22
+        ],
+        "entry_seq": 75158,
+        "return_seq": 75161,
+        "output": "0x0120d388",
+        "return_address": "0x0696ea25",
+        "callsite": "D3DDrv.dll+0xea22"
+      },
+      {
+        "adapter": 0,
+        "index": 101,
+        "hresult": 0,
+        "last_error": 18,
+        "mode": [
+          1600,
+          1200,
+          120,
+          22
+        ],
+        "entry_seq": 75165,
+        "return_seq": 75168,
+        "output": "0x0120d388",
+        "return_address": "0x0696ea25",
+        "callsite": "D3DDrv.dll+0xea22"
+      },
+      {
+        "adapter": 0,
+        "index": 102,
+        "hresult": 0,
+        "last_error": 18,
+        "mode": [
+          1600,
+          1200,
+          100,
+          22
+        ],
+        "entry_seq": 75172,
+        "return_seq": 75175,
+        "output": "0x0120d388",
+        "return_address": "0x0696ea25",
+        "callsite": "D3DDrv.dll+0xea22"
+      },
+      {
+        "adapter": 0,
+        "index": 103,
+        "hresult": 0,
+        "last_error": 18,
+        "mode": [
+          1600,
+          1200,
+          75,
+          22
+        ],
+        "entry_seq": 75179,
+        "return_seq": 75182,
+        "output": "0x0120d388",
+        "return_address": "0x0696ea25",
+        "callsite": "D3DDrv.dll+0xea22"
+      },
+      {
+        "adapter": 0,
+        "index": 104,
+        "hresult": 0,
+        "last_error": 18,
+        "mode": [
+          1600,
+          1200,
+          60,
+          22
+        ],
+        "entry_seq": 75186,
+        "return_seq": 75189,
+        "output": "0x0120d388",
+        "return_address": "0x0696ea25",
+        "callsite": "D3DDrv.dll+0xea22"
+      },
+      {
+        "adapter": 0,
+        "index": 105,
+        "hresult": 0,
+        "last_error": 18,
+        "mode": [
+          1600,
+          1200,
+          48,
+          22
+        ],
+        "entry_seq": 75193,
+        "return_seq": 75196,
+        "output": "0x0120d388",
+        "return_address": "0x0696ea25",
+        "callsite": "D3DDrv.dll+0xea22"
+      },
+      {
+        "adapter": 0,
+        "index": 106,
+        "hresult": 0,
+        "last_error": 18,
+        "mode": [
+          1680,
+          1050,
+          240,
+          22
+        ],
+        "entry_seq": 75200,
+        "return_seq": 75203,
+        "output": "0x0120d388",
+        "return_address": "0x0696ea25",
+        "callsite": "D3DDrv.dll+0xea22"
+      },
+      {
+        "adapter": 0,
+        "index": 107,
+        "hresult": 0,
+        "last_error": 18,
+        "mode": [
+          1680,
+          1050,
+          120,
+          22
+        ],
+        "entry_seq": 75207,
+        "return_seq": 75210,
+        "output": "0x0120d388",
+        "return_address": "0x0696ea25",
+        "callsite": "D3DDrv.dll+0xea22"
+      },
+      {
+        "adapter": 0,
+        "index": 108,
+        "hresult": 0,
+        "last_error": 18,
+        "mode": [
+          1680,
+          1050,
+          100,
+          22
+        ],
+        "entry_seq": 75214,
+        "return_seq": 75217,
+        "output": "0x0120d388",
+        "return_address": "0x0696ea25",
+        "callsite": "D3DDrv.dll+0xea22"
+      },
+      {
+        "adapter": 0,
+        "index": 109,
+        "hresult": 0,
+        "last_error": 18,
+        "mode": [
+          1680,
+          1050,
+          75,
+          22
+        ],
+        "entry_seq": 75221,
+        "return_seq": 75224,
+        "output": "0x0120d388",
+        "return_address": "0x0696ea25",
+        "callsite": "D3DDrv.dll+0xea22"
+      },
+      {
+        "adapter": 0,
+        "index": 110,
+        "hresult": 0,
+        "last_error": 18,
+        "mode": [
+          1680,
+          1050,
+          60,
+          22
+        ],
+        "entry_seq": 75228,
+        "return_seq": 75231,
+        "output": "0x0120d388",
+        "return_address": "0x0696ea25",
+        "callsite": "D3DDrv.dll+0xea22"
+      },
+      {
+        "adapter": 0,
+        "index": 111,
+        "hresult": 0,
+        "last_error": 18,
+        "mode": [
+          1680,
+          1050,
+          48,
+          22
+        ],
+        "entry_seq": 75235,
+        "return_seq": 75238,
+        "output": "0x0120d388",
+        "return_address": "0x0696ea25",
+        "callsite": "D3DDrv.dll+0xea22"
+      },
+      {
+        "adapter": 0,
+        "index": 112,
+        "hresult": 0,
+        "last_error": 18,
+        "mode": [
+          1760,
+          990,
+          240,
+          22
+        ],
+        "entry_seq": 75242,
+        "return_seq": 75245,
+        "output": "0x0120d388",
+        "return_address": "0x0696ea25",
+        "callsite": "D3DDrv.dll+0xea22"
+      },
+      {
+        "adapter": 0,
+        "index": 113,
+        "hresult": 0,
+        "last_error": 18,
+        "mode": [
+          1760,
+          990,
+          120,
+          22
+        ],
+        "entry_seq": 75249,
+        "return_seq": 75252,
+        "output": "0x0120d388",
+        "return_address": "0x0696ea25",
+        "callsite": "D3DDrv.dll+0xea22"
+      },
+      {
+        "adapter": 0,
+        "index": 114,
+        "hresult": 0,
+        "last_error": 18,
+        "mode": [
+          1760,
+          990,
+          119,
+          22
+        ],
+        "entry_seq": 75256,
+        "return_seq": 75259,
+        "output": "0x0120d388",
+        "return_address": "0x0696ea25",
+        "callsite": "D3DDrv.dll+0xea22"
+      },
+      {
+        "adapter": 0,
+        "index": 115,
+        "hresult": 0,
+        "last_error": 18,
+        "mode": [
+          1760,
+          990,
+          100,
+          22
+        ],
+        "entry_seq": 75263,
+        "return_seq": 75266,
+        "output": "0x0120d388",
+        "return_address": "0x0696ea25",
+        "callsite": "D3DDrv.dll+0xea22"
+      },
+      {
+        "adapter": 0,
+        "index": 116,
+        "hresult": 0,
+        "last_error": 18,
+        "mode": [
+          1760,
+          990,
+          75,
+          22
+        ],
+        "entry_seq": 75270,
+        "return_seq": 75273,
+        "output": "0x0120d388",
+        "return_address": "0x0696ea25",
+        "callsite": "D3DDrv.dll+0xea22"
+      },
+      {
+        "adapter": 0,
+        "index": 117,
+        "hresult": 0,
+        "last_error": 18,
+        "mode": [
+          1760,
+          990,
+          60,
+          22
+        ],
+        "entry_seq": 75277,
+        "return_seq": 75280,
+        "output": "0x0120d388",
+        "return_address": "0x0696ea25",
+        "callsite": "D3DDrv.dll+0xea22"
+      },
+      {
+        "adapter": 0,
+        "index": 118,
+        "hresult": 0,
+        "last_error": 18,
+        "mode": [
+          1760,
+          990,
+          59,
+          22
+        ],
+        "entry_seq": 75284,
+        "return_seq": 75287,
+        "output": "0x0120d388",
+        "return_address": "0x0696ea25",
+        "callsite": "D3DDrv.dll+0xea22"
+      },
+      {
+        "adapter": 0,
+        "index": 119,
+        "hresult": 0,
+        "last_error": 18,
+        "mode": [
+          1760,
+          990,
+          50,
+          22
+        ],
+        "entry_seq": 75291,
+        "return_seq": 75294,
+        "output": "0x0120d388",
+        "return_address": "0x0696ea25",
+        "callsite": "D3DDrv.dll+0xea22"
+      },
+      {
+        "adapter": 0,
+        "index": 120,
+        "hresult": 0,
+        "last_error": 18,
+        "mode": [
+          1760,
+          990,
+          48,
+          22
+        ],
+        "entry_seq": 75298,
+        "return_seq": 75301,
+        "output": "0x0120d388",
+        "return_address": "0x0696ea25",
+        "callsite": "D3DDrv.dll+0xea22"
+      },
+      {
+        "adapter": 0,
+        "index": 121,
+        "hresult": 0,
+        "last_error": 18,
+        "mode": [
+          1760,
+          990,
+          30,
+          22
+        ],
+        "entry_seq": 75305,
+        "return_seq": 75308,
+        "output": "0x0120d388",
+        "return_address": "0x0696ea25",
+        "callsite": "D3DDrv.dll+0xea22"
+      },
+      {
+        "adapter": 0,
+        "index": 122,
+        "hresult": 0,
+        "last_error": 18,
+        "mode": [
+          1760,
+          990,
+          29,
+          22
+        ],
+        "entry_seq": 75312,
+        "return_seq": 75315,
+        "output": "0x0120d388",
+        "return_address": "0x0696ea25",
+        "callsite": "D3DDrv.dll+0xea22"
+      },
+      {
+        "adapter": 0,
+        "index": 123,
+        "hresult": 0,
+        "last_error": 18,
+        "mode": [
+          1760,
+          990,
+          25,
+          22
+        ],
+        "entry_seq": 75319,
+        "return_seq": 75322,
+        "output": "0x0120d388",
+        "return_address": "0x0696ea25",
+        "callsite": "D3DDrv.dll+0xea22"
+      },
+      {
+        "adapter": 0,
+        "index": 124,
+        "hresult": 0,
+        "last_error": 18,
+        "mode": [
+          1760,
+          990,
+          24,
+          22
+        ],
+        "entry_seq": 75326,
+        "return_seq": 75329,
+        "output": "0x0120d388",
+        "return_address": "0x0696ea25",
+        "callsite": "D3DDrv.dll+0xea22"
+      },
+      {
+        "adapter": 0,
+        "index": 125,
+        "hresult": 0,
+        "last_error": 18,
+        "mode": [
+          1760,
+          990,
+          23,
+          22
+        ],
+        "entry_seq": 75333,
+        "return_seq": 75336,
+        "output": "0x0120d388",
+        "return_address": "0x0696ea25",
+        "callsite": "D3DDrv.dll+0xea22"
+      },
+      {
+        "adapter": 0,
+        "index": 126,
+        "hresult": 0,
+        "last_error": 18,
+        "mode": [
+          1920,
+          1080,
+          240,
+          22
+        ],
+        "entry_seq": 75340,
+        "return_seq": 75343,
+        "output": "0x0120d388",
+        "return_address": "0x0696ea25",
+        "callsite": "D3DDrv.dll+0xea22"
+      },
+      {
+        "adapter": 0,
+        "index": 127,
+        "hresult": 0,
+        "last_error": 18,
+        "mode": [
+          1920,
+          1080,
+          120,
+          22
+        ],
+        "entry_seq": 75347,
+        "return_seq": 75350,
+        "output": "0x0120d388",
+        "return_address": "0x0696ea25",
+        "callsite": "D3DDrv.dll+0xea22"
+      },
+      {
+        "adapter": 0,
+        "index": 128,
+        "hresult": 0,
+        "last_error": 18,
+        "mode": [
+          1920,
+          1080,
+          119,
+          22
+        ],
+        "entry_seq": 75354,
+        "return_seq": 75357,
+        "output": "0x0120d388",
+        "return_address": "0x0696ea25",
+        "callsite": "D3DDrv.dll+0xea22"
+      },
+      {
+        "adapter": 0,
+        "index": 129,
+        "hresult": 0,
+        "last_error": 18,
+        "mode": [
+          1920,
+          1080,
+          100,
+          22
+        ],
+        "entry_seq": 75361,
+        "return_seq": 75364,
+        "output": "0x0120d388",
+        "return_address": "0x0696ea25",
+        "callsite": "D3DDrv.dll+0xea22"
+      },
+      {
+        "adapter": 0,
+        "index": 130,
+        "hresult": 0,
+        "last_error": 18,
+        "mode": [
+          1920,
+          1080,
+          75,
+          22
+        ],
+        "entry_seq": 75368,
+        "return_seq": 75371,
+        "output": "0x0120d388",
+        "return_address": "0x0696ea25",
+        "callsite": "D3DDrv.dll+0xea22"
+      },
+      {
+        "adapter": 0,
+        "index": 131,
+        "hresult": 0,
+        "last_error": 18,
+        "mode": [
+          1920,
+          1080,
+          60,
+          22
+        ],
+        "entry_seq": 75375,
+        "return_seq": 75378,
+        "output": "0x0120d388",
+        "return_address": "0x0696ea25",
+        "callsite": "D3DDrv.dll+0xea22"
+      },
+      {
+        "adapter": 0,
+        "index": 132,
+        "hresult": 0,
+        "last_error": 18,
+        "mode": [
+          1920,
+          1080,
+          59,
+          22
+        ],
+        "entry_seq": 75382,
+        "return_seq": 75385,
+        "output": "0x0120d388",
+        "return_address": "0x0696ea25",
+        "callsite": "D3DDrv.dll+0xea22"
+      },
+      {
+        "adapter": 0,
+        "index": 133,
+        "hresult": 0,
+        "last_error": 18,
+        "mode": [
+          1920,
+          1080,
+          50,
+          22
+        ],
+        "entry_seq": 75389,
+        "return_seq": 75392,
+        "output": "0x0120d388",
+        "return_address": "0x0696ea25",
+        "callsite": "D3DDrv.dll+0xea22"
+      },
+      {
+        "adapter": 0,
+        "index": 134,
+        "hresult": 0,
+        "last_error": 18,
+        "mode": [
+          1920,
+          1080,
+          48,
+          22
+        ],
+        "entry_seq": 75396,
+        "return_seq": 75399,
+        "output": "0x0120d388",
+        "return_address": "0x0696ea25",
+        "callsite": "D3DDrv.dll+0xea22"
+      },
+      {
+        "adapter": 0,
+        "index": 135,
+        "hresult": 0,
+        "last_error": 18,
+        "mode": [
+          1920,
+          1080,
+          30,
+          22
+        ],
+        "entry_seq": 75403,
+        "return_seq": 75406,
+        "output": "0x0120d388",
+        "return_address": "0x0696ea25",
+        "callsite": "D3DDrv.dll+0xea22"
+      },
+      {
+        "adapter": 0,
+        "index": 136,
+        "hresult": 0,
+        "last_error": 18,
+        "mode": [
+          1920,
+          1080,
+          29,
+          22
+        ],
+        "entry_seq": 75410,
+        "return_seq": 75413,
+        "output": "0x0120d388",
+        "return_address": "0x0696ea25",
+        "callsite": "D3DDrv.dll+0xea22"
+      },
+      {
+        "adapter": 0,
+        "index": 137,
+        "hresult": 0,
+        "last_error": 18,
+        "mode": [
+          1920,
+          1080,
+          25,
+          22
+        ],
+        "entry_seq": 75417,
+        "return_seq": 75420,
+        "output": "0x0120d388",
+        "return_address": "0x0696ea25",
+        "callsite": "D3DDrv.dll+0xea22"
+      },
+      {
+        "adapter": 0,
+        "index": 138,
+        "hresult": 0,
+        "last_error": 18,
+        "mode": [
+          1920,
+          1080,
+          24,
+          22
+        ],
+        "entry_seq": 75424,
+        "return_seq": 75427,
+        "output": "0x0120d388",
+        "return_address": "0x0696ea25",
+        "callsite": "D3DDrv.dll+0xea22"
+      },
+      {
+        "adapter": 0,
+        "index": 139,
+        "hresult": 0,
+        "last_error": 18,
+        "mode": [
+          1920,
+          1080,
+          23,
+          22
+        ],
+        "entry_seq": 75431,
+        "return_seq": 75434,
+        "output": "0x0120d388",
+        "return_address": "0x0696ea25",
+        "callsite": "D3DDrv.dll+0xea22"
+      },
+      {
+        "adapter": 0,
+        "index": 140,
+        "hresult": 0,
+        "last_error": 18,
+        "mode": [
+          1920,
+          1200,
+          240,
+          22
+        ],
+        "entry_seq": 75438,
+        "return_seq": 75441,
+        "output": "0x0120d388",
+        "return_address": "0x0696ea25",
+        "callsite": "D3DDrv.dll+0xea22"
+      },
+      {
+        "adapter": 0,
+        "index": 141,
+        "hresult": 0,
+        "last_error": 18,
+        "mode": [
+          1920,
+          1200,
+          120,
+          22
+        ],
+        "entry_seq": 75445,
+        "return_seq": 75448,
+        "output": "0x0120d388",
+        "return_address": "0x0696ea25",
+        "callsite": "D3DDrv.dll+0xea22"
+      },
+      {
+        "adapter": 0,
+        "index": 142,
+        "hresult": 0,
+        "last_error": 18,
+        "mode": [
+          1920,
+          1200,
+          100,
+          22
+        ],
+        "entry_seq": 75452,
+        "return_seq": 75455,
+        "output": "0x0120d388",
+        "return_address": "0x0696ea25",
+        "callsite": "D3DDrv.dll+0xea22"
+      },
+      {
+        "adapter": 0,
+        "index": 143,
+        "hresult": 0,
+        "last_error": 18,
+        "mode": [
+          1920,
+          1200,
+          75,
+          22
+        ],
+        "entry_seq": 75459,
+        "return_seq": 75462,
+        "output": "0x0120d388",
+        "return_address": "0x0696ea25",
+        "callsite": "D3DDrv.dll+0xea22"
+      },
+      {
+        "adapter": 0,
+        "index": 144,
+        "hresult": 0,
+        "last_error": 18,
+        "mode": [
+          1920,
+          1200,
+          60,
+          22
+        ],
+        "entry_seq": 75466,
+        "return_seq": 75469,
+        "output": "0x0120d388",
+        "return_address": "0x0696ea25",
+        "callsite": "D3DDrv.dll+0xea22"
+      },
+      {
+        "adapter": 0,
+        "index": 145,
+        "hresult": 0,
+        "last_error": 18,
+        "mode": [
+          1920,
+          1200,
+          48,
+          22
+        ],
+        "entry_seq": 75473,
+        "return_seq": 75476,
+        "output": "0x0120d388",
+        "return_address": "0x0696ea25",
+        "callsite": "D3DDrv.dll+0xea22"
+      },
+      {
+        "adapter": 0,
+        "index": 146,
+        "hresult": 0,
+        "last_error": 18,
+        "mode": [
+          2560,
+          1440,
+          240,
+          22
+        ],
+        "entry_seq": 75480,
+        "return_seq": 75483,
+        "output": "0x0120d388",
+        "return_address": "0x0696ea25",
+        "callsite": "D3DDrv.dll+0xea22"
+      },
+      {
+        "adapter": 0,
+        "index": 147,
+        "hresult": 0,
+        "last_error": 18,
+        "mode": [
+          2560,
+          1440,
+          120,
+          22
+        ],
+        "entry_seq": 75487,
+        "return_seq": 75490,
+        "output": "0x0120d388",
+        "return_address": "0x0696ea25",
+        "callsite": "D3DDrv.dll+0xea22"
+      },
+      {
+        "adapter": 0,
+        "index": 148,
+        "hresult": 0,
+        "last_error": 18,
+        "mode": [
+          2560,
+          1440,
+          100,
+          22
+        ],
+        "entry_seq": 75494,
+        "return_seq": 75497,
+        "output": "0x0120d388",
+        "return_address": "0x0696ea25",
+        "callsite": "D3DDrv.dll+0xea22"
+      },
+      {
+        "adapter": 0,
+        "index": 149,
+        "hresult": 0,
+        "last_error": 18,
+        "mode": [
+          2560,
+          1440,
+          75,
+          22
+        ],
+        "entry_seq": 75501,
+        "return_seq": 75504,
+        "output": "0x0120d388",
+        "return_address": "0x0696ea25",
+        "callsite": "D3DDrv.dll+0xea22"
+      },
+      {
+        "adapter": 0,
+        "index": 150,
+        "hresult": 0,
+        "last_error": 18,
+        "mode": [
+          2560,
+          1440,
+          60,
+          22
+        ],
+        "entry_seq": 75508,
+        "return_seq": 75511,
+        "output": "0x0120d388",
+        "return_address": "0x0696ea25",
+        "callsite": "D3DDrv.dll+0xea22"
+      },
+      {
+        "adapter": 0,
+        "index": 151,
+        "hresult": 0,
+        "last_error": 18,
+        "mode": [
+          2560,
+          1440,
+          48,
+          22
+        ],
+        "entry_seq": 75515,
+        "return_seq": 75518,
+        "output": "0x0120d388",
+        "return_address": "0x0696ea25",
+        "callsite": "D3DDrv.dll+0xea22"
+      }
+    ],
+    "all_successful_modes_exact_native": true,
+    "boundary_counts": {
+      "d3d8_mode_count": {
+        "calls": 154,
+        "returns": 154,
+        "paired_returns": 154
+      },
+      "d3d8_enum": {
+        "calls": 152,
+        "returns": 152,
+        "paired_returns": 152
+      },
+      "viewport_try_render": {
+        "calls": 1,
+        "returns": 0,
+        "paired_returns": 0
+      },
+      "viewport_open": {
+        "calls": 1,
+        "returns": 0,
+        "paired_returns": 0
+      },
+      "engine_init": {
+        "calls": 1,
+        "returns": 0,
+        "paired_returns": 0
+      },
+      "engine_tick": {
+        "calls": 0,
+        "returns": 0,
+        "paired_returns": 0
+      },
+      "level_tick": {
+        "calls": 0,
+        "returns": 0,
+        "paired_returns": 0
+      }
+    },
+    "CreateDevice_reached": false,
+    "CreateDevice": [],
+    "first_unsupported_d3d": {
+      "seq": 75522,
+      "thread": 0,
+      "kind": "d3d8_unimplemented",
+      "method": "GetAdapterDisplayMode",
+      "a1": 0,
+      "a2": 18928584,
+      "a3": 110617576,
+      "a4": 338527744,
+      "a5": 945,
+      "a6": 18928420
+    },
+    "first_fatal": {
+      "seq": 75523,
+      "thread": 0,
+      "kind": "fatal",
+      "code": 76,
+      "message": "IDirect3D8::GetAdapterDisplayMode is unmeasured (interface 00015090, caller 0696ec85)"
+    },
+    "completed_selected_world_ticks": [],
+    "first_x86_translated_complete_enumeration_exact": false,
+    "first_x86_discrepancy_unresolved": true,
+    "events_recorded": 75534,
+    "events_dropped": 0,
+    "successful_guest_file_opens": 96
+  },
+  "selected_world": {
+    "world": 318056448,
+    "entry_seq": 23488,
+    "return_seq": 25854
+  },
+  "selected_lifecycle": {
+    "calls": {
+      "PreBeginPlay": 279,
+      "BeginPlay": 279,
+      "PostBeginPlay": 279
+    },
+    "paired_returns": {
+      "PreBeginPlay": 279,
+      "BeginPlay": 279,
+      "PostBeginPlay": 279
+    },
+    "distinct_actors": 278,
+    "unpaired": []
+  },
+  "milestones": {
+    "T1": true,
+    "T2": true,
+    "T3": false,
+    "T4": false,
+    "T5": false,
+    "T6": false
+  },
+  "regression": {
+    "affected": {
+      "phase": "affected",
+      "passed": true,
+      "runs": [
+        {
+          "name": "setforeground_boundary",
+          "command": [
+            "cmd",
+            "/d",
+            "/c",
+            "experiments\\xrt\\tests\\setforeground_boundary\\build.cmd"
+          ],
+          "cwd": "E:\\Unreal2-Port-Investigation\\sandbox_d3d8_enum_20261024_01",
+          "exit": 0,
+          "seconds": 3.9825522000028286,
+          "log": "E:\\Unreal2-Port-Investigation\\out\\recovery\\d3d8-enum-20261024-01\\regression-setforeground_boundary.log",
+          "log_sha256": "23ec55d83d468bac54ef29311831e5323188d5b481b0cca66c0e5f375734fada",
+          "warnings": [],
+          "passed": true
+        },
+        {
+          "name": "setactive_boundary",
+          "command": [
+            "cmd",
+            "/d",
+            "/c",
+            "experiments\\xrt\\tests\\setactive_boundary\\build.cmd"
+          ],
+          "cwd": "E:\\Unreal2-Port-Investigation\\sandbox_d3d8_enum_20261024_01",
+          "exit": 0,
+          "seconds": 3.729037299999618,
+          "log": "E:\\Unreal2-Port-Investigation\\out\\recovery\\d3d8-enum-20261024-01\\regression-setactive_boundary.log",
+          "log_sha256": "f33ddd63a700a68b7c07a6563c30eea90b8a760770d8e5a8ae94c499fd17a78b",
+          "warnings": [],
+          "passed": true
+        },
+        {
+          "name": "setcapture_boundary",
+          "command": [
+            "cmd",
+            "/d",
+            "/c",
+            "experiments\\xrt\\tests\\setcapture_boundary\\build.cmd"
+          ],
+          "cwd": "E:\\Unreal2-Port-Investigation\\sandbox_d3d8_enum_20261024_01",
+          "exit": 0,
+          "seconds": 3.7140087000007043,
+          "log": "E:\\Unreal2-Port-Investigation\\out\\recovery\\d3d8-enum-20261024-01\\regression-setcapture_boundary.log",
+          "log_sha256": "d212321ca575bee4bad1a16d186b55abc154b306262c863218aec3ae78dc9a62",
+          "warnings": [],
+          "passed": true
+        },
+        {
+          "name": "foreground_boundary",
+          "command": [
+            "cmd",
+            "/d",
+            "/c",
+            "experiments\\xrt\\tests\\foreground_boundary\\build.cmd"
+          ],
+          "cwd": "E:\\Unreal2-Port-Investigation\\sandbox_d3d8_enum_20261024_01",
+          "exit": 0,
+          "seconds": 3.5330575999978464,
+          "log": "E:\\Unreal2-Port-Investigation\\out\\recovery\\d3d8-enum-20261024-01\\regression-foreground_boundary.log",
+          "log_sha256": "d31ca6bbce4390cc61be5ef2e7480be8c8c256e58a67b40755414e4161ce47f4",
+          "warnings": [],
+          "passed": true
+        },
+        {
+          "name": "window_ae_boundary",
+          "command": [
+            "cmd",
+            "/d",
+            "/c",
+            "experiments\\xrt\\tests\\window_ae_boundary\\build.cmd"
+          ],
+          "cwd": "E:\\Unreal2-Port-Investigation\\sandbox_d3d8_enum_20261024_01",
+          "exit": 0,
+          "seconds": 3.5667385999986436,
+          "log": "E:\\Unreal2-Port-Investigation\\out\\recovery\\d3d8-enum-20261024-01\\regression-window_ae_boundary.log",
+          "log_sha256": "a3fdc28202f46ea3a252c0b23f1f3838a684816320023711d667797f6f22b45d",
+          "warnings": [],
+          "passed": true
+        },
+        {
+          "name": "clipcursor_boundary",
+          "command": [
+            "cmd",
+            "/d",
+            "/c",
+            "experiments\\xrt\\tests\\clipcursor_boundary\\build.cmd"
+          ],
+          "cwd": "E:\\Unreal2-Port-Investigation\\sandbox_d3d8_enum_20261024_01",
+          "exit": 0,
+          "seconds": 3.639863999997033,
+          "log": "E:\\Unreal2-Port-Investigation\\out\\recovery\\d3d8-enum-20261024-01\\regression-clipcursor_boundary.log",
+          "log_sha256": "961cccfa10c592840537a38ecc53137d72a49efc5dae1901b13a1156eec87a5e",
+          "warnings": [],
+          "passed": true
+        },
+        {
+          "name": "mapwindowpoints_boundary",
+          "command": [
+            "cmd",
+            "/d",
+            "/c",
+            "experiments\\xrt\\tests\\mapwindowpoints_boundary\\build.cmd"
+          ],
+          "cwd": "E:\\Unreal2-Port-Investigation\\sandbox_d3d8_enum_20261024_01",
+          "exit": 0,
+          "seconds": 3.7721331999928225,
+          "log": "E:\\Unreal2-Port-Investigation\\out\\recovery\\d3d8-enum-20261024-01\\regression-mapwindowpoints_boundary.log",
+          "log_sha256": "ee8e759194a3996154a149721464e03923e00fe81520ba81cbcf880fee77698f",
+          "warnings": [],
+          "passed": true
+        },
+        {
+          "name": "window_ids_boundary",
+          "command": [
+            "cmd",
+            "/d",
+            "/c",
+            "experiments\\xrt\\tests\\window_ids_boundary\\build.cmd"
+          ],
+          "cwd": "E:\\Unreal2-Port-Investigation\\sandbox_d3d8_enum_20261024_01",
+          "exit": 0,
+          "seconds": 3.6074881000095047,
+          "log": "E:\\Unreal2-Port-Investigation\\out\\recovery\\d3d8-enum-20261024-01\\regression-window_ids_boundary.log",
+          "log_sha256": "2c9e6897a711b762f6ba7646c018bf95dc7f2c57cc827cad41d7017369babcbe",
+          "warnings": [],
+          "passed": true
+        },
+        {
+          "name": "setcursor_boundary",
+          "command": [
+            "cmd",
+            "/d",
+            "/c",
+            "experiments\\xrt\\tests\\setcursor_boundary\\build.cmd"
+          ],
+          "cwd": "E:\\Unreal2-Port-Investigation\\sandbox_d3d8_enum_20261024_01",
+          "exit": 0,
+          "seconds": 3.6041938999987906,
+          "log": "E:\\Unreal2-Port-Investigation\\out\\recovery\\d3d8-enum-20261024-01\\regression-setcursor_boundary.log",
+          "log_sha256": "2fdc7b672c33f4c8feda89e0231e384f63c169d96e90d0a7dc7b1d2ee3fecc25",
+          "warnings": [],
+          "passed": true
+        },
+        {
+          "name": "geticon_boundary",
+          "command": [
+            "cmd",
+            "/d",
+            "/c",
+            "experiments\\xrt\\tests\\geticon_boundary\\build.cmd"
+          ],
+          "cwd": "E:\\Unreal2-Port-Investigation\\sandbox_d3d8_enum_20261024_01",
+          "exit": 0,
+          "seconds": 3.8023628999944776,
+          "log": "E:\\Unreal2-Port-Investigation\\out\\recovery\\d3d8-enum-20261024-01\\regression-geticon_boundary.log",
+          "log_sha256": "bd795bf8ae03b099be6e872184e2fb76ceab8902fb53c8d5e75cdb504b60d4fb",
+          "warnings": [],
+          "passed": true
+        },
+        {
+          "name": "setfocus_boundary",
+          "command": [
+            "cmd",
+            "/d",
+            "/c",
+            "experiments\\xrt\\tests\\setfocus_boundary\\build.cmd"
+          ],
+          "cwd": "E:\\Unreal2-Port-Investigation\\sandbox_d3d8_enum_20261024_01",
+          "exit": 0,
+          "seconds": 3.706764899994596,
+          "log": "E:\\Unreal2-Port-Investigation\\out\\recovery\\d3d8-enum-20261024-01\\regression-setfocus_boundary.log",
+          "log_sha256": "a4b199b597b639876527850b185321751500d7ef4c93ea4be96b813f5f4eb6e2",
+          "warnings": [],
+          "passed": true
+        },
+        {
+          "name": "immassociatecontext_boundary",
+          "command": [
+            "cmd",
+            "/d",
+            "/c",
+            "experiments\\xrt\\tests\\immassociatecontext_boundary\\build.cmd"
+          ],
+          "cwd": "E:\\Unreal2-Port-Investigation\\sandbox_d3d8_enum_20261024_01",
+          "exit": 0,
+          "seconds": 3.80818459999864,
+          "log": "E:\\Unreal2-Port-Investigation\\out\\recovery\\d3d8-enum-20261024-01\\regression-immassociatecontext_boundary.log",
+          "log_sha256": "492253204bc3585ac9eb608b901bcd9c6bf4d0898437783ead3267115677253c",
+          "warnings": [],
+          "passed": true
+        },
+        {
+          "name": "adjustwindowrect_boundary",
+          "command": [
+            "cmd",
+            "/d",
+            "/c",
+            "experiments\\xrt\\tests\\adjustwindowrect_boundary\\build.cmd"
+          ],
+          "cwd": "E:\\Unreal2-Port-Investigation\\sandbox_d3d8_enum_20261024_01",
+          "exit": 0,
+          "seconds": 3.785013600005186,
+          "log": "E:\\Unreal2-Port-Investigation\\out\\recovery\\d3d8-enum-20261024-01\\regression-adjustwindowrect_boundary.log",
+          "log_sha256": "2bebb6d61627f45d911248f008ffe6973db92163ed13ea0b1b09ee3aae0a12d2",
+          "warnings": [],
+          "passed": true
+        },
+        {
+          "name": "gui_boundary",
+          "command": [
+            "cmd",
+            "/d",
+            "/c",
+            "experiments\\xrt\\tests\\gui_boundary\\build.cmd"
+          ],
+          "cwd": "E:\\Unreal2-Port-Investigation\\sandbox_d3d8_enum_20261024_01",
+          "exit": 0,
+          "seconds": 3.933033900000737,
+          "log": "E:\\Unreal2-Port-Investigation\\out\\recovery\\d3d8-enum-20261024-01\\regression-gui_boundary.log",
+          "log_sha256": "f71e27435d064baa0bb010f493fef88a0798af3f4971971e1cc966592b3b12ca",
+          "warnings": [],
+          "passed": true
+        },
+        {
+          "name": "class_boundary",
+          "command": [
+            "cmd",
+            "/d",
+            "/c",
+            "experiments\\xrt\\tests\\class_boundary\\build.cmd"
+          ],
+          "cwd": "E:\\Unreal2-Port-Investigation\\sandbox_d3d8_enum_20261024_01",
+          "exit": 0,
+          "seconds": 7.076944400003413,
+          "log": "E:\\Unreal2-Port-Investigation\\out\\recovery\\d3d8-enum-20261024-01\\regression-class_boundary.log",
+          "log_sha256": "e15ef0f19de96a9652d225cc4f6805860e73b6432b9bc20c66b9516771dbb764",
+          "warnings": [
+            "experiments\\xrt\\tests\\class_boundary\\classprobe.c(150): warning C4133: 'function': incompatible types - from 'LPTSTR' to 'LPCWSTR'"
+          ],
+          "passed": true
+        },
+        {
+          "name": "module_boundary",
+          "command": [
+            "cmd",
+            "/d",
+            "/c",
+            "experiments\\xrt\\tests\\module_boundary\\build.cmd"
+          ],
+          "cwd": "E:\\Unreal2-Port-Investigation\\sandbox_d3d8_enum_20261024_01",
+          "exit": 0,
+          "seconds": 4.261247500005993,
+          "log": "E:\\Unreal2-Port-Investigation\\out\\recovery\\d3d8-enum-20261024-01\\regression-module_boundary.log",
+          "log_sha256": "bfe7dae7e6aabd4ffa9e2d7ba5d56300cb71caedc3f8590ac3c15ec47075ff77",
+          "warnings": [],
+          "passed": true
+        },
+        {
+          "name": "focus_boundary",
+          "command": [
+            "cmd",
+            "/d",
+            "/c",
+            "experiments\\xrt\\tests\\focus_boundary\\build.cmd"
+          ],
+          "cwd": "E:\\Unreal2-Port-Investigation\\sandbox_d3d8_enum_20261024_01",
+          "exit": 0,
+          "seconds": 3.5563942000007955,
+          "log": "E:\\Unreal2-Port-Investigation\\out\\recovery\\d3d8-enum-20261024-01\\regression-focus_boundary.log",
+          "log_sha256": "2dbfae9aca2e49ec7150255e3c350bdf87dd43d6af2d1a3bcb111e508d1934b8",
+          "warnings": [],
+          "passed": true
+        }
+      ]
+    },
+    "acceptance": {
+      "phase": "acceptance",
+      "passed": true,
+      "runs": [
+        {
+          "name": "tracer-build",
+          "command": [
+            "cmd",
+            "/d",
+            "/c",
+            "experiments\\xrt\\tracer\\build.cmd"
+          ],
+          "cwd": "E:\\Unreal2-Port-Investigation\\sandbox_d3d8_enum_20261024_01",
+          "exit": 0,
+          "seconds": 1.109995799997705,
+          "log": "E:\\Unreal2-Port-Investigation\\out\\recovery\\d3d8-enum-20261024-01\\regression-tracer-build.log",
+          "log_sha256": "d8d403c66db825ec1416af80168620214015f86a6d63b39b7500144102a386ea",
+          "warnings": [],
+          "passed": true
+        },
+        {
+          "name": "commandlet-vm",
+          "command": [
+            "E:\\Unreal2-Port-Investigation\\sandbox_d3d8_enum_20261024_01\\.venv\\Scripts\\python.exe",
+            "-I",
+            "tools/xrt/run_xrt.py",
+            "hellofull",
+            "hello_noargs",
+            "hellonew",
+            "hellofull_nosse",
+            "simple",
+            "arraytest",
+            "hello",
+            "badclass",
+            "vmprobe"
+          ],
+          "cwd": "E:\\Unreal2-Port-Investigation\\sandbox_d3d8_enum_20261024_01",
+          "exit": 0,
+          "seconds": 98.63631149999856,
+          "log": "E:\\Unreal2-Port-Investigation\\out\\recovery\\d3d8-enum-20261024-01\\regression-commandlet-vm.log",
+          "log_sha256": "70d03e45a054586018c8cffc764f97f97251231f6988a02092226198eaf2d184",
+          "warnings": [],
+          "passed": true
+        },
+        {
+          "name": "unrealscript-compiler",
+          "command": [
+            "E:\\Unreal2-Port-Investigation\\sandbox_d3d8_enum_20261024_01\\.venv\\Scripts\\python.exe",
+            "-I",
+            "tools/xrt/compile_xrt.py"
+          ],
+          "cwd": "E:\\Unreal2-Port-Investigation\\sandbox_d3d8_enum_20261024_01",
+          "exit": 0,
+          "seconds": 182.76007439999375,
+          "log": "E:\\Unreal2-Port-Investigation\\out\\recovery\\d3d8-enum-20261024-01\\regression-unrealscript-compiler.log",
+          "log_sha256": "1469b0092c0e58dedfcabc9facf1684a4abffe2e92d9ff3a1d1a63f946975522",
+          "warnings": [],
+          "passed": true
+        },
+        {
+          "name": "traced-hello",
+          "command": [
+            "E:\\Unreal2-Port-Investigation\\sandbox_d3d8_enum_20261024_01\\.venv\\Scripts\\python.exe",
+            "-I",
+            "tools/xrt/run_xrt.py",
+            "hellofull",
+            "--trace"
+          ],
+          "cwd": "E:\\Unreal2-Port-Investigation\\sandbox_d3d8_enum_20261024_01",
+          "exit": 0,
+          "seconds": 26.04247060000489,
+          "log": "E:\\Unreal2-Port-Investigation\\out\\recovery\\d3d8-enum-20261024-01\\regression-traced-hello.log",
+          "log_sha256": "5a205b477b2289fabdaa729b74c79c483adf105ce527983d1eebf0a21b32c275",
+          "warnings": [],
+          "passed": true
+        },
+        {
+          "name": "python",
+          "command": [
+            "E:\\Unreal2-Port-Investigation\\sandbox_d3d8_enum_20261024_01\\.venv\\Scripts\\python.exe",
+            "-I",
+            "-m",
+            "unittest",
+            "discover",
+            "-s",
+            "tools/xrt/tests",
+            "-v"
+          ],
+          "cwd": "E:\\Unreal2-Port-Investigation\\sandbox_d3d8_enum_20261024_01",
+          "exit": 0,
+          "seconds": 12.35115550000046,
+          "log": "E:\\Unreal2-Port-Investigation\\out\\recovery\\d3d8-enum-20261024-01\\regression-python.log",
+          "log_sha256": "4fb229c18a63b1479c4b0afbe581cfe049089bb650190c3867817ac80624fffe",
+          "warnings": [],
+          "passed": true
+        }
+      ]
+    }
+  },
+  "python": "Ran 158 tests in 11.085s; OK (skipped=17)",
+  "integrity": {
+    "passed": true,
+    "protected": {
+      "manifest_sha256": "3e1807c3c1d3c2881e3353ab46d8f571654e19d10b7ded41b88304c71e172173",
+      "files": 4122,
+      "protected_trees": 3,
+      "protected_files": 9
+    },
+    "earlier_working_files_preserved": 564,
+    "earlier_build_files_verified": 13277,
+    "earlier_raw_files_verified": 17326,
+    "previous_evidence_verified": 583,
+    "generated_unchanged": true,
+    "compiler_sdk_headers_libraries_unchanged": true,
+    "DXVK_pairs_unchanged": true,
+    "DirectMusic_helper_unchanged": true,
+    "source_identities_match_build": true,
+    "git_base": "1f00c5b2af57efbfd3996733aff98842a8d7007c",
+    "git_history_preserved": true,
+    "orphans": [],
+    "original_installation_or_saves_accessed": false,
+    "genuine_graphical_client_sessions": 1,
+    "reference_client_sessions": 0,
+    "executable_sha256": "005edc05d720fbc1dbd5ff900716044701eb13a6b010c3c57526636e137657e5",
+    "previous_executable_sha256": "4cfbbee3037882ff07d2e730acf9b39445a90359e58c018a333f0d5ca2518d00",
+    "runtime": {
+      "path": "experiments/xrt/runtime",
+      "files": 27,
+      "sha256": "63cb9d8f46c2e75caeaa5c1f41e7b1f92e35130a4a1d658636ca72898f78ee3c"
+    },
+    "generated": {
+      "path": "experiments/xrt/gen",
+      "files": 299,
+      "sha256": "93046d39786d3f4be894370e86a5fed0a26fbc3001e18ae36c12d15686336062"
+    },
+    "traces": [
+      {
+        "path": "experiments\\xrt\\build\\d3d8-enum-fixture-20261024-03\\negative\\probe_device_guard-report.json",
+        "type": "runtime",
+        "events": 6,
+        "sha256": "31e86ca8acbe32b55036f5707df0c536a173744d1d0b6e77386a665909a0873a"
+      },
+      {
+        "path": "experiments\\xrt\\build\\d3d8-enum-fixture-20261024-03\\negative\\probe_enum_bad_range-report.json",
+        "type": "runtime",
+        "events": 5,
+        "sha256": "c239903cba8a75a406415d5f5a90acdefb2925db7351813c609628f59c903c39"
+      },
+      {
+        "path": "experiments\\xrt\\build\\d3d8-enum-fixture-20261024-03\\negative\\probe_enum_null-report.json",
+        "type": "runtime",
+        "events": 5,
+        "sha256": "fee77ae681a02fc4859906a11b2f04aa155a099851fbe3c84ec19a5159e88122"
+      },
+      {
+        "path": "experiments\\xrt\\build\\d3d8-enum-fixture-20261024-03\\negative\\probe_enum_stale-report.json",
+        "type": "runtime",
+        "events": 6,
+        "sha256": "40319a90f8d4dbbc2746dd281d7e3ec960b6bd4aa56f17df91fcf7938b248478"
+      },
+      {
+        "path": "experiments\\xrt\\build\\d3d8-enum-fixture-20261024-03\\negative\\probe_enum_wrap-report.json",
+        "type": "runtime",
+        "events": 5,
+        "sha256": "9621cf60c30f6a549555728c63436529d6dc2cc44a3a4497ee4364453cfad4f8"
+      },
+      {
+        "path": "experiments\\xrt\\build\\d3d8-enum-fixture-20261024-03\\negative\\probe_invalid_7fffffff-report.json",
+        "type": "runtime",
+        "events": 7,
+        "sha256": "e8733a305214256aef984007db687fe102d8a21ea0520afcda0d57d75fb4fc36"
+      },
+      {
+        "path": "experiments\\xrt\\build\\d3d8-enum-fixture-20261024-03\\negative\\probe_invalid_count-report.json",
+        "type": "runtime",
+        "events": 8,
+        "sha256": "398b69fbe8bb305c948dd6277b030a1153fb80de0ad2ed9db507da55fc0c5a3f"
+      },
+      {
+        "path": "experiments\\xrt\\build\\d3d8-enum-fixture-20261024-03\\negative\\probe_invalid_ffff-report.json",
+        "type": "runtime",
+        "events": 7,
+        "sha256": "ff3f716b3b8c7860291b1c23c97c00dfca5ee8b2d660c30c2ea9f08bcd8f45fd"
+      },
+      {
+        "path": "experiments\\xrt\\build\\d3d8-enum-fixture-20261024-03\\negative\\probe_invalid_ffffffff-report.json",
+        "type": "runtime",
+        "events": 7,
+        "sha256": "a1fc1453847d9013a9b2943eaa55079401bb55f1a7491506a47d429458e0395b"
+      },
+      {
+        "path": "experiments\\xrt\\build\\d3d8-enum-fixture-20261024-03\\negative\\probe_invalid_next-report.json",
+        "type": "runtime",
+        "events": 8,
+        "sha256": "b00259bf3dd96477f702d28b568cb2e7dd37dccb9a298a95f683e39987429b0b"
+      },
+      {
+        "path": "experiments\\xrt\\build\\d3d8-enum-fixture-20261024-03\\negative\\probe_mode_stale-report.json",
+        "type": "runtime",
+        "events": 6,
+        "sha256": "2a005c1e349f9d81cff06d489971b644f36d1c4ced1439761b65b36f43f66c83"
+      },
+      {
+        "path": "experiments\\xrt\\build\\d3d8-enum-fixture-20261024-03\\negative\\probe_stale-report.json",
+        "type": "runtime",
+        "events": 6,
+        "sha256": "93b9ab22ac86111cce9c0b51f56b181ec48b6a5dc49dd1264bf326ce417e1e40"
+      },
+      {
+        "path": "experiments\\xrt\\build\\d3d8-enum-fixture-20261024-03\\negative\\probe_unmeasured-report.json",
+        "type": "runtime",
+        "events": 6,
+        "sha256": "04a4a26b56fd764a01fa80b0ce8e0f26b8c4b5362e84198dd486cb624f61bf90"
+      },
+      {
+        "path": "experiments\\xrt\\build\\d3d8-enum-fixture-20261024-03\\translated-0\\report.json",
+        "type": "runtime",
+        "events": 3266,
+        "sha256": "a5ec7658e693a86b39846c96d5d6db19454891935afd8424158b661bef1d819d"
+      },
+      {
+        "path": "experiments\\xrt\\build\\d3d8-enum-fixture-20261024-03\\translated-1\\report.json",
+        "type": "runtime",
+        "events": 3266,
+        "sha256": "a5ec7658e693a86b39846c96d5d6db19454891935afd8424158b661bef1d819d"
+      },
+      {
+        "path": "sandbox_d3d8_enum_20261024_01\\experiments\\xrt\\build\\adjustwindowrect_boundary\\guard.json",
+        "type": "runtime",
+        "events": 2,
+        "sha256": "8a4f02a3f696437edc842c798b906d7e23f4f63b615a7be1b016e8c970b711f8"
+      },
+      {
+        "path": "sandbox_d3d8_enum_20261024_01\\experiments\\xrt\\build\\adjustwindowrect_boundary\\low.json",
+        "type": "runtime",
+        "events": 2,
+        "sha256": "0cb2ebed5e2037e21b7cb05e02c4c8de198c93e0195597e53a7fd50820fbd6c2"
+      },
+      {
+        "path": "sandbox_d3d8_enum_20261024_01\\experiments\\xrt\\build\\adjustwindowrect_boundary\\noaccess.json",
+        "type": "runtime",
+        "events": 2,
+        "sha256": "b83a7ff661892fecd690f07b4878bb20fb78f4e3bd5664ba04ee1b9a0a9fb6cd"
+      },
+      {
+        "path": "sandbox_d3d8_enum_20261024_01\\experiments\\xrt\\build\\adjustwindowrect_boundary\\null.json",
+        "type": "runtime",
+        "events": 2,
+        "sha256": "49fe0de27597b9295790fcf463ba13d71c458782e331169069817449fd1c3377"
+      },
+      {
+        "path": "sandbox_d3d8_enum_20261024_01\\experiments\\xrt\\build\\adjustwindowrect_boundary\\partial.json",
+        "type": "runtime",
+        "events": 2,
+        "sha256": "d01f262014b71dd568e597e3c6e82f9a6a3f5a920e7d5d189d6214a34ecefc98"
+      },
+      {
+        "path": "sandbox_d3d8_enum_20261024_01\\experiments\\xrt\\build\\adjustwindowrect_boundary\\readonly.json",
+        "type": "runtime",
+        "events": 2,
+        "sha256": "8a4f02a3f696437edc842c798b906d7e23f4f63b615a7be1b016e8c970b711f8"
+      },
+      {
+        "path": "sandbox_d3d8_enum_20261024_01\\experiments\\xrt\\build\\adjustwindowrect_boundary\\uncommitted.json",
+        "type": "runtime",
+        "events": 2,
+        "sha256": "316f20d270b353870c0bd7f1bb221311baba6c4c8401a0d2344fcc0b7062d064"
+      },
+      {
+        "path": "sandbox_d3d8_enum_20261024_01\\experiments\\xrt\\build\\adjustwindowrect_boundary\\valid.json",
+        "type": "runtime",
+        "events": 11664,
+        "sha256": "bae7dc5371a1cd788967679e2f5636c02dc0e310395946aa51934d5bd2e17c82"
+      },
+      {
+        "path": "sandbox_d3d8_enum_20261024_01\\experiments\\xrt\\build\\adjustwindowrect_boundary\\wrap.json",
+        "type": "runtime",
+        "events": 2,
+        "sha256": "ec7b1dca9470c0ddbf933fecf0a2f191cc62dd1d6d4426836a5155a2e266f72b"
+      },
+      {
+        "path": "sandbox_d3d8_enum_20261024_01\\experiments\\xrt\\build\\class_boundary\\probe_atom_cleanup.json",
+        "type": "runtime",
+        "events": 2,
+        "sha256": "e0528613cdeded1b66e57e27a4592fde74f56e9a889481dff2b46c0bb568b6bb"
+      },
+      {
+        "path": "sandbox_d3d8_enum_20261024_01\\experiments\\xrt\\build\\class_boundary\\probe_bad_proc.json",
+        "type": "runtime",
+        "events": 1,
+        "sha256": "a929f55804b113c6ddbeba4776540e1b1b417ef1e49653984b5a7f5ec07449e5"
+      },
+      {
+        "path": "sandbox_d3d8_enum_20261024_01\\experiments\\xrt\\build\\class_boundary\\probe_pointer_message.json",
+        "type": "runtime",
+        "events": 1,
+        "sha256": "151fca442a210247f3205df4209466870ed3256ac9cb21d8be3dd42d611509df"
+      },
+      {
+        "path": "sandbox_d3d8_enum_20261024_01\\experiments\\xrt\\build\\class_boundary\\probe_reloaded_prior.json",
+        "type": "runtime",
+        "events": 7,
+        "sha256": "2f303606fa9d6f0b170b20cde433a0fbc90bc340194d937fbd2775a2eb995123"
+      },
+      {
+        "path": "sandbox_d3d8_enum_20261024_01\\experiments\\xrt\\build\\class_boundary\\probe_stale_prior.json",
+        "type": "runtime",
+        "events": 6,
+        "sha256": "92fef8facbf6fde07af02a5138a985501497f432dfaff094c8c6a45a87baf175"
+      },
+      {
+        "path": "sandbox_d3d8_enum_20261024_01\\experiments\\xrt\\build\\class_boundary\\report.json",
+        "type": "runtime",
+        "events": 181,
+        "sha256": "816496de6e90efba6ad41eeca8f206e042d5f69fe8057becb38375e59c7576cc"
+      },
+      {
+        "path": "sandbox_d3d8_enum_20261024_01\\experiments\\xrt\\build\\clipcursor_boundary_03\\nonnull-report.json",
+        "type": "runtime",
+        "events": 2,
+        "sha256": "b97c26287042b5dc9f2fa1875cb250b636cfeb854b0a8b49abeacbcd333fe87b"
+      },
+      {
+        "path": "sandbox_d3d8_enum_20261024_01\\experiments\\xrt\\build\\clipcursor_boundary_03\\positive-report.json",
+        "type": "runtime",
+        "events": 12,
+        "sha256": "0a11f843f1ea198e616770ac95f9ccda4e7516a7dc24c14cfc675c5e3891c770"
+      },
+      {
+        "path": "sandbox_d3d8_enum_20261024_01\\experiments\\xrt\\build\\focus_boundary\\report.json",
+        "type": "runtime",
+        "events": 102,
+        "sha256": "32cda228bd560d4abf2815ecd7f388ac9473a531ab37658669ad1d3b85eba01e"
+      },
+      {
+        "path": "sandbox_d3d8_enum_20261024_01\\experiments\\xrt\\build\\foreground_boundary\\report.json",
+        "type": "runtime",
+        "events": 27,
+        "sha256": "59d1d1056eef61d7894fb1189e5ea0851992e81358ba939835aa0a1a59a3253b"
+      },
+      {
+        "path": "sandbox_d3d8_enum_20261024_01\\experiments\\xrt\\build\\geticon_boundary_02\\dpi-0-report.json",
+        "type": "runtime",
+        "events": 12,
+        "sha256": "00d1fb41cf4dd172f397dbbd702b2b3e9c8d3d8def9b45c919806bd9728491bd"
+      },
+      {
+        "path": "sandbox_d3d8_enum_20261024_01\\experiments\\xrt\\build\\geticon_boundary_02\\positive-0-report.json",
+        "type": "runtime",
+        "events": 907,
+        "sha256": "6178d587a0068d4fc7e3f456bb4cbc4a4b959ac17f25edce7b3b29fe721c61ca"
+      },
+      {
+        "path": "sandbox_d3d8_enum_20261024_01\\experiments\\xrt\\build\\geticon_boundary_02\\positive-1-report.json",
+        "type": "runtime",
+        "events": 907,
+        "sha256": "d77419a6b1aa60fba8011b17ef377f823dd92ad279a72a1ce20579a5ff719f96"
+      },
+      {
+        "path": "sandbox_d3d8_enum_20261024_01\\experiments\\xrt\\build\\geticon_boundary_02\\positive-2-report.json",
+        "type": "runtime",
+        "events": 907,
+        "sha256": "6178d587a0068d4fc7e3f456bb4cbc4a4b959ac17f25edce7b3b29fe721c61ca"
+      },
+      {
+        "path": "sandbox_d3d8_enum_20261024_01\\experiments\\xrt\\build\\geticon_boundary_02\\positive-3-report.json",
+        "type": "runtime",
+        "events": 907,
+        "sha256": "6178d587a0068d4fc7e3f456bb4cbc4a4b959ac17f25edce7b3b29fe721c61ca"
+      },
+      {
+        "path": "sandbox_d3d8_enum_20261024_01\\experiments\\xrt\\build\\geticon_boundary_02\\selector-0-report.json",
+        "type": "runtime",
+        "events": 12,
+        "sha256": "437aee4d9f9a524b4a80ccc71bf33773e17e076a0c1bf7c3949cec02da0b7918"
+      },
+      {
+        "path": "sandbox_d3d8_enum_20261024_01\\experiments\\xrt\\build\\geticon_boundary_02\\wrong-type-0-report.json",
+        "type": "runtime",
+        "events": 13,
+        "sha256": "c45379504fc68cb45f305629d86b0bb906f37f4f0af06e677b2ed17c954bb221"
+      },
+      {
+        "path": "sandbox_d3d8_enum_20261024_01\\experiments\\xrt\\build\\gui_boundary\\probe_gui.json",
+        "type": "runtime",
+        "events": 37,
+        "sha256": "1a3d2a8556603a8a689ea73f24a83c4b67739b22832d404501b26899f5a4acbe"
+      },
+      {
+        "path": "sandbox_d3d8_enum_20261024_01\\experiments\\xrt\\build\\gui_boundary\\probe_keys.json",
+        "type": "runtime",
+        "events": 5,
+        "sha256": "03f2f6ea619ec14531e69e6817c00e5053dd1da481aaaecacc1938e143e17ca9"
+      },
+      {
+        "path": "sandbox_d3d8_enum_20261024_01\\experiments\\xrt\\build\\gui_boundary\\unsupported-key.json",
+        "type": "runtime",
+        "events": 1,
+        "sha256": "f86fbb56ac0a4530ada8505267e1e85cbe49d771c24e55c215326016116fe83d"
+      },
+      {
+        "path": "sandbox_d3d8_enum_20261024_01\\experiments\\xrt\\build\\immassociatecontext_boundary\\cross-context-report.json",
+        "type": "runtime",
+        "events": 12,
+        "sha256": "57fa508f7431f9589d3c3e3d3fa5922cc5e6d8dfef4d9eee9a9f012dd7ae0c8e"
+      },
+      {
+        "path": "sandbox_d3d8_enum_20261024_01\\experiments\\xrt\\build\\immassociatecontext_boundary\\cross-restore-report.json",
+        "type": "runtime",
+        "events": 9,
+        "sha256": "1d66fe687e0d3b363807d4f3c151b1b3ad3ae1e3c92f7f26f1feb9818ddde61b"
+      },
+      {
+        "path": "sandbox_d3d8_enum_20261024_01\\experiments\\xrt\\build\\immassociatecontext_boundary\\cross-window-report.json",
+        "type": "runtime",
+        "events": 9,
+        "sha256": "b544fad2ab39ff2409fa4c479cbb6c26689e0fd1ae8b73c798c23fef9ef4c367"
+      },
+      {
+        "path": "sandbox_d3d8_enum_20261024_01\\experiments\\xrt\\build\\immassociatecontext_boundary\\dead-thread-context-report.json",
+        "type": "runtime",
+        "events": 12,
+        "sha256": "5b5d89e8db196f274afc5f6de019718f6f43c8dc3245346aa6b6e7dc544fedd7"
+      },
+      {
+        "path": "sandbox_d3d8_enum_20261024_01\\experiments\\xrt\\build\\immassociatecontext_boundary\\invalid-report.json",
+        "type": "runtime",
+        "events": 27,
+        "sha256": "addfac69f08a67ad97a64ed7f395f9e997669c9be89b5e39377fa228d0fa0b89"
+      },
+      {
+        "path": "sandbox_d3d8_enum_20261024_01\\experiments\\xrt\\build\\immassociatecontext_boundary\\positive-report.json",
+        "type": "runtime",
+        "events": 124,
+        "sha256": "f5496e91f36fb8fc7f7fb7dc129a937afdc2da30d55f8aeed84d471dacd97479"
+      },
+      {
+        "path": "sandbox_d3d8_enum_20261024_01\\experiments\\xrt\\build\\immassociatecontext_boundary\\unknown-context-report.json",
+        "type": "runtime",
+        "events": 5,
+        "sha256": "ec8cbffae2e11d33fd1c4a2003b6abc3316040a9c36a0ffe9a62200692186ab4"
+      },
+      {
+        "path": "sandbox_d3d8_enum_20261024_01\\experiments\\xrt\\build\\immassociatecontext_boundary\\wrong-type-report.json",
+        "type": "runtime",
+        "events": 5,
+        "sha256": "a6cb6f2a5d4257c3957c0c0155f89cdee955fd906f22169601b298d467a97e8b"
+      },
+      {
+        "path": "sandbox_d3d8_enum_20261024_01\\experiments\\xrt\\build\\mapwindowpoints_boundary_02\\bad-points-report.json",
+        "type": "runtime",
+        "events": 2,
+        "sha256": "d9c65c0b5e684b1ce5764a2d6acdefd09bb15d2e0c48ed6072580d247fd91db4"
+      },
+      {
+        "path": "sandbox_d3d8_enum_20261024_01\\experiments\\xrt\\build\\mapwindowpoints_boundary_02\\count-zero-report.json",
+        "type": "runtime",
+        "events": 2,
+        "sha256": "4d7a76f48ec4571e30efa3ae06272fab52409c12a7852db881e85113ec46a158"
+      },
+      {
+        "path": "sandbox_d3d8_enum_20261024_01\\experiments\\xrt\\build\\mapwindowpoints_boundary_02\\positive-report.json",
+        "type": "runtime",
+        "events": 4362,
+        "sha256": "3d8c040c73f99be0f345e115b38e2f4e54674902cf17173f694527c4cbcc18f8"
+      },
+      {
+        "path": "sandbox_d3d8_enum_20261024_01\\experiments\\xrt\\build\\mapwindowpoints_boundary_02\\wrong-type-report.json",
+        "type": "runtime",
+        "events": 2,
+        "sha256": "ebdfc245ffb47d195ad4b0dc66c2a1bbfac47b64aa2912220e91631e40087fb8"
+      },
+      {
+        "path": "sandbox_d3d8_enum_20261024_01\\experiments\\xrt\\build\\module_boundary\\probe_stale_export.json",
+        "type": "runtime",
+        "events": 4,
+        "sha256": "cd1a1199b7b548908e4f2a35e27828029cbeaf308c434dd401fec834f9840c02"
+      },
+      {
+        "path": "sandbox_d3d8_enum_20261024_01\\experiments\\xrt\\build\\module_boundary\\probe_transitive_identity.json",
+        "type": "runtime",
+        "events": 1,
+        "sha256": "30ffd6767fa9b30e1fb3ea611d097d34e2454848775ecb31e27a327986ab39e4"
+      },
+      {
+        "path": "sandbox_d3d8_enum_20261024_01\\experiments\\xrt\\build\\module_boundary\\probe_unadapted_export.json",
+        "type": "runtime",
+        "events": 12,
+        "sha256": "2d5244c8f931bc87729d9fb66d2ec6aa2775836fc603c7959e7f17efb8e582cf"
+      },
+      {
+        "path": "sandbox_d3d8_enum_20261024_01\\experiments\\xrt\\build\\module_boundary\\report.json",
+        "type": "runtime",
+        "events": 27,
+        "sha256": "96a396bae280608e0796f77d235ad00e7bf339e2c620139ec5265b34e895ef2e"
+      },
+      {
+        "path": "sandbox_d3d8_enum_20261024_01\\experiments\\xrt\\build\\setactive_boundary_03\\borrowed-report.json",
+        "type": "runtime",
+        "events": 38,
+        "sha256": "b20f55b31c298534cc56769fd3dd8c849673c78ec193363d9c1286acef3adc5d"
+      },
+      {
+        "path": "sandbox_d3d8_enum_20261024_01\\experiments\\xrt\\build\\setactive_boundary_03\\positive-report.json",
+        "type": "runtime",
+        "events": 207,
+        "sha256": "2a1038119d9ce4c81b295126f7617116983cd535fae5b90989331b51aaa4634d"
+      },
+      {
+        "path": "sandbox_d3d8_enum_20261024_01\\experiments\\xrt\\build\\setactive_boundary_03\\wrong-type-report.json",
+        "type": "runtime",
+        "events": 3,
+        "sha256": "4d954599a75de46f77eeed6af16a38d26392d13c7bea2024b2655ce7c21ae09d"
+      },
+      {
+        "path": "sandbox_d3d8_enum_20261024_01\\experiments\\xrt\\build\\setcapture_boundary_03\\borrowed-report.json",
+        "type": "runtime",
+        "events": 7,
+        "sha256": "35a67d7f774cd7a7a1eeb74a80e2054b93003334b54c558cc4a620354c234379"
+      },
+      {
+        "path": "sandbox_d3d8_enum_20261024_01\\experiments\\xrt\\build\\setcapture_boundary_03\\cross-thread-report.json",
+        "type": "runtime",
+        "events": 13,
+        "sha256": "4f9f9d0828a5bd69bc09ed4020e31272183f0a24e16d4efe8ab8414f7180f9ab"
+      },
+      {
+        "path": "sandbox_d3d8_enum_20261024_01\\experiments\\xrt\\build\\setcapture_boundary_03\\positive-report.json",
+        "type": "runtime",
+        "events": 205,
+        "sha256": "635e51c5e5dd26a9ff81ba103848e87e4c896b35d84d6ef039d7cb142f038dc8"
+      },
+      {
+        "path": "sandbox_d3d8_enum_20261024_01\\experiments\\xrt\\build\\setcapture_boundary_03\\wrong-type-report.json",
+        "type": "runtime",
+        "events": 3,
+        "sha256": "6363d905d9feb81147f109a444287ee8b42e34d3084cb34370c5e0682d3b8167"
+      },
+      {
+        "path": "sandbox_d3d8_enum_20261024_01\\experiments\\xrt\\build\\setcursor_boundary\\invalid-report.json",
+        "type": "runtime",
+        "events": 7,
+        "sha256": "098592b28905d25ca70897d8e5999f8a5b54166cf5381b97b8de3beaa5efcf3d"
+      },
+      {
+        "path": "sandbox_d3d8_enum_20261024_01\\experiments\\xrt\\build\\setcursor_boundary\\positive-report.json",
+        "type": "runtime",
+        "events": 81,
+        "sha256": "1bed260049545aec1c6df16f88717fa33de727dd7cf4f0be2c9321b13e1760d7"
+      },
+      {
+        "path": "sandbox_d3d8_enum_20261024_01\\experiments\\xrt\\build\\setcursor_boundary\\wrong-type-report.json",
+        "type": "runtime",
+        "events": 7,
+        "sha256": "7483fb93392b9ac25d22dc5f4b0078bef5c433020b1f0f9186e8730db44684b4"
+      },
+      {
+        "path": "sandbox_d3d8_enum_20261024_01\\experiments\\xrt\\build\\setfocus_boundary\\borrowed-report.json",
+        "type": "runtime",
+        "events": 13,
+        "sha256": "9cf314194f69b5956bef412bd925ed8e7c26b716b5cae65a2ecc14b293c642e1"
+      },
+      {
+        "path": "sandbox_d3d8_enum_20261024_01\\experiments\\xrt\\build\\setfocus_boundary\\cross-thread-report.json",
+        "type": "runtime",
+        "events": 32,
+        "sha256": "76e8dba8d73cc0e71cbf3e6409616013bcf9ee16c8d35aa1ed65b79767104645"
+      },
+      {
+        "path": "sandbox_d3d8_enum_20261024_01\\experiments\\xrt\\build\\setfocus_boundary\\positive-report.json",
+        "type": "runtime",
+        "events": 426,
+        "sha256": "0ca792ce6ffcd20f11112c3f5c26f9c1ce90686fa8a8908ec27a51dd918a0318"
+      },
+      {
+        "path": "sandbox_d3d8_enum_20261024_01\\experiments\\xrt\\build\\setfocus_boundary\\wrong-type-report.json",
+        "type": "runtime",
+        "events": 3,
+        "sha256": "fcbbf5bcb5a75b7f4391e46e5d1950db62a619701953618681c33b4e65cb41bf"
+      },
+      {
+        "path": "sandbox_d3d8_enum_20261024_01\\experiments\\xrt\\build\\setforeground_boundary\\positive-report.json",
+        "type": "runtime",
+        "events": 216,
+        "sha256": "1908feca71e085c5d40dad74f50e1231240e6bf66ee3bb4439e6a3a97d54a816"
+      },
+      {
+        "path": "sandbox_d3d8_enum_20261024_01\\experiments\\xrt\\build\\setforeground_boundary\\wrong-type-report.json",
+        "type": "runtime",
+        "events": 3,
+        "sha256": "5728a08e74f39c1555e42f7c18e789ae29d5bdc960e6266c8f4ab559ce3cb9f0"
+      },
+      {
+        "path": "sandbox_d3d8_enum_20261024_01\\experiments\\xrt\\build\\window_ae_boundary_03\\positive-report.json",
+        "type": "runtime",
+        "events": 94,
+        "sha256": "999ab2a2cc5fae84dd7caba06d0969fb57c5e572adca5c2e466fb7ced7a2c2d8"
+      },
+      {
+        "path": "sandbox_d3d8_enum_20261024_01\\experiments\\xrt\\build\\window_ae_boundary_03\\wrong-lp-report.json",
+        "type": "runtime",
+        "events": 10,
+        "sha256": "ed624af996c5a8d783f81ca06a7e577797015bc8d78404337ff0b48cfb1426a1"
+      },
+      {
+        "path": "sandbox_d3d8_enum_20261024_01\\experiments\\xrt\\build\\window_ae_boundary_03\\wrong-wp-report.json",
+        "type": "runtime",
+        "events": 10,
+        "sha256": "254474b0ead0f4b8c9acf6805d544796b2f2271f2af718ce697f4272b397c86d"
+      },
+      {
+        "path": "sandbox_d3d8_enum_20261024_01\\experiments\\xrt\\build\\window_ids_boundary\\bad-output-report.json",
+        "type": "runtime",
+        "events": 5,
+        "sha256": "9b7ff8adc160b9cc4b83e0a75425ae6da26dce1d5d44a7bbd86eb8bc9f793e66"
+      },
+      {
+        "path": "sandbox_d3d8_enum_20261024_01\\experiments\\xrt\\build\\window_ids_boundary\\positive-report.json",
+        "type": "runtime",
+        "events": 74,
+        "sha256": "83a4efb5be708aa797babc8fe3d90645cd28585f0fbd85d121b325e0bf19bcee"
+      },
+      {
+        "path": "sandbox_d3d8_enum_20261024_01\\experiments\\xrt\\build\\window_ids_boundary\\wrong-type-report.json",
+        "type": "runtime",
+        "events": 5,
+        "sha256": "9cbcbc751ee23b11cefbe7fcdef1e563a7196cf5594b9a42210707159402919d"
+      },
+      {
+        "path": "sandbox_d3d8_enum_20261024_01\\experiments\\xrt\\results\\raw\\runs\\20261025-033416-8a38187b\\hellofull\\run0\\original\\trace.json",
+        "type": "native-tracer",
+        "events": 0,
+        "sha256": "117ffd61fefd2da9bb58fbd48f32eea7394300384a4f9aab83fa3290a4d7d51b"
+      },
+      {
+        "path": "sandbox_d3d8_enum_20261024_01\\experiments\\xrt\\results\\raw\\runs\\20261025-033416-8a38187b\\hellofull\\run0\\xrt\\report.json",
+        "type": "runtime",
+        "events": 283,
+        "sha256": "7c6babd623ee431ff9ccbda06e6dc73837e6f8df608abc28042b31c857eba924"
+      },
+      {
+        "path": "sandbox_d3d8_enum_20261024_01\\experiments\\xrt\\results\\raw\\runs\\20261025-032933-b01546fe\\vmprobe\\run0\\xrt\\report.json",
+        "type": "runtime",
+        "events": 672,
+        "sha256": "5e65c435da4a6955bcae97cc3893986d077265ef6bd0c02e5c07d8deec79cb22"
+      },
+      {
+        "path": "sandbox_d3d8_enum_20261024_01\\experiments\\xrt\\results\\raw\\runs\\20261025-032933-b01546fe\\simple\\run0\\xrt\\report.json",
+        "type": "runtime",
+        "events": 302,
+        "sha256": "ee9226f74d422f6513b68da74563ea518088f85ab18a6f0cb20df571e577fdd7"
+      },
+      {
+        "path": "sandbox_d3d8_enum_20261024_01\\experiments\\xrt\\results\\raw\\runs\\20261025-032933-b01546fe\\hello_noargs\\run0\\xrt\\report.json",
+        "type": "runtime",
+        "events": 281,
+        "sha256": "af2f60da4aed46f71523c9b4a2ae9b8c86a4eed56452cc11bba32d726ef96665"
+      },
+      {
+        "path": "sandbox_d3d8_enum_20261024_01\\experiments\\xrt\\results\\raw\\runs\\20261025-032933-b01546fe\\hellonew\\run0\\xrt\\report.json",
+        "type": "runtime",
+        "events": 283,
+        "sha256": "4d1434057e3f1b298531164fb22d3ef2653f3d89ce97548703d6c802f97b51e2"
+      },
+      {
+        "path": "sandbox_d3d8_enum_20261024_01\\experiments\\xrt\\results\\raw\\runs\\20261025-032933-b01546fe\\hellofull_nosse\\run0\\xrt\\report.json",
+        "type": "runtime",
+        "events": 283,
+        "sha256": "f11a1404498b4ceaca1dd095a5a6b33eaa2d8cb20e8f1cc25c1d6744ae2c6916"
+      },
+      {
+        "path": "sandbox_d3d8_enum_20261024_01\\experiments\\xrt\\results\\raw\\runs\\20261025-032933-b01546fe\\hellofull\\run0\\xrt\\report.json",
+        "type": "runtime",
+        "events": 283,
+        "sha256": "6ca3bbbff6e213346740331b3801a8ac06933fba38379e61fb963d817c32f99e"
+      },
+      {
+        "path": "sandbox_d3d8_enum_20261024_01\\experiments\\xrt\\results\\raw\\runs\\20261025-032933-b01546fe\\hello\\run0\\original\\trace.json",
+        "type": "native-tracer",
+        "events": 55,
+        "sha256": "ad9398b0b541025af4bf25510ccdcd2a699aeb71d813b427d2398ce9d80d15dc"
+      },
+      {
+        "path": "sandbox_d3d8_enum_20261024_01\\experiments\\xrt\\results\\raw\\runs\\20261025-032933-b01546fe\\hello\\run0\\xrt\\report.json",
+        "type": "runtime",
+        "events": 331,
+        "sha256": "c2cae168fb182b676af78e099f1a61d6e67b1438c5709a921d0781ee0874409d"
+      },
+      {
+        "path": "sandbox_d3d8_enum_20261024_01\\experiments\\xrt\\results\\raw\\runs\\20261025-032933-b01546fe\\badclass\\run0\\original\\trace.json",
+        "type": "native-tracer",
+        "events": 35,
+        "sha256": "8be62426e4bb5f2a7471b9bd430c7a6e4494b9ac56ebef270d043d44258f5c5e"
+      },
+      {
+        "path": "sandbox_d3d8_enum_20261024_01\\experiments\\xrt\\results\\raw\\runs\\20261025-032933-b01546fe\\badclass\\run0\\xrt\\report.json",
+        "type": "runtime",
+        "events": 251,
+        "sha256": "0107ffb8fd1eb9196098bbed254e260310476b81a9886ae835b9435104fdae1f"
+      },
+      {
+        "path": "sandbox_d3d8_enum_20261024_01\\experiments\\xrt\\results\\raw\\runs\\20261025-032933-b01546fe\\arraytest\\run0\\xrt\\report.json",
+        "type": "runtime",
+        "events": 337,
+        "sha256": "dd525d0645dd689f4b5bb48a53d599e8142c795f0ca4a67d3fb7e7971425e2be"
+      },
+      {
+        "path": "sandbox_d3d8_enum_20261024_01\\experiments\\xrt\\results\\raw\\compile\\20261025-033112-d5956c39\\v3\\compile_xrt1\\report.json",
+        "type": "runtime",
+        "events": 840,
+        "sha256": "0d3bb9b15815703ef95a4b75a1549945e182516bc745a569dcac9cfdf5c9df2f"
+      },
+      {
+        "path": "sandbox_d3d8_enum_20261024_01\\experiments\\xrt\\results\\raw\\compile\\20261025-033112-d5956c39\\v3\\compile_xrt2\\report.json",
+        "type": "runtime",
+        "events": 840,
+        "sha256": "fff5d934ba344fb6b411b9a3e6891849a6eee6e5deae7e94f2f7c43e664ed5a1"
+      },
+      {
+        "path": "sandbox_d3d8_enum_20261024_01\\experiments\\xrt\\results\\raw\\compile\\20261025-033112-d5956c39\\v3\\exec_B\\report.json",
+        "type": "runtime",
+        "events": 333,
+        "sha256": "40175d2d17e44a0b8dabcaa4c0f1782c9945747d4c582b896306be205828f88b"
+      },
+      {
+        "path": "sandbox_d3d8_enum_20261024_01\\experiments\\xrt\\results\\raw\\compile\\20261025-033112-d5956c39\\v3\\exec_D\\report.json",
+        "type": "runtime",
+        "events": 333,
+        "sha256": "fba3a7f948a6fc34a00421cb76d25ebabf948419a1c942dd2e7fb9bfdac342b0"
+      },
+      {
+        "path": "sandbox_d3d8_enum_20261024_01\\experiments\\xrt\\results\\raw\\compile\\20261025-033112-d5956c39\\v2\\compile_xrt1\\report.json",
+        "type": "runtime",
+        "events": 837,
+        "sha256": "b7a977f2a306c8ae73595fe96737fe5ece4df5bc4c3b241c12a3a40e814f526d"
+      },
+      {
+        "path": "sandbox_d3d8_enum_20261024_01\\experiments\\xrt\\results\\raw\\compile\\20261025-033112-d5956c39\\v2\\compile_xrt2\\report.json",
+        "type": "runtime",
+        "events": 837,
+        "sha256": "68af1bf30e752044fe57453b0deeaebc15303e91a776fd6dbc09a39ef5e08a0a"
+      },
+      {
+        "path": "sandbox_d3d8_enum_20261024_01\\experiments\\xrt\\results\\raw\\compile\\20261025-033112-d5956c39\\v2\\exec_B\\report.json",
+        "type": "runtime",
+        "events": 290,
+        "sha256": "6eebd4b3fde060e7523b8f71285c67017be05f2957ff49b5b3bfad7e32c50e99"
+      },
+      {
+        "path": "sandbox_d3d8_enum_20261024_01\\experiments\\xrt\\results\\raw\\compile\\20261025-033112-d5956c39\\v2\\exec_D\\report.json",
+        "type": "runtime",
+        "events": 290,
+        "sha256": "9e9a29c14d29000471b600ac6343f5fab86f3fa71f07d22f7d15ba6d00546e4c"
+      },
+      {
+        "path": "sandbox_d3d8_enum_20261024_01\\experiments\\xrt\\results\\raw\\compile\\20261025-033112-d5956c39\\v1\\compile_xrt1\\report.json",
+        "type": "runtime",
+        "events": 837,
+        "sha256": "722d8488f554c4d19710ae1b7d16aa58da59b2d70d018b77b4f5b832200ab121"
+      },
+      {
+        "path": "sandbox_d3d8_enum_20261024_01\\experiments\\xrt\\results\\raw\\compile\\20261025-033112-d5956c39\\v1\\compile_xrt2\\report.json",
+        "type": "runtime",
+        "events": 837,
+        "sha256": "a85e660e2c42323a206db0f78c6dcae86f2f14257a44f84c2971531e06eea999"
+      },
+      {
+        "path": "sandbox_d3d8_enum_20261024_01\\experiments\\xrt\\results\\raw\\compile\\20261025-033112-d5956c39\\v1\\exec_B\\report.json",
+        "type": "runtime",
+        "events": 290,
+        "sha256": "97be75dbf0aa35d2e7fb6814ddb7834f0a847119bfa663072193e3cec5f2369c"
+      },
+      {
+        "path": "sandbox_d3d8_enum_20261024_01\\experiments\\xrt\\results\\raw\\compile\\20261025-033112-d5956c39\\v1\\exec_D\\report.json",
+        "type": "runtime",
+        "events": 290,
+        "sha256": "cf4775f09fb1a6a12ceba0b780ef765b64d812082eac1d7ac17619b632c9a35c"
+      },
+      {
+        "path": "sandbox_d3d8_enum_20261024_01\\experiments\\xrt\\results\\raw\\compile\\20261025-033112-d5956c39\\invalid\\compile_xrt1\\report.json",
+        "type": "runtime",
+        "events": 884,
+        "sha256": "90efcadacbc81e3f80ecec12aaa84550747595efa055b1f0de3630325f593a65"
+      },
+      {
+        "path": "sandbox_d3d8_enum_20261024_01\\experiments\\xrt\\results\\raw\\compile\\20261025-033112-d5956c39\\invalid\\compile_xrt2\\report.json",
+        "type": "runtime",
+        "events": 884,
+        "sha256": "7f39ae8da864725010a943f8922aa6005ef127b6709ff5aff498048353750208"
+      }
+    ],
+    "client_events": 75534,
+    "client_events_dropped": 0,
+    "sticky_restored": true,
+    "clip_restored": true,
+    "session_locks_released": true
+  },
+  "build_outputs": {
+    "xrt_ucc.exe": "005edc05d720fbc1dbd5ff900716044701eb13a6b010c3c57526636e137657e5",
+    "xrt_ucc.ilk": "cce3412a6e133e847bafe34d15cf46d787687958eaf78d7d9cb93b87c0829fac",
+    "xrt_ucc.pdb": "02ae42ea071d4548e85480cb17d4f0087f0497389e9eff4783de4c23a12372ab",
+    "obj/core/Core_000.obj": "03885903f9e3b632d9a7428893cb7eac98476d9e78b4acbfb6e2e1800faece51",
+    "obj/core/Core_001.obj": "4cc284c0e14997083e27ecea3edb0ef32689487a7b26119450cf9a9c50ad2504",
+    "obj/core/Core_002.obj": "4ac2b1306b7393689655336479ec6bc0e67b581572c689fb5a1891c05d9944eb",
+    "obj/core/Core_003.obj": "05cc3b0271001afe5a566cd8eb7777b20832b508f5be23e01ec16e00a657453a",
+    "obj/core/Core_004.obj": "2a23b4faddd7f5d37c74e51983a289c2660299d20b01988d7f47d71b5e6042e5",
+    "obj/core/Core_005.obj": "953a9316494ea01cd9747a2d5600b30601f9e4c165c9e67aa71a48f1c91e80a5",
+    "obj/core/Core_006.obj": "820803886eba76ea02f101d2184effb5475b8d99bcbdf6eea89c601049aad606",
+    "obj/core/Core_007.obj": "5687deaee6e811285a5289ed3b39c03bd36c8b063bc2c76af046b016d1d5f75c",
+    "obj/core/Core_008.obj": "0822ca61b36133bf63585fb4dc5a128435e3b958357afd18c39a2f319f32369e",
+    "obj/core/Core_009.obj": "9997007974954349d055e6cde854afd17b843f03df1f78ff225e393bdfe7d5ca",
+    "obj/core/Core_010.obj": "651cd26db227ee3dfe7eb623a81a83f72f20caabf539fa44f20f4248613abe54",
+    "obj/core/Core_011.obj": "c75058af6668add227dc23d64a4acb236114e02cecc5f1dcdd967e2e0f80edd4",
+    "obj/core/Core_012.obj": "76c085eba8bae4316090238b11e04bac7723ede47588ced35172146ee1429799",
+    "obj/core/Core_013.obj": "b9f5479506b8126ef628a481fab5e83e85828eb9fac619b70f931dfee89c8434",
+    "obj/core/Core_014.obj": "bdd5ab17930068f36a22af937f30d0144a4d19966d8c114bc5c3a78587f2f302",
+    "obj/core/Core_015.obj": "741e061bd400a9e4c15d2d8e091a3d1481d3b31180171b16a51bdb03bde9ccce",
+    "obj/core/Core_016.obj": "14e47504554a141ad1b76e868db9fd5995e6bd905f2f127a3b3d84ed2061633f",
+    "obj/core/Core_017.obj": "5154d3b7c5ebbf1318d287374dbe05097c6592df6f5e6696fa614a61c8da02b3",
+    "obj/core/Core_018.obj": "5d10f75d64d7e32849e1c224ae3e903481194b9790fb39bba770dead69bf59f2",
+    "obj/core/Core_019.obj": "7f269b99ecd518b01b609cf04c6a80b9b80e03fb7b6beff466a8112ef4bf68ce",
+    "obj/core/Core_table.obj": "9afa4a6711b85be2dd99ec7fe280946c9069d76da06012a6a6a3cb8e6caa215f",
+    "obj/d3ddrv/D3DDrv_000.obj": "9cccdefbc5771df950fb7474669f47e66def4287b740abcd374e2fb94f019e52",
+    "obj/d3ddrv/D3DDrv_001.obj": "3dd7817b5540c562af8a2cdb37e1600113decb989f176654573842d4effaf709",
+    "obj/d3ddrv/D3DDrv_002.obj": "e709605a308b58cd39253214a7be48261ae17092c8c443320ed72e95d327e425",
+    "obj/d3ddrv/D3DDrv_003.obj": "a41a5f7fab92757308967c07518a995d4612bab12b02338c0188b1d670629b9e",
+    "obj/d3ddrv/D3DDrv_table.obj": "3b76b7a1fb9712735a7cb7c561a00d5a416a4593abad1aacce040a70dca90e81",
+    "obj/editor/Editor_000.obj": "5a3371bd76c3dfccba1c056574f0975d72127079e97b217010165ce8d99c847e",
+    "obj/editor/Editor_001.obj": "1350bed15d7fe212bcca8a6f8c5176ca708e9a3e467923c39ba2838a09ed88d1",
+    "obj/editor/Editor_002.obj": "f07554fe64827a698b1fcfffed5c6dd285e4f70e9af7869680446ce3cc7d6497",
+    "obj/editor/Editor_003.obj": "851f743bceb3e9fe2bb020f11b762769186c8dda6c70f3f616017a14566634ea",
+    "obj/editor/Editor_004.obj": "ec13da108998144518ce2b880f285100a4c6a4a1398764c7c32d24f8b2a01e47",
+    "obj/editor/Editor_005.obj": "f23c1ba47d6450d05a7b786ff61c349babe9c96c4e0798662c21dfb5747fffac",
+    "obj/editor/Editor_006.obj": "e23e4d08f2896fd2660de488321212235078c99f77124e4a39cb0d2f3a1e246e",
+    "obj/editor/Editor_007.obj": "e3024f77a8e6e15fbdbbb901861d20198faca69072838e69d5f7f4a72d25229b",
+    "obj/editor/Editor_008.obj": "701c7b79b06629539a148d97ddc394192c0624646d0b9a3df2e10b7bea4d8282",
+    "obj/editor/Editor_009.obj": "07c1cdeb98d31c21620c8eb415aa6f60a2886b1f0a14ace83f282ccaf6481b47",
+    "obj/editor/Editor_010.obj": "e11cf072cf59f42af1b4f494f8df3136ff008e0c358c4b610d79099f7c2c4f92",
+    "obj/editor/Editor_011.obj": "b9e41c85015f35dc97790176747162a38dd3f0f701b687a4eb5d02c73eb103df",
+    "obj/editor/Editor_012.obj": "eebb1c42f8fbd70b5e08bc979be0547c4d21401e16694d69e12bf8027c123c0d",
+    "obj/editor/Editor_013.obj": "feae437fd55705c5a72a131eb6addbc7fd0c101b03b56e96ffb8f9858d520c65",
+    "obj/editor/Editor_014.obj": "5b06d9c589a293fd2042a5f8ad336ce2b425adee124d5ddebf24a8d68935a9c7",
+    "obj/editor/Editor_015.obj": "d7385dc4baf81473f889c41b539462f910b3254c4c21a23d5fbab84b3c62e151",
+    "obj/editor/Editor_016.obj": "09b7095152b3ad3b2c64fb4bca07d2d458acaaf35286ef086edd99ebce8f2924",
+    "obj/editor/Editor_017.obj": "4e22834aa5edd1ac4bbfdf8e628c6b18c6aea1ecf1a4b34f5b10d8e35c0a0563",
+    "obj/editor/Editor_018.obj": "83a04240660514f68529693ba1c5cadaa0b550cb9c357da6f49aac4200d487f3",
+    "obj/editor/Editor_019.obj": "0783d2fe2f710d0646de479771346728355d6b115cf8f9697e0b26d046de018d",
+    "obj/editor/Editor_020.obj": "0cb83039ef1c7d99e7be0aad95b873684be82b8f74af88d6fd38f3b8c908e18e",
+    "obj/editor/Editor_table.obj": "e5e39d9b5b551c8b749cc325f69289d43ea211fde8c0d5c887eb07626a58605c",
+    "obj/engine/Engine_000.obj": "12b428357149eaee85af2b0d1989911a35f29ab6e1062c14a3c261098131cdd0",
+    "obj/engine/Engine_001.obj": "072ef552dc6a969147d499db6fac4d2251c5e9f4dc4edbbbce8179fa7349a7d9",
+    "obj/engine/Engine_002.obj": "14a21d60b8c31039e21e0dae564c267dae20cefa055033a8777925a536e3ec6b",
+    "obj/engine/Engine_003.obj": "7a11750e6eb084f3a60a9e575ba9ec6b921f53cb2b3ef590d3bd3166cf17438f",
+    "obj/engine/Engine_004.obj": "11be4f3b5ff86fb06c729118d90ecdcbcf0fee3bc2b0d085b73487f73efc4da3",
+    "obj/engine/Engine_005.obj": "4af03c9813a382449bca965965c050ad873e5fa0a45b88aa0acc4c7e2856f7df",
+    "obj/engine/Engine_006.obj": "e1019795e955a84be02a942189e1bb9e667cce6d1eab5bf7eab2f8b66afba5ae",
+    "obj/engine/Engine_007.obj": "a73f828202d0a05f704ea68496dea014e64d358d5a0a662e28698e97cccde9d9",
+    "obj/engine/Engine_008.obj": "1ad1d4e65607b676f91c450922f41fb4dbedd5ca038da0ac1776da06d639dfc5",
+    "obj/engine/Engine_009.obj": "956c124a805aa2920899c0f6c3e3160ebd79aa6835118ed2cb6f7c58b628f8c3",
+    "obj/engine/Engine_010.obj": "7d9e0bd07971d1377c8083984c079f43dfb5a0fbfa2770c1f780433141c5bb97",
+    "obj/engine/Engine_011.obj": "ce41dd44de6c231ff9af0b5a3bf0aba3ee49a797f85be38380f6cf6f6f33dc4b",
+    "obj/engine/Engine_012.obj": "60dee6aab0bf50415cfc1feb5780c2ee91d5609c48e47311dfdffb80b1a49352",
+    "obj/engine/Engine_013.obj": "46ae8dc3cc9a9728fa594a528c31c5586dd1be9e7c8991ba5fba153d4c23c0fd",
+    "obj/engine/Engine_014.obj": "2cc89cf717fa0aa86ec52ca343c2188f90b34268d83fbb6135b7c89289f9a3c3",
+    "obj/engine/Engine_015.obj": "2bcd4d67a5fb1c644d6f8989165cf428b1fd60a03db31aa0f42c72a781714b05",
+    "obj/engine/Engine_016.obj": "8bbc938096ad59ff1a7b610baa314103b728a00038e50159607ffb99995860b2",
+    "obj/engine/Engine_017.obj": "45170663ab2771653b06079157530ad3bdae160eda4717a42d481d320dd16746",
+    "obj/engine/Engine_018.obj": "f51b04c4a8a44150c37c1f46dbbd6600a5ae50091b2957e5f9d36431fd602837",
+    "obj/engine/Engine_019.obj": "963b78ed6652b164a20e64d7ede47760a4f456c49f67c93f6db84535b1edb8c1",
+    "obj/engine/Engine_020.obj": "281ca8af811343f32e573a227c96d448d0ddaf73db0d18d69272f6b8080f4603",
+    "obj/engine/Engine_021.obj": "cae9a00a6b0d23e665566ce2214533f9622648dc34aa0f2c4feabefa849ed55e",
+    "obj/engine/Engine_022.obj": "0ff19410519666cf54588b0f94a40857d2bc380eb684aaa3de6615f54ed9945a",
+    "obj/engine/Engine_023.obj": "37bd90b743b253b5bb58bd873125a595279ce44e7f4716321d088fdc4f05210c",
+    "obj/engine/Engine_024.obj": "a9545524cd390eb60c2040ebb0dd8770f87ee77ba6fd3b5c51328a6b38248891",
+    "obj/engine/Engine_025.obj": "efed0b02fff7204370f79e264f986aaf372259c3ba2fc4f580e3eae760117672",
+    "obj/engine/Engine_026.obj": "051aa5eb4a178ee9019f907d15c2a85e3f2b8afd833e1cae7bd8dc3eab8655ab",
+    "obj/engine/Engine_027.obj": "4b7844eddb921cc9c3485b492579d9271f0131119a61f5667e05dde33aeede5b",
+    "obj/engine/Engine_028.obj": "96f200354275d6fa242d777113920980212510b59422505b1d8cddb082a604e9",
+    "obj/engine/Engine_029.obj": "db5cb4302a29dc4467d075776133333214fe019c2becc7a62adad08c1557ac77",
+    "obj/engine/Engine_030.obj": "d570a94e5f73639c4fc2c567306e5571d5ec985efb5251c4917a76cb6cf06043",
+    "obj/engine/Engine_031.obj": "551a1c1d005c7229fbdcd76f32eb212faba18392fb849c66f5cfa4159e66b2c1",
+    "obj/engine/Engine_032.obj": "af19f124159475ac0389d053887bf4b9dbe98aa1cab3addabdc21a9ceeea1556",
+    "obj/engine/Engine_033.obj": "173e75a4bbea600cfca3b71b383f18eb29402265c89d84839b85e7471d00b1a1",
+    "obj/engine/Engine_034.obj": "227ec730ed95159e67d72c70c5be9fae97cafeee25cd8c9889ca50edfdea155e",
+    "obj/engine/Engine_035.obj": "e0d89f9f599c1c846a7537368dd6f50fb7be2c10060338b41f9f1b22fc0d1cf2",
+    "obj/engine/Engine_036.obj": "0c46f2b136aefdfe989b8b18b61060c4326ea9b5d88b2aaca3eb7bec0166a6eb",
+    "obj/engine/Engine_037.obj": "b23be3ff9de1bb07a4a1360b1bc78cb9c3b4ce4ee91c4bfec3d6b97cdda24f02",
+    "obj/engine/Engine_038.obj": "3f9c0b9592729b7d71bfd46a1a8c1d2050a4bb2d2e1efec095d5fb841076b9ee",
+    "obj/engine/Engine_039.obj": "e5d17c4a8ea5cea06db99d772f1c88cd82d3dd33b82dcaff1266e1f78bb75f99",
+    "obj/engine/Engine_040.obj": "6fa90de3844795189287bd5605855079be8ed72f8122b92ab6e63a7f4cc3b07c",
+    "obj/engine/Engine_041.obj": "5938e429f539ce1e81206270ddf5cc09c901f89c654e81a888470bf8fdd776a7",
+    "obj/engine/Engine_042.obj": "7b05186ae468d899ea833d416968c5344270c94f1e0b513dd2ab6cb1714b558b",
+    "obj/engine/Engine_043.obj": "10d2a053bdc967a17e17c7c99a84b61a1b18407e361735033de93806698325d3",
+    "obj/engine/Engine_044.obj": "5a74db5cc5ba2cd91aaa2a90ebc908394e551a94e03548d8e93ffed84703c081",
+    "obj/engine/Engine_045.obj": "d8f1db5254c4daa456f85c3a7d0a07664307d3498e4234759a0a676851f7e2f7",
+    "obj/engine/Engine_046.obj": "d833a2eaa252e6f850f3c7985ce0f88ba909717a0973caabaf47439e3742e228",
+    "obj/engine/Engine_047.obj": "84327969c536d3b1d5f59f8ef5edaa73720d590e27f42cf39e0c3f4711929afe",
+    "obj/engine/Engine_048.obj": "f07bf8d55251924cce4353f72e513e39ea8c0d06a57b844ee24ad8977a14382c",
+    "obj/engine/Engine_049.obj": "048d26fa69264750103e17fea64aec90b3c188d19a44fed73dd1ef2abcabf158",
+    "obj/engine/Engine_050.obj": "12452cdcddc499fe1a5fa75cd3797ba78a506d646d1b763a3491c8639a1562f3",
+    "obj/engine/Engine_051.obj": "6714a8ec854e14a1691ca0748a8e4ef70b8dc851896f9e9c99734d1f39d70402",
+    "obj/engine/Engine_052.obj": "96f04a7180f59d4d98992d1b0ceae953b79dcaca7f19717f81cb434e7ede5041",
+    "obj/engine/Engine_053.obj": "a4852e25e4052493eaad880c4d10234c981519375faf50949de343901fd7cb24",
+    "obj/engine/Engine_054.obj": "e89660681c8427ea77930f35261e6f890ee5e93658de8c64b32aaa0ba46a5eb3",
+    "obj/engine/Engine_055.obj": "ec667d75ec129869ba9590ca7275c21b31864d5904919a6b25aeb965c8421fd8",
+    "obj/engine/Engine_056.obj": "71063ce3ad09c0ed5a331666a84c303335f503a6deefef9f2d340af714931601",
+    "obj/engine/Engine_057.obj": "91ccb64e236265ab0dcca47f942e5b1d8859d5e7edd73eee7322609a2e8f73d7",
+    "obj/engine/Engine_058.obj": "b07ab6ee3569de3c662732edbb15f360d95495b39d1ccc1fc4d3020963a9fc5b",
+    "obj/engine/Engine_059.obj": "7fcb33bb1b687b9434bcc8530dc2f4599f27ea90ee273ac25e52e93eade0900b",
+    "obj/engine/Engine_060.obj": "b199dadb742c0bd7ff4a3ec730246785769bdd5d3d3568c080feeddf794b87d3",
+    "obj/engine/Engine_061.obj": "660689d1140f667ba3f17e3ba6677041e7b4322c6ddb97844f9535a7e454b581",
+    "obj/engine/Engine_062.obj": "1e8871c7a5f65f761af61d02ffa0a8fce7c6af3c0e3f21909f6875fcdf5b6ee4",
+    "obj/engine/Engine_063.obj": "cab77b4c78eae10bdfb959ac9cb7a3634b17dc4428682c527e30b38d1b9dd6cd",
+    "obj/engine/Engine_064.obj": "e878b4f488ec41636e09616dc4a28ed3d4276f99d18664b9a29ef90889aab08f",
+    "obj/engine/Engine_065.obj": "03bc91ccf3e6ab0679216dfae0b133460c6afbc9e21410ca417c19b504d1b6d8",
+    "obj/engine/Engine_table.obj": "20d4fc041c0b662a8eb2cd0daa4b8832562ab0f5fa6d7b8140e77e5b3c0ced61",
+    "obj/fire/Fire_000.obj": "62928ea7bdee3d60ebe90ea0bace23379a6135fcf6fc9366b901d97dd56b4179",
+    "obj/fire/Fire_001.obj": "cfd96a262277b7ac48e82091fdf9a4db457a8b033639d734e82a9cd12baa80e7",
+    "obj/fire/Fire_table.obj": "34c817ee15c1006b807f334facecb725309235892be3a09c0a5894713a69ca73",
+    "obj/glmlib/GlmLib_000.obj": "0ec6202df772ab811703315f5bac0c33d574965d3e19ab3d0a8740be0c47a4b4",
+    "obj/glmlib/GlmLib_001.obj": "a90c226303797a07650ad2380b7462982ed0a400c979556d3890f85e99ada830",
+    "obj/glmlib/GlmLib_002.obj": "714f7985d930a568c201233755fae2c06099f9b6876858cecb18e4ca8b527777",
+    "obj/glmlib/GlmLib_003.obj": "eea702332761b574adf8632de56816825f14b795ef0f7370f953e39dc86aaf27",
+    "obj/glmlib/GlmLib_004.obj": "7ac01e343088d208cc4f6d8499e9cc06de7dffceece48296d0af155482748fd5",
+    "obj/glmlib/GlmLib_005.obj": "58a5a96ae64628ff7861bcc9854500bc69ff780f8639fcef993fb02fdf70aa43",
+    "obj/glmlib/GlmLib_006.obj": "520474267278a1eda220f077e09e5cb7278aa9f60a67e0175d33b328ea8ac43d",
+    "obj/glmlib/GlmLib_007.obj": "c4ce011341001b481704584e33429ab267906874fe3405ac278d77822176ef7b",
+    "obj/glmlib/GlmLib_008.obj": "875a85946e4e3ee3d53ae8a5a7346deed2e010222d820a5d95b50ac903a81cf7",
+    "obj/glmlib/GlmLib_009.obj": "5a343a350499be56fa81ceb23a1d5c47cf4fedf77dbcd51787d4479ce4329fce",
+    "obj/glmlib/GlmLib_010.obj": "1cc68b4726c0f76a590cc835f6bc0ab69985f1c1b23dca74cf67e9db916e6b90",
+    "obj/glmlib/GlmLib_011.obj": "0b73baaf748507d1f697142030cb8deb5bad45f84a4c682cfe8d20bf6924dad3",
+    "obj/glmlib/GlmLib_012.obj": "d37292fc9149e34d7ff5ecbece533ad5eca94550d79d6b831d1f2bd638a49a69",
+    "obj/glmlib/GlmLib_013.obj": "d78cf50735c1823e990153424738a85a76646e906539d88259ab9fb9cc6d1ca1",
+    "obj/glmlib/GlmLib_014.obj": "75ca49444e7c92abc9ed34bc5e4cca76fc5fa637c7e3c0841bb8e69626b64e3b",
+    "obj/glmlib/GlmLib_015.obj": "f445c30eeb4fad56d4342838a263ee24b6fb9639b597c1395e7edaeebc64d4dc",
+    "obj/glmlib/GlmLib_016.obj": "74a57d9fd6da829b0384ff77d4b1db8165b5e906dea43f6ab3f1532acd4a6cd8",
+    "obj/glmlib/GlmLib_017.obj": "6695e36a63917543ef41e2d87707a8575f5451aa4481d1db16f2b7e9c7cdcb5f",
+    "obj/glmlib/GlmLib_018.obj": "bc2cc2cb9df5e6cf27de240a98ba644e0d2166b84c3bda5ab0c3ff28f88b6455",
+    "obj/glmlib/GlmLib_019.obj": "c52af36975a8cde8f86b5874452060f97ec1dd0682819c352d9e846345c575c1",
+    "obj/glmlib/GlmLib_020.obj": "e2f7aecfcca8de3ab10fc272171f919499fd538b5620cbf6cc55622bab012208",
+    "obj/glmlib/GlmLib_021.obj": "e907a7ab12d825fe00138d0387ffcdb5438a620792a4100d5a768c7b021923c1",
+    "obj/glmlib/GlmLib_022.obj": "48d9151f3982f071e3eca72e70d252e9f070dee06cff0cf8f02dda864328747b",
+    "obj/glmlib/GlmLib_023.obj": "9a2b9475a41e71fd509932391bc187480b28fb71e543f9aeff69b2682998fabe",
+    "obj/glmlib/GlmLib_024.obj": "da51014a79cd1e72941bc62e39fdcd2418e71ab985382ef42d784c15a596d4cb",
+    "obj/glmlib/GlmLib_025.obj": "4d5da4be929086692320ed86f1d463f3651e1a6d52b5f73996127718cd79653b",
+    "obj/glmlib/GlmLib_026.obj": "c92d4cbf6714b88fb8a15b3456811f6b5b9b490c636abeb7d543b0df09171739",
+    "obj/glmlib/GlmLib_027.obj": "87b0c6979bb86a5dddae79f2837a8a286978afccfa2d4b0f1c9142faa18c451a",
+    "obj/glmlib/GlmLib_028.obj": "6a552636ac64a477a2c486264eea34be79efb2456d237f3cd0ac20ea71d5d41a",
+    "obj/glmlib/GlmLib_029.obj": "d6a7274fab0972e73a2e24567e56e66aadd6b5eca656ae027bf8723ad0d5c5eb",
+    "obj/glmlib/GlmLib_030.obj": "ac4b999ee7c53ded28b9e8d6720a546886396067f174a328b15af71653872463",
+    "obj/glmlib/GlmLib_031.obj": "9288131ed1267eb44b2bcef259306ed0791d0e3c15607291fa1a3a3ca835baf2",
+    "obj/glmlib/GlmLib_032.obj": "b01bc71e09c72651bbb55f64b5c7aa5bdc0bdbbf882dcf4b668d84d7fdfca9d3",
+    "obj/glmlib/GlmLib_033.obj": "3f68828fd71478d0366906cac866fe5cdc599c7dbf08dabc78c76d353a38b237",
+    "obj/glmlib/GlmLib_034.obj": "64cef7b2ab1da60fc0257f8a9c7c52803aa2bea86bcc4368fa50bd75e80fe5cb",
+    "obj/glmlib/GlmLib_035.obj": "bb54d04c612be51be1d9fa056e43c5a4c881bdcd308a3e0c112137476a8e00b4",
+    "obj/glmlib/GlmLib_036.obj": "2b58ab4893ea31bcc7f7556d746c200847b617c4201948804da224d8af8467d9",
+    "obj/glmlib/GlmLib_037.obj": "b7392e7f4d7a0960d94f4be9ab6933ea7a9250739a30f0d5e9e704f6891faf5c",
+    "obj/glmlib/GlmLib_038.obj": "3c009a3a256009d411b4cb784c9fdff102c8521a05b9c62d27e6719ccc58bfec",
+    "obj/glmlib/GlmLib_039.obj": "586adb87636068b9c69f55cc35e29badd9a4834f7bd59fd479ab0ea3e7c6fd56",
+    "obj/glmlib/GlmLib_040.obj": "cb3a054e4163b645e7df4382363bcfc356267ac16518f166daaad746bef7399a",
+    "obj/glmlib/GlmLib_041.obj": "d22195fd5f18d1e7515826f47384edb30b52df4fbc1fb9db0a74e1d1c9895a21",
+    "obj/glmlib/GlmLib_042.obj": "d177ae37f0185177c725f19568d293ddaf00320fd0e650102e6c8fc994547c98",
+    "obj/glmlib/GlmLib_043.obj": "649abab098e80d7402d6852736a1c13ce09b80efc092b58b37aeab0507ef4eb2",
+    "obj/glmlib/GlmLib_044.obj": "1005be477a4ed27b16921d8183397d3d4e68e79620eb63de4ce0a4a0435acbf4",
+    "obj/glmlib/GlmLib_045.obj": "1b50cc78dc5e15818ec2211ed334193cea0eea18c17c0c749bd043b209fc8f00",
+    "obj/glmlib/GlmLib_046.obj": "c5281ef9a6e7ae0243db6d47379f7a61db78efa49139fcd58a1140c96b7b46b0",
+    "obj/glmlib/GlmLib_table.obj": "3c66b1c837f0d25975b7dc2ea25b683b54059663ab4ceecbb6f98b1b3520eb75",
+    "obj/legend/Legend_000.obj": "dee33307a024dd553bb6bac9a3c3ff02e9ba05ee470d7d089eb994db618c82b5",
+    "obj/legend/Legend_001.obj": "3a821ca6378ecc354b7cd13a3c900165d8fa3a5ac86ebdc891b1b49dc8dac707",
+    "obj/legend/Legend_002.obj": "dc7569abed9cc4d777867cf3a975f6a9d9cadd5d4fc611248025481c1ce57cb8",
+    "obj/legend/Legend_table.obj": "705adee20a8e33a7a0ca73d099d0d397a05cfb20fb60b5469a3715d64fce4ee6",
+    "obj/msvcr70/pow_sse2.obj": "404fe89629b7265922f71b58d334c910407e9228d1819ce340f437223f7cc25b",
+    "obj/particlesystems/ParticleSystems_000.obj": "89efe7b4707c5656a1d8b184bc04aa88e51ed07132e6cf72f66ffda39328808e",
+    "obj/particlesystems/ParticleSystems_001.obj": "4c946045f13ca334962974d318a87c7631dbca5fcf15f587b1747ff8f716701c",
+    "obj/particlesystems/ParticleSystems_002.obj": "b37cbf633f0cb7dc4858239a1098fa8bd0c0f6f11629e52e8c7a8c7390e35fc3",
+    "obj/particlesystems/ParticleSystems_003.obj": "98eacc63a99058597a4787118f830630db0a855c57226ebb456df8ca75e7e951",
+    "obj/particlesystems/ParticleSystems_004.obj": "d165da2122d22190ae78c298ded9b290b3f142161d667159fdaef9c17e15e007",
+    "obj/particlesystems/ParticleSystems_005.obj": "5c529fffb2ab95372a74ace3568683c583d8d9e581e0f5186cee22e2071c59b8",
+    "obj/particlesystems/ParticleSystems_006.obj": "57edb3c0555d3710f84f4d4f4bdba263ddc224d0e5a322d5291f901f8944af01",
+    "obj/particlesystems/ParticleSystems_007.obj": "a38e46d1c77e12a7af15735692b9815dafb903353c84590e3991d1163c6470d3",
+    "obj/particlesystems/ParticleSystems_008.obj": "c5e076701bc3168d1e672436e6699fed6284464eb1ac1a3162738f566a9c0751",
+    "obj/particlesystems/ParticleSystems_009.obj": "072f37792255d3cd9a50c36d9bee27f4724b1a5198e0a29c26e876060f8a0bb2",
+    "obj/particlesystems/ParticleSystems_010.obj": "8efda5a754308b07f51b641e8f2a30ff44965e987f433751c87b949bc8012df5",
+    "obj/particlesystems/ParticleSystems_011.obj": "7b4d2be580f498cc28cdd6a19f6e2221d116c5fac53cdb284bf383a284a2eadf",
+    "obj/particlesystems/ParticleSystems_012.obj": "c2489393ba751e3d0cde32b66d185e58f225746e2f2a5af976a9ab8dc87e5516",
+    "obj/particlesystems/ParticleSystems_013.obj": "0426a71f39059adbdcb10e201486b6294ec84b1804b7cdba8cf5eb5ac78ce0a9",
+    "obj/particlesystems/ParticleSystems_014.obj": "149d9a157e405016d8dced385b129d4cead5f5a4e127d7d4be13f09d0d2274e2",
+    "obj/particlesystems/ParticleSystems_015.obj": "f3eae806639c107acd7bb9d893ca264922e0c02da87b7490e8df22513f947d82",
+    "obj/particlesystems/ParticleSystems_016.obj": "15b7cba24a4c02c9190e9e602dfe1751b16365dda16958a62c6c235370dd9da9",
+    "obj/particlesystems/ParticleSystems_017.obj": "ec47bc55eac0feca18650b07dca6f34faa248416a7098c01c661d3043d5f3adb",
+    "obj/particlesystems/ParticleSystems_018.obj": "a4787d4e518af30f26544f87c020647ad0bdacf8ef26e8cbfae515ebdca4ecde",
+    "obj/particlesystems/ParticleSystems_019.obj": "12d29ed63d99dbd63819c01bc1cc6a2ba90731a2f0597817ee510207eea4a0a3",
+    "obj/particlesystems/ParticleSystems_table.obj": "0028c11800b5808fe7336c27fe363593834e6370f11325a78a75666afce45e54",
+    "obj/rt/hle_gui.obj": "b7001eb48985e016b9c9133e64b4141ec446808df2463fcabb68628fb1a262dc",
+    "obj/rt/hle_kernel32.obj": "c338b3a5aceb2d5ed057be6e1d66a03859fcde10fdf75f9ccc71caaca068fdd9",
+    "obj/rt/hle_misc.obj": "5df0706d04d9f3f2c45d598820d7df11ff72a24088c7c91b76460f8e4c821ff7",
+    "obj/rt/hle_msvcr70.obj": "5606246d005de1ff9efac26e7c4c31d19e2f444b9436cbf2aed61029a77ffdac",
+    "obj/rt/vc140.pdb": "868725200f8a1e122c134902a1b7d6f039a5a0d07e6f54db6a9729530f438d15",
+    "obj/rt/xrt_cpu.obj": "f768b38d678d4ce61280efd36baefca4a5d3e6c0b14adb63f60ea073fbbe1296",
+    "obj/rt/xrt_diag.obj": "37adde7b6214c887c6c679a9a6493cdbb70fd05480d562d058d8889c7e5d0793",
+    "obj/rt/xrt_eh.obj": "25c53342ea154c7a302ca835a0ff809249451a886462b3564574637fbd76c049",
+    "obj/rt/xrt_events.obj": "cd48445dfd8bded78f640de8c09de695bcb26d3eb0505cc378f881ff3407ec9f",
+    "obj/rt/xrt_fmt.obj": "271430596dcf67610b1314c24af3fa5c0865959b000504e90ec103e99d3fa70c",
+    "obj/rt/xrt_loader.obj": "e3ada47ca05e30078e05da537e8c0c67356d2045230e54ed495e1b646894696d",
+    "obj/rt/xrt_main.obj": "741735632671ab7452decdc7aa4578be21575bec5c8ee0a2c0df98a5172949d1",
+    "obj/rt/xrt_mem.obj": "6459f6638b1d98180281437dad6b0135c2dcc2f4d3055b700ba391f54a3d84c2",
+    "obj/rt/xrt_msvcr70img.obj": "539152837ec81faec64c8cbe311a5c312e97bc4aa74f928c32bc0582d5626de3",
+    "obj/rt/xrt_thread.obj": "14f9b8d1ef9f42faba0f18a26af8466a5bf1c0a0bd65fcb590620d9ac2bc3d20",
+    "obj/u2/U2_000.obj": "8bcca297caa66011d54bba27c1433ae07932c0c471b37a932ce6817533df89aa",
+    "obj/u2/U2_001.obj": "f2b9d156ceaaaec4a63b9faaeefec581216b1033dcf39fc4eeab1785e85bee29",
+    "obj/u2/U2_table.obj": "45dd5932b00e411ca533d751ed428e33f3c380b53e59767d24b41cbfd03d8a70",
+    "obj/u2ai/U2AI_000.obj": "ad83719e043995e41a95becc0f5f3890c57971f06e0f4c754af8efba8f73b0b3",
+    "obj/u2ai/U2AI_table.obj": "6c1ca26b3d98ccfe4eddaa35f12a663430d6fa10a0bc0e78e00808a0f71f3973",
+    "obj/u2dialog/U2Dialog_000.obj": "dab6cd525099b448f6f19ca0209ef9ba2a5558d525f7e573c9cf78c0c3e03afc",
+    "obj/u2dialog/U2Dialog_001.obj": "7fdd915de6e7a09cc347442c73fff92b286f96c8d95f5b3becf207896eccef21",
+    "obj/u2dialog/U2Dialog_002.obj": "dc31723a7e8983bb296d483d5bbce8dc63a3c28a2c66111f4c2dcdaa1051bd99",
+    "obj/u2dialog/U2Dialog_003.obj": "2322b593f5efba0ebfe00813d399a97b5d49f9289ad5a8a3fc0d2fd67fb78ff4",
+    "obj/u2dialog/U2Dialog_004.obj": "2951c8685e89a34d7548e8c5293d255bba62ad52838ce04494b8ff505ce038e7",
+    "obj/u2dialog/U2Dialog_005.obj": "128bfa9a8e6c319af8d1446d534a1831fab7bd8e63333a5d21feb1400fcf1eae",
+    "obj/u2dialog/U2Dialog_006.obj": "192846476f0846c28880aaaefbf5eb57504b6c8d27ca7726bef145dc9c98356a",
+    "obj/u2dialog/U2Dialog_007.obj": "611ab1237ac581917d532a3b6137eac9cd3a7b76e98dc74c2e33c31830fa3a08",
+    "obj/u2dialog/U2Dialog_table.obj": "3495c00e9ea9ddffbf967c671068586829a60ea31b664b43d661f4ca282405be",
+    "obj/ucc/UCC_000.obj": "6a6f038de6ce6962daeb5d601b4b91698d98367d523bd7108174e308f4f736bc",
+    "obj/ucc/UCC_001.obj": "79500c55f3a62af217ab29350c65c1e6c880a031ed0c0965e57268f05941c5cb",
+    "obj/ucc/UCC_table.obj": "564030c90751d36371cb6573bd70a4f273b873c6b6c7c0f81cf5bd052103e86b",
+    "obj/ui/UI_000.obj": "fc8b7c566ea3e26a5ae51e0ac3d73a4e92b294f2ac452e215a26f680a2997424",
+    "obj/ui/UI_001.obj": "3d8e302e08b4da17c5e85f3d7170f404fa7e58472f53060766044ac1abd3c22e",
+    "obj/ui/UI_002.obj": "0de6597818c2f49e6942b9a57bdb45f6d558b96b6542f5ad1b6f2cdbbf4deaf2",
+    "obj/ui/UI_003.obj": "2b103eaa1119b0978780ce8f1c0037f1e2e311f588dee3a6129e6124d1ba0d06",
+    "obj/ui/UI_004.obj": "6212d1eaf7029e3df7f8d34f4ef447b7444674d22f99dc6b925363df202e412f",
+    "obj/ui/UI_005.obj": "625eaa7ed082737317631caec89309e62d5d5e048fdd865e62d18f5fb5c29e43",
+    "obj/ui/UI_006.obj": "f0ac07b12c869a7c59ab6e8e32c6faad45c509e249ea3f8a904c94328adc24e5",
+    "obj/ui/UI_007.obj": "96885f75b80dd78013b9cd29d72bba71b008ac8cb9dfc431b798e06550854e1e",
+    "obj/ui/UI_008.obj": "ff7226f0d916d5d027c1d8697b0cab83bb3296b9ba95d18a3b1051de651837ff",
+    "obj/ui/UI_009.obj": "29d26e420eacd147023a112cdcc5ca9fc06f9efaa9ed59bedcd16e7b23c1ee35",
+    "obj/ui/UI_010.obj": "a4de9a970ef9710f76fc26f9fdc657f8cc1af948cbc539ef83f69862f1527da9",
+    "obj/ui/UI_011.obj": "9e64fc6341778543e0d93104e26999d364392a68e931c9f56acfd64bfd101ae5",
+    "obj/ui/UI_012.obj": "e6594306bf40950963474dedc6f109054b5be297609ad9e04fa526c5c25620a0",
+    "obj/ui/UI_013.obj": "7f9c0639612ccc465a2023e5beb8d69b253e89642982e1287cb4639a268898da",
+    "obj/ui/UI_014.obj": "b7ff5704886b59e23dd5c89f1fb06c595944d980d5ae5a11dfa253ecd5c32028",
+    "obj/ui/UI_015.obj": "67a8e5a47581e4cf493f9aea25b9ef56bf70d396821caff5c0d0b987cd94d3ad",
+    "obj/ui/UI_016.obj": "f4c2b70e4adbb24f6571873fbe625cb784ed5f02d2ceb046760f32773915f5b5",
+    "obj/ui/UI_017.obj": "c946614f62e9dbe33d1c58ee8c94d1002bb2db4b20e33d7e93651f42f38c5ee2",
+    "obj/ui/UI_018.obj": "04d0fee8f5a8889460000548e86490dab04911ed58d8fbe56befd8a14a1f05cf",
+    "obj/ui/UI_019.obj": "20219bc7d9e34fef751d94d221023bca78dd70777cba3d4f1914486574168e36",
+    "obj/ui/UI_020.obj": "52e697f2d5d9fc798ca4c009ebb45378dba71a3260a33da456ad2b30e753c858",
+    "obj/ui/UI_021.obj": "99a8f1f705ebd267dba69e1a8976c378f576aee806eb81f427e933a101daa9e6",
+    "obj/ui/UI_022.obj": "d008692bb05f95d08e29bc04435a8c34b38e4e9b9233e0d0f93a54105da9902f",
+    "obj/ui/UI_023.obj": "e24258149487f9f58c468ef171c842ee7d0523052d5a647a375c9085ae8c0dfe",
+    "obj/ui/UI_024.obj": "384ffb84d33fbad948d87f739ae6964a096ef92878ce7d2a697fe1e308589f59",
+    "obj/ui/UI_025.obj": "34d385836b39010128809dc5b21bebe5ec9169e609c632bc09dea18a47dcddfb",
+    "obj/ui/UI_026.obj": "c589697bfadd7a525c5157c00bd435c279982ada777f64b46e8abde9d7f45fed",
+    "obj/ui/UI_027.obj": "6451f93074d2c1b40b630131e434365516ba9e281379d92220c2888d96e4b8c7",
+    "obj/ui/UI_028.obj": "2a2fed8b0ccc3f62143e13e97bf978b885490109186d2250a0c06c2810740e9c",
+    "obj/ui/UI_029.obj": "9bc0fd85a11ce6748c115dc083b2c142f18ecc54f7fc46c3a1db67e475070a30",
+    "obj/ui/UI_030.obj": "71fb6485dae0b39bb3b16c3dedaa0c2bfbbeefbcfe19cac09cc4620b24ce48ac",
+    "obj/ui/UI_031.obj": "884312709fb0f01016ffd6fcca84f58bef62025e26a23f0b337817d2a23c4021",
+    "obj/ui/UI_table.obj": "b56c34a25ea46c99d928da6096678e2760c109cbb0445ba35b9685547363dd5c",
+    "obj/unreal2/Unreal2_000.obj": "89198f29123341db9da13b6e72f90d6d7c51c61774cc2ed9711874b26d591d79",
+    "obj/unreal2/Unreal2_001.obj": "cf250c1577768620fb7bbc9e8fa939798ec41492185e81e7a8d9c208a5e8a4dd",
+    "obj/unreal2/Unreal2_002.obj": "42f01152b03505fa6a74965a8ca6d94ec9d4c818a8abcecfe37e406ec039d20f",
+    "obj/unreal2/Unreal2_003.obj": "51cf091883ff7bfd25993e4bbb7611de04bd0bd87ff8b3a67c4cd2c72a386722",
+    "obj/unreal2/Unreal2_table.obj": "78b1ceb71b99f9feefa3babedcd86193df9e87b83afc6ddb59114b4d217a6e68",
+    "obj/unrimp/UnrImp_000.obj": "6052852582d7bd76eda9811a3e546b63a57961733490bcde5cf03f11cc94335f",
+    "obj/unrimp/UnrImp_001.obj": "5b0d6720b05229c03d5d6b9bdb06e1dfe47eea2e381ab5c2fc7fc070189a8e5d",
+    "obj/unrimp/UnrImp_002.obj": "a6dbf6c0c4c880ac729d13568e3dc3029d1bee9d1b5fb6b4882f2edd844bf3b5",
+    "obj/unrimp/UnrImp_003.obj": "d295e67e70cbd37922123e6d08bbb15eb11e55c293f44eccda2deea840fa618d",
+    "obj/unrimp/UnrImp_table.obj": "a8b2b11cd6789e39dfd3a4ebe15e7d362d8e7825b4f2090dcb2d5e12f845f071",
+    "obj/window/Window_000.obj": "57b6eca632b92d6696f89c051aa79205fd894ad8995d1a2fed87f94b48588a4c",
+    "obj/window/Window_001.obj": "825cf7f061d1c61ccbec8b96cf0f3e0297c14e54bd99d7c3443c773643901c50",
+    "obj/window/Window_002.obj": "33250cd7a2b3f1b740d32760b8d72ccc8de7677a64299e7b8881f4afd5daaa0e",
+    "obj/window/Window_003.obj": "13b142e5d014065c7300262c425aecacc8b9ae70dd3c5492b0d562779900db99",
+    "obj/window/Window_004.obj": "2a23ad783611fa8c74f3d76db17eb23d5be75101e4639f4a2abb7fe7fe1c42d8",
+    "obj/window/Window_005.obj": "197d59e370fead10d26578bfea990cb4b69e6ac077063fc5475e21224bc318e8",
+    "obj/window/Window_006.obj": "64bd5152566be895d0e8cfe3d25fbea9866f5af9b9cc041e9482a0d590768828",
+    "obj/window/Window_007.obj": "5f2212f66abb181c92738b766c1b88ea8310c1481ce962816bef0b96145687c8",
+    "obj/window/Window_008.obj": "3b8301050d9cc6083fe79b039d097da77eb374cda2d8624fa2a0cbab9e6162a4",
+    "obj/window/Window_table.obj": "d6f9b3743a030a2007900181030b1f17c1ba46f5a7cac4f7b0dd6aa9675fa8ac",
+    "obj/windrv/WinDrv_000.obj": "644210f97ed0ce5da2e61980c916c33cfed7078c8e8187d52f2f2baf2a6e68f4",
+    "obj/windrv/WinDrv_001.obj": "32674cf0192a55d3402b33db9fc35f91d59d841931a04aa9e1658ebe13f50ec4",
+    "obj/windrv/WinDrv_table.obj": "ee29f699bf23954a894cc711294dc9f0afea1de9a80e29a965a58963fb623489"
+  },
+  "runtime": {
+    "path": "experiments/xrt/runtime",
+    "files": 27,
+    "sha256": "63cb9d8f46c2e75caeaa5c1f41e7b1f92e35130a4a1d658636ca72898f78ee3c"
+  },
+  "generated": {
+    "path": "experiments/xrt/gen",
+    "files": 299,
+    "sha256": "93046d39786d3f4be894370e86a5fed0a26fbc3001e18ae36c12d15686336062"
+  },
+  "evidence": {
+    "preflight.json": {
+      "path": "out\\recovery\\d3d8-enum-20261024-01\\preflight.json",
+      "sha256": "e0b5a18df1fae11ae8feae9c4f4a60a5d3569227f7dd5e272bfc7e6c43cd68e9"
+    },
+    "build.json": {
+      "path": "out\\recovery\\d3d8-enum-20261024-01\\build.json",
+      "sha256": "169939082856bf5b3d09fb36eded23716d4fd435edca17db32ad1d8bf2d48ff4"
+    },
+    "measurement.json": {
+      "path": "out\\recovery\\d3d8-enum-20261024-01\\measurement.json",
+      "sha256": "e21f049542e87315d0a52d889918764b530388446c9449f3d4c48d3a8abea00f"
+    },
+    "client-audit.json": {
+      "path": "out\\recovery\\d3d8-enum-20261024-01\\client-audit.json",
+      "sha256": "3dfbc2a7da732dca2ebee735316474da6f1502d65ba3e905755712102026d864"
+    },
+    "execution.json": {
+      "path": "out\\recovery\\d3d8-enum-20261024-01\\execution.json",
+      "sha256": "860e7435131cff4fc68e3e6d723e42d5b8ede7c2539e6ef3f99c2945b48de29d"
+    },
+    "milestones.json": {
+      "path": "out\\recovery\\d3d8-enum-20261024-01\\milestones.json",
+      "sha256": "20fb607b17615542d0de0a948941482ce95cb3780e873c59228694d28a5c98b3"
+    },
+    "regressions-affected.json": {
+      "path": "out\\recovery\\d3d8-enum-20261024-01\\regressions-affected.json",
+      "sha256": "7528f81042b6c4fa5934f8d9a5207e23ce26da614723e4212a846de448811fc0"
+    },
+    "regressions-acceptance.json": {
+      "path": "out\\recovery\\d3d8-enum-20261024-01\\regressions-acceptance.json",
+      "sha256": "302cdcd9d33c1dc537659bf8c674184d0baea9e50338405009a4d40c8d1e4810"
+    },
+    "final-integrity.json": {
+      "path": "out\\recovery\\d3d8-enum-20261024-01\\final-integrity.json",
+      "sha256": "b0590da800b5ae32ffe966b0b6ce2b4ea08a64b59fd655699b61b9dbd92c18c6"
+    },
+    "source-preservation-check.json": {
+      "path": "out\\recovery\\d3d8-enum-20261024-01\\source-preservation-check.json",
+      "sha256": "451a818a33446ed67a8abce3573be2fec3f6082b511e1b4f445a453fbe475fbc"
+    },
+    "fixture-development.json": {
+      "path": "out\\recovery\\d3d8-enum-20261024-01\\fixture-development.json",
+      "sha256": "f057004106a070b5d086d12e4172f11f575016d117cf95d8c38f9aafbdbc3858"
+    }
+  },
+  "remaining_blocker": {
+    "api": "IDirect3D8::GetAdapterDisplayMode",
+    "adapter": 0,
+    "interface": "0x00015090",
+    "output": "0x0120d3c8",
+    "output_bytes": 16,
+    "callsite": "D3DDrv.dll+0xec82",
+    "return_address": "0x0696ec85",
+    "backend_called": false
+  },
+  "next_experiment": "Separately authorize a fixture-only native x86/x64 and translated GetAdapterDisplayMode oracle for adapter 0 with non-NULL 16-byte output, last-error seed 18, canaries, failures and COM ABI; keep CreateDevice guarded.",
+  "known_limits": {
+    "CRT": "110 mismatches / 1796 pending",
+    "ACP932": "6 differences",
+    "x87": "status/tag, large-input and double-rounding limitations"
+  },
+  "original_installation_or_saves_accessed": false,
+  "graphical_sessions": 1,
+  "renderer_expansion": false,
+  "remote_push": false,
+  "release": false
+}

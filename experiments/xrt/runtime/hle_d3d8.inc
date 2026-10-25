@@ -65,6 +65,68 @@ static void d8_GetAdapterCount(CPU*c) {
     D8Object*o=d8_object(c,ARG(0));UINT n=o->host->vt->GetAdapterCount(o->host);
     d8_result(c,"GetAdapterCount",o,0,0,(HRESULT)n);RET_STD(1,n);
 }
+static void d8_GetAdapterModeCount(CPU*c) {
+    D8Object*o=d8_object(c,ARG(0));UINT adapter=ARG(1);
+    uint32_t esp=c->r[ESP],ret=rd32(esp);
+    UINT adapters,n;
+    xrt_event("d3d8_mode_count_call","\"this\":%u,\"adapter\":%u,\"esp\":%u,\"return\":%u",o->guest,adapter,esp,ret);
+    adapters=o->host->vt->GetAdapterCount(o->host);
+    /* DXVK 3.1.1 indexes its cached vector without checking Adapter. Native
+     * invalid-index observations are undefined reads, not guest results. */
+    if(adapter>=adapters) {
+        xrt_event("d3d8_invalid_adapter","\"method\":\"GetAdapterModeCount\",\"object\":%u,\"adapter\":%u,\"adapter_count\":%u,\"native_mode_count_called\":false,\"caller\":%u",
+            o->guest,adapter,adapters,rd32(c->r[ESP]));
+        xrt_fatal(c,XRT_EXIT_UNSUPPORTED,"IDirect3D8::GetAdapterModeCount: invalid adapter %u (DXVK adapter count %u); unchecked native access refused",adapter,adapters);
+    }
+    n=o->host->vt->GetAdapterModeCount(o->host,adapter);
+    d8_result(c,"GetAdapterModeCount",o,adapter,0,(HRESULT)n);RET_STD(2,n);
+    xrt_event("d3d8_mode_count_return","\"this\":%u,\"adapter\":%u,\"result\":%u,\"esp_before\":%u,\"esp_after\":%u,\"return\":%u,\"actual_return\":%u",
+        o->guest,adapter,n,esp,c->r[ESP],ret,c->rv);
+}
+static void d8_mode_output(CPU*c,uint32_t p) {
+    uint64_t cursor=p,end=(uint64_t)p+16;
+    if(!p)xrt_fatal(c,XRT_EXIT_UNSUPPORTED,"IDirect3D8::EnumAdapterModes: NULL output is unmeasured");
+    if(end>0x100000000ull)
+        xrt_fatal(c,XRT_EXIT_UNSUPPORTED,"Direct3D8 mode: invalid guest range %08x size 16",p);
+    com_memory(c,p,16,"Direct3D8 mode");
+    while(cursor<end) {
+        MEMORY_BASIC_INFORMATION mbi;DWORD protection;
+        if(!VirtualQuery(xrt_g+cursor,&mbi,sizeof mbi))
+            xrt_fatal(c,XRT_EXIT_UNSUPPORTED,"Direct3D8 mode: invalid guest range %08x size 16",p);
+        protection=mbi.Protect & 0xff;
+        if((mbi.Protect & PAGE_GUARD) || (protection!=PAGE_READWRITE && protection!=PAGE_WRITECOPY &&
+                protection!=PAGE_EXECUTE_READWRITE && protection!=PAGE_EXECUTE_WRITECOPY))
+            xrt_fatal(c,XRT_EXIT_UNSUPPORTED,"Direct3D8 mode: nonwritable guest range %08x size 16",p);
+        cursor=(uint64_t)((uint8_t*)mbi.BaseAddress-xrt_g)+mbi.RegionSize;
+    }
+}
+static void d8_EnumAdapterModes(CPU*c) {
+    D8Object*o=d8_object(c,ARG(0));UINT adapter=ARG(1),index=ARG(2),adapters,count=0;
+    uint32_t output=ARG(3),esp=c->r[ESP],ret=rd32(esp);D8Mode mode;HRESULT hr;DWORD error;
+    d8_mode_output(c,output);
+    adapters=o->host->vt->GetAdapterCount(o->host);
+    /* Only valid adapters may reach DXVK's unchecked cached mode-count access.
+     * EnumAdapterModes itself has measured bounds checks for both indices. Call
+     * it even on invalid indices to retain the actual backend HRESULT/error. */
+    if(adapter<adapters)count=o->host->vt->GetAdapterModeCount(o->host,adapter);
+    mode.width=rd32(output);mode.height=rd32(output+4);
+    mode.refresh=rd32(output+8);mode.format=rd32(output+12);
+    xrt_event("d3d8_enum_call","\"this\":%u,\"adapter\":%u,\"mode\":%u,\"output\":%u,\"adapter_count\":%u,\"mode_count\":%u,\"valid_adapter\":%s,\"valid_mode\":%s,\"esp\":%u,\"return\":%u",
+        o->guest,adapter,index,output,adapters,count,adapter<adapters?"true":"false",adapter<adapters && index<count?"true":"false",esp,ret);
+    SetLastError(xrt_get_last_error(c));
+    hr=o->host->vt->EnumAdapterModes(o->host,adapter,index,&mode);error=GetLastError();
+    xrt_set_last_error(c,error);
+    /* Pointer-free DWORD fields, exactly sixteen bytes; no native layout/pointer
+     * is copied. Measured failure leaves the caller's output entirely untouched. */
+    if(SUCCEEDED(hr)) {
+        wr32(output,mode.width);wr32(output+4,mode.height);
+        wr32(output+8,mode.refresh);wr32(output+12,mode.format);
+    }
+    d8_result(c,"EnumAdapterModes",o,adapter,index,hr);d8_words("display_mode",&mode,4);
+    RET_STD(4,hr);
+    xrt_event("d3d8_enum_return","\"this\":%u,\"adapter\":%u,\"mode\":%u,\"output\":%u,\"result\":%u,\"last_error\":%u,\"esp_before\":%u,\"esp_after\":%u,\"return\":%u,\"actual_return\":%u",
+        o->guest,adapter,index,output,(uint32_t)hr,error,esp,c->r[ESP],ret,c->rv);
+}
 static void d8_GetAdapterIdentifier(CPU*c) {
     D8Object*o=d8_object(c,ARG(0));D8Identifier id;HRESULT hr;
     com_memory(c,ARG(3),D8_IDENTIFIER_BYTES,"Direct3D8 identifier");
@@ -91,14 +153,20 @@ static void d8_CheckDeviceFormat(CPU*c) {
     xrt_event("d3d8_unimplemented","\"method\": \"" #name "\", \"a1\": %u, \"a2\": %u, \"a3\": %u, \"a4\": %u, \"a5\": %u, \"a6\": %u",ARG(1),ARG(2),ARG(3),ARG(4),ARG(5),ARG(6)); \
     xrt_fatal(c,XRT_EXIT_UNSUPPORTED,"IDirect3D8::" #name " is unmeasured (interface %08x, caller %08x)",o->guest,rd32(c->r[ESP])); }
 D8_UNSUPPORTED(RegisterSoftwareDevice)
-D8_UNSUPPORTED(GetAdapterModeCount)
-D8_UNSUPPORTED(EnumAdapterModes)
 D8_UNSUPPORTED(GetAdapterDisplayMode)
 D8_UNSUPPORTED(CheckDeviceType)
 D8_UNSUPPORTED(CheckDeviceMultiSampleType)
 D8_UNSUPPORTED(CheckDepthStencilMatch)
 D8_UNSUPPORTED(GetAdapterMonitor)
-D8_UNSUPPORTED(CreateDevice)
+static void d8_CreateDevice(CPU*c) {
+    D8Object*o=d8_object(c,ARG(0));uint32_t pp=ARG(5);
+    xrt_event("d3d8_unimplemented","\"method\":\"CreateDevice\",\"this\":%u,\"adapter\":%u,\"type\":%u,\"window\":%u,\"flags\":%u,\"parameters\":%u,\"output\":%u,\"caller\":%u",
+        ARG(0),ARG(1),ARG(2),ARG(3),ARG(4),pp,ARG(6),rd32(c->r[ESP]));
+    /* Preserve the exact guest x86 structure (13 DWORDs), without creating a host
+     * device or treating the host x64 HWND layout as a guest structure. */
+    if(xrt_is_committed(pp,52))d8_words("create_device_parameters",G2H(pp),13);
+    xrt_fatal(c,XRT_EXIT_UNSUPPORTED,"IDirect3D8::CreateDevice is unmeasured (interface %08x, caller %08x)",o->guest,rd32(c->r[ESP]));
+}
 static D8Object*d8_wrap(CPU*c,D8Interface*host) {
     unsigned i;D8Object*o=NULL;
     const char*names[]={"D8.QueryInterface","D8.AddRef","D8.Release","D8.RegisterSoftwareDevice","D8.GetAdapterCount",

@@ -1,0 +1,313 @@
+{
+  "status": "PASS",
+  "date_us_eastern": "2026-10-24",
+  "starting_commit": "1f00c5b2af57efbfd3996733aff98842a8d7007c",
+  "scope": "D3D8 display-mode characterization; GetAdapterModeCount valid indices only; invalid indices stop before unchecked native access per explicit owner clarification.",
+  "last_genuine_client": {
+    "path": "experiments/xrt/build/setactive-20261024-01/xrt_ucc.exe",
+    "sha256": "8a4cd0e5a65b6ae8dd74cc2e26927993d1158e119237ce0900b2b30c57bae248",
+    "stop": {
+      "method": "IDirect3D8::GetAdapterModeCount",
+      "adapter": 0,
+      "callsite": "D3DDrv.dll+0xe9bd",
+      "guest_interface": "00015090",
+      "vtable_offset": "18",
+      "expected_return": "0696e9c0"
+    }
+  },
+  "sdk_version": 120,
+  "adapter_count": 2,
+  "native_modes": {
+    "x86-0": [
+      {
+        "adapter": 0,
+        "count": 304,
+        "formats": {
+          "22": 152,
+          "23": 152
+        }
+      },
+      {
+        "adapter": 1,
+        "count": 304,
+        "formats": {
+          "22": 152,
+          "23": 152
+        }
+      }
+    ],
+    "x64-0": [
+      {
+        "adapter": 0,
+        "count": 152,
+        "formats": {
+          "22": 152
+        }
+      },
+      {
+        "adapter": 1,
+        "count": 152,
+        "formats": {
+          "22": 152
+        }
+      }
+    ],
+    "x86-1": [
+      {
+        "adapter": 0,
+        "count": 152,
+        "formats": {
+          "22": 152
+        }
+      },
+      {
+        "adapter": 1,
+        "count": 152,
+        "formats": {
+          "22": 152
+        }
+      }
+    ],
+    "x64-1": [
+      {
+        "adapter": 0,
+        "count": 152,
+        "formats": {
+          "22": 152
+        }
+      },
+      {
+        "adapter": 1,
+        "count": 152,
+        "formats": {
+          "22": 152
+        }
+      }
+    ]
+  },
+  "native_mode_list_variation": "First process at each fresh native executable path: 304 = 152 format 22 + 152 format 23. Repeat: 152 format 22 only. Cause not established.",
+  "mode_variation_cause_established": false,
+  "all_native_format_22_lists_identical": true,
+  "native_x86_repeat_x64_modes_identical": true,
+  "invalid_native_x86": [
+    {
+      "adapter": "00000002",
+      "value": "deb2a4ef"
+    },
+    {
+      "adapter": "00000003",
+      "value": "80002f72"
+    },
+    {
+      "adapter": "0000ffff",
+      "value": "00000000"
+    },
+    {
+      "adapter": "7fffffff",
+      "value": "88002e00"
+    },
+    {
+      "adapter": "ffffffff",
+      "value": "88002e00"
+    }
+  ],
+  "invalid_native_result_contract": "undefined unchecked reads; never compatibility expectations",
+  "further_invalid_native_access": false,
+  "translated_counts": [
+    152,
+    152
+  ],
+  "translated_guard_indices": [
+    "00000002",
+    "00000003",
+    "0000ffff",
+    "7fffffff",
+    "ffffffff"
+  ],
+  "implementation": {
+    "path": "experiments/xrt/runtime/hle_d3d8.inc",
+    "sha256": "a3d9401ffe6a0b750d5772e2b4000df35655864307f2f6f1d228f01dce0a65f5",
+    "correct_for_valid_adapters": true,
+    "invalid_adapter_policy": "actual DXVK GetAdapterCount boundary; explicit exit 76 before native GetAdapterModeCount",
+    "fabricated_results": false,
+    "calling_convention": "x86 stdcall this+UINT adapter, EAX UINT, RET_STD(2)",
+    "ownership_changed": false
+  },
+  "enumeration": {
+    "production_implemented": false,
+    "native_calls": 3120,
+    "native_x86_abi_calls": 8,
+    "size": 16,
+    "fields": [
+      {
+        "name": "Width",
+        "offset": 0,
+        "bytes": 4
+      },
+      {
+        "name": "Height",
+        "offset": 4,
+        "bytes": 4
+      },
+      {
+        "name": "RefreshRate",
+        "offset": 8,
+        "bytes": 4
+      },
+      {
+        "name": "Format",
+        "offset": 12,
+        "bytes": 4
+      }
+    ],
+    "success_hresult": "00000000",
+    "invalid_hresult": "8876086c",
+    "invalid_output_untouched": true,
+    "adjacent_canaries_preserved": true,
+    "repeated_full_lists_identical_within_process": true,
+    "null_output_measured": false
+  },
+  "regressions": {
+    "passed": true,
+    "compared_values_per_translated_process": 1046,
+    "selected_positive_processes": 2,
+    "mode_count_calls_per_process": 27,
+    "count_abi_calls_per_process": 8,
+    "stack_delta": 0,
+    "preserved_registers": {
+      "EBP": "12345678",
+      "EBX": "23456789",
+      "ESI": "3456789a",
+      "EDI": "456789ab"
+    },
+    "exact_native_x86_valid_counts": true,
+    "exact_native_x64_valid_queries": true,
+    "transformed_or_normalized_output": false,
+    "prior_query_capability_ownership_values": 945,
+    "negative_guards": 10,
+    "cleanup_outstanding_references": 2,
+    "guest_32bit_vtable_slots_verified": 16,
+    "host_COM_pointer_or_x64_vtable_written_into_guest": false,
+    "events_per_positive_process": 233,
+    "events_dropped": 0
+  },
+  "backend_differences": {
+    "driver_strings": {
+      "x86": [
+        "aticfx32.dll",
+        "aticfx32.dll"
+      ],
+      "x64": [
+        "aticfx64.dll",
+        "aticfx64.dll"
+      ]
+    },
+    "identifiers_equal_except_driver": true,
+    "caps_equal": true,
+    "identifier_payload_bytes": 1068,
+    "native_x64_identifier_tail_padding_bytes": 4,
+    "mode_counts_not_assumed_equal": true,
+    "mode_list_variation_retained": true
+  },
+  "build": {
+    "path": "E:\\Unreal2-Port-Investigation\\experiments\\xrt\\build\\d3d8-modes-20261024-01",
+    "binary_sha256": "4cfbbee3037882ff07d2e730acf9b39445a90359e58c018a333f0d5ca2518d00",
+    "not_executed": true,
+    "serial": true,
+    "objects": 279,
+    "recompiled_objects": 1,
+    "hash_verified_unchanged_objects": 278,
+    "warnings": [],
+    "identities": {
+      "xrt_ucc.exe": "4cfbbee3037882ff07d2e730acf9b39445a90359e58c018a333f0d5ca2518d00",
+      "xrt_ucc.pdb": "7e7a9a7b323a185ee22ce3bab551ac30696f02a25558a4083c458271622a6aa0",
+      "obj/rt/hle_misc.obj": "042903e93b99e98bf4f6b2ddc816068ac4a560ae2f4d6e0874e026555693879e",
+      "obj/rt/vc140.pdb": "84469ba217a86c6f86e1e8f959ba1ee44652a7352853dec0426c1bd9f34798d5"
+    },
+    "runtime": {
+      "path": "experiments/xrt/runtime",
+      "files": 27,
+      "sha256": "89c23462f70bd850e7f16dd464b742466666bf9b31c360e8daf1da4076005083"
+    },
+    "generated": {
+      "path": "experiments/xrt/gen",
+      "files": 299,
+      "sha256": "93046d39786d3f4be894370e86a5fed0a26fbc3001e18ae36c12d15686336062"
+    },
+    "all_object_identities": "out/recovery/d3d8-modes-20261024-01/build.json",
+    "all_source_identities": "out/recovery/d3d8-modes-20261024-01/build.json"
+  },
+  "fixture_identities": {
+    "x86/d3dprobe.dll": "a45ebc4ef3c425dce014fa795274b1a5ded09bf5924b3da62f4f54f6047bba52",
+    "x64/d3dprobe.dll": "9c8ea874efbea2d8d69db759e4c0a3b294d898accc8e1ee01081e98acff477aa",
+    "translated.exe": "fe99c005770deea4d2b70ff3265680675449e83e108ce5e2ea6c604a188e6333"
+  },
+  "protected_integrity": {
+    "passed": true,
+    "protected": {
+      "manifest_sha256": "3e1807c3c1d3c2881e3353ab46d8f571654e19d10b7ded41b88304c71e172173",
+      "files": 4122,
+      "protected_trees": 3,
+      "protected_files": 9
+    },
+    "earlier_working_files_preserved": 558,
+    "earlier_build_files_verified": 12712,
+    "earlier_raw_files_verified": 17326,
+    "previous_evidence_verified": 753,
+    "earlier_pending_D3D_content_preserved": true,
+    "generated_unchanged": true,
+    "compiler_sdk_headers_and_libraries_unchanged": true,
+    "DXVK_pairs_unchanged": true,
+    "DirectMusic_helper_unchanged": true,
+    "source_identities_match_build": true,
+    "git_head": "1f00c5b2af57efbfd3996733aff98842a8d7007c",
+    "git_history_preserved": true,
+    "orphans": [],
+    "original_installation_or_saves_accessed": false,
+    "genuine_graphical_client_sessions": 0,
+    "device_creations": 0,
+    "rendered_frames": 0,
+    "new_executable_not_executed": true,
+    "executable_sha256": "4cfbbee3037882ff07d2e730acf9b39445a90359e58c018a333f0d5ca2518d00",
+    "runtime": {
+      "path": "experiments/xrt/runtime",
+      "files": 27,
+      "sha256": "89c23462f70bd850e7f16dd464b742466666bf9b31c360e8daf1da4076005083"
+    },
+    "generated": {
+      "path": "experiments/xrt/gen",
+      "files": 299,
+      "sha256": "93046d39786d3f4be894370e86a5fed0a26fbc3001e18ae36c12d15686336062"
+    }
+  },
+  "unsupported_methods": [
+    "RegisterSoftwareDevice",
+    "EnumAdapterModes",
+    "GetAdapterDisplayMode",
+    "CheckDeviceType",
+    "CheckDeviceMultiSampleType",
+    "CheckDepthStencilMatch",
+    "GetAdapterMonitor",
+    "CreateDevice",
+    "all IDirect3DDevice8 methods"
+  ],
+  "next_experiment": "Separately authorize a fixture-only typed EnumAdapterModes bridge for adapter 0 mode 0, last valid and invalid mode; compare 16 output bytes, HRESULT, canaries and stdcall ABI. Keep CreateDevice guarded.",
+  "evidence": {
+    "root": "E:\\Unreal2-Port-Investigation\\out\\recovery\\d3d8-modes-20261024-01",
+    "native_translated_fixture": "E:\\Unreal2-Port-Investigation\\experiments\\xrt\\build\\d3d8-modes-fixture-20261024-03",
+    "full_measurement": "E:\\Unreal2-Port-Investigation\\out\\recovery\\d3d8-modes-20261024-01\\measurement.json",
+    "final_integrity": "E:\\Unreal2-Port-Investigation\\out\\recovery\\d3d8-modes-20261024-01\\final-integrity.json",
+    "full_report": "experiments/xrt/D3D8_ADAPTER_MODES.md"
+  },
+  "development_diagnostics": [
+    "Revision 01 explicit log-capacity return before enumeration; preserved and log enlarged.",
+    "First comparison driver overwrote a negative report with command metadata; KeyError fixed using distinct names. Fresh comparison and repeat passed."
+  ],
+  "original_installation_or_saves_accessed": false,
+  "genuine_client_sessions": 0,
+  "D3D_device_creations": 0,
+  "rendered_frames": 0,
+  "world_ticks": 0,
+  "remote_push": false,
+  "release": false
+}

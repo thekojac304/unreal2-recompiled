@@ -7,7 +7,10 @@ void* __cdecl memcpy(void*dst,const void*src,size_t n) {
     size_t i;for(i=0;i<n;i++)((volatile BYTE*)dst)[i]=((const volatile BYTE*)src)[i];return dst;
 }
 __declspec(dllimport) D8Interface* WINAPI Direct3DCreate8(UINT);
-__declspec(dllexport) int probe_log[4096],probe_log_n;
+#ifndef D8_PROBE_LOG_CAPACITY
+#define D8_PROBE_LOG_CAPACITY 4096
+#endif
+__declspec(dllexport) int probe_log[D8_PROBE_LOG_CAPACITY],probe_log_n;
 static void logv(DWORD v) { probe_log[probe_log_n++]=(int)v; }
 static void fill(void*p,UINT n) { UINT i;for(i=0;i<n;i++) ((volatile BYTE*)p)[i]=0xa5; }
 static void words(const void*p,UINT n) { UINT i;for(i=0;i<n;i++) logv(((const DWORD*)p)[i]); }
