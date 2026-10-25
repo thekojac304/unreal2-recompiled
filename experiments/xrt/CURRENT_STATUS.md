@@ -1,3 +1,18 @@
+# SetCapture and viewport CreateWindowEx validated; boundary limit reached
+
+2026-10-24, US Eastern. SetCapture, ClipCursor(NULL), window callback 0xae (8,0)
+and GetForegroundWindow pass native x86/translated fixtures and final regressions.
+Three genuine continuations now pair SetCapture, SetFocus and viewport CreateWindowExW.
+OpenWindow and Init remain incomplete. Highest verified world milestone remains T2:
+279 paired lifecycle returns per stage across 278 selected CS_Intro actors.
+No D3D CreateDevice, Clear, Present or selected-world tick. Three additional boundaries
+are exhausted: the final GetForegroundWindow adapter has not run in a fourth client.
+Protected inputs and earlier pending keyboard, observer, CRT and build work are preserved.
+
+[Exact checkpoint, identities, coverage and remaining gate](SETCAPTURE_VIEWPORT.md).
+
+---
+
 # Viewport boundaries validated; three-boundary execution limit reached
 
 2026-10-24, US Eastern. WM_GETICON plus SetCursor, GetWindowThreadProcessId and

@@ -298,6 +298,17 @@ static void hle_GetFocus(CPU* c)
     xrt_event("gui_get_focus_return","\"esp_before\":%u,\"esp_after\":%u,\"return\":%u,\"actual_return\":%u,\"result\":%u,\"last_error\":%u",
         esp,c->r[ESP],caller,c->rv,result,xrt_get_last_error(c));
 }
+/* Borrow the actual foreground HWND, which may belong to another process.
+ * This query neither acquires ownership nor transfers focus/callback execution. */
+static void hle_GetForegroundWindow(CPU* c)
+{
+    HWND h;uint32_t result,esp=c->r[ESP],caller=rd32(esp);
+    xrt_event("gui_foreground_call","\"esp\":%u,\"return\":%u,\"last_error\":%u",esp,caller,xrt_get_last_error(c));
+    begin(c);h=GetForegroundWindow();end(c);
+    result=window_token(h);
+    RET_STD(0,result);
+    xrt_event("gui_foreground_return","\"result\":%u,\"last_error\":%u,\"esp_before\":%u,\"esp_after\":%u,\"return\":%u,\"actual_return\":%u",result,xrt_get_last_error(c),esp,c->r[ESP],caller,c->rv);
+}
 /* SetFocus returns USER32's previous HWND, including native reentrant activation
  * behavior. Never derive it from the requested HWND or a cached focus value. */
 static void hle_SetFocus(CPU* c)
@@ -322,6 +333,43 @@ static void hle_SetFocus(CPU* c)
     RET_STD(1,result);
     xrt_event("gui_set_focus_return","\"hwnd\":%u,\"result\":%u,\"last_error\":%u,\"esp_before\":%u,\"esp_after\":%u,\"return\":%u,\"actual_return\":%u",
         w,result,xrt_get_last_error(c),esp,c->r[ESP],caller,c->rv);
+}
+/* Measured SetCapture, including NULL and reentrant capture-change callbacks.
+ * USER32 owns capture state and supplies the previous HWND; guest memory sees
+ * only typed tokens. ReleaseCapture is not substituted for the NULL call. */
+static void hle_SetCapture(CPU* c)
+{
+    uint32_t w=ARG(0),esp=c->r[ESP],caller=rd32(esp),result;
+    HWND hwnd=window_host(w),previous;CPU* suspended=callback_cpu;
+    DWORD owner=hwnd?GetWindowThreadProcessId(hwnd,NULL):0;
+    xrt_event("gui_set_capture_call","\"hwnd\":%u,\"esp\":%u,\"return\":%u,\"last_error\":%u",
+        w,esp,caller,xrt_get_last_error(c));
+    if(w && xrt_handle_type(w)!=XH_FREE && xrt_handle_type(w)!=XH_WINDOW)
+        xrt_fatal(c,XRT_EXIT_UNSUPPORTED,"SetCapture: wrong HWND token type %08x",w);
+    /* Native unattached foreign-window attempts leave both queues unchanged.
+     * Attached queues and cross-thread callback transfer remain unmeasured. */
+    if(owner && owner!=GetCurrentThreadId())
+        xrt_fatal(c,XRT_EXIT_UNSUPPORTED,"SetCapture: cross-thread window unsupported");
+    if(w && !hwnd) {
+        hwnd=(HWND)(intptr_t)-1;
+        if(IsWindow(hwnd))xrt_fatal(c,XRT_EXIT_SETUP,"SetCapture: invalid HWND sentinel unexpectedly valid");
+    }
+    callback_cpu=c;begin(c);previous=SetCapture(hwnd);end(c);callback_cpu=suspended;
+    result=window_token(previous);
+    RET_STD(1,result);
+    xrt_event("gui_set_capture_return","\"hwnd\":%u,\"result\":%u,\"last_error\":%u,\"esp_before\":%u,\"esp_after\":%u,\"return\":%u,\"actual_return\":%u",
+        w,result,xrt_get_last_error(c),esp,c->r[ESP],caller,c->rv);
+}
+/* Only the encountered NULL RECT path is measured. USER32 releases the real
+ * cursor constraint; no guest RECT or synthetic clip state is introduced. */
+static void hle_ClipCursor(CPU* c)
+{
+    uint32_t p=ARG(0),esp=c->r[ESP],caller=rd32(esp);BOOL result;
+    xrt_event("gui_clip_cursor_call","\"rect\":%u,\"esp\":%u,\"return\":%u,\"last_error\":%u",p,esp,caller,xrt_get_last_error(c));
+    if(p)xrt_fatal(c,XRT_EXIT_UNSUPPORTED,"ClipCursor: non-NULL RECT is unmeasured");
+    begin(c);result=ClipCursor(NULL);end(c);
+    RET_STD(1,result);
+    xrt_event("gui_clip_cursor_return","\"rect\":%u,\"result\":%u,\"last_error\":%u,\"esp_before\":%u,\"esp_after\":%u,\"return\":%u,\"actual_return\":%u",p,(unsigned)result,xrt_get_last_error(c),esp,c->r[ESP],caller,c->rv);
 }
 /* Optional output is exactly one DWORD, including unaligned/page-edge writes.
  * A failed HWND query never probes or modifies that output, as measured natively. */
@@ -472,6 +520,10 @@ static INT_PTR invoke_gui_proc(HWND h, UINT msg, WPARAM wp, LPARAM lp, uint32_t 
         if (h || wp > 100 || lp > 100)
             xrt_fatal(&nested, XRT_EXIT_UNSUPPORTED, "class oracle scalar message outside measured range");
         break;
+    case 0xae: /* Exact observed window notification, measured through real default processing. */
+        if(wp!=8 || lp)
+            xrt_fatal(&nested,XRT_EXIT_UNSUPPORTED,"window callback 0xae: unmeasured arguments (wp=%llx lp=%llx)",(unsigned long long)wp,(unsigned long long)lp);
+        break;
     case 0x90: /* Observed Windows theme destruction notification: both arguments zero. */
         if (wp || lp)
             xrt_fatal(&nested, XRT_EXIT_UNSUPPORTED, "theme destruction notification has nonzero arguments");
@@ -545,6 +597,10 @@ static INT_PTR invoke_gui_proc(HWND h, UINT msg, WPARAM wp, LPARAM lp, uint32_t 
         else
             args[2] = window_token((HWND)wp);
         break;
+    case WM_CAPTURECHANGED:
+        if(wp)xrt_fatal(&nested,XRT_EXIT_UNSUPPORTED,"WM_CAPTURECHANGED nonzero wParam unsupported");
+        args[3] = window_token((HWND)lp);
+        break;
     case WM_COMMAND:
         args[3] = window_token((HWND)lp);
         break;
@@ -612,6 +668,8 @@ static INT_PTR invoke_gui_proc(HWND h, UINT msg, WPARAM wp, LPARAM lp, uint32_t 
         xrt_event("gui_get_icon_callback_return","\"hwnd\":%u,\"selector\":%u,\"dpi\":%u,\"icon\":%u,\"last_error\":%u",
             args[0],args[2],args[3],token,xrt_get_last_error(&nested));
     }
+    if(msg==0xae)
+        xrt_event("gui_ae_callback_return","\"hwnd\":%u,\"wparam\":%u,\"lparam\":%u,\"result\":%d,\"last_error\":%u",args[0],args[2],args[3],(int)result,xrt_get_last_error(&nested));
     if (msg == WM_ERASEBKGND || msg == WM_CTLCOLORSTATIC || msg == WM_CTLCOLORDLG || msg == WM_CTLCOLOREDIT ||
         msg == WM_CTLCOLORBTN)
     {
@@ -871,6 +929,9 @@ const XrtHle xrt_hle_gui[] = {{"comctl32.dll", "#17", hle_InitCommonControls},
                               {"user32.dll", "AdjustWindowRect", hle_AdjustWindowRect},
                               {"user32.dll", "GetFocus", hle_GetFocus},
                               {"user32.dll", "SetFocus", hle_SetFocus},
+                              {"user32.dll", "SetCapture", hle_SetCapture},
+                              {"user32.dll", "ClipCursor", hle_ClipCursor},
+                              {"user32.dll", "GetForegroundWindow", hle_GetForegroundWindow},
                               {"user32.dll", "GetWindowThreadProcessId", hle_GetWindowThreadProcessId},
                               {"user32.dll", "MapWindowPoints", hle_MapWindowPoints},
                               {"user32.dll", "GetClassInfoExW", hle_GetClassInfoExW},
