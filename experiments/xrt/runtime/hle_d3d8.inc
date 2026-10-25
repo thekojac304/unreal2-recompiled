@@ -2,14 +2,21 @@
  * substituted caps. Guest COM pointers/vtables remain 32-bit. */
 #include "d3d8_abi.h"
 typedef struct D8Object {
-    uint32_t guest,refs;
+    uint32_t guest,refs,children,pending;
     D8Interface *host;
 } D8Object;
 static D8Object d8_objects[128];
 static uint32_t d8_vtable;
 static HMODULE d8_library,d8_dependency;
+static void d8_device_cleanup(void);
+static int d8_cleanup_must_retain(void);
 static void d8_cleanup(void) {
     unsigned i,n=0;
+    if(d8_cleanup_must_retain()) {
+        xrt_event("d3d8_failure_containment","\"modules_retained\":true,\"retry_permitted\":false,\"cleanup\":\"process_teardown\"");
+        return;
+    }
+    d8_device_cleanup();
     for(i=0;i<128;i++) while(d8_objects[i].refs) {
         d8_objects[i].host->vt->Release(d8_objects[i].host);n++;
         if(!--d8_objects[i].refs)d8_objects[i].host=NULL;
@@ -18,6 +25,7 @@ static void d8_cleanup(void) {
     if(d8_library)FreeLibrary(d8_library);
     if(d8_dependency)FreeLibrary(d8_dependency);
     d8_library=d8_dependency=NULL;
+    xrt_event("d3d8_unload","\"d3d8_loaded\":%s,\"d3d9_loaded\":%s",GetModuleHandleW(L"d3d8.dll")?"true":"false",GetModuleHandleW(L"d3d9.dll")?"true":"false");
 }
 static D8Object*d8_object(CPU*c,uint32_t p) {
     unsigned i;
@@ -57,8 +65,10 @@ static void d8_AddRef(CPU*c) {
     d8_result(c,"AddRef",o,0,0,(HRESULT)n);RET_STD(1,n);
 }
 static void d8_Release(CPU*c) {
-    D8Object*o=d8_object(c,ARG(0));ULONG n=o->host->vt->Release(o->host);
-    if(!--o->refs)o->host=NULL;
+    D8Object*o=d8_object(c,ARG(0));ULONG n;DWORD error;
+    SetLastError(xrt_get_last_error(c));n=o->host->vt->Release(o->host);error=GetLastError();
+    if(!--o->refs && !o->children && !o->pending)o->host=NULL;
+    xrt_set_last_error(c,error);
     d8_result(c,"Release",o,0,0,(HRESULT)n);RET_STD(1,n);
 }
 static void d8_GetAdapterCount(CPU*c) {
@@ -200,15 +210,8 @@ D8_UNSUPPORTED(RegisterSoftwareDevice)
 D8_UNSUPPORTED(CheckDeviceType)
 D8_UNSUPPORTED(CheckDeviceMultiSampleType)
 D8_UNSUPPORTED(GetAdapterMonitor)
-static void d8_CreateDevice(CPU*c) {
-    D8Object*o=d8_object(c,ARG(0));uint32_t pp=ARG(5);
-    xrt_event("d3d8_unimplemented","\"method\":\"CreateDevice\",\"this\":%u,\"adapter\":%u,\"type\":%u,\"window\":%u,\"flags\":%u,\"parameters\":%u,\"output\":%u,\"caller\":%u",
-        ARG(0),ARG(1),ARG(2),ARG(3),ARG(4),pp,ARG(6),rd32(c->r[ESP]));
-    /* Preserve the exact guest x86 structure (13 DWORDs), without creating a host
-     * device or treating the host x64 HWND layout as a guest structure. */
-    if(xrt_is_committed(pp,52))d8_words("create_device_parameters",G2H(pp),13);
-    xrt_fatal(c,XRT_EXIT_UNSUPPORTED,"IDirect3D8::CreateDevice is unmeasured (interface %08x, caller %08x)",o->guest,rd32(c->r[ESP]));
-}
+#include "hle_d3d8_device.inc"
+static int d8_cleanup_must_retain(void) { return d8_native_failed || d8_creating || d8_rendering; }
 static D8Object*d8_wrap(CPU*c,D8Interface*host) {
     unsigned i;D8Object*o=NULL;
     const char*names[]={"D8.QueryInterface","D8.AddRef","D8.Release","D8.RegisterSoftwareDevice","D8.GetAdapterCount",
@@ -248,6 +251,7 @@ static void hle_Direct3DCreate8(CPU*c) {
         ARG(0),o?o->guest:0,o?"true":"false",rd32(c->r[ESP]));RET_STD(1,o?o->guest:0);
 }
 #define XRT_D3D8_BINDINGS \
+    XRT_D3D8_DEVICE_BINDINGS \
     {"d3d8.dll","Direct3DCreate8",hle_Direct3DCreate8}, \
     {"xrt.com","D8.QueryInterface",d8_QueryInterface}, \
     {"xrt.com","D8.AddRef",d8_AddRef}, \
