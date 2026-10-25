@@ -1,41 +1,47 @@
-# Measured D3D8 scalar render states
+# D3D8 scalar initialization — integrity stop
 
-2026-10-25, US Eastern. The typed device adapter forwards exactly
-`(7,1)`, `(9,2)`, `(29,0)`, `(26,1)`, and `(143,1)` to pinned native DXVK.
-Every other state/value combination and
-production `GetRenderState` remain explicitly unsupported.
+Fully validated new tuples: `(48,0)` and `(35,3)`. Together with the prior
+five tuples, these have independent native x86/x64 and translated comparisons,
+fresh affected/full acceptance and paired actual native/guest returns in exactly
+two bounded genuine client sessions. Actual calls use pinned DXVK; unmeasured
+tuples and production GetRenderState remain unsupported in the accepted code.
 
-Each newly encountered tuple passed independent native x86/x64 characterization
-and translated fixture checks for actual HRESULT/last-error, real state changes
-and repeats, 256-state readback, stdcall/nonvolatile registers, guest x87,
-MXCSR/XMM preservation, COM identity/lifetime, callbacks, reentrancy guards and
-window cleanup. Invalid-this fixtures call a slot saved from a valid device.
-Prior accepted tuples were freshly rechecked after each bridge extension.
+Provisional `(136,1)` passed fixtures, serial build and all regressions. Its
+pre-launch gate failed on the cursor clipping baseline, so no third client ran.
+That candidate and its working-tree source remain preserved and uncommitted.
+The accepted executable still stops at `(136,1)`, slot 50,
+`D3DDrv.dll+0xf28c`.
 
-Exactly 4 bounded genuine sessions ran. CreateDevice, Clear, Present and each
-supported SetRenderState have paired actual native and guest returns. Present
-success has no independent visual game-frame verification. The highest verified
-world milestone remains T2. TryRenderDevice, OpenWindow, and Engine Init have
-entries without paired returns. No engine or selected-world Tick completed.
+Accepted executable: `build/d3d8-scalar-init-20261025-02/xrt_ucc.exe`
 
-Stopped at `SetRenderState` slot 50, caller
-`D3DDrv.dll+0xf213`, arguments
-`{'state': 48, 'value': 0}`.
-The three-additional-combination allowance is exhausted; `(48,0)` remains
-unsupported and was not characterized or implemented.
+EXE SHA-256: `d67dab4cf6caf71aa981d3af689c8d93c4a30358ea042ac31dfffa8f16e85e52`
 
-Final executable: `build/d3d8-gouraud-20261025-04/xrt_ucc.exe`
+PDB SHA-256: `bf88c95bdb7688b8161ce3f0b3e710ac206cd694a8874f6ff2db10ea03d13b1a`
 
-EXE SHA-256: `4f2b5dadb326d0c417a088ee46acc4824384d3788739380612e52dc6526fb9f1`
+Provisional executable: `build/d3d8-scalar-init-20261025-03/xrt_ucc.exe`
 
-PDB SHA-256: `d39723bb16d57936116c60553fcefd074c0f8ac6687299bfc701b4f7961807ea`
+EXE SHA-256: `254c5a923e7c66e0017018f123c8f96ccdb47f00073cfb7f75151b4e7840ba90`
 
-All 4 builds freshly compiled 279 objects serially. Required D3D8/COM/GUI,
-commandlet/VM, compiler, traced and full Python acceptance passed: 33 stages and
-158 Python tests with zero skips per build. Protected
-inputs, old evidence/builds, pending unrelated work, settings/cursor, locks and
-cleanup passed verification after every session.
+PDB SHA-256: `467d11094cb0fc01316cb326602ee94b80445cba55b778b24a2aa6feddac1499`
 
-[Full report](../../out/recovery/d3d8-gouraud-20261025-01/REPORT.txt) and
-[fixture instructions](tests/d3d8_state/README.md). Earlier ZENABLE recovery
-evidence remains in `out/recovery/d3d8-render-state-recovery-20261025-01`.
+All three revisions passed 33 regression stages and 158 Python tests, zero skips.
+Every build was serial with verified inputs and isolated outputs. Each genuine
+run passed full post-run integrity and cleanup. Final protected assets, binaries,
+DXVK/helper/toolchain and historical preservation checks passed. The later
+cursor baseline mismatch remains unresolved; no cursor/display/window state was
+changed to force continuation.
+
+Highest world milestone remains T2. No engine/world tick completed; OpenWindow
+and Engine Init have no paired return. Both live viewports reported valid,
+visible, uncloaked HWNDs and 1540×945 clients, with normal placement and recorded
+styles/ownership. Their thread active/focus HWND was the viewport; foreground
+HWND was NULL. Read-only desktop BitBlt failed with access denied; no screenshot
+or rendered game frame is verified.
+
+Existing CRT 110 mismatches / 1,796 pending cases, six ACP 932 differences, locale/setlocale/_setmbcp gaps, and x87 sticky-status/tag/large-input/80-bit-range/double-rounding limitations remain. The previously measured x86 first-Present x87 PE effect is retained.
+
+Next milestone: Review and re-establish the cursor clipping baseline within the owner-approved scope. Then validate the preserved (136,1) candidate in a separately authorized bounded genuine session before adding another tuple. No hardware or display investigation was performed.
+
+[Full stop report](../../out/recovery/d3d8-scalar-init-20261025-01/REPORT.txt)
+and [exact identities and observations](../../out/recovery/d3d8-scalar-init-20261025-01/summary.json).
+Earlier checkpoints and all pending work remain preserved.
