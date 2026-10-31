@@ -346,8 +346,10 @@ def run(args):
         raise RuntimeError('No launch: separate explicit owner authorization is required; then use --authorize-init')
     if args.first_scene and not args.authorize_first_scene:
         raise RuntimeError('No launch: --first-scene needs the separately granted --authorize-first-scene scope')
-    if args.first_scene and args.timeout > 120:
-        raise RuntimeError('First-scene runs are limited to 120 seconds')
+    if args.first_scene and args.timeout > 180:
+        raise RuntimeError('First-scene runs are limited to 180 seconds')
+    if args.scene_seconds and (not args.first_scene or args.scene_seconds >= args.timeout):
+        raise RuntimeError('--scene-seconds needs --first-scene and must end before --timeout')
     if not args.question.strip() or not args.change.strip():
         raise RuntimeError('Provide one concrete --question and --change')
     exe = BUILD / 'unreal2-dev.exe'
@@ -390,10 +392,15 @@ def run(args):
         # Continue past Init and level ticks; the stop is after N presented world frames.
         del env['XRT_STOP_FIRST_LEVEL_TICK']
         env['XRT_DEV_SCENE'] = str(args.first_scene)
+        if args.scene_seconds:
+            env['XRT_DEV_SCENE_MS'] = str(args.scene_seconds * 1000)
+        if args.draw_dump:
+            env['XRT_DEV_DRAW_FRAMES'] = ','.join(map(str, args.draw_dump[:4]))
     graphics.environment(env, out)
     write(out / 'trace-profile.json', {'profile': args.trace_profile, 'full': args.trace_full,
                                      'addresses': [hex(a) for a in args.trace_address],
-                                     'first_scene_frames': args.first_scene})
+                                     'first_scene_frames': args.first_scene,
+                                     'scene_seconds': args.scene_seconds})
     if args.attach:
         env['XRT_DEV_ATTACH'] = '1'
     command_args = ['--guest', sandbox / 'System/Unreal2.exe', '--log', out / 'xrt.log',
@@ -405,7 +412,7 @@ def run(args):
         code = launch(exe, command_args, out, sandbox / 'System', env, args.timeout)
         reached = scene_proven(out, code) if args.first_scene else endpoint_proven(out, code)
         outcome = read(out / 'runtime-report.json').get('outcome') if (out / 'runtime-report.json').exists() else 'No runtime report; inspect console.txt'
-        done = (f'Init returned; {args.first_scene} world frames presented (inspect scene-frame-*.bmp)'
+        done = ('Init returned; world frames presented to the first-scene stop (console.txt names it; inspect scene-frame-*.bmp)'
                 if args.first_scene else 'Init returned; main loop not entered')
         report(out, args.change, args.question,
                done if reached else 'See console.txt, xrt.log and runtime-report.json',
@@ -430,8 +437,12 @@ def main():
     r.add_argument('--attach', action='store_true')
     r.add_argument('--authorize-first-scene', action='store_true',
                    help='acknowledge separately granted owner authorization to continue past Init into world frames')
-    r.add_argument('--first-scene', type=int, choices=range(1, 601), default=0, metavar='1..600',
+    r.add_argument('--first-scene', type=int, choices=range(1, 100001), default=0, metavar='1..100000',
                    help='continue past Init; stop after this many presented frames with level/camera scene-node draws (exit 11)')
+    r.add_argument('--scene-seconds', type=int, default=0, metavar='SECONDS',
+                   help='first-scene: also stop cleanly (exit 11) at the first world frame this long after Init')
+    r.add_argument('--draw-dump', type=int, action='append', default=[], metavar='WORLD_FRAME',
+                   help='first-scene: log every draw of this world frame (up to four)')
     r.add_argument('--trace-profile', choices=('development', 'forensic'), default='development')
     r.add_argument('--trace-full', action='append', default=[], metavar='DLL!NAME',
                    help='retain full tracing for this exact import name; repeat as needed')

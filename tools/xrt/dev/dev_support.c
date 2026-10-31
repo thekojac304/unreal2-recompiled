@@ -59,16 +59,53 @@ __declspec(noreturn) void dev_finish(void) {
 static int scene = -1, post_init;
 static unsigned scene_limit, world_frames, post_presents, last_renders, last_engine, last_level;
 static ULONGLONG init_ms;
+static unsigned scene_ms;
 static int scene_mode(void) {
     if (scene < 0) {
         const char *v = getenv("XRT_DEV_SCENE");
         scene = v && *v;
         scene_limit = scene ? (unsigned)strtoul(v, NULL, 10) : 0;
         if (scene && (scene_limit < 1 || scene_limit > 100000)) scene_limit = 60;
+        v = getenv("XRT_DEV_SCENE_MS");
+        scene_ms = v && *v ? (unsigned)strtoul(v, NULL, 10) : 0;
     }
     return scene;
 }
-static int scene_capture_frame(unsigned n) { return (n & (n - 1)) == 0 || n == scene_limit; }
+/* Powers of two, then every 256th world frame. XRT_DEV_SCENE_MS adds a clean
+ * wall-clock stop so long runs end with a report before the outer deadline. */
+static int scene_capture_frame(unsigned n) { return (n & (n - 1)) == 0 || !(n % 256) || n == scene_limit; }
+static __declspec(noreturn) void scene_stop(CPU *c, const char *why) {
+    xrt_event("dev_scene_present", "\"world_frames\":%u,\"presents\":%u,\"elapsed_ms\":%llu,\"reason\":\"%s\"",
+              world_frames, post_presents, GetTickCount64() - init_ms, why);
+    xm_checkpoint(c, "dev.scene.present");
+    xrt_report_write(11, "developer first-scene stop after bounded world frames");
+    fprintf(stderr, "dev: FIRST_SCENE endpoint (%s) after %u world frames (%u post-Init presents, %llu ms)\n",
+            why, world_frames, post_presents, GetTickCount64() - init_ms);
+    fflush(NULL);
+    ExitProcess(11);
+}
+/* XRT_DEV_DRAW_FRAMES=a,b,...: up to four world frames whose draws are logged. */
+int xrt_dev_draw_dump(void) {
+    static unsigned frames[4], count; static int parsed;
+    unsigned i;
+    if (!parsed) {
+        const char *v = getenv("XRT_DEV_DRAW_FRAMES");
+        parsed = 1;
+        while (v && *v && count < 4) { frames[count++] = (unsigned)strtoul(v, (char **)&v, 10); if (*v) v++; }
+    }
+    if (!scene_mode() || !post_init) return 0;
+    for (i = 0; i < count; i++) if (frames[i] == world_frames + 1) return 1;
+    return 0;
+}
+/* A successful post-Init open of a map file is the natural transition out of
+ * CS_Intro: record it and stop before the next level loads (no gameplay). */
+void xrt_dev_map_open(CPU *c, const char *path) {
+    size_t n = strlen(path);
+    if (!scene_mode() || !post_init || n < 4 || _stricmp(path + n - 4, ".un2")) return;
+    xrt_log("DEV map transition: post-Init open of \"%s\" after %u world frames", path, world_frames);
+    xrt_event("dev_map_transition", "\"world_frames\":%u", world_frames);
+    scene_stop(c, "map transition");
+}
 /* Returns the world frame to capture, or 0x10000|present for the first two
  * non-world post-Init presents (a readback reference from the same run). */
 int xrt_dev_scene_capture(unsigned level_renders, unsigned scene_draws) {
@@ -133,16 +170,8 @@ void xrt_dev_scene_present(CPU *c, long hr, unsigned draws, unsigned prims, unsi
                 "scene_prims=%u level_draws=%u engine_ticks=%u level_ticks=%u world_frame=%u",
                 post_presents, GetTickCount64() - init_ms, (unsigned long)hr, draws, prims, renders, scene_draws,
                 scene_prims, level_draws, engine, level, world ? world_frames : 0);
-    if (world && world_frames == scene_limit) {
-        xrt_event("dev_scene_present", "\"world_frames\":%u,\"presents\":%u,\"scene_draws\":%u,\"scene_prims\":%u",
-                  world_frames, post_presents, scene_draws, scene_prims);
-        xm_checkpoint(c, "dev.scene.present");
-        xrt_report_write(11, "developer first-scene stop after bounded world frames");
-        fprintf(stderr, "dev: FIRST_SCENE endpoint reached after %u world frames (%u post-Init presents)\n",
-                world_frames, post_presents);
-        fflush(NULL);
-        ExitProcess(11);
-    }
+    if (world && world_frames == scene_limit) scene_stop(c, "frame limit");
+    if (world && scene_ms && GetTickCount64() - init_ms >= scene_ms) scene_stop(c, "time limit");
 }
 __declspec(noinline) void xrt_dev_init_return(CPU *c) {
     xrt_log("DEV Init returned: caller=1090ed59 return=%08x esp=%08x", c->rv, c->r[ESP]);

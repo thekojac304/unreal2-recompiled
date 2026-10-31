@@ -456,17 +456,22 @@ index f2488aa..2442a88 100644
      {"xrt.com","D8R.UnlockRect",d8_resource_UnlockRect}, \
      {"xrt.com","D8R.Lock",d8_resource_Lock}, \
 diff --git a/out/dev-init-savepoints/init-return-20261030/runtime/hle_d3d8_device.inc b/out/dev-init/runtime/hle_d3d8_device.inc
-index 4a1a96c..9df17dd 100644
+index 4a1a96c..77da0a0 100644
 --- a/out/dev-init-savepoints/init-return-20261030/runtime/hle_d3d8_device.inc
 +++ b/out/dev-init/runtime/hle_d3d8_device.inc
-@@ -131,17 +131,47 @@ static void d8_render_ready(CPU*c,D8DeviceObject*o) {
+@@ -131,17 +131,52 @@ static void d8_render_ready(CPU*c,D8DeviceObject*o) {
          xrt_fatal(c,76,"Direct3DDevice8: unsupported rendering window tuple (native call refused)");
      xrt_gui_device_window(c,o->focus);xrt_gui_device_window(c,o->window);
  }
 +/* Developer first-scene evidence: successful native draws since the previous
 + * Present, and those issued inside FLevelSceneNode::Render. Never guest-visible. */
 +static unsigned d8_frame_draws,d8_frame_prims,d8_scene_draws,d8_scene_prims,d8_level_draws;
++/* Developer draw dump (XRT_DEV_DRAW_FRAMES): states the guest set, shadowed
++ * as forwarded, logged per draw for a few chosen world frames only. */
++static DWORD d8_dev_rs[256],d8_dev_tss[8][32],d8_dev_shader;
++static void d8_dev_draw_log(HRESULT hr,unsigned primitives);
 +static void d8_count_draw(HRESULT hr,unsigned primitives) {
++    if(xrt_dev_draw_dump())d8_dev_draw_log(hr,primitives);
 +    if(FAILED(hr))return;
 +    d8_frame_draws++;d8_frame_prims+=primitives;
 +    /* World scene nodes: FLevelSceneNode or FCameraSceneNode (HUD is FPlayerSceneNode). */
@@ -512,7 +517,7 @@ index 4a1a96c..9df17dd 100644
      d8_semantic_checkpoint(c,2,15,NULL,0,(unsigned)hr,error);
      d8_rendering=0;xrt_gui_callback_leave(previous);
      /* Pinned DXVK x86, live window, CW=027f: first successful Present sets
-@@ -150,6 +180,8 @@ static void d8_device_Present(CPU*c) {
+@@ -150,6 +185,8 @@ static void d8_device_Present(CPU*c) {
       * Subsequent Presents leave the guest status alone, including fnclex. */
      if(hr==S_OK && !o->presents)c->fsw|=0x20;
      if(SUCCEEDED(hr))o->presents++;
@@ -521,7 +526,20 @@ index 4a1a96c..9df17dd 100644
      xrt_set_last_error(c,error);RET_STD(5,hr);
      d8_semantic_checkpoint(c,3,15,NULL,0,(unsigned)hr,error);
      xrt_event("d3d8_render_return","\"method\":\"Present\",\"this\":%u,\"result\":%lu,\"last_error\":%lu,\"esp_before\":%u,\"esp_after\":%u,\"return\":%u,\"actual_return\":%u,\"mxcsr_before\":%lu,\"mxcsr_after\":%lu,\"guest_fsw_before\":%u,\"guest_fsw_after\":%u",o->guest,(DWORD)hr,error,esp,c->r[ESP],ret,c->rv,before,after,fsw,c->fsw);
-@@ -163,6 +195,7 @@ static void d8_device_Present(CPU*c) {
+@@ -159,10 +196,20 @@ static void d8_device_Present(CPU*c) {
+ #include "semantic_create.inc"
+ #include "scene_draw.inc"
+ #include "resources.inc"
++static void d8_dev_draw_log(HRESULT hr,unsigned primitives) {
++    {unsigned s;const D8Resource*t[2];for(s=0;s<2;s++)t[s]=d8_bound_textures[s];
++        xrt_log("DEV draw %u hr=%08lx prims=%u scene=%d level=%d vs=%lx z=%lu/%lu atest=%lu blend=%lu src=%lu dst=%lu cull=%lu fog=%lu light=%lu tfactor=%08lx"
++                " | s0 tex=%x k%u f%u cop=%lu a1=%lu a2=%lu aop=%lu | s1 tex=%x k%u f%u cop=%lu a1=%lu a2=%lu aop=%lu",
++                d8_frame_draws+1,(unsigned long)hr,primitives,xrt_scene_camera_depth>0||xrt_scene_level_depth>0,xrt_scene_level_depth>0,d8_dev_shader,
++                d8_dev_rs[7],d8_dev_rs[14],d8_dev_rs[15],d8_dev_rs[27],d8_dev_rs[19],d8_dev_rs[20],d8_dev_rs[22],d8_dev_rs[28],d8_dev_rs[137],d8_dev_rs[60],
++                t[0]?t[0]->guest:0,t[0]?t[0]->kind:0,t[0]?t[0]->format:0,d8_dev_tss[0][1],d8_dev_tss[0][2],d8_dev_tss[0][3],d8_dev_tss[0][4],
++                t[1]?t[1]->guest:0,t[1]?t[1]->kind:0,t[1]?t[1]->format:0,d8_dev_tss[1][1],d8_dev_tss[1][2],d8_dev_tss[1][3],d8_dev_tss[1][4]);}
++}
+ #include "resource_storage.inc"
  #include "vertex_declaration.inc"
  #include "resource_draw.inc"
  #include "surface_transfer.inc"
@@ -529,7 +547,7 @@ index 4a1a96c..9df17dd 100644
  #include "d3d8_device_slots.inc"
  static void d8_CreateDevice(CPU*c) {
      d8_api_entry(c,100,7);
-@@ -183,8 +216,15 @@ static void d8_CreateDevice(CPU*c) {
+@@ -183,8 +230,15 @@ static void d8_CreateDevice(CPU*c) {
      n.flags=rd32(pp+40);n.refresh=rd32(pp+44);n.interval=rd32(pp+48);
      {
          HWND focus_host=xrt_gui_device_window(c,focus);
@@ -548,7 +566,7 @@ index 4a1a96c..9df17dd 100644
           * has zero refs and is unreachable through the guest output in callbacks. */
          if(!d8_device_vtable)d8_device_vtable=com_vtable(d8_device_slot_names,97);
 diff --git a/out/dev-init-savepoints/init-return-20261030/runtime/hle_dmusic_guest.inc b/out/dev-init/runtime/hle_dmusic_guest.inc
-index 72a172a..facf409 100644
+index 72a172a..d5043e4 100644
 --- a/out/dev-init-savepoints/init-return-20261030/runtime/hle_dmusic_guest.inc
 +++ b/out/dev-init/runtime/hle_dmusic_guest.inc
 @@ -34,15 +34,15 @@ static uint32_t dmi_wrap(CPU*c,DmbMessage*m){
@@ -734,6 +752,15 @@ index 72a172a..facf409 100644
   dmb_message(&m,DMB_CREATE,0);m.v[0]=type;dm_backend_invoke(c,&m);p=dmi_wrap(c,&m);wr32(ARG(4),p);
   xrt_event("com_factory","\"class\": \"%s\", \"backend\": \"ipc\", \"result\": %u, \"object\": %u",type==DMB_LOADER?"DirectMusicLoader8":"DirectMusicPerformance8",m.v[0],p);
   RET_STD(5,m.v[0]);return 1;
+@@ -117,7 +258,7 @@ static void dmi_Script(CPU*c){uint32_t p;DMI_BEGIN(DMB_SCRIPT);com_memory(c,ARG(
+  dmi_guid(c,ARG(2),m.guid[0]);com_memory(c,ARG(3),4,"DirectMusic script output");dm_backend_invoke(c,&m);p=dmi_wrap(c,&m);wr32(ARG(3),p);RET_STD(4,m.v[0]);}
+ static void dmi_ScriptInit(CPU*c){DMI_BEGIN(DMB_SCRIPT_INIT);if(ARG(2))xrt_fatal(c,XRT_EXIT_UNSUPPORTED,"DirectMusic script error-info pointer is unmeasured");m.v[0]=dmi_find(c,ARG(1))->id;dm_backend_invoke(c,&m);RET_STD(3,m.v[0]);}
+ static void dmi_Volume(CPU*c){DMI_BEGIN(DMB_VOLUME);dmi_guid(c,ARG(1),m.guid[0]);if(ARG(3)!=4)xrt_fatal(c,XRT_EXIT_UNSUPPORTED,"DirectMusic unmeasured global parameter size");com_memory(c,ARG(2),4,"DirectMusic volume");m.v[0]=rd32(ARG(2));m.v[1]=ARG(3);dm_backend_invoke(c,&m);RET_STD(4,m.v[0]);}
+-static void dmi_Routine(CPU*c){DMI_BEGIN(DMB_ROUTINE);if(ARG(2))xrt_fatal(c,XRT_EXIT_UNSUPPORTED,"DirectMusic script error-info pointer is unmeasured");dmi_text(c,ARG(1),m.text);dm_backend_invoke(c,&m);RET_STD(3,m.v[0]);}
++static void dmi_Routine(CPU*c){DMI_BEGIN(DMB_ROUTINE);if(ARG(2))xrt_fatal(c,XRT_EXIT_UNSUPPORTED,"DirectMusic script error-info pointer is unmeasured");dmi_text(c,ARG(1),m.text);{wchar_t name[64];wcsncpy(name,(const wchar_t*)m.text,63);name[63]=0;dm_backend_invoke(c,&m);xrt_log("DirectMusic CallRoutine '%ls' -> %08x",name,m.v[0]);}RET_STD(3,m.v[0]);}
+ static void dmi_ReleaseObject(CPU*c){DMI_BEGIN(DMB_RELEASE_OBJECT);m.v[0]=dmi_find(c,ARG(1))->id;dm_backend_invoke(c,&m);RET_STD(2,m.v[0]);}
+ static void dmi_Stop(CPU*c){DMI_BEGIN(DMB_STOP);if(ARG(1)||ARG(2)||ARG(3)||ARG(4))xrt_fatal(c,XRT_EXIT_UNSUPPORTED,"DirectMusic unmeasured Stop arguments");dm_backend_invoke(c,&m);RET_STD(5,m.v[0]);}
+ static void dmi_Close(CPU*c){DMI_BEGIN(DMB_CLOSE);dm_backend_invoke(c,&m);RET_STD(1,m.v[0]);}
 @@ -126,7 +267,7 @@ static void dmi_Close(CPU*c){DMI_BEGIN(DMB_CLOSE);dm_backend_invoke(c,&m);RET_ST
   {"xrt.com","DMI.Unsupported",dmi_Unsupported},{"xrt.com","DMI.QI",dmi_QI}, \
   {"xrt.com","DMI.AddRef",dmi_AddRef},{"xrt.com","DMI.Release",dmi_Release}, \
@@ -744,7 +771,7 @@ index 72a172a..facf409 100644
   {"xrt.com","DMI.Volume",dmi_Volume},{"xrt.com","DMI.Routine",dmi_Routine}, \
   {"xrt.com","DMI.ReleaseObject",dmi_ReleaseObject},{"xrt.com","DMI.Stop",dmi_Stop},{"xrt.com","DMI.Close",dmi_Close},
 diff --git a/out/dev-init-savepoints/init-return-20261030/runtime/hle_gui.c b/out/dev-init/runtime/hle_gui.c
-index c9ff9c9..8d8c76e 100644
+index c9ff9c9..33c6960 100644
 --- a/out/dev-init-savepoints/init-return-20261030/runtime/hle_gui.c
 +++ b/out/dev-init/runtime/hle_gui.c
 @@ -466,8 +466,15 @@ static void hle_ClipCursor(CPU* c)
@@ -773,7 +800,19 @@ index c9ff9c9..8d8c76e 100644
  static INT_PTR invoke_gui_proc(HWND h, UINT msg, WPARAM wp, LPARAM lp, uint32_t explicit_proc)
  {
      xm_scope(callback_cpu,XM_BEGIN,XM_CALLBACK,"USER32.invoke_gui_proc",msg);
-@@ -742,6 +750,14 @@ static INT_PTR invoke_gui_proc(HWND h, UINT msg, WPARAM wp, LPARAM lp, uint32_t
+@@ -653,6 +661,11 @@ static INT_PTR invoke_gui_proc(HWND h, UINT msg, WPARAM wp, LPARAM lp, uint32_t
+         if (wp || lp)
+             xrt_fatal(&nested, XRT_EXIT_UNSUPPORTED, "theme destruction notification has nonzero arguments");
+         break;
++    case WM_DEVICECHANGE: /* Host broadcast; only the scalar DBT_DEVNODES_CHANGED (7,0) form crosses. */
++        if (wp != 7 || lp)
++            xrt_fatal(&nested, XRT_EXIT_UNSUPPORTED, "WM_DEVICECHANGE event %llx with data %llx requires marshalling",
++                      (unsigned long long)wp, (unsigned long long)lp);
++        break;
+     case WM_GETDLGCODE:
+         if (lp)
+             xrt_fatal(&nested, XRT_EXIT_UNSUPPORTED, "WM_GETDLGCODE MSG pointer requires marshalling");
+@@ -742,6 +755,14 @@ static INT_PTR invoke_gui_proc(HWND h, UINT msg, WPARAM wp, LPARAM lp, uint32_t
      case WM_PALETTECHANGED:
          args[2] = window_token((HWND)wp);
          break;
@@ -788,7 +827,7 @@ index c9ff9c9..8d8c76e 100644
      case WM_NOTIFY:
      case WM_DRAWITEM:
      case WM_MEASUREITEM:
-@@ -752,13 +768,15 @@ static INT_PTR invoke_gui_proc(HWND h, UINT msg, WPARAM wp, LPARAM lp, uint32_t
+@@ -752,13 +773,15 @@ static INT_PTR invoke_gui_proc(HWND h, UINT msg, WPARAM wp, LPARAM lp, uint32_t
          xrt_fatal(&nested, XRT_EXIT_UNSUPPORTED, "dialog callback pointer message 0x%x requires marshalling", msg);
      default:
          /* Exact measured registered notification; preserve error while resolving its session identity. */
@@ -809,7 +848,7 @@ index c9ff9c9..8d8c76e 100644
          }
          /* Only measured scalar messages may cross unmodified. */
          if (!((msg <= WM_ENABLE && msg != WM_GETTEXT) || msg == WM_PAINT || msg == WM_ERASEBKGND ||
-@@ -766,7 +784,13 @@ static INT_PTR invoke_gui_proc(HWND h, UINT msg, WPARAM wp, LPARAM lp, uint32_t
+@@ -766,7 +789,13 @@ static INT_PTR invoke_gui_proc(HWND h, UINT msg, WPARAM wp, LPARAM lp, uint32_t
                msg == WM_NCDESTROY || msg == WM_CANCELMODE || msg == WM_GETDLGCODE || msg == WM_GETFONT ||
                msg == WM_CHANGEUISTATE || msg == WM_UPDATEUISTATE || msg == WM_QUERYUISTATE ||
                msg == WM_QUERYNEWPALETTE || msg == WM_PALETTECHANGED || msg == WM_DWMNCRENDERINGCHANGED ||
@@ -824,7 +863,7 @@ index c9ff9c9..8d8c76e 100644
              xrt_fatal(&nested, XRT_EXIT_UNSUPPORTED, "dialog callback message 0x%x unsupported (wp=%llx lp=%llx)",
                        msg, (unsigned long long)wp, (unsigned long long)lp);
      }
-@@ -1140,6 +1164,19 @@ const XrtHle xrt_hle_gui[] = {{"comctl32.dll", "#17", hle_InitCommonControls},
+@@ -1140,6 +1169,19 @@ const XrtHle xrt_hle_gui[] = {{"comctl32.dll", "#17", hle_InitCommonControls},
                                {"user32.dll", "SetMenu", hle_SetMenu},
                                {"user32.dll", "PostMessageA", hle_PostMessageA},
                                {"user32.dll", "PostMessageW", hle_PostMessageW},
@@ -845,10 +884,18 @@ index c9ff9c9..8d8c76e 100644
                                {"user32.dll", "GetWindowLongA", hle_GetWindowLongA},
                                {"user32.dll", "IsWindow", hle_IsWindow},
 diff --git a/out/dev-init-savepoints/init-return-20261030/runtime/hle_kernel32.c b/out/dev-init/runtime/hle_kernel32.c
-index a5a4f46..fc09b00 100644
+index a5a4f46..e8ca358 100644
 --- a/out/dev-init-savepoints/init-return-20261030/runtime/hle_kernel32.c
 +++ b/out/dev-init/runtime/hle_kernel32.c
-@@ -955,6 +955,22 @@ static void hle_GetLocalTime(CPU* c) {
+@@ -105,6 +105,7 @@ static uint32_t create_file(CPU* c, const uint16_t* name, uint32_t access, uint3
+     h = CreateFileW((LPCWSTR)name, access, share, NULL, disp, flags, NULL);
+     WideCharToMultiByte(CP_ACP, 0, (LPCWSTR)name, -1, a, sizeof a, NULL, NULL);
+     file_open_event(a, access, disp, h != INVALID_HANDLE_VALUE);
++    if (h != INVALID_HANDLE_VALUE) xrt_dev_map_open(c, a);   /* dev first-scene: stop at a map transition */
+     if (h == INVALID_HANDLE_VALUE) {
+         set_err_from_host(c);
+         xrt_log("CreateFile(\"%s\", %08x, disp %u) -> failed, error %u", a, access, disp, xrt_get_last_error(c));
+@@ -955,6 +956,22 @@ static void hle_GetLocalTime(CPU* c) {
  }
  static void hle_GetCurrentProcessId(CPU* c) { RET_STD(0, rd32(c->fs_base + 0x20)); }
  static void hle_GetCurrentThreadId(CPU* c) { RET_STD(0, c->thread->guest_tid); }
@@ -871,7 +918,7 @@ index a5a4f46..fc09b00 100644
  static void hle_QueryPerformanceCounter(CPU* c) {
      LARGE_INTEGER v;
      QueryPerformanceCounter(&v);
-@@ -1488,6 +1504,8 @@ const XrtHle xrt_hle_kernel32[] = {
+@@ -1488,6 +1505,8 @@ const XrtHle xrt_hle_kernel32[] = {
      {"kernel32.dll", "GetLocalTime", hle_GetLocalTime},
      {"kernel32.dll", "GetCurrentProcessId", hle_GetCurrentProcessId},
      {"kernel32.dll", "GetCurrentThreadId", hle_GetCurrentThreadId},
@@ -1178,6 +1225,22 @@ index 0000000..e427973
 +static void hle_GetParent(CPU*c) {
 +    HWND p;gui_transition_memory(c,c->r[ESP],8,0);begin(c);p=GetParent(xrt_gui_device_window(c,ARG(0)));end(c);RET_STD(1,window_token(p));
 +}
+diff --git a/out/dev-init-savepoints/init-return-20261030/runtime/monitor.c b/out/dev-init/runtime/monitor.c
+index 9393060..b4360c7 100644
+--- a/out/dev-init-savepoints/init-return-20261030/runtime/monitor.c
++++ b/out/dev-init/runtime/monitor.c
+@@ -158,7 +158,10 @@ void xm_emit(CPU*c,const XmRequest*q,const XmHost*host) {
+     if(q->event==XM_RESOURCE && q->guest){
+         for(i=0;i<identity_count;i++)if(identities[i].guest==q->guest && (!q->generation||identities[i].generation==q->generation) && identities[i].iface==q->interface_id)break;
+         if(i<identity_count&&!q->generation)r.generation=identities[i].generation;
+-        if(i==identity_count){if(identity_count==4608)bad=15;else identity_count++;}
++        /* Guest tokens are never reused, so a full table may recycle an entry whose
++         * object is gone (no references or bindings); live identities never are. */
++        if(i==identity_count){if(identity_count<4608)identity_count++;
++            else {for(i=0;i<identity_count&&(identities[i].refs||identities[i].bindings);i++){}if(i==identity_count)bad=15;}}
+         if(!bad){identities[i].host=q->host;identities[i].guest=q->guest;identities[i].generation=r.generation;
+             identities[i].iface=q->interface_id;identities[i].refs=q->refs;identities[i].bindings=q->bindings;}
+     }
 diff --git a/out/dev-init-savepoints/init-return-20261030/runtime/resource_draw.inc b/out/dev-init/runtime/resource_draw.inc
 index c8a0407..f19aacd 100644
 --- a/out/dev-init-savepoints/init-return-20261030/runtime/resource_draw.inc
@@ -1365,11 +1428,15 @@ index f0ac737..4e43539 100644
   }
   error=GetLastError();d8_semantic_return(c,prev,id,n,(HRESULT)value,error);
 diff --git a/out/dev-init-savepoints/init-return-20261030/runtime/resources.inc b/out/dev-init/runtime/resources.inc
-index fe5176f..7105b79 100644
+index fe5176f..19c1063 100644
 --- a/out/dev-init-savepoints/init-return-20261030/runtime/resources.inc
 +++ b/out/dev-init/runtime/resources.inc
-@@ -3,13 +3,15 @@
-  * Retired handles are never reassigned, even if the native address is reused.
+@@ -1,19 +1,27 @@
+ /* Native COM ownership, typed handles and copied lock transport.
+  * No private native AddRef pins: they would change public reference counts.
+- * Retired handles are never reassigned, even if the native address is reused.
++ * Retired guest handles are never reassigned, even if the native address is reused;
++ * a retired host-side slot is recycled with a fresh guest token.
   * Native bindings retain native resources; lookups always acquire a real ref.
   */
 -enum {D8_SURFACE=1,D8_TEXTURE=3,D8_VERTEX=6,D8_INDEX=7,D8_RESOURCE_LIMIT=4096};
@@ -1386,7 +1453,17 @@ index fe5176f..7105b79 100644
   INT pitch;BYTE*locked;
  } D8Resource;
  static D8Resource d8_resources[D8_RESOURCE_LIMIT];
-@@ -29,12 +31,14 @@ static uint32_t d8_resource_vtables[8];
+-static unsigned d8_resource_used;
++static unsigned d8_resource_used,d8_resource_adoptions;
++/* A slot is free once retired: no native object, references or bindings. */
++static D8Resource*d8_resource_free_slot(void) {
++ unsigned i;for(i=0;i<d8_resource_used;i++)if(!d8_resources[i].host&&!d8_resources[i].refs&&!d8_resources[i].bindings)return &d8_resources[i];
++ return d8_resource_used<D8_RESOURCE_LIMIT?&d8_resources[d8_resource_used]:NULL;
++}
+ static void xm_d8_resource(CPU*c,D8Resource*r,const char*event) {
+  xm_resource(c,100+r->kind,r->guest,(unsigned)(r-d8_resources)+1,
+    (uint64_t)(uintptr_t)r->host,r->refs,r->bindings,event);
+@@ -29,12 +37,14 @@ static uint32_t d8_resource_vtables[8];
  static D8Resource*d8_bound_streams[16],*d8_bound_indices,*d8_bound_textures[8];
  static const GUID d8_surface_iid={0xb96eebca,0xb326,0x4ea5,{0x88,0x2f,0x2f,0xf5,0xba,0xe0,0x21,0xdd}};
  static const GUID d8_texture_iid={0xe4cdd575,0x2866,0x4f01,{0xb1,0x2e,0x7e,0xec,0xe1,0xec,0x93,0x58}};
@@ -1401,16 +1478,35 @@ index fe5176f..7105b79 100644
  static const char* d8_buffer_names[]={"D8R.QueryInterface","D8R.AddRef","D8R.Release","D8R.GetDevice","D8R.Unsupported","D8R.Unsupported","D8R.Unsupported","D8R.SetPriority","D8R.GetPriority","D8R.PreLoad","D8R.GetType","D8R.Lock","D8R.Unlock","D8R.GetDesc"};
  static void d8_resource_guard(CPU*c) {
   if(d8_rendering||d8_creating||d8_native_failed)xrt_fatal(c,76,"D3D8 resource: reentrant or failed native operation");
-@@ -53,7 +57,7 @@ static D8Resource*d8_resource(CPU*c,uint32_t guest,unsigned kind) {
+@@ -52,8 +62,8 @@ static D8Resource*d8_resource(CPU*c,uint32_t guest,unsigned kind) {
+ }
  static void d8_resource_reserve(CPU*c,unsigned kind) {
   d8_resource_guard(c);
-  if(d8_resource_used==D8_RESOURCE_LIMIT)xrt_fatal(c,76,"D3D8 resource: handle capacity");
+- if(d8_resource_used==D8_RESOURCE_LIMIT)xrt_fatal(c,76,"D3D8 resource: handle capacity");
 - if(!d8_resource_vtables[kind])d8_resource_vtables[kind]=com_vtable(kind==D8_SURFACE?d8_surface_names:kind==D8_TEXTURE?d8_texture_names:d8_buffer_names,kind==D8_SURFACE?11:kind==D8_TEXTURE?19:14);
++ if(!d8_resource_free_slot())xrt_fatal(c,76,"D3D8 resource: handle capacity (%u live)",d8_resource_used);
 + if(!d8_resource_vtables[kind])d8_resource_vtables[kind]=com_vtable(kind==D8_SURFACE?d8_surface_names:kind==D8_TEXTURE?d8_texture_names:kind==D8_CUBE?d8_cube_names:d8_buffer_names,kind==D8_SURFACE?11:D8_TEXLIKE(kind)?19:14);
  }
  /* Called inside the native scope, adopting exactly the returned reference. */
  static uint32_t d8_resource_adopt(CPU*c,void*host,unsigned kind) {
-@@ -104,8 +108,8 @@ static void d8_resource_drop(D8Resource*r) {
+@@ -63,10 +73,13 @@ static uint32_t d8_resource_adopt(CPU*c,void*host,unsigned kind) {
+   r=&d8_resources[i];if(r->kind!=kind||r->refs==UINT32_MAX){d8_native_failed=1;xrt_fatal(c,76,"D3D8 resource: identity/type/reference inconsistency");}
+   if(!r->refs)d8_device.children++;r->refs++;xm_d8_resource(c,r,"reference-acquired");return r->guest;
+  }
+- if(d8_resource_used==D8_RESOURCE_LIMIT){d8_native_failed=1;xrt_fatal(c,76,"D3D8 resource: adoption capacity");}
+- r=&d8_resources[d8_resource_used++];memset(r,0,sizeof *r);
++ if(!(r=d8_resource_free_slot())){d8_native_failed=1;xrt_fatal(c,76,"D3D8 resource: adoption capacity");}
++ if(r==&d8_resources[d8_resource_used])d8_resource_used++;memset(r,0,sizeof *r);
++ if(!(++d8_resource_adoptions%512)){unsigned n[8]={0};for(i=0;i<d8_resource_used;i++)if(d8_resources[i].host)n[d8_resources[i].kind&7]++;
++  xrt_log("D3D8 resources: %u adoptions, %u slots, live surface %u texture %u cube %u vertex %u index %u",
++          d8_resource_adoptions,d8_resource_used,n[D8_SURFACE],n[D8_TEXTURE],n[D8_CUBE],n[D8_VERTEX],n[D8_INDEX]);}
+  r->guest=xrt_rt_alloc(4,4);wr32(r->guest,d8_resource_vtables[kind]);r->kind=kind;r->host=host;r->refs=1;d8_device.children++;
+- xrt_event("d3d8_resource_adopt","\"guest\":%u,\"type\":%u,\"generation\":%u",r->guest,kind,d8_resource_used);
++ xrt_event("d3d8_resource_adopt","\"guest\":%u,\"type\":%u,\"generation\":%u",r->guest,kind,d8_resource_adoptions);
+  xm_d8_resource(c,r,"created");return r->guest;
+ }
+ static void d8_resource_output(CPU*c,uint32_t out,HRESULT hr,void*q,unsigned kind) {
+@@ -104,8 +117,8 @@ static void d8_resource_drop(D8Resource*r) {
   xm_d8_resource(NULL,r,"released");
  }
  static int d8_resource_iid_known(D8Resource*r,const GUID*iid) {
@@ -1421,7 +1517,7 @@ index fe5176f..7105b79 100644
  }
  static void d8_resource_Unsupported(CPU*c){xrt_fatal(c,76,"D3D8 resource: private data interface unsupported");}
  static void d8_resource_QueryInterface(CPU*c) {
-@@ -146,7 +150,7 @@ static void d8_resource_GetContainer(CPU*c) {
+@@ -146,7 +159,7 @@ static void d8_resource_GetContainer(CPU*c) {
   LONG id=d8_api_entry(c,307,3);D8Resource*r=d8_resource(c,ARG(0),D8_SURFACE);GUID iid;void*q=NULL;CPU*prev;HRESULT hr;DWORD error;uint32_t out=ARG(2);unsigned kind;
   d8_device_memory(c,ARG(1),16,0);memcpy(&iid,G2H(ARG(1)),16);if(out)d8_device_memory(c,out,4,1);
   /* Container IUnknown is ambiguous; require the exact typed interface. */
@@ -1430,7 +1526,7 @@ index fe5176f..7105b79 100644
   if(!kind&&memcmp(&iid,&d8_device_iid,16))xrt_fatal(c,76,"D3D8 surface: untyped container IID");
   if(kind)d8_resource_reserve(c,kind);
   prev=d8_native_enter(c,307,&iid,16);hr=XM_GetContainer(c,(D8Surface*)r->host,&iid,out?&q:NULL);error=GetLastError();
-@@ -156,7 +160,7 @@ static void d8_resource_GetContainer(CPU*c) {
+@@ -156,7 +169,7 @@ static void d8_resource_GetContainer(CPU*c) {
  }
  static void d8_resource_GetDesc(CPU*c) {
   LONG id=d8_api_entry(c,308,2);D8Resource*r=d8_resource(c,ARG(0),0);D8SurfaceDesc desc;CPU*prev;HRESULT hr;DWORD error;unsigned n=r->kind==D8_SURFACE?32:r->kind==D8_VERTEX?24:20;uint32_t out=ARG(1);
@@ -1461,6 +1557,39 @@ index 9ffdbc6..322cb9e 100644
      d8_resource_up_reset(1);
      if(indices)HeapFree(GetProcessHeap(),0,indices);d8_resource_up_reset(0);
      if(vertices)HeapFree(GetProcessHeap(),0,vertices);
+diff --git a/out/dev-init-savepoints/init-return-20261030/runtime/semantic_renderer.inc b/out/dev-init/runtime/semantic_renderer.inc
+index 6aa3ac0..0453d0d 100644
+--- a/out/dev-init-savepoints/init-return-20261030/runtime/semantic_renderer.inc
++++ b/out/dev-init/runtime/semantic_renderer.inc
+@@ -44,13 +44,13 @@ static void d8_device_SetRenderState(CPU*c) {
+     d8_domain(c,d8_render_domain(ARG(1),ARG(2),o->caps.words),"SetRenderState");
+     if(ARG(1)==153 && ARG(2) && !(o->behavior&0xa0u))
+         d8_domain(c,D8_CAPABILITY,"SetRenderState software vertex processing requires software/mixed creation");
+-    previous=d8_native_enter(c,50,NULL,0);hr=XM_SetRenderState(c,o->host,ARG(1),ARG(2));error=GetLastError();
++    previous=d8_native_enter(c,50,NULL,0);hr=XM_SetRenderState(c,o->host,ARG(1),ARG(2));error=GetLastError();if(ARG(1)<256)d8_dev_rs[ARG(1)]=ARG(2);
+     d8_semantic_return(c,previous,id,3,hr,error);
+ }
+ static void d8_device_SetTextureStageState(CPU*c) {
+     LONG id=d8_api_entry(c,63,4);D8DeviceObject*o=d8_semantic_frame(c);CPU*previous;HRESULT hr;DWORD error;
+     d8_domain(c,d8_stage_domain(ARG(1),ARG(2),ARG(3),o->caps.words),"SetTextureStageState");
+-    previous=d8_native_enter(c,63,NULL,0);hr=XM_SetTextureStageState(c,o->host,ARG(1),ARG(2),ARG(3));error=GetLastError();
++    previous=d8_native_enter(c,63,NULL,0);hr=XM_SetTextureStageState(c,o->host,ARG(1),ARG(2),ARG(3));error=GetLastError();if(ARG(1)<8&&ARG(2)<32)d8_dev_tss[ARG(1)][ARG(2)]=ARG(3);
+     d8_semantic_return(c,previous,id,4,hr,error);
+ }
+ static void d8_device_SetMaterial(CPU*c) {
+diff --git a/out/dev-init-savepoints/init-return-20261030/runtime/vertex_declaration.inc b/out/dev-init/runtime/vertex_declaration.inc
+index 9e570a5..43e5c74 100644
+--- a/out/dev-init-savepoints/init-return-20261030/runtime/vertex_declaration.inc
++++ b/out/dev-init/runtime/vertex_declaration.inc
+@@ -69,7 +69,7 @@ static void d8_device_SetVertexShader(CPU*c) {
+   d8_domain(c,((value>>8)&15u)<=(o->caps.words[35]&0xffffu)?D8_VALID:D8_CAPABILITY,"SetVertexShader texture coordinate capability");
+   d8_domain(c,!(value&0x20u)||(o->caps.words[35]&0x100000u)?D8_VALID:D8_CAPABILITY,"SetVertexShader point size capability");
+  }
+- prev=d8_native_enter(c,76,NULL,0);hr=XM_SetVertexShader(c,o->host,value);error=GetLastError();d8_semantic_return(c,prev,id,2,hr,error);
++ prev=d8_native_enter(c,76,NULL,0);hr=XM_SetVertexShader(c,o->host,value);error=GetLastError();d8_dev_shader=value;d8_semantic_return(c,prev,id,2,hr,error);
+ }
+ static void d8_device_GetVertexShader(CPU*c) {
+  LONG id=d8_api_entry(c,77,2);D8DeviceObject*o=d8_semantic_frame(c);DWORD value,error;CPU*prev;HRESULT hr;uint32_t out=ARG(1);D8Declaration*d;
 diff --git a/out/dev-init-savepoints/init-return-20261030/runtime/xrt_events.c b/out/dev-init/runtime/xrt_events.c
 index 3819bd4..dbb7d1a 100644
 --- a/out/dev-init-savepoints/init-return-20261030/runtime/xrt_events.c
@@ -1498,7 +1627,7 @@ index 3819bd4..dbb7d1a 100644
      }
  }
 diff --git a/out/dev-init-savepoints/init-return-20261030/runtime/xrt_internal.h b/out/dev-init/runtime/xrt_internal.h
-index 641fccc..b8f80c7 100644
+index 641fccc..3db1f65 100644
 --- a/out/dev-init-savepoints/init-return-20261030/runtime/xrt_internal.h
 +++ b/out/dev-init/runtime/xrt_internal.h
 @@ -100,6 +100,7 @@ void xrt_com_thread_cleanup(CPU* c); /* owning thread only; Loader8 references b
@@ -1509,7 +1638,7 @@ index 641fccc..b8f80c7 100644
  XrtThread* xrt_thread_main(uint32_t stack_reserve);
  uint32_t xrt_thread_create(CPU* c, uint32_t stack_size, uint32_t start, uint32_t param, uint32_t* tid);
  XRT_NORETURN void xrt_thread_exit(CPU* c, uint32_t code);
-@@ -140,6 +141,11 @@ XrtFn xrt_lookup(uint32_t va, const char** stub_name);
+@@ -140,6 +141,13 @@ XrtFn xrt_lookup(uint32_t va, const char** stub_name);
  uint32_t xrt_lookup_containing(uint32_t va);                /* lifted function entry at or below va */
  uint32_t xrt_call_guest(CPU* c, uint32_t va, int nargs, const uint32_t* args, int stdcall);
  void xrt_world_enter(CPU* c, uint32_t target);
@@ -1517,6 +1646,8 @@ index 641fccc..b8f80c7 100644
 +/* Developer first-scene mode (dev_support.c). */
 +int xrt_dev_scene_capture(unsigned level_renders,unsigned scene_draws);
 +void xrt_dev_scene_frame(unsigned frame,unsigned width,unsigned height,unsigned format,const void*bits,int pitch);
++void xrt_dev_map_open(CPU*c,const char*path);
++int xrt_dev_draw_dump(void);
 +void xrt_dev_scene_present(CPU*c,long hr,unsigned draws,unsigned prims,unsigned scene_draws,unsigned scene_prims,unsigned level_draws);
  void xrt_world_return(CPU* c);
  uint32_t xrt_call_funclet(CPU* c, uint32_t va);   /* EH funclet call: no args, not a host boundary */

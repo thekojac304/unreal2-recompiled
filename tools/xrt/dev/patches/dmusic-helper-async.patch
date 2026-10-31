@@ -1,8 +1,8 @@
 diff --git a/experiments/xrt/dmusic_helper/main.c b/out/dev-init/dmusic_helper/main.c
-index 1b0627b..e809110 100644
+index 1b0627b..703eef1 100644
 --- a/experiments/xrt/dmusic_helper/main.c
 +++ b/out/dev-init/dmusic_helper/main.c
-@@ -1,189 +1,312 @@
+@@ -1,189 +1,371 @@
 -/* Project-owned x86 DirectMusic backend. Every native COM call runs on this
 - * process's main STA. Only measured methods are dispatchable. */
 -#define COBJMACROS
@@ -275,9 +275,8 @@ index 1b0627b..e809110 100644
 + return 1;
 +}
 +static void async_nested(DmbMessage*q,DmbMessage*r);
-+static DmbMessage async_exchange(DmbMessage*m){DmbMessage r;DWORD n;
++static DmbMessage async_exchange_owned(DmbMessage*m){DmbMessage r;DWORD n;
 + if(!async_out)die("tool callback outside STA without asynchronous channel");
-+ EnterCriticalSection(&async_cs);
 + m->kind=DMB_ASYNC_CALLBACK;m->sequence=++async_seq;
 + if(!WriteFile(async_out,m,sizeof *m,&n,NULL)||n!=sizeof *m){disconnected=1;die("host disconnected during asynchronous callback");}
 + for(;;){
@@ -288,9 +287,36 @@ index 1b0627b..e809110 100644
 +  if(r.kind!=DMB_ASYNC_REPLY||r.op!=m->op||r.object!=m->object||r.status)die("invalid asynchronous callback reply");
 +  break;
 + }
-+ LeaveCriticalSection(&async_cs);
 + fprintf(stderr,"async tool callback %u result %08x values %u %u\n",m->op,r.v[0],r.v[1],r.v[2]);
 + return r;
++}
++/* Tool AddRef/Release from DirectMusic threads never wait for the channel.
++ * Natively they are lock-free count changes running concurrently with
++ * ProcessPMsg. Waiting deadlocked: the caller can hold the performance lock
++ * that the channel owner's nested StampPMsg needs. They are queued in order
++ * and forwarded to the guest by whichever thread owns the channel next. */
++static CRITICAL_SECTION pend_cs;static struct {uint32_t token;unsigned slot;} pend[256];
++static unsigned pend_head,pend_count,pend_total,pend_deferred;
++static void async_drain(void){DmbMessage m;
++ for(;;){EnterCriticalSection(&pend_cs);
++  if(!pend_count){LeaveCriticalSection(&pend_cs);return;}
++  dmb_message(&m,pend[pend_head].slot,pend[pend_head].token);pend_head=(pend_head+1)%256;pend_count--;
++  LeaveCriticalSection(&pend_cs);async_exchange_owned(&m);}
++}
++static void async_settle(void){
++ while(pend_count&&TryEnterCriticalSection(&async_cs)){async_drain();LeaveCriticalSection(&async_cs);}
++}
++static DmbMessage async_exchange(DmbMessage*m){DmbMessage r;
++ EnterCriticalSection(&async_cs);async_drain();r=async_exchange_owned(m);async_drain();LeaveCriticalSection(&async_cs);
++ async_settle();return r;
++}
++static void async_count_change(uint32_t token,unsigned slot){
++ EnterCriticalSection(&pend_cs);
++ if(pend_count==256)die("deferred tool reference queue full");
++ pend[(pend_head+pend_count++)%256].token=token;pend[(pend_head+pend_count-1)%256].slot=slot;pend_total++;
++ LeaveCriticalSection(&pend_cs);
++ if(TryEnterCriticalSection(&async_cs)){async_drain();LeaveCriticalSection(&async_cs);async_settle();}
++ else if(pend_deferred++<8||!(pend_deferred%256))fprintf(stderr,"helper deferred tool reference change %u (slot %u) while channel busy\n",pend_deferred,slot);
 +}
 +typedef struct Tool Tool;
 +typedef struct {
@@ -305,7 +331,10 @@ index 1b0627b..e809110 100644
 + if(iid)memcpy(m.guid[0],iid,16);
 + if(disconnected){m.v[0]=0;return m;}
 + /* Off the STA, or outside an active request: DirectMusic's own threads. */
-+ if(GetCurrentThreadId()!=owner||!sequence)return async_exchange(&m);
++ if(GetCurrentThreadId()!=owner||!sequence){
++  if(slot==1||slot==2){async_count_change(t->token,slot);m.v[0]=(uint32_t)(t->refs+(slot==1?1:-1));return m;}
++  return async_exchange(&m);
++ }
 + m.kind=DMB_CALLBACK;m.sequence=sequence;
 + if(!sequence)die("callback outside active request");
 + if(!write_frame(&m)||!read_frame(&r)){disconnected=1;die("host disconnected during callback");}
@@ -339,6 +368,8 @@ index 1b0627b..e809110 100644
 + if(disconnected)return DMUS_S_FREE_HR; /* teardown only: the host is gone */
 + pmsg_frame(t,p,(BYTE*)pm,&m,7);handle=pmsg_register(pm,m.v[2]);m.v[0]=handle;
 + r=async_exchange(&m);
++ {static unsigned scripted;if(*(DWORD*)((BYTE*)pm+DMB_PMSG_TYPE)==14&&scripted++<32)
++  fprintf(stderr,"helper SCRIPTLYRIC %u '%ls' -> guest result %08x\n",scripted,(WCHAR*)((BYTE*)pm+DMB_PMSG_HEADER),r.v[0]);}
 + /* S_OK: the tool retained the message (freed later by DMB_FREE_PMSG). Any other
 +  * result goes back to DirectMusic unchanged, which frees or requeues natively. */
 + if(r.v[0]!=S_OK)pmsg_lookup(handle,1);
@@ -379,6 +410,18 @@ index 1b0627b..e809110 100644
 +typedef HRESULT(WINAPI*ReleaseObject)(IUnknown*,IUnknown*);
 +typedef HRESULT(WINAPI*Stop)(IUnknown*,IUnknown*,IUnknown*,LONG,DWORD);
 +typedef HRESULT(WINAPI*CloseDown)(IUnknown*);
++/* Developer heartbeat (diagnostic only): every 2 s, the performance clock and
++ * whether a primary segment state exists now. Read-only native queries. */
++typedef HRESULT(WINAPI*GetTimeFn)(IUnknown*,LONGLONG*,LONG*);
++typedef HRESULT(WINAPI*GetStateFn)(IUnknown*,IUnknown**,LONG);
++static DWORD WINAPI heartbeat(void*perf){IUnknown*p=(IUnknown*)perf,*state;LONGLONG rt;LONG mt;HRESULT h1,h2;unsigned n=0;
++ CoInitializeEx(NULL,COINIT_MULTITHREADED);
++ while(!disconnected){Sleep(2000);rt=0;mt=0;state=NULL;
++  h1=((GetTimeFn)method(p,15))(p,&rt,&mt);h2=((GetStateFn)method(p,6))(p,&state,mt);if(state)IUnknown_Release(state);
++  fprintf(stderr,"helper heartbeat %u: GetTime %08lx rt %lld ms mt %ld; primary segment state %08lx; async seq %u\n",
++          ++n,(unsigned long)h1,rt/10000,mt,(unsigned long)h2,async_seq);fflush(stderr);}
++ return 0;
++}
 +static void dispatch(DmbMessage*q,DmbMessage*r){
 + Object*o=NULL,*other;IUnknown*p=NULL;HRESULT hr=E_NOTIMPL;uint32_t type=0;WCHAR folder[600];unsigned i;
 + *r=*q;r->kind=DMB_REPLY;memset(r->v,0,sizeof r->v);memset(r->text,0,sizeof r->text);
@@ -409,7 +452,8 @@ index 1b0627b..e809110 100644
 + case DMB_RELEASE:r->v[0]=IUnknown_Release(o->p);o->refs--;return;
 + case DMB_INIT_AUDIO:
 +  REQUIRE(DMB_PERFORMANCE);if(q->v[0]!=8||q->v[1]!=128||q->v[2]!=0x3f){r->status=DMB_UNSUPPORTED;return;}
-+  hr=((InitAudio)method(o->p,44))(o->p,NULL,&p,NULL,q->v[0],q->v[1],q->v[2],NULL);type=DMB_SOUND;break;
++  hr=((InitAudio)method(o->p,44))(o->p,NULL,&p,NULL,q->v[0],q->v[1],q->v[2],NULL);type=DMB_SOUND;
++  if(SUCCEEDED(hr)&&!testing){HANDLE th=CreateThread(NULL,0,heartbeat,o->p,0,NULL);if(th)CloseHandle(th);}break;
 + case DMB_SEARCH:
 +  REQUIRE(DMB_LOADER);swprintf(folder,600,L"%s\\Music",sandbox);
 +  if(_wcsicmp((WCHAR*)q->text,folder)||q->v[0]||!IsEqualGUID((GUID*)q->guid[0],&all_types)){r->status=DMB_SANDBOX;return;}
@@ -470,6 +514,21 @@ index 1b0627b..e809110 100644
 + else if(p)die("native failure with nonnull output");
 + r->v[0]=hr;
 +}
++/* Idle wait for the next request (developer diagnostic): every 2 s the owning
++ * STA reads the music script's TrackIndex, which only dmPlayNext advances.
++ * Read-only; no messages are dispatched. */
++typedef HRESULT(WINAPI*GetVarNumFn)(IUnknown*,WCHAR*,LONG*,void*);
++static int wait_request(void){DWORD have;static ULONGLONG next;static LONG last=-2;unsigned i;
++ for(;;){
++  if(!PeekNamedPipe(input,NULL,0,NULL,&have,NULL))return 0;
++  if(have)return 1;
++  if(GetTickCount64()>=next){next=GetTickCount64()+2000;
++   for(i=0;i<used;i++)if(objects[i].refs&&objects[i].type==DMB_SCRIPT_OBJECT){LONG v=-1;
++    HRESULT h=((GetVarNumFn)method(objects[i].p,8))(objects[i].p,L"TrackIndex",&v,NULL);
++    if(v!=last){fprintf(stderr,"helper script TrackIndex %ld (hr %08lx)\n",v,(unsigned long)h);last=v;}}}
++  Sleep(1);
++ }
++}
 +int wmain(int argc,WCHAR**argv){
 + DmbMessage q,r;HRESULT hr;uint32_t last=0;
 + {int a=6;
@@ -477,7 +536,7 @@ index 1b0627b..e809110 100644
 + if(argc>=a+3&&!wcscmp(argv[a],L"--async")){async_in=(HANDLE)(uintptr_t)_wcstoui64(argv[a+1],NULL,10);async_out=(HANDLE)(uintptr_t)_wcstoui64(argv[a+2],NULL,10);a+=3;}
 + if(argc==a+1){if(wcscmp(argv[a],L"--test"))return 2;testing=1;a++;}
 + if(argc!=a)return 2;}
-+ InitializeCriticalSection(&async_cs);InitializeCriticalSection(&pmsg_cs);InitializeCriticalSection(&objects_cs);
++ InitializeCriticalSection(&async_cs);InitializeCriticalSection(&pend_cs);InitializeCriticalSection(&pmsg_cs);InitializeCriticalSection(&objects_cs);
 + input=(HANDLE)(uintptr_t)_wcstoui64(argv[2],NULL,10);output=(HANDLE)(uintptr_t)_wcstoui64(argv[3],NULL,10);
 + if(wcslen(argv[5])>=550||!GetFullPathNameW(argv[5],600,sandbox,NULL))return 2;
 + owner=GetCurrentThreadId();SetErrorMode(SEM_FAILCRITICALERRORS|SEM_NOGPFAULTERRORBOX);
@@ -485,7 +544,7 @@ index 1b0627b..e809110 100644
 +  * call. Outside a call, pipe EOF terminates the receive loop. */
 + if(!guard_install(sandbox))die("cannot install isolated disk-open guard");
 + hr=CoInitializeEx(NULL,COINIT_APARTMENTTHREADED);if(FAILED(hr))die("cannot initialize STA");
-+ while(read_frame(&q)){
++ while(wait_request()&&read_frame(&q)){
 +  sequence=q.sequence;
 +  if(!valid(&q)||q.kind!=DMB_REQUEST||q.sequence!=last+1||q.status||q.text[511]){
 +   r=q;r.magic=DMB_MAGIC;r.version=DMB_VERSION;r.bytes=sizeof r;r.kind=DMB_REPLY;r.status=DMB_BAD_FRAME;

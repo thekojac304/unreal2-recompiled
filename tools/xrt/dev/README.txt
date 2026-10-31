@@ -24,6 +24,20 @@ with asynchronous DirectMusic tool callbacks (protocol v2; experiments/xrt/DMUSI
 Focused test: out/dev-init/build/dmusic_async_test.exe <dev helper> <sandbox root> [deadline].
 Dev DirectMusic helper: out/dev-init/dmusic_helper (patches/dmusic-helper-named-routine.patch), built x86
 to out/dev-init/build/dmusic_helper.exe and preferred by run when present.
+Sustained-intro batch (2026-10-31, 10 launches): run --first-scene 100000 --scene-seconds S --timeout 180
+stops cleanly (exit 11) at the first world frame S seconds after Init, or at a post-Init .un2 open
+(map transition). Captures: powers of two, then every 256th world frame. --draw-dump N logs each draw
+of world frame N. Final run 20261031-020258-785db452: 1949 world frames, 112 s post-Init, music playing.
+Fixed: D3D8 slot exhaustion (retired slots recycled, fresh guest tokens), monitor identity table
+overflow (dead identities recycled), helper deadlock (DirectMusic-thread tool AddRef/Release waited on
+the channel owner whose nested StampPMsg needed the performance lock; now an ordered deferred queue),
+scalar WM_DEVICECHANGE in dialog callbacks.
+OPEN BLOCKER (host DirectMusic, not the translation): segment script-track events (QUEUE-timed
+dmPlayNext) never run on this Windows build, so Intro01 loops forever (helper "script TrackIndex" stays 1)
+and the beginscene cues in Intro07+ never arrive; the intro holds in its white phase from ~36 s.
+Reproduced without the game: dmusic_chain_probe.c (x86; build like the helper; usage in its header).
+Run 20261031-014918-2bf1b6b4 reached UIScripts\NormalCredits.ui only after real keyboard input reached
+the focused window (GetKeyState key-down): not a natural transition.
 
 The third developer run (20261030-221937-21570264) reached successful window
 creation and continued file-backed loading. Its last completed ReadFile returned
