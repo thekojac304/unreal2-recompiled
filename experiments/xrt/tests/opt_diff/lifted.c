@@ -29,11 +29,17 @@ static XrtFn lookup(uint32_t va) {
 }
 
 void xrt_preempt(CPU* c) { (void)c; }
+/* ICALL's inline hit path (xrt.h): misses come here and fill the entry, so later calls of a target take it */
+XrtCallCache xrt_call_cache[65536];
+uint32_t xrt_call_cache_gen = 1;
+void xrt_icall_after(CPU* c) { (void)c; }
 void xrt_icall(CPU* c, uint32_t target, uint32_t site) {
     XrtFn fn = lookup(target);
+    XrtCallCache* e = &xrt_call_cache[XRT_CALL_CACHE_SLOT(target)];
     (void)site;
     if (!fn)
         longjmp(jb, 4);
+    e->va = target; e->gen = xrt_call_cache_gen; e->fn = fn; e->flags = 0;
     fn(c);
 }
 void xrt_ijmp(CPU* c, uint32_t target, uint32_t site) { xrt_icall(c, target, site); }
@@ -44,6 +50,16 @@ XRT_NORETURN void xrt_fatal(CPU* c, int code, const char* fmt, ...) { (void)c; (
 void xrt_mark(CPU* c, XrtMark* m) { (void)c; (void)m; }
 void xrt_watch_store(CPU* c, XrtWatchDef* w, uint32_t site) { (void)c; (void)w; (void)site; }
 void xrt_log(const char* fmt, ...) { (void)fmt; }
+/* x87 helpers used by t_asm_x87, through the CPU state like the runtime's (xrt_cpu.c); plain and opt share them */
+void xrt_fsqrt(CPU* c) { *ST(c, 0) = sqrt(*ST(c, 0)); }
+void xrt_fsin(CPU* c) { *ST(c, 0) = sin(*ST(c, 0)); c->fsw &= (uint16_t)~0x0400; }
+int32_t xrt_fist32(CPU* c, double v) {
+    double r = nearbyint(v);
+    if (!(r >= -2147483648.0 && r < 2147483648.0)) { c->fsw |= 0x0001; return INT32_MIN; }
+    if (r != v) c->fsw |= 0x0020;
+    return (int32_t)r;
+}
+void xrt_fldcw(CPU* c, uint16_t cw) { if (cw != 0x027F) longjmp(jb, 2); c->fcw = cw; }
 
 static void commit(uint32_t a, uint32_t n) {
     if (!VirtualAlloc(xrt_g + a, n, MEM_COMMIT, PAGE_READWRITE)) {

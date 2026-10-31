@@ -1,0 +1,132 @@
+diff --git a/out/dev-init-savepoints/x87-icall-20261031/base-runtime/hle_gui.c b/out/dev-init/runtime/hle_gui.c
+index ffc2f31..18d9f3d 100644
+--- a/out/dev-init-savepoints/x87-icall-20261031/base-runtime/hle_gui.c
++++ b/out/dev-init/runtime/hle_gui.c
+@@ -566,6 +566,30 @@ static void unpack_windowpos(WINDOWPOS *w, uint32_t p)
+     w->cy = (int)rd32(p + 20);
+     w->flags = rd32(p + 24);
+ }
++/* Developer benchmarking only (dev.py --windowed-res): XRT_DEV_MAX_TRACK=WxH raises the maximum tracking size the
++ * guest's WM_GETMINMAXINFO result reports, so a requested window larger than the desktop is not clamped by the system
++ * default (virtual screen + frame). Otherwise the client is clamped while D3DDrv keeps the requested back buffer, the
++ * sizes differ and DXVK presents through GDI. The window then extends beyond the display: a larger-than-display render
++ * surface, not native-display output. Unset (normal runs): the guest's result is returned unchanged. */
++static void dev_max_track(MINMAXINFO *m)
++{
++    static int w = -1, h = 0;
++    if (w < 0)
++    {
++        char v[32];
++        DWORD n = GetEnvironmentVariableA("XRT_DEV_MAX_TRACK", v, sizeof v);
++        const char *x = n && n < sizeof v ? strchr(v, 'x') : NULL;
++        w = x ? atoi(v) : 0;
++        h = x ? atoi(x + 1) : 0;
++        if (w > 0 && h > 0)
++            xrt_log("DEV window maximum tracking size raised to at least %dx%d (larger-than-display benchmarking)", w, h);
++    }
++    if (w > 0 && h > 0)
++    {
++        if (m->ptMaxTrackSize.x < w) m->ptMaxTrackSize.x = w;
++        if (m->ptMaxTrackSize.y < h) m->ptMaxTrackSize.y = h;
++    }
++}
+ #include "hle_gui_diag.inc"
+ #include "window_transitions.inc"
+ #include "message_pump.inc"
+@@ -832,7 +856,10 @@ static INT_PTR invoke_gui_proc(HWND h, UINT msg, WPARAM wp, LPARAM lp, uint32_t
+         unpack_windowpos((WINDOWPOS *)lp, scratch);
+     if(msg==WM_STYLECHANGING || msg==WM_STYLECHANGED)gui_style_sync(&nested,msg,scratch,lp);
+     if (msg == WM_GETMINMAXINFO)
++    {
+         memcpy((void *)lp, G2H(scratch), 40);
++        dev_max_track((MINMAXINFO *)lp);
++    }
+     if (msg == WM_NCCALCSIZE)
+     {
+         if (wp)
+diff --git a/out/dev-init-savepoints/x87-icall-20261031/base-runtime/world_observer.h b/out/dev-init/runtime/world_observer.h
+index b6def17..490d18b 100644
+--- a/out/dev-init-savepoints/x87-icall-20261031/base-runtime/world_observer.h
++++ b/out/dev-init/runtime/world_observer.h
+@@ -9,3 +9,5 @@ void xrt_world_return(CPU*);
+ #define CALL(fn,nxt,site) do { push32(c,(nxt)); fn(c); if(c->rv!=(nxt))xrt_badret(c,(site),(nxt)); xrt_world_return(c); } while (0)
+ #undef ICALL
+ #define ICALL(t,nxt,site) do { uint32_t t__=(t); push32(c,(nxt)); xrt_icall(c,t__,(site)); if(c->rv!=(nxt))xrt_badret(c,(site),(nxt)); xrt_world_return(c); } while (0)
++#undef ICALLI
++#define ICALLI(t,nxt,site) ICALL(t,nxt,site)   /* observed units keep the observer's return check after every call */
+diff --git a/out/dev-init-savepoints/x87-icall-20261031/base-runtime/xrt.h b/out/dev-init/runtime/xrt.h
+index 59ce085..42cbf11 100644
+--- a/out/dev-init-savepoints/x87-icall-20261031/base-runtime/xrt.h
++++ b/out/dev-init/runtime/xrt.h
+@@ -124,6 +124,17 @@ XRT_INLINE void fcompare(CPU* c, double a, double b) { /* C0 (bit 8), C2 (bit 10
+     else if (a == b) c->fsw |= 0x4000;
+ }
+ XRT_INLINE uint16_t fstatus(CPU* c) { return (uint16_t)((c->fsw & ~0x3800) | ((c->top & 7) << 11)); }
++/* The same operations with TOP and the status word in the translated function's locals ft_ and fsw_ (xlift --opt x87).
++ * Without them every fpush/fpop/ST was a read-modify-write of c->top through memory that guest stores may alias, a
++ * serial store-forwarding chain. ST values stay in c->st (written through); the locals are stored to c->top/c->fsw
++ * at the register spill points and around the x87 helpers above, which use the CPU form. */
++#define XST(i) (&c->st[(ft_ + (uint32_t)(i)) & 7u])
++#define XFPUSH(v) do { double v__ = (v); ft_ = (ft_ - 1u) & 7u; c->st[ft_] = v__; } while (0)
++#define XFPOP() (ft_ = (ft_ + 1u) & 7u)
++#define XFSTATUS() ((uint16_t)((fsw_ & ~0x3800) | ((ft_ & 7u) << 11)))
++#define XFCOMPARE(a, b) do { double a__ = (a), b__ = (b); fsw_ &= (uint16_t)~0x4500; \
++        if (isnan(a__) || isnan(b__)) fsw_ |= 0x4500; else if (a__ < b__) fsw_ |= 0x0100; \
++        else if (a__ == b__) fsw_ |= 0x4000; } while (0)
+ void xrt_fsin(CPU* c);
+ void xrt_fcos(CPU* c);
+ void xrt_fptan(CPU* c);
+@@ -166,8 +177,23 @@ void xrt_preempt(CPU* c);
+ #define P(va) (c->pc = (va))
+ #endif
+ #define CALL(fn, nxt, site) do { push32(c, (nxt)); fn(c); if (c->rv != (nxt)) xrt_badret(c, (site), (nxt)); } while (0)
++/* Indirect calls. ICALL goes through xrt_icall/dispatch. ICALLI (xlift --opt icall) expands the hit path of the
++ * runtime's call-target cache (xrt_loader.c) at the call site, so each guest call site has its own host indirect call:
++ * through the single call in dispatch the branch predictor saw one site for all of them. Any module map/unmap advances
++ * xrt_call_cache_gen; misses, imports, observed targets (flags) and stale entries take xrt_icall as before, and
++ * xrt_icall_after is the world-observer return check dispatch makes after a cached call. */
++typedef struct { uint32_t va, gen; XrtFn fn; unsigned flags; } XrtCallCache;
++extern XrtCallCache xrt_call_cache[65536];
++extern uint32_t xrt_call_cache_gen;
++#define XRT_CALL_CACHE_SLOT(t) ((((t) >> 2) ^ ((t) >> 18)) & 65535)
++void xrt_icall_after(CPU* c);
+ #define ICALL(t, nxt, site) do { uint32_t t__ = (t); push32(c, (nxt)); xrt_icall(c, t__, (site)); \
+                                  if (c->rv != (nxt)) xrt_badret(c, (site), (nxt)); } while (0)
++#define ICALLI(t, nxt, site) do { uint32_t t__ = (t); const XrtCallCache* e__ = &xrt_call_cache[XRT_CALL_CACHE_SLOT(t__)]; \
++                                 push32(c, (nxt)); \
++                                 if (e__->va == t__ && e__->gen == xrt_call_cache_gen && !e__->flags) { e__->fn(c); xrt_icall_after(c); } \
++                                 else xrt_icall(c, t__, (site)); \
++                                 if (c->rv != (nxt)) xrt_badret(c, (site), (nxt)); } while (0)
+ #define RET(n) do { c->rv = pop32(c); c->r[ESP] += (n); return; } while (0)
+ 
+ /* ---------------------------------------------------------------- C++ exception landing pads (runtime/xrt_eh.c)
+diff --git a/out/dev-init-savepoints/x87-icall-20261031/base-runtime/xrt_loader.c b/out/dev-init/runtime/xrt_loader.c
+index 194f683..6e9e186 100644
+--- a/out/dev-init-savepoints/x87-icall-20261031/base-runtime/xrt_loader.c
++++ b/out/dev-init/runtime/xrt_loader.c
+@@ -106,11 +106,13 @@ static uint32_t module_generation;
+  * the diagnostic-site checks below compute; any module map/unmap invalidates it.
+  * Guest execution is serialized by the baton. */
+ enum {CALL_INPUT_INIT=1,CALL_VIEWPORT_OPEN=2,CALL_VIEWPORT_TRY=4,CALL_LOADMAP=8,CALL_POSTLOAD=16,CALL_SETRES=32};
+-typedef struct {uint32_t va,gen;XrtFn fn;unsigned flags;} CallCache;
++typedef XrtCallCache CallCache;   /* xrt.h: translated call sites read the hit path inline (ICALL) */
+ /* Direct-mapped indirect-call target cache: 64K entries, indexed by a hash of the target that mixes in the
+  * high bits (vtable targets of different modules otherwise collide in the low bits). */
+-#define CALL_CACHE_SLOT(t) ((((t)>>2)^((t)>>18))&65535)
+-static CallCache call_cache[65536];static uint32_t call_cache_gen=1;
++#define CALL_CACHE_SLOT(t) XRT_CALL_CACHE_SLOT(t)
++XrtCallCache xrt_call_cache[65536];uint32_t xrt_call_cache_gen=1;
++#define call_cache xrt_call_cache
++#define call_cache_gen xrt_call_cache_gen
+ 
+ XrtModule* xrt_module_load(const char* host_path, const XrtLiftedModule* lifted) {
+     FILE* f = fopen(host_path, "rb");
+@@ -634,6 +636,8 @@ void xrt_icall(CPU* c, uint32_t target, uint32_t site) {
+     if(observed)setres_evidence(c,id,"return",target,site,esp,ret);
+ }
+ void xrt_ijmp(CPU* c, uint32_t target, uint32_t site) { dispatch(c, target, site, "indirect jump"); }
++/* After a cached indirect call made inline by ICALL (xrt.h): the check dispatch makes after its cached call. */
++void xrt_icall_after(CPU* c) { if(!c->thread||c->r[ESP]>=c->thread->world_floor)xrt_world_return(c); }
+ 
+ uint32_t xrt_call_guest(CPU* c, uint32_t va, int nargs, const uint32_t* args, int stdcall) {
+     xm_scope(c,XM_BEGIN,XM_CALLBACK,"xrt_call_guest",va);

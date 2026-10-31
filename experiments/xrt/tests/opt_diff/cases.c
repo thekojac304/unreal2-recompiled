@@ -102,6 +102,110 @@ EXPORT uint64_t __cdecl t_float(const uint8_t* in, uint8_t* out, uint32_t n, uin
     return ((uint64_t)(x != x) << 63) | ((uint64_t)(y > 0.0) << 62) | ((uint64_t)(x < y) << 61) | k;
 }
 
+/* x87 arithmetic through compiled calls: float/double helpers return in ST(0), mixed with compares and stores */
+NOINLINE static float fx_scale(float a, float b) { return a * 0.75f - b / 3.0f; }
+NOINLINE static double fx_mix(double a, int k) { return (k & 1) ? a + k : a * 0.5 - k; }
+
+EXPORT uint64_t __cdecl t_x87_calls(const uint8_t* in, uint8_t* out, uint32_t n, uint32_t seed) {
+    union { double d; uint64_t u; } r;
+    double acc = (double)(int32_t)seed * 0.001, acc2 = 1.0;
+    uint32_t i, k = 0;
+    n &= 511;
+    for (i = 0; i + 4 <= n; i += 4) {
+        float f = *(const float*)(in + i);
+        if (!(f == f) || f > 1e30f || f < -1e30f) f = (float)(int32_t)i;
+        acc = acc + fx_scale(f, (float)acc2) * fx_mix(acc2, in[i]);
+        acc2 = acc2 * 1.0001 + (acc < acc2 ? 0.5 : -0.25);
+        if (acc > 1e9 || acc < -1e9) acc *= 1e-6;
+        k += acc > acc2;
+        *(float*)(out + (i & 252)) = (float)(acc - acc2);
+    }
+    r.d = acc;
+    return r.u ^ k;
+}
+
+/* x87 values live on the register stack across calls (a callee squares ST(0) in place, another pushes 3), helpers
+ * reached from the middle of a stack (fsqrt, fsin, fist, fnstcw/fldcw), fxch, reversed and popping arithmetic,
+ * fcom/fcomp/fucom/fucompp with fnstsw ax, and a non-empty stack at a callee's entry. The fsin result only feeds a
+ * sign test (the lifted helper is the host sin), and the returned status words keep only C0/C2/C3 and TOP (the
+ * double model does not emulate the sticky exception bits or C1). */
+static const double k_decay = 0.5;
+static __declspec(naked) void x87_square(void) { __asm { fld st(0)
+                                                         fmulp st(1), st(0)
+                                                         ret } }
+static const double k_three = 3.0;      /* not fldpi: the hardware loads pi with 64 mantissa bits, the model 53 */
+static __declspec(naked) void x87_push_three(void) { __asm { fld qword ptr [k_three]
+                                                          ret } }
+EXPORT __declspec(naked) uint64_t __cdecl t_asm_x87(const uint8_t* in, uint8_t* out, uint32_t n, uint32_t seed) {
+    __asm {
+        push esi
+        push edi
+        mov esi, [esp + 12]
+        mov edi, [esp + 16]
+        mov ecx, [esp + 20]
+        and ecx, 15
+        fld1
+        fild dword ptr [esp + 24]
+        fmul qword ptr [k_decay]
+        jecxz done
+    again:
+        fild word ptr [esi]
+        fabs
+        fadd st(0), st(2)
+        fsqrt
+        call x87_square
+        call x87_push_three
+        fmulp st(1), st(0)
+        fcom st(1)
+        fnstsw ax
+        test ah, 1
+        jz not_below
+        fsub st(0), st(2)
+    not_below:
+        fxch st(1)
+        fmul qword ptr [k_decay]
+        faddp st(1), st(0)
+        fst dword ptr [edi]
+        fist dword ptr [edi + 4]
+        fld st(0)
+        fsin
+        fldz
+        fcompp
+        fnstsw ax
+        test ah, 0x41
+        jnz no_flip
+        fchs
+        fsubr st(0), st(1)
+    no_flip:
+        fld st(0)
+        fdivr st(0), st(2)
+        fstp qword ptr [edi + 8]
+        add esi, 2
+        add edi, 16
+        dec ecx
+        jnz again
+    done:
+        sub esp, 4
+        fnstcw word ptr [esp]
+        fldcw word ptr [esp]
+        add esp, 4
+        fucom st(1)
+        fnstsw ax
+        mov edx, eax
+        fistp dword ptr [edi]
+        fstp st(0)
+        fld1
+        fldz
+        fucompp
+        fnstsw ax
+        and eax, 0x7D00
+        and edx, 0x7D00
+        pop edi
+        pop esi
+        ret
+    }
+}
+
 /* 8- and 16-bit arithmetic */
 EXPORT uint64_t __cdecl t_bytes(const uint8_t* in, uint8_t* out, uint32_t n, uint32_t seed) {
     uint8_t a = (uint8_t)seed;

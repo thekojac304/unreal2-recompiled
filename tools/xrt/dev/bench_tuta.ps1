@@ -8,9 +8,18 @@
 #   249.5 s), shots 249.8/250.1/251.5 s; 252.5 s walk forward 6 s into the scenery (collision), shot at 258.5 s.
 #   Compare the shots of two builds at different frame rates; the run then stops at 260 s instead of 247 s.
 param([Parameter(Mandatory)][string]$Question, [Parameter(Mandatory)][string]$Change,
-      [string]$Profile = 'development', [int]$SampleHz = 250, [switch]$TimingProbe)
-$menu = '10000:key:27;13000:move:-3000:-3000:300;14000:move:507:233:400;15000:shot;15500:click;' +
-        '17500:move:-3000:-3000:300;18500:move:520:310:400;19500:shot;20000:click;60000:shot;120000:shot;180000:shot;200000:shot'
+      [string]$Profile = 'development', [int]$SampleHz = 250, [switch]$TimingProbe, [string]$Res = '', [int]$Delay = 0)
+# Menu cursor: 1.5 px per DirectInput unit ([WinDrv.WindowsClient] MouseSpeed) from the top-left slam. The menus keep
+# their pixel size at every resolution (button pitch 46 px at 1540x945 and at 3840x2160) and are centred, so the
+# 1540x945 targets NEW GAME 507,233 / NORMAL 520,310 are fixed pixel offsets from the screen centre.
+$ng = '507:233'; $nm = '520:310'
+if ($Res) {
+    $w, $h = $Res.ToLower().Split('x') | ForEach-Object { [double]$_ }
+    $ng = '{0}:{1}' -f [math]::Round(($w / 2 - 9.5) / 1.5), [math]::Round(($h / 2 - 122.5) / 1.5)
+    $nm = '{0}:{1}' -f [math]::Round(($w / 2 + 10) / 1.5), [math]::Round(($h / 2 - 7.5) / 1.5)
+}
+$menu = "10000:key:27;13000:move:-3000:-3000:300;14000:move:${ng}:400;15000:shot;15500:click;" +
+        "17500:move:-3000:-3000:300;18500:move:${nm}:400;19500:shot;20000:click;60000:shot;120000:shot;180000:shot;200000:shot"
 $bench = '220000:shot;230000:shot;230000:key:87:4000;234500:move:-600:0:1500;236500:key:87:4000;' +
          '241000:key:65:2000;243500:move:600:0:1500;245500:shot'
 $seconds = 247
@@ -20,9 +29,18 @@ if ($TimingProbe) {
               '252500:key:87:6000;258500:shot'
     $seconds = 260
 }
+# -Delay S shifts the whole script (Escape included) by S seconds: CS_Intro is measured 0..10+S s after Init and
+# every later window moves by S (cutscene 150+S.., spawn 220+S.., movement 230+S..245.5+S).
+$script = "$menu;$bench"
+if ($Delay) {
+    $script = ($script -split ';' | ForEach-Object { $t, $r = $_ -split ':', 2; '{0}:{1}' -f ([int]$t + 1000 * $Delay), $r }) -join ';'
+    $seconds += $Delay
+}
+$timeout = [math]::Min(360, $seconds + 83)
+$extra = @(); if ($Res) { $extra = '--windowed-res', $Res }   # e.g. 3840x2160; empty = the snapshot's 1540x945
 $maps = 'CS_Titles.un2','Atlantis.un2','m01a.un2','TutA.un2','TutB.un2','Entry.un2' | ForEach-Object { '--allow-map', $_ }
 Set-Location (Split-Path -Parent (Split-Path -Parent (Split-Path -Parent $PSScriptRoot)))
 & .venv/Scripts/python.exe -B -I tools/xrt/dev/dev.py run --authorize-init --authorize-first-scene `
-    --first-scene 100000 --scene-seconds $seconds --timeout 330 --campaign-assets --music-script-track @maps `
-    --input "$menu;$bench" --trace-profile $Profile --sample-hz $SampleHz --question $Question --change $Change
+    --first-scene 100000 --scene-seconds $seconds --timeout $timeout --campaign-assets --music-script-track @maps `
+    --input $script --trace-profile $Profile --sample-hz $SampleHz @extra --question $Question --change $Change
 exit $LASTEXITCODE

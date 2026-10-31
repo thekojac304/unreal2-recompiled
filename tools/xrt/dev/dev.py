@@ -465,6 +465,16 @@ def run(args):
     sandbox = WS / 'sandbox_cmp' / ('dev-init-' + out.name)
     assets.check_writable(sandbox)
     shutil.copytree(assets.source(), sandbox)
+    if args.windowed_res:
+        # The run's own copy of System/Unreal2.ini (a mutable run input): the windowed viewport the game requests.
+        # The actual back buffer is whatever CreateDevice records (xrt.log create_device_parameters, capture size).
+        ini = sandbox / 'System' / 'Unreal2.ini'
+        text, n = re.subn(rb'(?m)^WindowedViewportX=\d+\r?$', b'WindowedViewportX=%d' % args.windowed_res[0], ini.read_bytes())
+        text, k = re.subn(rb'(?m)^WindowedViewportY=\d+\r?$', b'WindowedViewportY=%d' % args.windowed_res[1], text)
+        if n != 1 or k != 1:
+            raise RuntimeError('--windowed-res: WindowedViewportX/Y not found exactly once in the sandbox Unreal2.ini')
+        ini.write_bytes(text)
+        print(f'dev: windowed viewport {args.windowed_res[0]}x{args.windowed_res[1]} requested in the sandbox Unreal2.ini', flush=True)
     if args.campaign_assets:
         # Opt-in: add the retail single-player content the first-world snapshot omits (other maps and
         # their packages), read-only from the install. Never Save (a junction to personal saves) or System.
@@ -497,6 +507,10 @@ def run(args):
                XRT_MONITOR_STREAM=str(out / 'monitor.bin'),
                XRT_DMUSIC_BACKEND='ipc', XRT_DMUSIC_HELPER=str(helper),
                XRT_D3D8_DIR=str(graphics.verified_pair('x64')), XRT_STOP_FIRST_LEVEL_TICK='1')
+    if args.windowed_res:
+        # Lets a window larger than the desktop keep the requested client (runtime hle_gui.c dev_max_track): otherwise
+        # Windows clamps it, the back buffer stays at the requested size and DXVK falls back to GDI presentation.
+        env['XRT_DEV_MAX_TRACK'] = f'{args.windowed_res[0] + 64}x{args.windowed_res[1] + 128}'
     if args.first_scene:
         # Continue past Init and level ticks; the stop is after N presented world frames.
         del env['XRT_STOP_FIRST_LEVEL_TICK']
@@ -526,7 +540,8 @@ def run(args):
                                      'scene_seconds': args.scene_seconds,
                                      'music_script_track': args.music_script_track,
                                      'input_script': args.input, 'allowed_maps': args.allow_map,
-                                     'campaign_assets': args.campaign_assets, 'sample_hz': args.sample_hz})
+                                     'campaign_assets': args.campaign_assets, 'sample_hz': args.sample_hz,
+                                     'windowed_res': args.windowed_res})
     if args.attach:
         env['XRT_DEV_ATTACH'] = '1'
     command_args = ['--guest', sandbox / 'System/Unreal2.exe', '--log', out / 'xrt.log',
@@ -577,6 +592,8 @@ def main():
     r.add_argument('--input', default='', metavar='SCRIPT',
                    help='first-scene: short explicit input script "T:verb[:args];..." (key/move/click/shot), '
                         'T in ms after Init; delivered to the game window only, isolation stays on')
+    r.add_argument('--windowed-res', type=lambda v: tuple(int(x) for x in v.lower().split('x')), metavar='WxH',
+                   help='windowed viewport the game requests (WindowedViewportX/Y in the run sandbox Unreal2.ini)')
     r.add_argument('--campaign-assets', action='store_true',
                    help='first-scene: also copy the install content missing from the first-world snapshot into the sandbox')
     r.add_argument('--music-script-track', action='store_true',

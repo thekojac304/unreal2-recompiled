@@ -41,10 +41,16 @@ Optional optimizations (--opt LIST; default none, which keeps the output byte-id
          CPU state, and reloaded after it. Runtime code therefore always sees exact registers; only the
          diagnostic dump of a fatal guest-memory fault inside a function can show registers as of the last such
          point (the pc store before the faulting instruction is unchanged).
+  x87    (needs regs) x87 TOP and status word in locals ft_/fsw_ (xrt.h XST, XFPUSH...); ST values stay in c->st.
+         They are stored and reloaded at the register spill points; a statement group calling an x87 helper keeps
+         the CPU form between a store and a reload. Removes the serial read-modify-write of c->top per x87 op; the
+         x87 state the runtime sees is exact at the same points as the registers.
+  icall  (needs regs) indirect calls as ICALLI: the call-target cache hit path at the call site (a host indirect
+         branch per guest call site). x87 and icall change only functions of at most LOCAL_MAX_INSNS instructions.
 
 Usage:
   python -I tools/xrt/xlift.py <module> --out <dir> [--chunk 250] [--only 0xVA,...] [--marks FILE|--no-marks] [--base 0xADDR]
-                               [--opt flags,pc,base,regs]
+                               [--opt flags,pc,base,regs,x87,icall]
 Outputs <dir>/<stem>_NNN.c, <stem>_protos.h, <stem>_table.c and <stem>_meta.json.
 """
 import collections
@@ -104,6 +110,17 @@ NO_SPILL_CALLS = PURE_CALLS | {n + "b" for n in ("rd8", "rd16", "rd32", "rd64", 
 RELOAD_CALLS = {"CALL", "ICALL", "xrt_cpuid", "xrt_rdtsc"}
 # MSVC's register allocation time grows steeply with function size; the few giant functions keep c->r
 REGS_MAX_INSNS = 6000
+# --opt x87: x87 TOP and status word in the function's locals ft_/fsw_ (xrt.h XST ...); the register values stay in
+# c->st (written through). Helpers that read or write the x87 state through CPU* get it stored before and reloaded after.
+X87_REF = re.compile(r"\b(ST|fpush|fpop|fcompare|fstatus)\(c\b|c->(fsw|top)\b")
+X87_STATE_CALLS = re.compile(r"\b(xrt_fround|xrt_fist16|xrt_fist32|xrt_fist64|xrt_fsin|xrt_fcos|xrt_fptan|xrt_fpatan|"
+                             r"xrt_fyl2x|xrt_f2xm1|xrt_fscale|xrt_fsqrt|xrt_fldcw)\(")
+# --opt x87/icall change only functions up to this size: a few large ones (2400-3400 instructions) that MSVC still
+# optimizes fully as lifted crossed its optimization budget with the extra locals or the inline call expansion and
+# were compiled 3-6x larger and slower (GlmLib f_30b6e10 160 KB -> 525 KB), like the largest functions already are.
+LOCAL_MAX_INSNS = 2000
+X87_SPILL = "c->top = ft_; c->fsw = fsw_;"
+X87_RELOAD = "ft_ = c->top; fsw_ = c->fsw;"
 REG_WRITE = re.compile(r"\br(?P<r>[0-7])_\s*(=[^=]|[-+&|^]=|<<=|>>=|\+\+|--)|(\+\+|--)\s*r(?P<p>[0-7])_")
 
 
@@ -325,6 +342,28 @@ class Lifter:
         if reload and REG_WRITE.search(" ".join(out)):
             raise AssertionError(f"register write in a reloading statement group: {stmts}")
         return [SPILL] + out + ([RELOAD] if reload else [])
+
+    def x87_local(self, stmts):
+        """--opt x87: one instruction's statements with TOP/FSW in ft_/fsw_. A statement group that calls an x87 helper
+        (which uses c->top/c->st/c->fsw itself) keeps the CPU form between a store of the locals and a reload."""
+        s = " ".join(stmts)
+        if X87_STATE_CALLS.search(s):
+            self.opt_stats["x87_helper_brackets"] += 1
+            return [X87_SPILL] + stmts + [X87_RELOAD]
+        out = []
+        for x in stmts:
+            if x in (SPILL, RELOAD) or not X87_REF.search(x):
+                out.append(x)
+                continue
+            self.opt_stats["x87_statements_local"] += 1
+            x = x.replace("fpush(c, ", "XFPUSH(").replace("fpop(c)", "XFPOP()").replace("fcompare(c, ", "XFCOMPARE(")
+            x = x.replace("fstatus(c)", "XFSTATUS()").replace("ST(c, ", "XST(")
+            x = re.sub(r"c->fsw\b", "fsw_", x)
+            x = re.sub(r"c->top\b", "ft_", x)
+            out.append(x)
+        if X87_REF.search(" ".join(t for t in out if t not in (SPILL, RELOAD))):
+            raise AssertionError(f"x87 state access left in CPU form: {out}")
+        return out
 
     def rebase(self, s):
         """--opt base: guest accesses through the function's local copy of xrt_g (xrt.h rd32b ...)."""
@@ -1032,7 +1071,19 @@ class Lifter:
             written = {int(m.group("r") or m.group("p")) for _, stmts in body for s in stmts
                        if s not in (SPILL, RELOAD) for m in REG_WRITE.finditer(s)}
             spill = " ".join(f"c->r[{i}] = r{i}_;" for i in sorted(written)) or "/* no register written */"
-            body = [(va, [spill if s == SPILL else s for s in stmts]) for va, stmts in body]
+            reload = RELOAD
+            small = len(fn.insns) <= LOCAL_MAX_INSNS
+            if "icall" in self.opt and small:
+                # indirect calls expand the call-target cache hit path at the call site (xrt.h ICALLI)
+                body = [(va, [x.replace("ICALL(", "ICALLI(") for x in stmts]) for va, stmts in body]
+                self.opt_stats["icall_inline_functions"] += 1
+            if "x87" in self.opt and small and any(X87_REF.search(s) for _, stmts in body for s in stmts):
+                # x87 locals use the register spill points: every exit, call and CPU-state helper stores them
+                body = [(va, self.x87_local(stmts)) for va, stmts in body]
+                spill, reload = spill + " " + X87_SPILL, RELOAD + " " + X87_RELOAD
+                self.opt_stats["x87_functions"] += 1
+                lines.append("    uint32_t ft_ = c->top; uint16_t fsw_ = c->fsw;   /* --opt x87 */")
+            body = [(va, [spill if s == SPILL else reload if s == RELOAD else s for s in stmts]) for va, stmts in body]
             lines.append("    uint32_t " + ", ".join(f"r{i}_ = c->r[{i}]" for i in range(8)) + ";   /* --opt regs */")
         if hit_index is not None:
             lines.append(f"    xrt_hits_{stem}[{hit_index}] = 1;")
@@ -1103,10 +1154,14 @@ def main():
     # loader applies the same relocations when it maps the module there)
     base = int(args[args.index("--base") + 1], 16) if "--base" in args else None
     opt = set(args[args.index("--opt") + 1].split(",")) if "--opt" in args else set()
-    if opt - {"flags", "pc", "base", "regs"}:
-        sys.exit(f"unknown --opt {sorted(opt - {'flags', 'pc', 'base', 'regs'})} (known: flags, pc, base, regs)")
+    if opt - {"flags", "pc", "base", "regs", "x87", "icall"}:
+        sys.exit(f"unknown --opt {sorted(opt - {'flags', 'pc', 'base', 'regs', 'x87', 'icall'})} (known: flags, pc, base, regs, x87, icall)")
     if "regs" in opt and "base" not in opt:
         sys.exit("--opt regs needs base (the promoted stack accesses use the local guest-memory base)")
+    if "x87" in opt and "regs" not in opt:
+        sys.exit("--opt x87 needs regs (the x87 locals are stored and reloaded at the register spill points)")
+    if "icall" in opt and "regs" not in opt:
+        sys.exit("--opt icall needs regs (it applies to the functions the register pass handles)")
     os.makedirs(out, exist_ok=True)
     if base is None:
         mod = Module(path).run()

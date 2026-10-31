@@ -1,8 +1,8 @@
 {
- "opt": "flags,pc,base,regs",
+ "opt": "flags,pc,base,regs,x87,icall",
  "vectors_per_function": 3000,
- "functions": 11,
- "cases": 33000,
+ "functions": 13,
+ "cases": 39000,
  "static_traps": 1,
  "nonzero_status": 0,
  "native_vs_plain_mismatches": 0,
@@ -11,13 +11,19 @@
   "enabled": [
    "base",
    "flags",
+   "icall",
    "pc",
-   "regs"
+   "regs",
+   "x87"
   ],
-  "accesses_rebased": 318,
-  "flag_updates_reduced": 250,
-  "pc_stores_omitted": 620,
-  "register_spill_points": 80
+  "accesses_rebased": 406,
+  "flag_updates_reduced": 276,
+  "icall_inline_functions": 24,
+  "pc_stores_omitted": 743,
+  "register_spill_points": 133,
+  "x87_functions": 7,
+  "x87_helper_brackets": 5,
+  "x87_statements_local": 252
  },
  "per_function": {
   "t_asm_flags": {
@@ -26,6 +32,11 @@
    "plain_vs_opt": 0
   },
   "t_asm_loops": {
+   "cases": 3000,
+   "native_vs_plain": 0,
+   "plain_vs_opt": 0
+  },
+  "t_asm_x87": {
    "cases": 3000,
    "native_vs_plain": 0,
    "plain_vs_opt": 0
@@ -74,15 +85,21 @@
    "cases": 3000,
    "native_vs_plain": 0,
    "plain_vs_opt": 0
+  },
+  "t_x87_calls": {
+   "cases": 3000,
+   "native_vs_plain": 0,
+   "plain_vs_opt": 0
   }
  },
  "mutations": {
   "jcc-reads-nothing": {
    "detected": true,
-   "differing_cases": 32457,
+   "differing_cases": 38146,
    "functions": [
     "t_asm_flags",
     "t_asm_loops",
+    "t_asm_x87",
     "t_bytes",
     "t_calls",
     "t_div",
@@ -91,7 +108,8 @@
     "t_shift",
     "t_string",
     "t_switch",
-    "t_wide"
+    "t_wide",
+    "t_x87_calls"
    ]
   },
   "call-not-a-boundary": {
@@ -118,9 +136,10 @@
   },
   "return-not-a-boundary": {
    "detected": true,
-   "differing_cases": 25873,
+   "differing_cases": 30987,
    "functions": [
     "t_asm_flags",
+    "t_asm_x87",
     "t_bytes",
     "t_calls",
     "t_div",
@@ -129,38 +148,44 @@
     "t_shift",
     "t_string",
     "t_switch",
-    "t_wide"
+    "t_wide",
+    "t_x87_calls"
    ]
   },
   "regs-written-set-misses-esp": {
    "detected": true,
-   "differing_cases": 5967,
+   "differing_cases": 11742,
    "functions": [
     "t_asm_flags",
-    "t_calls"
+    "t_asm_x87",
+    "t_calls",
+    "t_x87_calls"
    ]
   },
   "regs-no-reload-after-call": {
    "detected": true,
-   "differing_cases": 2217,
+   "differing_cases": 7978,
    "functions": [
     "t_asm_flags",
-    "t_calls"
+    "t_asm_x87",
+    "t_calls",
+    "t_x87_calls"
    ]
   },
   "regs-no-spill-before-icall": {
    "detected": true,
-   "differing_cases": 2990,
+   "differing_cases": 2987,
    "functions": [
     "t_calls"
    ]
   },
   "regs-no-spill-before-return": {
    "detected": true,
-   "differing_cases": 33000,
+   "differing_cases": 39000,
    "functions": [
     "t_asm_flags",
     "t_asm_loops",
+    "t_asm_x87",
     "t_bytes",
     "t_calls",
     "t_div",
@@ -169,7 +194,32 @@
     "t_shift",
     "t_string",
     "t_switch",
-    "t_wide"
+    "t_wide",
+    "t_x87_calls"
+   ]
+  },
+  "x87-no-spill": {
+   "detected": true,
+   "differing_cases": 7497,
+   "functions": [
+    "t_asm_x87",
+    "t_float",
+    "t_x87_calls"
+   ]
+  },
+  "x87-no-reload": {
+   "detected": true,
+   "differing_cases": 5985,
+   "functions": [
+    "t_asm_x87",
+    "t_x87_calls"
+   ]
+  },
+  "x87-helper-no-reload": {
+   "detected": true,
+   "differing_cases": 3000,
+   "functions": [
+    "t_asm_x87"
    ]
   }
  }

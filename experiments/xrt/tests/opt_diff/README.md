@@ -24,5 +24,15 @@ guest-memory base, guest registers in locals) on whole functions, where the per-
    the in/out buffers.
 5. `--mutations` re-lifts with deliberately broken rules (jcc reads nothing; call / return not a boundary; shift
    by `cl` always overwrites; inc/dec overwrite CF; with `regs`: no reload after a call, no spill before an
-   indirect call or a return). Each must change some result. Exit 0 only if everything agrees and every
-   mutation is detected. `results.json` records the last run.
+   indirect call or a return; with `x87`: TOP/FSW locals not stored, not reloaded, or not reloaded after an x87
+   helper). Each must change some result. Exit 0 only if everything agrees and every mutation is detected.
+   `results.json` records the last run.
+6. x87 and indirect-call cases (for `--opt x87,icall`): `t_x87_calls` (compiled float/double helpers returning in
+   ST(0)) and `t_asm_x87` (values left on the x87 stack across calls, a callee working on the caller's ST(0), a callee
+   that pushes, fsqrt/fsin/fist/fnstcw/fldcw helpers from the middle of a stack, fxch, reversed and popping
+   arithmetic, fcom/fcompp/fucom/fucompp with fnstsw). The harness's xrt_icall fills the call-target cache, so later
+   indirect calls of `t_calls` take the inline ICALLI hit path.
+
+```bat
+.venv\Scripts\python.exe -I experiments\xrt\tests\opt_diff\run.py --opt flags,pc,base,regs,x87,icall --mutations --vectors 3000
+```

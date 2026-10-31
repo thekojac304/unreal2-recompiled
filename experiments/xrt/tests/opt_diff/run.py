@@ -135,6 +135,28 @@ REG_MUTATIONS = {"regs-written-set-misses-esp": mut_written_set_misses_esp,"regs
                  "regs-no-spill-before-return": mut_no_spill_before_return}
 
 
+def mut_x87_no_spill(x):
+    x.X87_SPILL = "/* mutated: x87 locals not stored */"
+
+
+def mut_x87_no_reload(x):
+    x.X87_RELOAD = "/* mutated: x87 locals not reloaded */"
+
+
+def mut_x87_helper_no_reload(x):
+    orig = x.Lifter.x87_local
+
+    def x87_local(self, stmts):
+        out = orig(self, stmts)
+        return out[:-1] if out and out[-1] == x.X87_RELOAD else out
+    x.Lifter.x87_local = x87_local
+
+
+# --opt x87 only
+X87_MUTATIONS = {"x87-no-spill": mut_x87_no_spill, "x87-no-reload": mut_x87_no_reload,
+                 "x87-helper-no-reload": mut_x87_helper_no_reload}
+
+
 def main():
     global OPT
     args = sys.argv[1:]
@@ -193,6 +215,8 @@ def main():
         res["mutations"] = {}
         if "regs" in OPT.split(","):
             MUTATIONS.update(REG_MUTATIONS)
+        if "x87" in OPT.split(","):
+            MUTATIONS.update(X87_MUTATIONS)
         for name in MUTATIONS:
             _, mut = lifted_run("mut", True, name)
             if mut is None:
