@@ -456,7 +456,7 @@ index f2488aa..2442a88 100644
      {"xrt.com","D8R.UnlockRect",d8_resource_UnlockRect}, \
      {"xrt.com","D8R.Lock",d8_resource_Lock}, \
 diff --git a/out/dev-init-savepoints/init-return-20261030/runtime/hle_d3d8_device.inc b/out/dev-init/runtime/hle_d3d8_device.inc
-index 4a1a96c..77da0a0 100644
+index 4a1a96c..f32db05 100644
 --- a/out/dev-init-savepoints/init-return-20261030/runtime/hle_d3d8_device.inc
 +++ b/out/dev-init/runtime/hle_d3d8_device.inc
 @@ -131,17 +131,52 @@ static void d8_render_ready(CPU*c,D8DeviceObject*o) {
@@ -547,12 +547,13 @@ index 4a1a96c..77da0a0 100644
  #include "d3d8_device_slots.inc"
  static void d8_CreateDevice(CPU*c) {
      d8_api_entry(c,100,7);
-@@ -183,8 +230,15 @@ static void d8_CreateDevice(CPU*c) {
+@@ -183,8 +230,16 @@ static void d8_CreateDevice(CPU*c) {
      n.flags=rd32(pp+40);n.refresh=rd32(pp+44);n.interval=rd32(pp+48);
      {
          HWND focus_host=xrt_gui_device_window(c,focus);
 -        if(InterlockedCompareExchange(&d8_attempted,1,0))
 -            xrt_fatal(c,76,"IDirect3D8::CreateDevice: one native attempt per process; retry refused");
++        xrt_dev_input_window(focus_host?focus_host:n.window); /* developer input script target */
 +        if(InterlockedCompareExchange(&d8_attempted,1,0)) {
 +            /* Sequential re-creation only: D3DDrv released its device to native count 0
 +             * (observed: DeleteVertexShader..., Release->0, CreateDevice). A device that is
@@ -566,14 +567,24 @@ index 4a1a96c..77da0a0 100644
           * has zero refs and is unreachable through the guest output in callbacks. */
          if(!d8_device_vtable)d8_device_vtable=com_vtable(d8_device_slot_names,97);
 diff --git a/out/dev-init-savepoints/init-return-20261030/runtime/hle_dinput.inc b/out/dev-init/runtime/hle_dinput.inc
-index 6c8864b..d322bce 100644
+index 6c8864b..4049ddc 100644
 --- a/out/dev-init-savepoints/init-return-20261030/runtime/hle_dinput.inc
 +++ b/out/dev-init/runtime/hle_dinput.inc
-@@ -187,6 +187,7 @@ static void did_GetDeviceData(CPU*c) {
+@@ -187,6 +187,17 @@ static void did_GetDeviceData(CPU*c) {
          wr32(q,data[i].dwOfs);wr32(q+4,data[i].dwData);wr32(q+8,data[i].dwTimeStamp);
          wr32(q+12,data[i].dwSequence);wr32(q+16,(uint32_t)app);
      }
 +    if(count&&xrt_dev_input_blocked("DirectInput buffered data"))count=0; /* developer input isolation: consumed, not delivered */
++    if(p && SUCCEEDED(hr) && xrt_dev_input_blocked(NULL)) { /* developer input script: mouse records */
++        static unsigned sequence,logged;unsigned ofs,value;
++        while(count<capacity && xrt_dev_input_mouse(&ofs,&value)) {
++            uint32_t q=p+count*20;
++            wr32(q,ofs);wr32(q+4,value);wr32(q+8,GetTickCount());wr32(q+12,0x40000000u+ ++sequence);wr32(q+16,0xffffffffu);count++;
++            if(logged++<64)xrt_log("DEV input DirectInput record ofs %u data %d hr %08lx",ofs,(int)value,(unsigned long)hr);
++        }
++    } else if(p && FAILED(hr) && xrt_dev_input_blocked(NULL)) {
++        static unsigned failures; if(failures++<8)xrt_log("DEV input: GetDeviceData hr %08lx (no scripted records delivered)",(unsigned long)hr);
++    }
      wr32(pc,count);
      xrt_event("dinput_data","\"object\":%u,\"capacity\":%u,\"count\":%u,\"guest_size\":20,\"host_size\":%u,\"result\":%u",o->guest,capacity,count,(unsigned)sizeof data[0],(uint32_t)hr);
      RET_STD(5,hr);
@@ -784,18 +795,19 @@ index 72a172a..061098a 100644
   {"xrt.com","DMI.Volume",dmi_Volume},{"xrt.com","DMI.Routine",dmi_Routine}, \
   {"xrt.com","DMI.ReleaseObject",dmi_ReleaseObject},{"xrt.com","DMI.Stop",dmi_Stop},{"xrt.com","DMI.Close",dmi_Close},
 diff --git a/out/dev-init-savepoints/init-return-20261030/runtime/hle_gui.c b/out/dev-init/runtime/hle_gui.c
-index c9ff9c9..b4d630d 100644
+index c9ff9c9..ffc2f31 100644
 --- a/out/dev-init-savepoints/init-return-20261030/runtime/hle_gui.c
 +++ b/out/dev-init/runtime/hle_gui.c
-@@ -74,6 +74,7 @@ static void hle_GetKeyState(CPU*c) {
+@@ -74,6 +74,8 @@ static void hle_GetKeyState(CPU*c) {
      uint32_t key=ARG(0);SHORT result;
      if(key>255)xrt_fatal(c,XRT_EXIT_UNSUPPORTED,"GetKeyState(%u): unmeasured virtual key",key);
      begin(c);result=xm_win_GetKeyState((int)key);end(c);
 +    if((result&0x8000)&&xrt_dev_input_blocked("GetKeyState down state"))result&=1; /* developer input isolation */
++    if(xrt_dev_input_blocked(NULL)&&xrt_dev_key_held(key))result=(SHORT)(0xff80|(result&1)); /* scripted key down */
      RET_STD(1,(uint32_t)(int32_t)result);
  }
  static void hle_SetKeyboardState(CPU*c) {
-@@ -466,8 +467,15 @@ static void hle_ClipCursor(CPU* c)
+@@ -466,8 +468,18 @@ static void hle_ClipCursor(CPU* c)
  {
      uint32_t p=ARG(0),esp=c->r[ESP],caller=rd32(esp);BOOL result;
      xrt_event("gui_clip_cursor_call","\"rect\":%u,\"esp\":%u,\"return\":%u,\"last_error\":%u",p,esp,caller,xrt_get_last_error(c));
@@ -806,14 +818,17 @@ index c9ff9c9..b4d630d 100644
 +        RECT r;
 +        if(!writable_guest_rect(p))xrt_fatal(c,XRT_EXIT_UNSUPPORTED,"ClipCursor: RECT outside writable guest memory");
 +        r.left=(LONG)rd32(p);r.top=(LONG)rd32(p+4);r.right=(LONG)rd32(p+8);r.bottom=(LONG)rd32(p+12);
-+        begin(c);result=xm_win_ClipCursor(&r);end(c);
++        if(xrt_dev_input_blocked(NULL)){xrt_dev_cursor(2,NULL,NULL,&r);result=1;} /* developer isolation: virtual cursor only */
++        else{begin(c);result=xm_win_ClipCursor(&r);end(c);}
++    } else if(xrt_dev_input_blocked(NULL)) {
++        xrt_dev_cursor(2,NULL,NULL,NULL);result=1;
 +    } else {
 +        begin(c);result=xm_win_ClipCursor(NULL);end(c);
 +    }
      RET_STD(1,result);
      xrt_event("gui_clip_cursor_return","\"rect\":%u,\"result\":%u,\"last_error\":%u,\"esp_before\":%u,\"esp_after\":%u,\"return\":%u,\"actual_return\":%u",p,(unsigned)result,xrt_get_last_error(c),esp,c->r[ESP],caller,c->rv);
  }
-@@ -556,6 +564,7 @@ static void unpack_windowpos(WINDOWPOS *w, uint32_t p)
+@@ -556,6 +568,7 @@ static void unpack_windowpos(WINDOWPOS *w, uint32_t p)
  }
  #include "hle_gui_diag.inc"
  #include "window_transitions.inc"
@@ -821,7 +836,7 @@ index c9ff9c9..b4d630d 100644
  static INT_PTR invoke_gui_proc(HWND h, UINT msg, WPARAM wp, LPARAM lp, uint32_t explicit_proc)
  {
      xm_scope(callback_cpu,XM_BEGIN,XM_CALLBACK,"USER32.invoke_gui_proc",msg);
-@@ -653,13 +662,21 @@ static INT_PTR invoke_gui_proc(HWND h, UINT msg, WPARAM wp, LPARAM lp, uint32_t
+@@ -653,13 +666,22 @@ static INT_PTR invoke_gui_proc(HWND h, UINT msg, WPARAM wp, LPARAM lp, uint32_t
          if (wp || lp)
              xrt_fatal(&nested, XRT_EXIT_UNSUPPORTED, "theme destruction notification has nonzero arguments");
          break;
@@ -842,10 +857,11 @@ index c9ff9c9..b4d630d 100644
 +         * restores the host value when the guest passes it on to the default procedure. */
 +        if (wp != 1 && (WPARAM)(LONG_PTR)(int32_t)(uint32_t)wp != wp)
 +            xrt_fatal(&nested, XRT_EXIT_UNSUPPORTED, "WM_NCPAINT region handle is not 32-bit representable");
++        { static unsigned ncpaints; if (ncpaints++ < 8) xrt_log("WM_NCPAINT %s wParam %llx", wp == 1 ? "whole frame" : "region", (unsigned long long)wp); }
          break;
      case WM_STYLECHANGING: case WM_STYLECHANGED:
          if(!lp || ((int32_t)wp!=GWL_STYLE && (int32_t)wp!=GWL_EXSTYLE))
-@@ -742,6 +759,14 @@ static INT_PTR invoke_gui_proc(HWND h, UINT msg, WPARAM wp, LPARAM lp, uint32_t
+@@ -742,6 +764,14 @@ static INT_PTR invoke_gui_proc(HWND h, UINT msg, WPARAM wp, LPARAM lp, uint32_t
      case WM_PALETTECHANGED:
          args[2] = window_token((HWND)wp);
          break;
@@ -860,7 +876,7 @@ index c9ff9c9..b4d630d 100644
      case WM_NOTIFY:
      case WM_DRAWITEM:
      case WM_MEASUREITEM:
-@@ -752,13 +777,15 @@ static INT_PTR invoke_gui_proc(HWND h, UINT msg, WPARAM wp, LPARAM lp, uint32_t
+@@ -752,13 +782,15 @@ static INT_PTR invoke_gui_proc(HWND h, UINT msg, WPARAM wp, LPARAM lp, uint32_t
          xrt_fatal(&nested, XRT_EXIT_UNSUPPORTED, "dialog callback pointer message 0x%x requires marshalling", msg);
      default:
          /* Exact measured registered notification; preserve error while resolving its session identity. */
@@ -881,7 +897,7 @@ index c9ff9c9..b4d630d 100644
          }
          /* Only measured scalar messages may cross unmodified. */
          if (!((msg <= WM_ENABLE && msg != WM_GETTEXT) || msg == WM_PAINT || msg == WM_ERASEBKGND ||
-@@ -766,7 +793,13 @@ static INT_PTR invoke_gui_proc(HWND h, UINT msg, WPARAM wp, LPARAM lp, uint32_t
+@@ -766,7 +798,13 @@ static INT_PTR invoke_gui_proc(HWND h, UINT msg, WPARAM wp, LPARAM lp, uint32_t
                msg == WM_NCDESTROY || msg == WM_CANCELMODE || msg == WM_GETDLGCODE || msg == WM_GETFONT ||
                msg == WM_CHANGEUISTATE || msg == WM_UPDATEUISTATE || msg == WM_QUERYUISTATE ||
                msg == WM_QUERYNEWPALETTE || msg == WM_PALETTECHANGED || msg == WM_DWMNCRENDERINGCHANGED ||
@@ -896,7 +912,23 @@ index c9ff9c9..b4d630d 100644
              xrt_fatal(&nested, XRT_EXIT_UNSUPPORTED, "dialog callback message 0x%x unsupported (wp=%llx lp=%llx)",
                        msg, (unsigned long long)wp, (unsigned long long)lp);
      }
-@@ -1140,6 +1173,19 @@ const XrtHle xrt_hle_gui[] = {{"comctl32.dll", "#17", hle_InitCommonControls},
+@@ -1002,6 +1040,15 @@ static void send_message(CPU *c, int wide)
+         end(c);callback_cpu=prev;token=borrowed_icon_token(c,(HICON)result);
+         RET_STD(4,token);return;
+     }
++    if(msg==WM_NCACTIVATE) {
++        /* WWindow::WndProc forwards activation to its owner: wParam BOOL, lParam 0, -1 or an update
++         * region whose 32-bit value is the full GDI handle (sign-extended, as for WM_NCPAINT). */
++        static unsigned logged;
++        if(logged++<8)xrt_log("SendMessage WM_NCACTIVATE wParam %u lParam %08x",(unsigned)wp,ARG(3));
++        callback_cpu=c;begin(c);
++        result=wide?xm_win_SendMessageW(window_host(ARG(0)),msg,wp,(LPARAM)(int32_t)ARG(3)):xm_win_SendMessageA(window_host(ARG(0)),msg,wp,(LPARAM)(int32_t)ARG(3));
++        end(c);callback_cpu=prev;RET_STD(4,(uint32_t)result);return;
++    }
+     if(msg==WM_SETTEXT || msg==WM_GETTEXTLENGTH) {
+         if(msg==WM_SETTEXT && ARG(3) && ARG(3)<0x10000)
+             xrt_fatal(c,XRT_EXIT_UNSUPPORTED,"WM_SETTEXT invalid guest string");
+@@ -1140,6 +1187,19 @@ const XrtHle xrt_hle_gui[] = {{"comctl32.dll", "#17", hle_InitCommonControls},
                                {"user32.dll", "SetMenu", hle_SetMenu},
                                {"user32.dll", "PostMessageA", hle_PostMessageA},
                                {"user32.dll", "PostMessageW", hle_PostMessageW},
@@ -917,7 +949,7 @@ index c9ff9c9..b4d630d 100644
                                {"user32.dll", "GetWindowLongA", hle_GetWindowLongA},
                                {"user32.dll", "IsWindow", hle_IsWindow},
 diff --git a/out/dev-init-savepoints/init-return-20261030/runtime/hle_kernel32.c b/out/dev-init/runtime/hle_kernel32.c
-index a5a4f46..e8ca358 100644
+index a5a4f46..b637834 100644
 --- a/out/dev-init-savepoints/init-return-20261030/runtime/hle_kernel32.c
 +++ b/out/dev-init/runtime/hle_kernel32.c
 @@ -105,6 +105,7 @@ static uint32_t create_file(CPU* c, const uint16_t* name, uint32_t access, uint3
@@ -928,7 +960,31 @@ index a5a4f46..e8ca358 100644
      if (h == INVALID_HANDLE_VALUE) {
          set_err_from_host(c);
          xrt_log("CreateFile(\"%s\", %08x, disp %u) -> failed, error %u", a, access, disp, xrt_get_last_error(c));
-@@ -955,6 +956,22 @@ static void hle_GetLocalTime(CPU* c) {
+@@ -933,6 +934,23 @@ static void hle_WideCharToMultiByte(CPU* c) {
+ 
+ static void hle_GetTickCount(CPU* c) { RET_STD(0, GetTickCount()); }
+ 
++/* IsBadReadPtr(lp, ucb): TRUE when any byte of the guest range is not on a committed, readable page
++ * (Engine validates cached object pointers with it). ucb 0 is FALSE; a wrapping range is TRUE. */
++static void hle_IsBadReadPtr(CPU* c) {
++    uint32_t a = ARG(0), n = ARG(1);
++    uint64_t p = a, end = (uint64_t)a + n;
++    int bad = 0;
++    if (n && end > 0x100000000ull) bad = 1;
++    while (!bad && p < end) {
++        MEMORY_BASIC_INFORMATION mbi;
++        if (!VirtualQuery(xrt_g + p, &mbi, sizeof mbi) || mbi.State != MEM_COMMIT ||
++            (mbi.Protect & (PAGE_NOACCESS | PAGE_GUARD)) || !mbi.Protect) bad = 1;
++        else p = (uint64_t)((uint8_t*)mbi.BaseAddress - xrt_g) + mbi.RegionSize;
++    }
++    { static unsigned logged; if (bad && logged++ < 8) xrt_log("IsBadReadPtr(%08x, %u) -> TRUE", a, n); }
++    RET_STD(2, (uint32_t)bad);
++}
++
+ /* time and identity sources (GlmLib.dll's CRT startup derives its /GS cookie from these; the values are host
+  * values, as nondeterministic as in the original) */
+ static void hle_GetSystemTimeAsFileTime(CPU* c) {
+@@ -955,6 +973,22 @@ static void hle_GetLocalTime(CPU* c) {
  }
  static void hle_GetCurrentProcessId(CPU* c) { RET_STD(0, rd32(c->fs_base + 0x20)); }
  static void hle_GetCurrentThreadId(CPU* c) { RET_STD(0, c->thread->guest_tid); }
@@ -951,7 +1007,12 @@ index a5a4f46..e8ca358 100644
  static void hle_QueryPerformanceCounter(CPU* c) {
      LARGE_INTEGER v;
      QueryPerformanceCounter(&v);
-@@ -1488,6 +1505,8 @@ const XrtHle xrt_hle_kernel32[] = {
+@@ -1484,10 +1518,13 @@ const XrtHle xrt_hle_kernel32[] = {
+     {"kernel32.dll", "MultiByteToWideChar", hle_MultiByteToWideChar},
+     {"kernel32.dll", "WideCharToMultiByte", hle_WideCharToMultiByte},
+     {"kernel32.dll", "GetTickCount", hle_GetTickCount},
++    {"kernel32.dll", "IsBadReadPtr", hle_IsBadReadPtr},
+     {"kernel32.dll", "GetSystemTimeAsFileTime", hle_GetSystemTimeAsFileTime},
      {"kernel32.dll", "GetLocalTime", hle_GetLocalTime},
      {"kernel32.dll", "GetCurrentProcessId", hle_GetCurrentProcessId},
      {"kernel32.dll", "GetCurrentThreadId", hle_GetCurrentThreadId},
@@ -1136,10 +1197,10 @@ index 499eb50..c0f4c4b 100644
      {"msvcr70.dll", "_isnan", hle_isnan},
 diff --git a/out/dev-init/runtime/message_pump.inc b/out/dev-init/runtime/message_pump.inc
 new file mode 100644
-index 0000000..7f91981
+index 0000000..8a2953b
 --- /dev/null
 +++ b/out/dev-init/runtime/message_pump.inc
-@@ -0,0 +1,123 @@
+@@ -0,0 +1,130 @@
 +/* Main-loop message pump. Guest MSG is 28 bytes: hwnd token, message, wParam,
 + * lParam, time, pt.x, pt.y. The native MSG last returned by PeekMessage is kept,
 + * so Translate/Dispatch of that unchanged guest copy forward the exact native
@@ -1166,6 +1227,7 @@ index 0000000..7f91981
 +    gui_transition_memory(c,c->r[ESP],24,0);gui_transition_memory(c,out,28,1);
 +    if(flags&~(PM_REMOVE|PM_NOYIELD))xrt_fatal(c,76,"PeekMessage: queue-status flags %x unmodelled",flags);
 +    if(filter==0xffffffffu)h=(HWND)(LONG_PTR)-1;else if(filter)h=xrt_gui_device_window(c,filter);
++    xrt_dev_input_tick(); /* developer input script: posts its scripted messages before this peek */
 +    prev=xrt_gui_callback_enter(c);begin(c);
 +    pump_probe(&q,XM_BEGIN,wide?"WIN.PeekMessageW":"WIN.PeekMessageA",(uint64_t)(uintptr_t)h,flags,0);
 +    r=wide?PeekMessageW(&m,h,ARG(2),ARG(3),flags):PeekMessageA(&m,h,ARG(2),ARG(3),flags);
@@ -1173,7 +1235,8 @@ index 0000000..7f91981
 +    end(c);xrt_gui_callback_leave(prev);
 +    /* Developer input isolation: physical input messages reach the guest as WM_NULL. */
 +    if(r && ((m.message>=WM_KEYFIRST&&m.message<=WM_KEYLAST)||(m.message>=WM_MOUSEFIRST&&m.message<=WM_MOUSELAST)||
-+             (m.message>=WM_NCMOUSEMOVE&&m.message<=WM_NCXBUTTONDBLCLK)||m.message==WM_INPUT) && xrt_dev_input_blocked(NULL)) {
++             (m.message>=WM_NCMOUSEMOVE&&m.message<=WM_NCXBUTTONDBLCLK)||m.message==WM_INPUT) && xrt_dev_input_blocked(NULL) &&
++       !xrt_dev_input_allowed(m.hwnd,m.message,(unsigned long long)m.wParam,(long long)m.lParam)) {
 +        xrt_dev_input_blocked("window input message");m.message=WM_NULL;m.wParam=0;m.lParam=0;
 +    }
 +    if(r) {
@@ -1237,6 +1300,9 @@ index 0000000..7f91981
 +    gui_transition_memory(c,c->r[ESP],op?12:8,0);gui_transition_memory(c,p,8,1);
 +    if(op)h=xrt_gui_device_window(c,w);
 +    pt.x=(LONG)rd32(p);pt.y=(LONG)rd32(p+4);
++    if(op==0 && xrt_dev_input_blocked(NULL)) { /* developer isolation: virtual cursor */
++        long x,y;xrt_dev_cursor(0,&x,&y,NULL);wr32(p,(uint32_t)x);wr32(p+4,(uint32_t)y);RET_STD(1,1);return;
++    }
 +    prev=xrt_gui_callback_enter(c);begin(c);
 +    ok=op==0?GetCursorPos(&pt):op==1?ClientToScreen(h,&pt):ScreenToClient(h,&pt);
 +    end(c);xrt_gui_callback_leave(prev);
@@ -1247,7 +1313,9 @@ index 0000000..7f91981
 +static void hle_ClientToScreen(CPU*c){cursor_point(c,1);}
 +static void hle_ScreenToClient(CPU*c){cursor_point(c,2);}
 +static void hle_SetCursorPos(CPU*c) {
-+    BOOL ok;gui_transition_memory(c,c->r[ESP],12,0);begin(c);ok=SetCursorPos((int)ARG(0),(int)ARG(1));end(c);RET_STD(2,ok);
++    BOOL ok;gui_transition_memory(c,c->r[ESP],12,0);
++    if(xrt_dev_input_blocked(NULL)){long x=(long)(int32_t)ARG(0),y=(long)(int32_t)ARG(1);xrt_dev_cursor(1,&x,&y,NULL);RET_STD(2,1);return;}
++    begin(c);ok=SetCursorPos((int)ARG(0),(int)ARG(1));end(c);RET_STD(2,ok);
 +}
 +static void hle_ShowCursor(CPU*c) {
 +    int n;gui_transition_memory(c,c->r[ESP],8,0);begin(c);n=ShowCursor((BOOL)ARG(0));end(c);RET_STD(1,(uint32_t)n);
@@ -2263,7 +2331,7 @@ index 3819bd4..683d5f7 100644
  }
  
 diff --git a/out/dev-init-savepoints/init-return-20261030/runtime/xrt_internal.h b/out/dev-init/runtime/xrt_internal.h
-index 641fccc..10f0138 100644
+index 641fccc..d46c632 100644
 --- a/out/dev-init-savepoints/init-return-20261030/runtime/xrt_internal.h
 +++ b/out/dev-init/runtime/xrt_internal.h
 @@ -100,6 +100,7 @@ void xrt_com_thread_cleanup(CPU* c); /* owning thread only; Loader8 references b
@@ -2274,7 +2342,7 @@ index 641fccc..10f0138 100644
  XrtThread* xrt_thread_main(uint32_t stack_reserve);
  uint32_t xrt_thread_create(CPU* c, uint32_t stack_size, uint32_t start, uint32_t param, uint32_t* tid);
  XRT_NORETURN void xrt_thread_exit(CPU* c, uint32_t code);
-@@ -140,6 +141,15 @@ XrtFn xrt_lookup(uint32_t va, const char** stub_name);
+@@ -140,6 +141,21 @@ XrtFn xrt_lookup(uint32_t va, const char** stub_name);
  uint32_t xrt_lookup_containing(uint32_t va);                /* lifted function entry at or below va */
  uint32_t xrt_call_guest(CPU* c, uint32_t va, int nargs, const uint32_t* args, int stdcall);
  void xrt_world_enter(CPU* c, uint32_t target);
@@ -2286,6 +2354,12 @@ index 641fccc..10f0138 100644
 +int xrt_dev_draw_dump(void);
 +void xrt_dev_music_cue(const unsigned short*text);
 +int xrt_dev_input_blocked(const char*what);
++void xrt_dev_input_tick(void);
++void xrt_dev_input_window(void*hwnd);
++int xrt_dev_input_allowed(void*hwnd,unsigned msg,unsigned long long wp,long long lp);
++int xrt_dev_input_mouse(unsigned*ofs,unsigned*data);
++int xrt_dev_key_held(unsigned vk);
++void xrt_dev_cursor(int op,long*x,long*y,const void*r);
 +void xrt_dev_scene_present(CPU*c,long hr,unsigned draws,unsigned prims,unsigned scene_draws,unsigned scene_prims,unsigned level_draws);
  void xrt_world_return(CPU* c);
  uint32_t xrt_call_funclet(CPU* c, uint32_t va);   /* EH funclet call: no args, not a host boundary */

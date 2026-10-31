@@ -53,6 +53,18 @@ cache, world-return fast path): 8.0 -> 18.3 fps average. Legend logo scene stays
 AFluidSurfaceInfo::UpdateSimulation -> appRound -> msvcr70 floor was 48% of recorded calls; floor/ceil/
 _CIfmod are now quiet leaves (UNMEASURED: final launch hit a host WM_NCPAINT region at startup, fixed
 by 32-bit handle pass-through, also not yet run).
+Menu-to-gameplay batch (2026-10-31 midday, 10 launches, ~1980 s): startup -> attract loop -> Escape ->
+main menu -> NEW GAME -> NORMAL -> CS_Titles -> TutA (the normal new-game path) -> opening cutscene ->
+PLAYER CONTROL (run 20261031-124244-4ab5c107: walk, turn, strafe, look, jump, back; walking into the
+window blocks movement while W stays held). Quiet math verified (run 20261031-115841-514cd54e): Legend
+scene 2.1 -> 12.6 fps, Init->FinalEvent 18.3 -> 22.0 fps. Gameplay ~11 fps (90 ms/frame), titles 37 fps,
+TutA cutscene 6.5 fps. Options: --input "T:verb[:args];..." (key/move/click/shot, T = ms after Init,
+max 256 steps) delivers WM_KEY*/WM_MOUSE* posted to the game's own D3D focus window (exact-match
+allow-list through isolation), DirectInput mouse records only when the device reports success, a
+virtual cursor for Get/SetCursorPos/ClipCursor under isolation, and pauses while the game process
+is not foreground (never takes focus). --campaign-assets copies install content missing from the
+first-world snapshot (never Save/System) into the sandbox. Fixed: x87 ffree st(i) (xlift.py; dev copy
+out/dev-init/generated/D3DDrv_002.c), SendMessage WM_NCACTIVATE, kernel32 IsBadReadPtr.
 
 The third developer run (20261030-221937-21570264) reached successful window
 creation and continued file-backed loading. Its last completed ReadFile returned

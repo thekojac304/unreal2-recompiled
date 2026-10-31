@@ -587,6 +587,10 @@ class Lifter:
                 o.append(f"fcompare(c, *ST(c, 0), *ST(c, {rm}));")
                 if reg == 5:
                     o.append("fpop(c);")
+            elif reg == 0:
+                # ffree st(i) only tags the register empty; values and TOP are unchanged. The model has no
+                # tag word and no stack-fault detection (fpush never faults), so there is nothing to change.
+                o.append(f"/* ffree st({rm}): tag word not modelled */")
             else:
                 raise Unsupported(f"x87 instruction {m}")
             return o

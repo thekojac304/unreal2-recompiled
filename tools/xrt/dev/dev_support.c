@@ -123,6 +123,193 @@ int xrt_dev_input_blocked(const char *what) {
     if (mode && what && dropped++ < 16) xrt_log("DEV input isolation: dropped %s", what);
     return mode;
 }
+/* XRT_DEV_INPUT (dev.py --input): a short explicit input script, only with isolation on.
+ * Steps "T:verb[:a[:b[:c]]]" separated by ';', T = ms after Init return, ascending:
+ *   key:VK[:HOLD]    WM_KEYDOWN, WM_KEYUP after HOLD ms (default 100), posted to the game's
+ *                    own D3D focus window; GetKeyState reports the key down meanwhile
+ *   move:DX:DY[:MS]  mouse motion spread over MS: DirectInput axis data, the virtual cursor
+ *                    and WM_MOUSEMOVE, as one physical mouse produces them together
+ *   click[:HOLD]     left button: DirectInput button 0 and WM_LBUTTONDOWN/UP
+ *   shot             capture the next present
+ * Only the exact scripted messages pass the isolation filter; physical input stays dropped.
+ * Under isolation GetCursorPos/SetCursorPos/ClipCursor use a virtual cursor, never the desktop's. */
+typedef struct { unsigned t; char verb; int a, b, c; } InputStep;
+static InputStep in_steps[256];
+static unsigned in_count, in_next, in_delivered;
+static int in_parsed;
+static HWND in_window;
+static struct { unsigned vk; ULONGLONG up; } in_keys[8];
+static struct { ULONGLONG start; unsigned ms; int dx, dy, done_x, done_y; } in_moves[4];
+static ULONGLONG in_button_up, in_paused;
+static int in_button;
+static struct { UINT msg; WPARAM wp; LPARAM lp; ULONGLONG expires; int any_wp; } in_allow[32];
+static struct { unsigned ofs, data; } in_di[256];
+static unsigned in_di_head, in_di_tail, in_shot;
+static POINT in_cursor;
+static RECT in_clip;
+static int in_cursor_valid, in_clipped;
+static void input_parse(void) {
+    const char *v = getenv("XRT_DEV_INPUT");
+    in_parsed = 1;
+    while (v && *v && in_count < 256) {
+        InputStep s = {0};
+        char verb[16] = {0};
+        int n = 0;
+        s.t = (unsigned)strtoul(v, (char **)&v, 10);
+        if (*v++ != ':') break;
+        while (*v && *v != ':' && *v != ';' && n < 15) verb[n++] = *v++;
+        if (!strcmp(verb, "key")) s.verb = 'k'; else if (!strcmp(verb, "move")) s.verb = 'm';
+        else if (!strcmp(verb, "click")) s.verb = 'c'; else if (!strcmp(verb, "shot")) s.verb = 's';
+        else { xrt_log("DEV input script: unknown verb '%s'; script ignored from here", verb); break; }
+        if (*v == ':') s.a = (int)strtol(v + 1, (char **)&v, 0);
+        if (*v == ':') s.b = (int)strtol(v + 1, (char **)&v, 0);
+        if (*v == ':') s.c = (int)strtol(v + 1, (char **)&v, 0);
+        if (in_count && s.t < in_steps[in_count - 1].t) { xrt_log("DEV input script: times must ascend; ignored from step %u", in_count); break; }
+        in_steps[in_count++] = s;
+        while (*v && *v != ';') v++;
+        if (*v == ';') v++;
+    }
+    if (in_count) xrt_log("DEV input script: %u steps%s", in_count, v && *v ? " (TRUNCATED: more steps than the 256 supported)" : "");
+}
+void xrt_dev_input_window(void *hwnd) {
+    if (!in_window && hwnd) { in_window = (HWND)hwnd; xrt_log("DEV input: game focus window %p", hwnd); }
+}
+static void input_allow(UINT msg, WPARAM wp, LPARAM lp, int any_wp) {
+    unsigned i;
+    for (i = 0; i < 32; i++) if (!in_allow[i].expires) break;
+    if (i == 32) { xrt_log("DEV input: allow table full; message not posted"); return; }
+    in_allow[i].msg = msg; in_allow[i].wp = wp; in_allow[i].lp = lp; in_allow[i].any_wp = any_wp;
+    in_allow[i].expires = GetTickCount64() + 2000;
+    if (!any_wp && !PostMessageW(in_window, msg, wp, lp)) { xrt_log("DEV input: PostMessage %x failed %lu", msg, GetLastError()); in_allow[i].expires = 0; }
+}
+/* 1 when a scripted message was posted for exactly this window/message: consumed once. */
+int xrt_dev_input_allowed(void *hwnd, unsigned msg, unsigned long long wp, long long lp) {
+    unsigned i; ULONGLONG now = GetTickCount64();
+    if (!in_window || (HWND)hwnd != in_window) return 0;
+    for (i = 0; i < 32; i++) {
+        if (!in_allow[i].expires) continue;
+        if (in_allow[i].expires < now) { xrt_log("DEV input: scripted message %x expired undelivered", in_allow[i].msg); in_allow[i].expires = 0; continue; }
+        if (in_allow[i].msg == msg && (in_allow[i].any_wp || (in_allow[i].wp == wp && in_allow[i].lp == lp))) {
+            in_allow[i].expires = 0;
+            if (in_delivered++ < 96) xrt_log("DEV input delivered msg %x wp %llx lp %llx at +%llu ms", msg, wp, lp, now - init_ms);
+            if (msg == WM_KEYDOWN) input_allow(WM_CHAR, 0, 0, 1); /* TranslateMessage's own WM_CHAR */
+            return 1;
+        }
+    }
+    return 0;
+}
+static void di_push(unsigned ofs, unsigned data) {
+    if (in_di_tail - in_di_head >= 256) { xrt_log("DEV input: DirectInput queue full"); return; }
+    in_di[in_di_tail++ & 255].ofs = ofs; in_di[(in_di_tail - 1) & 255].data = data;
+}
+int xrt_dev_input_mouse(unsigned *ofs, unsigned *data) {
+    if (in_di_head == in_di_tail) return 0;
+    *ofs = in_di[in_di_head & 255].ofs; *data = in_di[in_di_head & 255].data; in_di_head++;
+    return 1;
+}
+static void cursor_init(void) {
+    if (!in_cursor_valid) { GetCursorPos(&in_cursor); in_cursor_valid = 1; }
+}
+static void cursor_clamp(void) {
+    if (in_clipped) {
+        if (in_cursor.x < in_clip.left) in_cursor.x = in_clip.left;
+        if (in_cursor.x >= in_clip.right) in_cursor.x = in_clip.right - 1;
+        if (in_cursor.y < in_clip.top) in_cursor.y = in_clip.top;
+        if (in_cursor.y >= in_clip.bottom) in_cursor.y = in_clip.bottom - 1;
+    }
+}
+/* Virtual cursor under isolation: op 0 get, 1 set, 2 clip (r NULL = unclip). */
+void xrt_dev_cursor(int op, long *x, long *y, const void *r) {
+    cursor_init();
+    if (op == 0) { *x = in_cursor.x; *y = in_cursor.y; return; }
+    if (op == 1) { in_cursor.x = *x; in_cursor.y = *y; cursor_clamp(); return; }
+    in_clipped = r != NULL;
+    if (r) { in_clip = *(const RECT *)r; cursor_clamp(); }
+}
+static LPARAM client_point(void) {
+    POINT p = in_cursor;
+    ScreenToClient(in_window, &p);
+    return MAKELPARAM((short)p.x, (short)p.y);
+}
+int xrt_dev_key_held(unsigned vk) {
+    unsigned i;
+    for (i = 0; i < 8; i++) if (in_keys[i].up && in_keys[i].vk == vk) return 1;
+    return vk == VK_LBUTTON && in_button;
+}
+static void key_post(unsigned vk, int down) {
+    UINT sc = MapVirtualKeyW(vk, MAPVK_VK_TO_VSC);
+    LPARAM lp = 1 | (LPARAM)sc << 16 | (down ? 0 : (LPARAM)0xC0000000u);
+    input_allow(down ? WM_KEYDOWN : WM_KEYUP, vk, lp, 0);
+}
+/* Called from the guest's message pump before each host PeekMessage. */
+void xrt_dev_input_tick(void) {
+    ULONGLONG now; unsigned i; int ours;
+    if (!in_parsed) input_parse();
+    if (!in_count || !scene_mode() || !post_init || !xrt_dev_input_blocked(NULL)) return;
+    now = GetTickCount64();
+    if (!in_window) return;
+    {
+        /* Focus-dependent input: new steps and motion run only while a window of this process is
+         * the foreground window; otherwise the schedule pauses (later steps shift). Releases still
+         * go out so nothing stays held. Focus is never taken. */
+        static ULONGLONG last; static int foreground = -1;
+        DWORD pid = 0; HWND fg = GetForegroundWindow();
+        if (fg) GetWindowThreadProcessId(fg, &pid);
+        ours = pid == GetCurrentProcessId();
+        if (ours != foreground) {
+            xrt_log("DEV input: game process %s the foreground at +%llu ms (schedule paused %llu ms so far)",
+                    ours ? "has" : "does not have", now - init_ms, in_paused);
+            foreground = ours;
+        }
+        if (!ours && last) in_paused += now - last;
+        last = now;
+    }
+    cursor_init();
+    for (i = 0; i < 8; i++) if (in_keys[i].up && now >= in_keys[i].up) { key_post(in_keys[i].vk, 0); in_keys[i].up = 0; }
+    if (in_button && now >= in_button_up) {
+        in_button = 0; di_push(12, 0); input_allow(WM_LBUTTONUP, 0, client_point(), 0);
+    }
+    if (!ours) return;
+    for (i = 0; i < 4; i++) {
+        int wx, wy, ddx, ddy; double f;
+        if (!in_moves[i].start) continue;
+        f = in_moves[i].ms ? (double)(now - in_moves[i].start) / in_moves[i].ms : 1.0;
+        if (f > 1.0) f = 1.0;
+        wx = (int)(in_moves[i].dx * f); wy = (int)(in_moves[i].dy * f);
+        ddx = wx - in_moves[i].done_x; ddy = wy - in_moves[i].done_y;
+        if (ddx || ddy) {
+            in_moves[i].done_x = wx; in_moves[i].done_y = wy;
+            if (ddx) di_push(0, (unsigned)ddx);
+            if (ddy) di_push(4, (unsigned)ddy);
+            in_cursor.x += ddx; in_cursor.y += ddy; cursor_clamp();
+            input_allow(WM_MOUSEMOVE, in_button ? MK_LBUTTON : 0, client_point(), 0);
+        }
+        if (f >= 1.0) in_moves[i].start = 0;
+    }
+    while (in_next < in_count && now - init_ms - in_paused >= in_steps[in_next].t) {
+        InputStep *s = &in_steps[in_next++];
+        xrt_log("DEV input step %u at +%llu ms: %c %d %d %d", in_next, now - init_ms, s->verb, s->a, s->b, s->c);
+        if (s->verb == 'k') {
+            for (i = 0; i < 8 && in_keys[i].up; i++) {}
+            if (i == 8 || s->a < 1 || s->a > 254) { xrt_log("DEV input: key step refused"); continue; }
+            in_keys[i].vk = (unsigned)s->a; in_keys[i].up = now + (s->b > 0 ? (unsigned)s->b : 100);
+            key_post((unsigned)s->a, 1);
+        } else if (s->verb == 'm') {
+            for (i = 0; i < 4 && in_moves[i].start; i++) {}
+            if (i == 4) { xrt_log("DEV input: move step refused"); continue; }
+            in_moves[i].start = now ? now : 1; in_moves[i].ms = s->c > 0 ? (unsigned)s->c : 0;
+            in_moves[i].dx = s->a; in_moves[i].dy = s->b; in_moves[i].done_x = in_moves[i].done_y = 0;
+        } else if (s->verb == 'c') {
+            if (in_button) continue;
+            in_button = 1; in_button_up = now + (s->a > 0 ? (unsigned)s->a : 100);
+            di_push(12, 0x80); input_allow(WM_LBUTTONDOWN, MK_LBUTTON, client_point(), 0);
+        } else if (s->verb == 's') in_shot = 1;
+        {
+            POINT p = in_cursor; ScreenToClient(in_window, &p);
+            xrt_log("DEV input cursor client %ld,%ld", p.x, p.y);
+        }
+    }
+}
 static int map_allowed(const char *path) {
     const char *v = getenv("XRT_DEV_ALLOW_MAPS"), *base = strrchr(path, '\\');
     char list[512], *tok, *ctx = NULL;
@@ -150,6 +337,11 @@ void xrt_dev_map_open(CPU *c, const char *path) {
  * non-world post-Init presents (a readback reference from the same run). */
 int xrt_dev_scene_capture(unsigned level_renders, unsigned scene_draws) {
     if (!scene_mode() || !post_init) return 0;
+    if (in_shot) {
+        in_shot = 0;
+        if (level_renders != last_renders && scene_draws) return (int)(world_frames + 1);
+        if (post_presents + 1 <= 0xffffu) return (int)(0x20000u | (post_presents + 1));
+    }
     if (level_renders == last_renders || !scene_draws) {
         unsigned n = nonworld + 1;
         if (post_presents < 2) return (int)(0x10000u | (post_presents + 1));

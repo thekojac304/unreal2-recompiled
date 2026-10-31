@@ -18,6 +18,7 @@ DEV_OBSERVED_UNITS = {'Engine_026.c'}
 DEV = WS / 'out/dev-init'
 RT = DEV / 'runtime'
 BUILD = DEV / 'build'
+GAME_INSTALL = r'E:\Launchbox\Games\PC Games\Unreal 2 - The Awakening\singleplayer'  # read-only content source
 VC = Path(r'C:\Program Files\Microsoft Visual Studio\18\Community\VC\Auxiliary\Build\vcvarsall.bat')
 STOP = '    P(0x1090ed5cu); /* call 0x10901370 */'
 
@@ -129,9 +130,11 @@ def build(full=False, fixtures_only=False):
             continue
         obj = BUILD / rel
         src = Path(row['source'])
-        endpoint = src.name == 'Unreal2_001.c'
+        # Developer-owned copies of generated units: Unreal2_001.c (Init-return endpoint) and
+        # D3DDrv_002.c (ffree, as tools/xrt/xlift.py now lifts it); shared gen/ stays untouched.
+        endpoint = (DEV / 'generated' / src.name).is_file()
         if endpoint:
-            src = DEV / 'generated/Unreal2_001.c'
+            src = DEV / 'generated' / src.name
         # Scene-node Render functions (FLevel/FCamera/FPlayerSceneNode) live here; the
         # inherited object lacks the existing world observer, so the dev build adds it.
         observed = src.name in DEV_OBSERVED_UNITS
@@ -370,6 +373,20 @@ def run(args):
     sandbox = WS / 'sandbox_cmp' / ('dev-init-' + out.name)
     assets.check_writable(sandbox)
     shutil.copytree(assets.source(), sandbox)
+    if args.campaign_assets:
+        # Opt-in: add the retail single-player content the first-world snapshot omits (other maps and
+        # their packages), read-only from the install. Never Save (a junction to personal saves) or System.
+        install = Path(GAME_INSTALL)
+        added = 0
+        for folder in sorted(install.iterdir()):
+            if not folder.is_dir() or folder.is_symlink() or folder.is_junction() or folder.name.lower() in ('save', 'system'):
+                continue
+            for f in sorted(folder.iterdir()):
+                target = sandbox / folder.name / f.name
+                if f.is_file() and not target.exists():
+                    target.parent.mkdir(exist_ok=True)
+                    shutil.copy2(f, target); added += 1
+        print(f'dev: campaign assets: {added} install files added to the sandbox', flush=True)
     # Developer helper copy (out/dev-init/dmusic_helper, named CallRoutine admitted); else the shared build.
     helper = BUILD / 'dmusic_helper.exe'
     if not helper.is_file():
@@ -398,6 +415,10 @@ def run(args):
             env['XRT_DEV_NO_INPUT'] = '1'
         if args.allow_map:
             env['XRT_DEV_ALLOW_MAPS'] = ';'.join(args.allow_map)
+        if args.input:
+            if args.allow_input:
+                raise RuntimeError('No launch: --input needs input isolation (drop --allow-input)')
+            env['XRT_DEV_INPUT'] = args.input
         if args.music_script_track:
             # Developer workaround: helper dispatches DirectMusic script-track events
             # (experiments/xrt/DMUSIC_SCRIPT_TRACK_DESIGN.md); native tracks are disabled.
@@ -409,7 +430,9 @@ def run(args):
                                      'addresses': [hex(a) for a in args.trace_address],
                                      'first_scene_frames': args.first_scene,
                                      'scene_seconds': args.scene_seconds,
-                                     'music_script_track': args.music_script_track})
+                                     'music_script_track': args.music_script_track,
+                                     'input_script': args.input, 'allowed_maps': args.allow_map,
+                                     'campaign_assets': args.campaign_assets})
     if args.attach:
         env['XRT_DEV_ATTACH'] = '1'
     command_args = ['--guest', sandbox / 'System/Unreal2.exe', '--log', out / 'xrt.log',
@@ -454,6 +477,11 @@ def main():
                    help='first-scene: let physical keyboard/mouse input reach the game (isolated by default)')
     r.add_argument('--allow-map', action='append', default=[], metavar='FILE.un2',
                    help='first-scene: continue (instead of stopping) when this map file is opened post-Init')
+    r.add_argument('--input', default='', metavar='SCRIPT',
+                   help='first-scene: short explicit input script "T:verb[:args];..." (key/move/click/shot), '
+                        'T in ms after Init; delivered to the game window only, isolation stays on')
+    r.add_argument('--campaign-assets', action='store_true',
+                   help='first-scene: also copy the install content missing from the first-world snapshot into the sandbox')
     r.add_argument('--music-script-track', action='store_true',
                    help='first-scene: helper dispatches DirectMusic script-track events (host workaround)')
     r.add_argument('--draw-dump', type=int, action='append', default=[], metavar='WORLD_FRAME',
