@@ -38,6 +38,15 @@ int wmain(int argc,WCHAR**argv){
  hr=((LoadFile)method(loader,14))(loader,&cls_container,&iid_container,L"Intro.con",(void**)&cont);printf("container %08lx\n",hr);
  *(DWORD*)desc=848;*(DWORD*)(desc+4)=0x206;memcpy(desc+24,&cls_script,16);memcpy(desc+56,L"Script1",16);
  hr=((LoaderObject)method(loader,3))(loader,desc,&iid_script,(void**)&script);printf("Script1 %08lx\n",hr);if(FAILED(hr))return 1;
+ {/* Resolve the segments' own DMRF reference (GUID+class+name+file+version) and
+   * compare identities with the game's by-name object. */
+  static const BYTE ref_guid[16]={0xa1,0xdd,0x7c,0x49,0x87,0x0b,0x99,0x4f,0x98,0x37,0x2a,0x74,0x8f,0x46,0x89,0x1f};
+  BYTE r[848]={0};IUnknown*other=NULL,*a=NULL,*b=NULL;
+  *(DWORD*)r=848;*(DWORD*)(r+4)=0x97;memcpy(r+8,ref_guid,16);memcpy(r+24,&cls_script,16);*(DWORD*)(r+48)=0x10000;
+  memcpy(r+56,L"Script1",16);memcpy(r+312,L"Script1.spt",24);
+  hr=((LoaderObject)method(loader,3))(loader,r,&iid_script,(void**)&other);printf("DMRF Script1 %08lx\n",hr);
+  if(other){IUnknown_QueryInterface(script,&IID_IUnknown,(void**)&a);IUnknown_QueryInterface(other,&IID_IUnknown,(void**)&b);
+   printf("same object as by-name: %s\n",a==b?"yes":"NO");}}
  hr=((ScriptInit)method(script,3))(script,perf,NULL);printf("Script Init %08lx\n",hr);
  hr=((Routine)method(script,4))(script,L"a001_Start",NULL);printf("a001_Start %08lx\n",hr);
  end=GetTickCount64()+1000ull*_wtoi(argv[2]);
