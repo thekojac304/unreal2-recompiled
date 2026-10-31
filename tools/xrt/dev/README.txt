@@ -66,7 +66,7 @@ is not foreground (never takes focus). --campaign-assets copies install content 
 first-world snapshot (never Save/System) into the sandbox. Fixed: x87 ffree st(i) (xlift.py; dev copy
 out/dev-init/generated/D3DDrv_002.c), SendMessage WM_NCACTIVATE, kernel32 IsBadReadPtr.
 
-TutA performance batch (2026-10-31 afternoon, 10 launches, 2515 s; 7 complete benchmarks, 3 stopped by the
+TutA performance batch (2026-10-31 afternoon, 10+1 launches, 2789 s; 8 complete benchmarks, 3 stopped by the
 owner's desktop activity / a full E: drive). Benchmark: tools/xrt/dev/bench_tuta.ps1 (normal New Game path;
 window A 220-230 s standing at the TutA spawn view, window B 230-245.5 s fixed walk/turn/strafe), analysed
 with perf_report.py RUN --window 220000:230000 --window 230000:245500 (frames.csv = QPC time of every
@@ -77,6 +77,7 @@ core) in every run; GPU/Present is not the limit. FPS spawn/movement (median fra
   run 20261031-133029 + generated code /O2, runtime fast paths   59.9 (16) / 89.8 (10)
   run 20261031-141217 + forced-inline xrt.h helpers, draw checks 76.8 (13) / 98.4 (9.5)
   run 20261031-142925 + scheduler race fixes, baton statistics   76.1 (13) / 101.0 (9.2)
+  run 20261031-145028 final build bc44046 (11th, owner-approved) 78.1 (12.7) / 103.3 (9.0)
 Causes, in order: the development recorder (xm_probe/xm_emit, routine snapshot CRC + writes, VirtualQuery
 per record, per-D3D8-call evidence hex encoding of events the full timeline then dropped) ~60% of game
 thread time; generated code built /O1 (no /Oi: every 4-byte guest load/store was a call to memcpy;
@@ -86,7 +87,7 @@ check (patches/tuta-performance-runtime.patch; dev.py GEN_OPT /O2, GEN_NO_FORCE_
 savepoint out/dev-init-savepoints/tuta-performance-20261031). --trace-profile quiet = development stream
 minus routine BEGIN/END/DATA/RESOURCE records (OPEN/CLOSE, checkpoints, FATAL/GAP/ABORT, UGameEngine.Init kept).
 Sampler note: plain Sleep-paced sampling aliases with the 1 ms timer and over-reports baton waits; it is now
-QPC-deadline jittered (unmeasured in a complete run). Baton statistics (run 20261031-142925): game thread
+QPC-deadline jittered (run 20261031-145028: baton no longer appears in the profile). Baton statistics (run 20261031-142925): game thread
 waited 136667 times, 559 ms total in ~300 s. Host messages the runtime still refuses (fail closed, fatal 76):
 WM_DEVICECHANGE 0x8004 with DEV_BROADCAST data, WM_APPCOMMAND 0x319 (media key) - keep the desktop idle.
 
