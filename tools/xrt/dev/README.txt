@@ -19,6 +19,9 @@ Runtime changes: patches/first-scene-runtime.patch.
 Capture batch (2026-10-31): Engine_026 now built with the observer; run 20261031-003038-903c8da9
 captured world frames 1..8 of CS_Intro (fading in; frame 8 shows letterbox, HUD and a dim nebula).
 Blocked at frame ~10 by asynchronous DirectMusic tool callbacks (helper: "tool callback outside STA").
+FIRST SCENE CONFIRMED (run 20261031-005707-42ac125a, scene-frame-0064.bmp/.png): CS_Intro space scene,
+with asynchronous DirectMusic tool callbacks (protocol v2; experiments/xrt/DMUSIC_ASYNC_TOOL_DESIGN.md).
+Focused test: out/dev-init/build/dmusic_async_test.exe <dev helper> <sandbox root> [deadline].
 Dev DirectMusic helper: out/dev-init/dmusic_helper (patches/dmusic-helper-named-routine.patch), built x86
 to out/dev-init/build/dmusic_helper.exe and preferred by run when present.
 

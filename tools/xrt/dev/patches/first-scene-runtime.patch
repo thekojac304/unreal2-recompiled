@@ -19,6 +19,345 @@ index e0ba879..a5c3a86 100644
  static void d8_device_GetRenderState(CPU*c) { d8_api_entry(c,51,1);d8_device_object(c,ARG(0));xrt_fatal(c,76,"IDirect3DDevice8 unsupported slot 51 GetRenderState"); }
  static void d8_device_BeginStateBlock(CPU*c) { d8_api_entry(c,52,1);d8_device_object(c,ARG(0));xrt_fatal(c,76,"IDirect3DDevice8 unsupported slot 52 BeginStateBlock"); }
  static void d8_device_EndStateBlock(CPU*c) { d8_api_entry(c,53,1);d8_device_object(c,ARG(0));xrt_fatal(c,76,"IDirect3DDevice8 unsupported slot 53 EndStateBlock"); }
+diff --git a/out/dev-init-savepoints/init-return-20261030/runtime/dmusic_backend.h b/out/dev-init/runtime/dmusic_backend.h
+index b2f4abf..c676ae7 100644
+--- a/out/dev-init-savepoints/init-return-20261030/runtime/dmusic_backend.h
++++ b/out/dev-init/runtime/dmusic_backend.h
+@@ -1,29 +1,34 @@
+-/* Backend-neutral measured DirectMusic operations. No guest addresses, native
+- * pointers, size_t or compiler-dependent structures cross this boundary.
+- * All integers are little endian; text is bounded UTF-16LE. Version 1. */
+-#ifndef XRT_DMUSIC_BACKEND_H
+-#define XRT_DMUSIC_BACKEND_H
+-#include <stdint.h>
+-#define DMB_MAGIC 0x31424d44u
+-#define DMB_VERSION 1u
+-#define DMB_LIMIT 2000u
+-enum {DMB_REQUEST=1,DMB_REPLY,DMB_CALLBACK,DMB_CALLBACK_REPLY};
+-enum {DMB_OK=0,DMB_BAD_FRAME=1,DMB_BAD_HANDLE,DMB_UNSUPPORTED,DMB_SANDBOX,DMB_CALLBACK_FAILED};
+-enum {DMB_HELLO=1,DMB_CREATE,DMB_QI,DMB_ADDREF,DMB_RELEASE,DMB_INIT_AUDIO,
+- DMB_SEARCH,DMB_PATH,DMB_GRAPH,DMB_INSERT,DMB_LOAD,DMB_SCRIPT,DMB_SCRIPT_INIT,
+- DMB_VOLUME,DMB_ROUTINE,DMB_ENUM,DMB_RELEASE_OBJECT,DMB_STOP,DMB_CLOSE,DMB_SHUTDOWN,
+- DMB_TEST_CRASH=100,DMB_TEST_STALL,DMB_TEST_OPEN,DMB_TEST_PROCESS,DMB_TEST_CALLBACK};
+-enum {DMB_LOADER=1,DMB_PERFORMANCE,DMB_SOUND,DMB_AUDIOPATH,DMB_TOOLGRAPH,DMB_CONTAINER,DMB_SCRIPT_OBJECT};
+-typedef struct {
+- uint32_t magic,version,bytes,sequence,kind,op,object,status;
+- uint32_t v[16];
+- uint8_t guid[2][16];
+- uint16_t text[512];
+- uint8_t data[848];
+-} DmbMessage;
+-typedef char DmbSizeCheck[sizeof(DmbMessage)==DMB_LIMIT?1:-1];
+-static void dmb_message(DmbMessage*m,uint32_t op,uint32_t object) {
+- memset(m,0,sizeof *m);m->magic=DMB_MAGIC;m->version=DMB_VERSION;
+- m->bytes=sizeof *m;m->kind=DMB_REQUEST;m->op=op;m->object=object;
+-}
+-#endif
++/* Backend-neutral measured DirectMusic operations. No guest addresses, native
++ * pointers, size_t or compiler-dependent structures cross this boundary.
++ * All integers are little endian; text is bounded UTF-16LE. Version 2: adds the
++ * asynchronous tool-callback channel (separate pipe pair) and PMSG handles. */
++#ifndef XRT_DMUSIC_BACKEND_H
++#define XRT_DMUSIC_BACKEND_H
++#include <stdint.h>
++#define DMB_MAGIC 0x31424d44u
++#define DMB_VERSION 2u
++#define DMB_LIMIT 2000u
++enum {DMB_REQUEST=1,DMB_REPLY,DMB_CALLBACK,DMB_CALLBACK_REPLY,
++ DMB_ASYNC_CALLBACK,DMB_ASYNC_NESTED,DMB_ASYNC_NESTED_REPLY,DMB_ASYNC_REPLY};
++enum {DMB_OK=0,DMB_BAD_FRAME=1,DMB_BAD_HANDLE,DMB_UNSUPPORTED,DMB_SANDBOX,DMB_CALLBACK_FAILED};
++enum {DMB_HELLO=1,DMB_CREATE,DMB_QI,DMB_ADDREF,DMB_RELEASE,DMB_INIT_AUDIO,
++ DMB_SEARCH,DMB_PATH,DMB_GRAPH,DMB_INSERT,DMB_LOAD,DMB_SCRIPT,DMB_SCRIPT_INIT,
++ DMB_VOLUME,DMB_ROUTINE,DMB_ENUM,DMB_RELEASE_OBJECT,DMB_STOP,DMB_CLOSE,DMB_SHUTDOWN,
++ DMB_STAMP_PMSG,DMB_FREE_PMSG,
++ DMB_TEST_CRASH=100,DMB_TEST_STALL,DMB_TEST_OPEN,DMB_TEST_PROCESS,DMB_TEST_CALLBACK,DMB_TEST_ASYNC};
++/* x86 DMUS_PMSG header; lyric text (UTF-16, NUL-terminated) follows at 56. */
++enum {DMB_PMSG_HEADER=56,DMB_PMSG_TOOL=32,DMB_PMSG_GRAPH=36,DMB_PMSG_TYPE=40,DMB_PMSG_USER=52};
++enum {DMB_LOADER=1,DMB_PERFORMANCE,DMB_SOUND,DMB_AUDIOPATH,DMB_TOOLGRAPH,DMB_CONTAINER,DMB_SCRIPT_OBJECT};
++typedef struct {
++ uint32_t magic,version,bytes,sequence,kind,op,object,status;
++ uint32_t v[16];
++ uint8_t guid[2][16];
++ uint16_t text[512];
++ uint8_t data[848];
++} DmbMessage;
++typedef char DmbSizeCheck[sizeof(DmbMessage)==DMB_LIMIT?1:-1];
++static void dmb_message(DmbMessage*m,uint32_t op,uint32_t object) {
++ memset(m,0,sizeof *m);m->magic=DMB_MAGIC;m->version=DMB_VERSION;
++ m->bytes=sizeof *m;m->kind=DMB_REQUEST;m->op=op;m->object=object;
++}
++#endif
+diff --git a/out/dev-init-savepoints/init-return-20261030/runtime/dmusic_backend_pipe.inc b/out/dev-init/runtime/dmusic_backend_pipe.inc
+index 029055b..c55a9e2 100644
+--- a/out/dev-init-savepoints/init-return-20261030/runtime/dmusic_backend_pipe.inc
++++ b/out/dev-init/runtime/dmusic_backend_pipe.inc
+@@ -7,7 +7,9 @@ static void dm_backend_invoke(CPU*c,DmbMessage*m){
+  dm_backend_connection.context=c;
+  {int ok;xm_native(c,XM_BEGIN,"DirectMusic.IPC.exchange",0,0);
+  xm_span(c,"DirectMusic.IPC.request",m,sizeof *m);
++ if(!xrt_exiting)xrt_baton_release();
+  ok=dmb_exchange(&dm_backend_connection,m);
++ if(!xrt_exiting)xrt_baton_acquire();
+  xm_span(c,"DirectMusic.IPC.response",m,sizeof *m);
+  xm_native(c,XM_END,"DirectMusic.IPC.exchange",0,ok);
+  if(!ok)xrt_fatal(c,XRT_EXIT_UNSUPPORTED,"%s",dm_backend_connection.error);}
+diff --git a/out/dev-init-savepoints/init-return-20261030/runtime/dmusic_pipe.h b/out/dev-init/runtime/dmusic_pipe.h
+index 269941d..ff188c4 100644
+--- a/out/dev-init-savepoints/init-return-20261030/runtime/dmusic_pipe.h
++++ b/out/dev-init/runtime/dmusic_pipe.h
+@@ -1,122 +1,130 @@
+-/* Selected Windows child transport. One outstanding request; callback replies
+- * share that request's absolute deadline and cannot extend it. The inherited
+- * pipe capacity exceeds one frame. Only one frame is written before a read.
+- * No helper-specific state is exposed to translated COM interfaces. */
+-#ifndef XRT_DMUSIC_PIPE_H
+-#define XRT_DMUSIC_PIPE_H
+-#include <windows.h>
+-#include <stdio.h>
+-#include <string.h>
+-#include "dmusic_backend.h"
+-typedef int (*DmbCallback)(void*,const DmbMessage*,DmbMessage*);
+-typedef struct {
+- HANDLE input,output,process,job;DWORD owner;uint32_t sequence,timeout;
+- DmbCallback callback;void*context;char error[160];int busy;
+-} DmbConnection;
+-static void dmb_disconnect(DmbConnection*c) {
+- if(c->job)CloseHandle(c->job);c->job=NULL;
+- if(c->process){WaitForSingleObject(c->process,2000);CloseHandle(c->process);}c->process=NULL;
+- if(c->input)CloseHandle(c->input);if(c->output)CloseHandle(c->output);
+- c->input=c->output=NULL;c->busy=0;
+-}
+-static int dmb_failed(DmbConnection*c,const char*why) {
+- snprintf(c->error,sizeof c->error,"%s (Win32 %lu)",why,GetLastError());
+- dmb_disconnect(c);return 0;
+-}
+-typedef struct {HANDLE pipe;DmbMessage message;DWORD bytes,error;BOOL ok;} DmbWrite;
+-static DWORD WINAPI dmb_writer(void*context){DmbWrite*w=(DmbWrite*)context;
+- w->ok=WriteFile(w->pipe,&w->message,sizeof w->message,&w->bytes,NULL);w->error=GetLastError();return 0;
+-}
+-/* Anonymous pipe writes are synchronous. Run the single bounded frame write on
+- * a cancellable worker so even a broken peer that stops draining cannot hang
+- * the guest apartment. The worker never touches guest or COM state. */
+-static int dmb_write(DmbConnection*c,const DmbMessage*m,ULONGLONG deadline){
+- DmbWrite*w=(DmbWrite*)HeapAlloc(GetProcessHeap(),HEAP_ZERO_MEMORY,sizeof *w);HANDLE thread;DWORD waited,remaining;int ok;
+- ULONGLONG now=GetTickCount64();
+- if(!w||now>=deadline){if(w)HeapFree(GetProcessHeap(),0,w);return dmb_failed(c,"DirectMusic write deadline exceeded");}
+- w->pipe=c->input;w->message=*m;thread=CreateThread(NULL,0,dmb_writer,w,0,NULL);
+- if(!thread){HeapFree(GetProcessHeap(),0,w);return dmb_failed(c,"DirectMusic writer unavailable");}
+- remaining=(DWORD)(deadline-now);waited=WaitForSingleObject(thread,remaining);
+- if(waited!=WAIT_OBJECT_0){
+-  CancelSynchronousIo(thread);dmb_failed(c,"DirectMusic write deadline exceeded");
+-  /* Closing the Job and pipe breaks the pending write. If Windows has not
+-   * returned it yet, retain its private buffer until process exit. */
+-  if(WaitForSingleObject(thread,2000)==WAIT_OBJECT_0)HeapFree(GetProcessHeap(),0,w);
+-  CloseHandle(thread);return 0;
+- }
+- ok=w->ok&&w->bytes==sizeof *m;SetLastError(w->error);HeapFree(GetProcessHeap(),0,w);CloseHandle(thread);
+- return ok?1:dmb_failed(c,"DirectMusic IPC write failed");
+-}
+-static int dmb_read(DmbConnection*c,DmbMessage*m,ULONGLONG deadline) {
+- DWORD have=0,n=0,total=0;
+- while(total<sizeof *m) {
+-  if(GetTickCount64()>=deadline)return dmb_failed(c,"DirectMusic IPC deadline exceeded");
+-  if(!PeekNamedPipe(c->output,NULL,0,NULL,&have,NULL))return dmb_failed(c,"DirectMusic IPC disconnected");
+-  if(have){if(have>sizeof *m-total)have=(DWORD)sizeof *m-total;
+-   if(!ReadFile(c->output,(BYTE*)m+total,have,&n,NULL)||!n)return dmb_failed(c,"DirectMusic IPC read failed");total+=n;
+-  }else if(WaitForSingleObject(c->process,2)!=WAIT_TIMEOUT){
+-   if(!PeekNamedPipe(c->output,NULL,0,NULL,&have,NULL)||!have)return dmb_failed(c,"DirectMusic child exited");
+-  }
+- }
+- return 1;
+-}
+-static int dmb_exchange(DmbConnection*c,DmbMessage*m) {
+- DmbMessage r,q=*m;unsigned callbacks=0;ULONGLONG deadline;
+- if(!c->process || c->owner!=GetCurrentThreadId() || c->busy)return dmb_failed(c,"DirectMusic transport ownership/reentrancy violation");
+- c->busy=1;q.sequence=++c->sequence;deadline=GetTickCount64()+c->timeout;
+- if(!dmb_write(c,&q,deadline))return 0;
+- for(;;){
+-  if(!dmb_read(c,&r,deadline))return 0;
+-  if(r.magic!=DMB_MAGIC||r.version!=DMB_VERSION||r.bytes!=sizeof r||r.sequence!=q.sequence)
+-   return dmb_failed(c,"DirectMusic invalid response identity");
+-  if(r.kind==DMB_CALLBACK){
+-   DmbMessage reply=r;
+-   if(++callbacks>128||!c->callback||!c->callback(c->context,&r,&reply))return dmb_failed(c,"DirectMusic unsupported callback");
+-   reply.kind=DMB_CALLBACK_REPLY;
+-   if(GetTickCount64()>=deadline)return dmb_failed(c,"DirectMusic callback deadline exceeded");
+-   if(!dmb_write(c,&reply,deadline))return 0;
+-  }else {
+-   if(r.kind!=DMB_REPLY||r.op!=q.op||r.object!=q.object)return dmb_failed(c,"DirectMusic response mismatch");
+-   c->busy=0;*m=r;
+-   if(r.status){char why[100];snprintf(why,sizeof why,"DirectMusic rejected op %u handle %u status %u",q.op,q.object,r.status);return dmb_failed(c,why);}
+-   return 1;
+-  }
+- }
+-}
+-static int dmb_connect(DmbConnection*c,const WCHAR*exe,const WCHAR*root,int testing,DmbCallback cb,void*context) {
+- SECURITY_ATTRIBUTES sa={sizeof sa,NULL,TRUE};HANDLE childin=NULL,childout=NULL,childlog=NULL,inherit[3];
+- STARTUPINFOEXW si;PROCESS_INFORMATION pi;JOBOBJECT_EXTENDED_LIMIT_INFORMATION limits;
+- SIZE_T bytes=0;WCHAR cmd[2400],cwd[600];DmbMessage hello;int result=0;
+- memset(c,0,sizeof *c);memset(&si,0,sizeof si);memset(&pi,0,sizeof pi);memset(&limits,0,sizeof limits);
+- c->owner=GetCurrentThreadId();c->timeout=10000;c->callback=cb;c->context=context;
+- if(!CreatePipe(&childin,&c->input,&sa,65536)||!CreatePipe(&c->output,&childout,&sa,65536))goto done;
+- if(!SetHandleInformation(c->input,HANDLE_FLAG_INHERIT,0)||!SetHandleInformation(c->output,HANDLE_FLAG_INHERIT,0))goto done;
+- c->job=CreateJobObjectW(NULL,NULL);limits.BasicLimitInformation.LimitFlags=JOB_OBJECT_LIMIT_KILL_ON_JOB_CLOSE|JOB_OBJECT_LIMIT_ACTIVE_PROCESS;
+- limits.BasicLimitInformation.ActiveProcessLimit=1;
+- if(!c->job||!SetInformationJobObject(c->job,JobObjectExtendedLimitInformation,&limits,sizeof limits))goto done;
+- InitializeProcThreadAttributeList(NULL,1,0,&bytes);
+- si.lpAttributeList=(LPPROC_THREAD_ATTRIBUTE_LIST)HeapAlloc(GetProcessHeap(),0,bytes);if(!si.lpAttributeList)goto done;
+- if(!InitializeProcThreadAttributeList(si.lpAttributeList,1,0,&bytes))goto done;
+- if(!DuplicateHandle(GetCurrentProcess(),GetStdHandle(STD_ERROR_HANDLE),GetCurrentProcess(),&childlog,0,TRUE,DUPLICATE_SAME_ACCESS))goto done;
+- inherit[0]=childin;inherit[1]=childout;inherit[2]=childlog;
+- if(!UpdateProcThreadAttribute(si.lpAttributeList,0,PROC_THREAD_ATTRIBUTE_HANDLE_LIST,inherit,sizeof inherit,NULL,NULL))goto done;
+- si.StartupInfo.cb=sizeof si;si.StartupInfo.dwFlags=STARTF_USESHOWWINDOW|STARTF_USESTDHANDLES;si.StartupInfo.wShowWindow=SW_HIDE;
+- si.StartupInfo.hStdInput=childin;si.StartupInfo.hStdOutput=childout;si.StartupInfo.hStdError=childlog;
+- if(wcschr(exe,L'"')||wcschr(root,L'"')||wcslen(exe)>600||wcslen(root)>500)goto done;
+- swprintf(cmd,2400,L"\"%s\" --pipes %llu %llu --sandbox \"%s\"%s",exe,(unsigned long long)(uintptr_t)childin,(unsigned long long)(uintptr_t)childout,root,testing?L" --test":L"");
+- swprintf(cwd,600,L"%s\\System",root);
+- if(!CreateProcessW(exe,cmd,NULL,NULL,TRUE,CREATE_SUSPENDED|CREATE_NO_WINDOW|EXTENDED_STARTUPINFO_PRESENT,NULL,cwd,&si.StartupInfo,&pi))goto done;
+- c->process=pi.hProcess;
+- if(!AssignProcessToJobObject(c->job,pi.hProcess)){TerminateProcess(pi.hProcess,91);goto done;}
+- if(ResumeThread(pi.hThread)==(DWORD)-1)goto done;
+- result=1;
+-done:
+- if(pi.hThread)CloseHandle(pi.hThread);if(childin)CloseHandle(childin);if(childout)CloseHandle(childout);if(childlog)CloseHandle(childlog);
+- if(si.lpAttributeList){DeleteProcThreadAttributeList(si.lpAttributeList);HeapFree(GetProcessHeap(),0,si.lpAttributeList);}
+- if(!result)return dmb_failed(c,"DirectMusic helper launch failed");
+- dmb_message(&hello,DMB_HELLO,0);
+- if(!dmb_exchange(c,&hello))return 0;
+- if(hello.v[0]!=32||hello.v[1]!=DMB_LIMIT)return dmb_failed(c,"DirectMusic helper architecture mismatch");
+- return 1;
+-}
+-#endif
++/* Selected Windows child transport. One outstanding request; callback replies
++ * share that request's absolute deadline and cannot extend it. The inherited
++ * pipe capacity exceeds one frame. Only one frame is written before a read.
++ * No helper-specific state is exposed to translated COM interfaces. */
++#ifndef XRT_DMUSIC_PIPE_H
++#define XRT_DMUSIC_PIPE_H
++#include <windows.h>
++#include <stdio.h>
++#include <string.h>
++#include "dmusic_backend.h"
++typedef int (*DmbCallback)(void*,const DmbMessage*,DmbMessage*);
++typedef struct {
++ HANDLE input,output,process,job;DWORD owner;uint32_t sequence,timeout;
++ /* Version 2: helper-originated asynchronous tool callbacks (DirectMusic threads).
++  * Owned by the runtime's DirectMusic callback thread once connected. */
++ HANDLE async_input,async_output;
++ DmbCallback callback;void*context;char error[160];int busy;
++} DmbConnection;
++static void dmb_disconnect(DmbConnection*c) {
++ if(c->job)CloseHandle(c->job);c->job=NULL;
++ if(c->process){WaitForSingleObject(c->process,2000);CloseHandle(c->process);}c->process=NULL;
++ if(c->input)CloseHandle(c->input);if(c->output)CloseHandle(c->output);
++ c->input=c->output=NULL;c->busy=0;
++}
++static int dmb_failed(DmbConnection*c,const char*why) {
++ snprintf(c->error,sizeof c->error,"%s (Win32 %lu)",why,GetLastError());
++ dmb_disconnect(c);return 0;
++}
++typedef struct {HANDLE pipe;DmbMessage message;DWORD bytes,error;BOOL ok;} DmbWrite;
++static DWORD WINAPI dmb_writer(void*context){DmbWrite*w=(DmbWrite*)context;
++ w->ok=WriteFile(w->pipe,&w->message,sizeof w->message,&w->bytes,NULL);w->error=GetLastError();return 0;
++}
++/* Anonymous pipe writes are synchronous. Run the single bounded frame write on
++ * a cancellable worker so even a broken peer that stops draining cannot hang
++ * the guest apartment. The worker never touches guest or COM state. */
++static int dmb_write(DmbConnection*c,const DmbMessage*m,ULONGLONG deadline){
++ DmbWrite*w=(DmbWrite*)HeapAlloc(GetProcessHeap(),HEAP_ZERO_MEMORY,sizeof *w);HANDLE thread;DWORD waited,remaining;int ok;
++ ULONGLONG now=GetTickCount64();
++ if(!w||now>=deadline){if(w)HeapFree(GetProcessHeap(),0,w);return dmb_failed(c,"DirectMusic write deadline exceeded");}
++ w->pipe=c->input;w->message=*m;thread=CreateThread(NULL,0,dmb_writer,w,0,NULL);
++ if(!thread){HeapFree(GetProcessHeap(),0,w);return dmb_failed(c,"DirectMusic writer unavailable");}
++ remaining=(DWORD)(deadline-now);waited=WaitForSingleObject(thread,remaining);
++ if(waited!=WAIT_OBJECT_0){
++  CancelSynchronousIo(thread);dmb_failed(c,"DirectMusic write deadline exceeded");
++  /* Closing the Job and pipe breaks the pending write. If Windows has not
++   * returned it yet, retain its private buffer until process exit. */
++  if(WaitForSingleObject(thread,2000)==WAIT_OBJECT_0)HeapFree(GetProcessHeap(),0,w);
++  CloseHandle(thread);return 0;
++ }
++ ok=w->ok&&w->bytes==sizeof *m;SetLastError(w->error);HeapFree(GetProcessHeap(),0,w);CloseHandle(thread);
++ return ok?1:dmb_failed(c,"DirectMusic IPC write failed");
++}
++static int dmb_read(DmbConnection*c,DmbMessage*m,ULONGLONG deadline) {
++ DWORD have=0,n=0,total=0;
++ while(total<sizeof *m) {
++  if(GetTickCount64()>=deadline)return dmb_failed(c,"DirectMusic IPC deadline exceeded");
++  if(!PeekNamedPipe(c->output,NULL,0,NULL,&have,NULL))return dmb_failed(c,"DirectMusic IPC disconnected");
++  if(have){if(have>sizeof *m-total)have=(DWORD)sizeof *m-total;
++   if(!ReadFile(c->output,(BYTE*)m+total,have,&n,NULL)||!n)return dmb_failed(c,"DirectMusic IPC read failed");total+=n;
++  }else if(WaitForSingleObject(c->process,2)!=WAIT_TIMEOUT){
++   if(!PeekNamedPipe(c->output,NULL,0,NULL,&have,NULL)||!have)return dmb_failed(c,"DirectMusic child exited");
++  }
++ }
++ return 1;
++}
++static int dmb_exchange(DmbConnection*c,DmbMessage*m) {
++ DmbMessage r,q=*m;unsigned callbacks=0;ULONGLONG deadline;
++ if(!c->process || c->owner!=GetCurrentThreadId() || c->busy)return dmb_failed(c,"DirectMusic transport ownership/reentrancy violation");
++ c->busy=1;q.sequence=++c->sequence;deadline=GetTickCount64()+c->timeout;
++ if(!dmb_write(c,&q,deadline))return 0;
++ for(;;){
++  if(!dmb_read(c,&r,deadline))return 0;
++  if(r.magic!=DMB_MAGIC||r.version!=DMB_VERSION||r.bytes!=sizeof r||r.sequence!=q.sequence)
++   return dmb_failed(c,"DirectMusic invalid response identity");
++  if(r.kind==DMB_CALLBACK){
++   DmbMessage reply=r;
++   if(++callbacks>128||!c->callback||!c->callback(c->context,&r,&reply))return dmb_failed(c,"DirectMusic unsupported callback");
++   reply.kind=DMB_CALLBACK_REPLY;
++   if(GetTickCount64()>=deadline)return dmb_failed(c,"DirectMusic callback deadline exceeded");
++   if(!dmb_write(c,&reply,deadline))return 0;
++  }else {
++   if(r.kind!=DMB_REPLY||r.op!=q.op||r.object!=q.object)return dmb_failed(c,"DirectMusic response mismatch");
++   c->busy=0;*m=r;
++   if(r.status){char why[100];snprintf(why,sizeof why,"DirectMusic rejected op %u handle %u status %u",q.op,q.object,r.status);return dmb_failed(c,why);}
++   return 1;
++  }
++ }
++}
++static int dmb_connect(DmbConnection*c,const WCHAR*exe,const WCHAR*root,int testing,DmbCallback cb,void*context) {
++ SECURITY_ATTRIBUTES sa={sizeof sa,NULL,TRUE};HANDLE childin=NULL,childout=NULL,childlog=NULL;
++ STARTUPINFOEXW si;PROCESS_INFORMATION pi;JOBOBJECT_EXTENDED_LIMIT_INFORMATION limits;
++ SIZE_T bytes=0;WCHAR cmd[2400],cwd[600];DmbMessage hello;int result=0;
++ HANDLE achildin=NULL,achildout=NULL,inherit[5];
++ memset(c,0,sizeof *c);memset(&si,0,sizeof si);memset(&pi,0,sizeof pi);memset(&limits,0,sizeof limits);
++ c->owner=GetCurrentThreadId();c->timeout=10000;c->callback=cb;c->context=context;
++ if(!CreatePipe(&childin,&c->input,&sa,65536)||!CreatePipe(&c->output,&childout,&sa,65536))goto done;
++ if(!SetHandleInformation(c->input,HANDLE_FLAG_INHERIT,0)||!SetHandleInformation(c->output,HANDLE_FLAG_INHERIT,0))goto done;
++ if(!CreatePipe(&c->async_input,&achildout,&sa,65536)||!CreatePipe(&achildin,&c->async_output,&sa,65536))goto done;
++ if(!SetHandleInformation(c->async_input,HANDLE_FLAG_INHERIT,0)||!SetHandleInformation(c->async_output,HANDLE_FLAG_INHERIT,0))goto done;
++ c->job=CreateJobObjectW(NULL,NULL);limits.BasicLimitInformation.LimitFlags=JOB_OBJECT_LIMIT_KILL_ON_JOB_CLOSE|JOB_OBJECT_LIMIT_ACTIVE_PROCESS;
++ limits.BasicLimitInformation.ActiveProcessLimit=1;
++ if(!c->job||!SetInformationJobObject(c->job,JobObjectExtendedLimitInformation,&limits,sizeof limits))goto done;
++ InitializeProcThreadAttributeList(NULL,1,0,&bytes);
++ si.lpAttributeList=(LPPROC_THREAD_ATTRIBUTE_LIST)HeapAlloc(GetProcessHeap(),0,bytes);if(!si.lpAttributeList)goto done;
++ if(!InitializeProcThreadAttributeList(si.lpAttributeList,1,0,&bytes))goto done;
++ if(!DuplicateHandle(GetCurrentProcess(),GetStdHandle(STD_ERROR_HANDLE),GetCurrentProcess(),&childlog,0,TRUE,DUPLICATE_SAME_ACCESS))goto done;
++ inherit[0]=childin;inherit[1]=childout;inherit[2]=childlog;inherit[3]=achildin;inherit[4]=achildout;
++ if(!UpdateProcThreadAttribute(si.lpAttributeList,0,PROC_THREAD_ATTRIBUTE_HANDLE_LIST,inherit,sizeof inherit,NULL,NULL))goto done;
++ si.StartupInfo.cb=sizeof si;si.StartupInfo.dwFlags=STARTF_USESHOWWINDOW|STARTF_USESTDHANDLES;si.StartupInfo.wShowWindow=SW_HIDE;
++ si.StartupInfo.hStdInput=childin;si.StartupInfo.hStdOutput=childout;si.StartupInfo.hStdError=childlog;
++ if(wcschr(exe,L'"')||wcschr(root,L'"')||wcslen(exe)>600||wcslen(root)>500)goto done;
++ swprintf(cmd,2400,L"\"%s\" --pipes %llu %llu --sandbox \"%s\" --async %llu %llu%s",exe,(unsigned long long)(uintptr_t)childin,(unsigned long long)(uintptr_t)childout,root,
++  (unsigned long long)(uintptr_t)achildin,(unsigned long long)(uintptr_t)achildout,testing?L" --test":L"");
++ swprintf(cwd,600,L"%s\\System",root);
++ if(!CreateProcessW(exe,cmd,NULL,NULL,TRUE,CREATE_SUSPENDED|CREATE_NO_WINDOW|EXTENDED_STARTUPINFO_PRESENT,NULL,cwd,&si.StartupInfo,&pi))goto done;
++ c->process=pi.hProcess;
++ if(!AssignProcessToJobObject(c->job,pi.hProcess)){TerminateProcess(pi.hProcess,91);goto done;}
++ if(ResumeThread(pi.hThread)==(DWORD)-1)goto done;
++ result=1;
++done:
++ if(pi.hThread)CloseHandle(pi.hThread);if(childin)CloseHandle(childin);if(childout)CloseHandle(childout);if(childlog)CloseHandle(childlog);
++ if(achildin)CloseHandle(achildin);if(achildout)CloseHandle(achildout);
++ if(si.lpAttributeList){DeleteProcThreadAttributeList(si.lpAttributeList);HeapFree(GetProcessHeap(),0,si.lpAttributeList);}
++ if(!result)return dmb_failed(c,"DirectMusic helper launch failed");
++ dmb_message(&hello,DMB_HELLO,0);
++ if(!dmb_exchange(c,&hello))return 0;
++ if(hello.v[0]!=32||hello.v[1]!=DMB_LIMIT)return dmb_failed(c,"DirectMusic helper architecture mismatch");
++ return 1;
++}
++#endif
 diff --git a/out/dev-init/runtime/fixed_function.inc b/out/dev-init/runtime/fixed_function.inc
 new file mode 100644
 index 0000000..d0b91c0
@@ -208,6 +547,202 @@ index 4a1a96c..9df17dd 100644
          /* Allocate all guest state before invoking the host. The reserved object
           * has zero refs and is unreachable through the guest output in callbacks. */
          if(!d8_device_vtable)d8_device_vtable=com_vtable(d8_device_slot_names,97);
+diff --git a/out/dev-init-savepoints/init-return-20261030/runtime/hle_dmusic_guest.inc b/out/dev-init/runtime/hle_dmusic_guest.inc
+index 72a172a..facf409 100644
+--- a/out/dev-init-savepoints/init-return-20261030/runtime/hle_dmusic_guest.inc
++++ b/out/dev-init/runtime/hle_dmusic_guest.inc
+@@ -34,15 +34,15 @@ static uint32_t dmi_wrap(CPU*c,DmbMessage*m){
+   for(i=0;i<n;i++)names[i]="DMI.Unsupported";
+   names[0]="DMI.QI";names[1]="DMI.AddRef";names[2]="DMI.Release";
+   if(type==DMB_LOADER){names[3]="DMI.Script";names[5]="DMI.Search";names[13]="DMI.ReleaseObject";names[14]="DMI.Load";}
+-  if(type==DMB_PERFORMANCE){names[5]="DMI.Stop";names[34]="DMI.Volume";names[38]="DMI.Close";names[44]="DMI.InitAudio";names[51]="DMI.Path";}
++  if(type==DMB_PERFORMANCE){names[17]="DMI.FreePMsg";names[5]="DMI.Stop";names[34]="DMI.Volume";names[38]="DMI.Close";names[44]="DMI.InitAudio";names[51]="DMI.Path";}
+   if(type==DMB_AUDIOPATH)names[3]="DMI.Graph";
+-  if(type==DMB_TOOLGRAPH)names[4]="DMI.Insert";
++  if(type==DMB_TOOLGRAPH){names[3]="DMI.Stamp";names[4]="DMI.Insert";}
+   if(type==DMB_SCRIPT_OBJECT){names[3]="DMI.ScriptInit";names[4]="DMI.Routine";}
+   dmi_tables[type]=com_vtable(names,n);
+  }
+  o->guest=xrt_rt_alloc(4,4);o->id=m->v[1];o->refs=1;o->type=type;o->owner=xm_win_GetCurrentThreadId();wr32(o->guest,dmi_tables[type]);return o->guest;
+ }
+-static int dmi_callback(void*context,const DmbMessage*q,DmbMessage*r){
++static int dmi_callback_sync(void*context,const DmbMessage*q,DmbMessage*r){
+  CPU*c=(CPU*)context,nested;DmiTool*t=NULL;uint32_t a[4],scratch,table,fn,result;unsigned i,nargs=1;
+  xm_scope(c,XM_BEGIN,XM_CALLBACK,"DirectMusic.IPC.callback",q->op);
+  xm_span(c,"DirectMusic.IPC.callback.request",q,sizeof *q);
+@@ -71,12 +71,153 @@ static int dmi_callback(void*context,const DmbMessage*q,DmbMessage*r){
+  if(q->op==6){if(rd32(scratch)!=scratch+4)xrt_fatal(c,XRT_EXIT_UNSUPPORTED,"DirectMusic tool changed media buffer");r->v[1]=rd32(scratch+4);r->v[2]=rd32(scratch+8);}
+  xrt_event("dmusic_tool_callback","\"id\": %u, \"slot\": %u, \"result\": %u, \"value1\": %u, \"value2\": %u",t->id,q->op,result,r->v[1],r->v[2]);xm_span(c,"DirectMusic.IPC.callback.response",r,sizeof *r);xm_scope(c,XM_END,XM_CALLBACK,"DirectMusic.IPC.callback",1);return 1;
+ }
++/* Synchronous tool callbacks arrive while this thread waits on IPC without the baton. */
++static int dmi_callback(void*context,const DmbMessage*q,DmbMessage*r){int ok;
++ if(!xrt_exiting)xrt_baton_acquire();ok=dmi_callback_sync(context,q,r);if(!xrt_exiting)xrt_baton_release();return ok;
++}
++/* ---- Asynchronous tool callbacks (protocol v2) ----------------------------------
++ * DirectMusic delivers ProcessPMsg (ATTIME, realtime thread), AddRef/Release and
++ * Flush from its own threads. The helper forwards them on a separate pipe pair to
++ * this runtime-owned guest thread, which runs the guest tool under the baton.
++ * A delivered lyric PMSG is copied to the guest heap; the native message stays in
++ * the helper under a handle until the guest frees it (IDirectMusicPerformance::FreePMsg). */
++typedef struct {HANDLE in,out;} DmiAsync;
++static DmiAsync dmi_async;static DWORD dmi_async_tid;static int dmi_async_started;static volatile LONG dmi_async_shutdown;
++typedef struct {uint32_t guest,handle,size;} DmiPmsg;
++static DmiPmsg dmi_pmsgs[256];
++static uint32_t dmi_active_handle,dmi_active_guest,dmi_active_sequence;
++static unsigned dmi_async_events,dmi_async_logged,dmi_free_logged,dmi_pmsg_live,dmi_pmsg_unmapped;
++static DmiObject*dmi_lookup(uint32_t id,uint32_t type){unsigned i; /* identity only: no owner rule */
++ for(i=0;i<128;i++)if(dmi_objects[i].id==id&&dmi_objects[i].refs&&(!type||dmi_objects[i].type==type))return &dmi_objects[i];return NULL;
++}
++static int dmi_async_read(HANDLE h,DmbMessage*m){DWORD n,total=0;
++ while(total<sizeof *m){if(!ReadFile(h,(BYTE*)m+total,(DWORD)sizeof *m-total,&n,NULL)||!n)return 0;total+=n;}return 1;
++}
++static int dmi_async_write(HANDLE h,const DmbMessage*m){DWORD n;return WriteFile(h,m,sizeof *m,&n,NULL)&&n==sizeof *m;}
++/* Native pointer identities in a PMSG header become guest identities; one the guest cannot
++ * represent (an internal native tool/graph) is stored as 0 and counted, never dereferenced. */
++static void dmi_pmsg_header(CPU*c,uint32_t g,const uint8_t*native,DmiTool*t,uint32_t graph_id,uint32_t tool_token){
++ DmiObject*graph=graph_id?dmi_lookup(graph_id,DMB_TOOLGRAPH):NULL;uint32_t tool=0,graph_guest=0;unsigned i;
++ if(graph_id&&!graph){ /* graph first met in a PMSG: guest proxy owned by this callback thread */
++  DmbMessage w;memset(&w,0,sizeof w);w.v[0]=0;w.v[1]=graph_id;w.v[2]=DMB_TOOLGRAPH;graph_guest=dmi_wrap(c,&w);
++  graph=dmi_lookup(graph_id,DMB_TOOLGRAPH);
++  xrt_event("dmusic_pmsg","\"event\": \"graph-proxy\", \"graph\": %u, \"guest\": %u",graph_id,graph_guest);}
++ for(i=0;i<8;i++)if(tool_token&&dmi_tools[i].guest&&dmi_tools[i].id==tool_token)tool=dmi_tools[i].guest;
++ memcpy(G2H(g),native,DMB_PMSG_HEADER);
++ if(graph_id&&!graph)xrt_fatal(c,XRT_EXIT_UNSUPPORTED,"DirectMusic PMSG graph ID %u has no guest proxy",graph_id);
++ if(!tool&&tool_token)xrt_fatal(c,XRT_EXIT_UNSUPPORTED,"DirectMusic PMSG tool token %u has no guest tool",tool_token);
++ if(!tool_token||!graph_id)dmi_pmsg_unmapped++;
++ wr32(g+DMB_PMSG_TOOL,tool);wr32(g+DMB_PMSG_GRAPH,graph?graph->guest:0);wr32(g+DMB_PMSG_USER,0);(void)t;
++}
++static uint32_t dmi_pmsg_copy(CPU*c,const DmbMessage*q,DmiTool*t){uint32_t size=q->v[3],g;
++ if(size<DMB_PMSG_HEADER+2||size>sizeof q->data)xrt_fatal(c,XRT_EXIT_UNSUPPORTED,"DirectMusic PMSG size %u outside lyric range",size);
++ g=xrt_heap_alloc(size);if(!g)xrt_fatal(c,XRT_EXIT_SETUP,"DirectMusic PMSG guest allocation");
++ memcpy(G2H(g),q->data,size);dmi_pmsg_header(c,g,q->data,t,q->v[1],q->v[4]);return g;
++}
++static void dmi_async_dispatch(CPU*c,const DmbMessage*q,DmbMessage*r){
++ DmiTool*t=NULL;uint32_t a[5],table,fn,result,perf=0,g=0,type,scratch,esp=c->r[ESP];unsigned i,nargs=1;CPU nested;
++ static const GUID tool_iid={0xd2ac28ba,0xb39b,0x11d1,{0x87,4,0,0x60,8,0x93,0xb1,0xbd}};
++ static const GUID tool8_iid={0x0e674303,0x3b05,0x11d3,{0x9b,0xd1,0xf9,0xe7,0xf0,0xa0,0x15,0x36}};
++ for(i=0;i<8;i++)if(dmi_tools[i].guest&&dmi_tools[i].id==q->object){t=&dmi_tools[i];break;}
++ if(!t)xrt_fatal(c,XRT_EXIT_UNSUPPORTED,"DirectMusic asynchronous callback for unknown tool %u",q->object);
++ com_memory(c,t->guest,4,"DirectMusic tool");table=rd32(t->guest);com_memory(c,table,36,"DirectMusic tool vtable");fn=rd32(table+q->op*4);
++ scratch=(esp-128u)&~15u;memset(G2H(scratch),0,64);a[0]=t->guest;nested=*c;nested.r[ESP]=scratch;
++ switch(q->op){
++ case 0:
++  if(memcmp(q->guid[0],&com_iunknown,16)&&memcmp(q->guid[0],&tool_iid,16)&&memcmp(q->guid[0],&tool8_iid,16))
++   xrt_fatal(c,XRT_EXIT_UNSUPPORTED,"DirectMusic unmeasured asynchronous tool QI");
++  memcpy(G2H(scratch),q->guid[0],16);a[1]=scratch;a[2]=scratch+16;nargs=3;break;
++ case 1:case 2:break;
++ case 7:case 8:{DmiObject*pf=dmi_lookup(q->v[2],DMB_PERFORMANCE);
++  if(!pf)xrt_fatal(c,XRT_EXIT_UNSUPPORTED,"DirectMusic PMSG performance %u has no guest proxy",q->v[2]);
++  perf=pf->guest;g=dmi_pmsg_copy(c,q,t);a[1]=perf;a[2]=g;nargs=3;
++  if(q->op==8){a[3]=q->v[5];a[4]=q->v[6];nargs=5;}
++  else{for(i=0;i<256&&dmi_pmsgs[i].guest;i++){}if(i==256)xrt_fatal(c,XRT_EXIT_SETUP,"DirectMusic guest PMSG table full");
++   dmi_pmsgs[i].guest=g;dmi_pmsgs[i].handle=q->v[0];dmi_pmsgs[i].size=q->v[3];dmi_pmsg_live++;
++   dmi_active_handle=q->v[0];dmi_active_guest=g;dmi_active_sequence=q->sequence;}
++  break;}
++ default:xrt_fatal(c,XRT_EXIT_UNSUPPORTED,"DirectMusic unmodelled asynchronous tool slot %u",q->op);
++ }
++ result=xrt_call_guest(&nested,fn,nargs,a,1);
++ type=g?rd32(g+DMB_PMSG_TYPE):0;
++ memset(r->v,0,sizeof r->v);r->v[0]=result;
++ if(q->op==0){uint32_t p=rd32(scratch+16);
++  if((SUCCEEDED((HRESULT)result)&&p!=t->guest)||(FAILED((HRESULT)result)&&p))xrt_fatal(c,XRT_EXIT_UNSUPPORTED,"DirectMusic tool QI changed identity");
++  r->v[1]=p?t->id:0;}
++ if(q->op==7){dmi_active_handle=dmi_active_guest=dmi_active_sequence=0;
++  /* Not retained (DMUS_S_FREE/REQUEUE/failure): DirectMusic keeps ownership natively. */
++  if(result!=S_OK){for(i=0;i<256;i++)if(dmi_pmsgs[i].guest==g){memset(&dmi_pmsgs[i],0,sizeof dmi_pmsgs[i]);dmi_pmsg_live--;}xrt_heap_free(c,g);}}
++ if(q->op==8)xrt_heap_free(c,g);
++ if(q->op>=7&&dmi_async_logged<64){dmi_async_logged++;
++  xrt_log("DirectMusic async slot %u tool %u pmsg %u type %u guest %08x text '%ls' result %08x live %u",q->op,t->id,q->v[0],type,g,(const wchar_t*)(q->data+DMB_PMSG_HEADER),result,dmi_pmsg_live);}
++ if(dmi_async_events++<4096)
++  xrt_event("dmusic_async_callback","\"tool\": %u, \"slot\": %u, \"pmsg\": %u, \"type\": %u, \"guest\": %u, \"result\": %u, \"live\": %u",
++   t->id,q->op,q->op>=7?q->v[0]:0,type,g,result,dmi_pmsg_live);
++}
++static void dmi_async_body(CPU*c,void*arg){DmbMessage q,r;(void)arg;
++ dmi_async_tid=xm_win_GetCurrentThreadId();
++ for(;;){
++  if(!dmi_async_read(dmi_async.in,&q)){
++   /* Only an orderly backend shutdown or process exit may close it: a helper failure must stop the run. */
++   if(dmi_async_shutdown||xrt_exiting){xrt_log("DirectMusic asynchronous channel closed");return;}
++   xrt_baton_acquire();xrt_fatal(c,XRT_EXIT_UNSUPPORTED,"DirectMusic helper ended outside shutdown (asynchronous channel closed)");}
++  if(xrt_exiting)return;
++  xrt_baton_acquire();
++  if(xrt_exiting){xrt_baton_release();return;}
++  if(q.magic!=DMB_MAGIC||q.version!=DMB_VERSION||q.bytes!=sizeof q||q.kind!=DMB_ASYNC_CALLBACK)
++   xrt_fatal(c,XRT_EXIT_UNSUPPORTED,"DirectMusic invalid asynchronous frame");
++  r=q;r.kind=DMB_ASYNC_REPLY;dmi_async_dispatch(c,&q,&r);
++  xrt_baton_release();
++  if(!dmi_async_write(dmi_async.out,&r)){xrt_log("DirectMusic asynchronous reply failed");return;}
++ }
++}
++static void dmi_async_start(CPU*c){
++ if(dmi_async_started||!dm_backend_connection.async_input)return;
++ dmi_async.in=dm_backend_connection.async_input;dmi_async.out=dm_backend_connection.async_output;
++ dmi_async_started=1;xrt_thread_service(c,"DirectMusic tool callbacks",dmi_async_body,NULL);
++}
++/* IDirectMusicGraph::StampPMsg, admitted only from the asynchronous callback thread for
++ * the message currently being processed; executed natively on the waiting DirectMusic thread. */
++static void dmi_Stamp(CPU*c){DmiObject*o=NULL;DmbMessage m,r;unsigned i;uint32_t g=ARG(1);
++ for(i=0;i<128;i++)if(dmi_objects[i].guest==ARG(0)&&dmi_objects[i].refs)o=&dmi_objects[i];
++ if(!o||o->type!=DMB_TOOLGRAPH)xrt_fatal(c,XRT_EXIT_UNSUPPORTED,"DirectMusic StampPMsg on unknown graph %08x",ARG(0));
++ if(!dmi_active_handle||g!=dmi_active_guest||xm_win_GetCurrentThreadId()!=dmi_async_tid)
++  xrt_fatal(c,XRT_EXIT_UNSUPPORTED,"DirectMusic StampPMsg outside the active asynchronous tool callback");
++ dmb_message(&m,DMB_STAMP_PMSG,o->id);m.kind=DMB_ASYNC_NESTED;m.sequence=dmi_active_sequence;m.v[0]=dmi_active_handle;
++ xrt_baton_release();
++ if(!dmi_async_write(dmi_async.out,&m))xrt_fatal(c,XRT_EXIT_UNSUPPORTED,"DirectMusic nested StampPMsg transport failed");
++ /* Native StampPMsg re-targets pTool and so calls the tool's Release/AddRef on the same
++  * DirectMusic thread: serve those callbacks recursively until the nested reply. */
++ for(;;){
++  if(!dmi_async_read(dmi_async.in,&r))xrt_fatal(c,XRT_EXIT_UNSUPPORTED,"DirectMusic nested StampPMsg transport failed");
++  if(r.magic==DMB_MAGIC&&r.version==DMB_VERSION&&r.bytes==sizeof r&&r.kind==DMB_ASYNC_CALLBACK){DmbMessage reply=r;
++   if(r.op==7||r.op==8)xrt_fatal(c,XRT_EXIT_UNSUPPORTED,"DirectMusic PMSG delivery nested inside StampPMsg");
++   reply.kind=DMB_ASYNC_REPLY;xrt_baton_acquire();dmi_async_dispatch(c,&r,&reply);xrt_baton_release();
++   if(!dmi_async_write(dmi_async.out,&reply))xrt_fatal(c,XRT_EXIT_UNSUPPORTED,"DirectMusic nested callback reply failed");continue;}
++  break;
++ }
++ xrt_baton_acquire();
++ if(r.magic!=DMB_MAGIC||r.kind!=DMB_ASYNC_NESTED_REPLY||r.sequence!=m.sequence||r.op!=DMB_STAMP_PMSG)xrt_fatal(c,XRT_EXIT_UNSUPPORTED,"DirectMusic invalid nested reply");
++ dmi_pmsg_header(c,g,r.data,NULL,r.v[1],r.v[3]);
++ xrt_event("dmusic_pmsg","\"event\": \"stamped\", \"pmsg\": %u, \"guest\": %u, \"result\": %u",m.v[0],g,r.v[0]);
++ RET_STD(2,r.v[0]);
++}
++/* IDirectMusicPerformance::FreePMsg of a retained guest PMSG copy. */
++static void dmi_FreePMsg(CPU*c){unsigned i;DmiPmsg*e=NULL;DmiObject*o=dmi_find(c,ARG(0));DmbMessage m;dmb_message(&m,DMB_FREE_PMSG,o->id);(void)o;
++ for(i=0;i<256;i++)if(dmi_pmsgs[i].guest&&dmi_pmsgs[i].guest==ARG(1))e=&dmi_pmsgs[i];
++ if(!e)xrt_fatal(c,XRT_EXIT_UNSUPPORTED,"DirectMusic FreePMsg of a PMSG not delivered to the guest (%08x)",ARG(1));
++ m.v[0]=e->handle;dm_backend_invoke(c,&m);
++ xrt_event("dmusic_pmsg","\"event\": \"freed\", \"pmsg\": %u, \"guest\": %u, \"result\": %u, \"live\": %u",e->handle,e->guest,m.v[0],dmi_pmsg_live-1);
++ if(dmi_free_logged++<64)xrt_log("DirectMusic FreePMsg pmsg %u guest %08x result %08x (game thread) live %u unmapped %u",e->handle,e->guest,m.v[0],dmi_pmsg_live-1,dmi_pmsg_unmapped);
++ if(SUCCEEDED((HRESULT)m.v[0])){xrt_heap_free(c,e->guest);memset(e,0,sizeof *e);dmi_pmsg_live--;}
++ RET_STD(2,m.v[0]);
++}
+ static void dmipc_thread_cleanup(CPU*c){unsigned i,released=0;DmbMessage m;
+  if(!dm_backend_alive())return;
+  for(i=128;i;i--){DmiObject*o=&dmi_objects[i-1];if(o->owner!=xm_win_GetCurrentThreadId())continue;
+   while(o->refs){dmb_message(&m,DMB_RELEASE,o->id);dm_backend_invoke(c,&m);o->refs--;released++;}
+  }
+- dm_backend_end(c);xrt_event("dmusic_backend_cleanup","\"references_released\": %u",released);
++ dmi_async_shutdown=1;dm_backend_end(c);xrt_event("dmusic_backend_cleanup","\"references_released\": %u",released);
+ }
+ static int dmipc_factory(CPU*c,const GUID*cls,const GUID*iid){
+  DmbMessage m;uint32_t type,p;
+@@ -84,7 +225,7 @@ static int dmipc_factory(CPU*c,const GUID*cls,const GUID*iid){
+  if(dm_equal(cls,&dm_clsid_loader)&&dm_equal(iid,&dm_iid_loader8))type=DMB_LOADER;
+  else if(dm_equal(cls,&dm_clsid_performance)&&dm_equal(iid,&dm_iid_performance8))type=DMB_PERFORMANCE;
+  else xrt_fatal(c,XRT_EXIT_UNSUPPORTED,"DirectMusic unmeasured factory");
+- dm_owner(c,c->thread->host_tid);dm_backend_start(c,dmi_callback);xrt_cleanup_register(dm_cleanup);
++ dm_owner(c,c->thread->host_tid);dm_backend_start(c,dmi_callback);dmi_async_start(c);xrt_cleanup_register(dm_cleanup);
+  dmb_message(&m,DMB_CREATE,0);m.v[0]=type;dm_backend_invoke(c,&m);p=dmi_wrap(c,&m);wr32(ARG(4),p);
+  xrt_event("com_factory","\"class\": \"%s\", \"backend\": \"ipc\", \"result\": %u, \"object\": %u",type==DMB_LOADER?"DirectMusicLoader8":"DirectMusicPerformance8",m.v[0],p);
+  RET_STD(5,m.v[0]);return 1;
+@@ -126,7 +267,7 @@ static void dmi_Close(CPU*c){DMI_BEGIN(DMB_CLOSE);dm_backend_invoke(c,&m);RET_ST
+  {"xrt.com","DMI.Unsupported",dmi_Unsupported},{"xrt.com","DMI.QI",dmi_QI}, \
+  {"xrt.com","DMI.AddRef",dmi_AddRef},{"xrt.com","DMI.Release",dmi_Release}, \
+  {"xrt.com","DMI.InitAudio",dmi_InitAudio},{"xrt.com","DMI.Search",dmi_Search}, \
+- {"xrt.com","DMI.Path",dmi_Path},{"xrt.com","DMI.Graph",dmi_Graph},{"xrt.com","DMI.Insert",dmi_Insert}, \
++ {"xrt.com","DMI.Path",dmi_Path},{"xrt.com","DMI.Graph",dmi_Graph},{"xrt.com","DMI.Insert",dmi_Insert},{"xrt.com","DMI.Stamp",dmi_Stamp},{"xrt.com","DMI.FreePMsg",dmi_FreePMsg}, \
+  {"xrt.com","DMI.Load",dmi_Load},{"xrt.com","DMI.Script",dmi_Script},{"xrt.com","DMI.ScriptInit",dmi_ScriptInit}, \
+  {"xrt.com","DMI.Volume",dmi_Volume},{"xrt.com","DMI.Routine",dmi_Routine}, \
+  {"xrt.com","DMI.ReleaseObject",dmi_ReleaseObject},{"xrt.com","DMI.Stop",dmi_Stop},{"xrt.com","DMI.Close",dmi_Close},
 diff --git a/out/dev-init-savepoints/init-return-20261030/runtime/hle_gui.c b/out/dev-init/runtime/hle_gui.c
 index c9ff9c9..8d8c76e 100644
 --- a/out/dev-init-savepoints/init-return-20261030/runtime/hle_gui.c
@@ -963,10 +1498,18 @@ index 3819bd4..dbb7d1a 100644
      }
  }
 diff --git a/out/dev-init-savepoints/init-return-20261030/runtime/xrt_internal.h b/out/dev-init/runtime/xrt_internal.h
-index 641fccc..c6290d6 100644
+index 641fccc..b8f80c7 100644
 --- a/out/dev-init-savepoints/init-return-20261030/runtime/xrt_internal.h
 +++ b/out/dev-init/runtime/xrt_internal.h
-@@ -140,6 +140,11 @@ XrtFn xrt_lookup(uint32_t va, const char** stub_name);
+@@ -100,6 +100,7 @@ void xrt_com_thread_cleanup(CPU* c); /* owning thread only; Loader8 references b
+ extern volatile long xrt_exiting;          /* set when ExitProcess starts: no more baton hand-overs */
+ void xrt_baton_acquire(void);
+ void xrt_baton_release(void);
++void xrt_thread_service(CPU* c, const char* name, void (*body)(CPU*, void*), void* arg); /* runtime-owned guest thread */
+ XrtThread* xrt_thread_main(uint32_t stack_reserve);
+ uint32_t xrt_thread_create(CPU* c, uint32_t stack_size, uint32_t start, uint32_t param, uint32_t* tid);
+ XRT_NORETURN void xrt_thread_exit(CPU* c, uint32_t code);
+@@ -140,6 +141,11 @@ XrtFn xrt_lookup(uint32_t va, const char** stub_name);
  uint32_t xrt_lookup_containing(uint32_t va);                /* lifted function entry at or below va */
  uint32_t xrt_call_guest(CPU* c, uint32_t va, int nargs, const uint32_t* args, int stdcall);
  void xrt_world_enter(CPU* c, uint32_t target);
@@ -978,3 +1521,50 @@ index 641fccc..c6290d6 100644
  void xrt_world_return(CPU* c);
  uint32_t xrt_call_funclet(CPU* c, uint32_t va);   /* EH funclet call: no args, not a host boundary */
  uint32_t xrt_call_continuation(CPU* c, uint32_t va, uint32_t expected_return);  /* run code at va until it returns */
+diff --git a/out/dev-init-savepoints/init-return-20261030/runtime/xrt_thread.c b/out/dev-init/runtime/xrt_thread.c
+index eacce9d..f7ae8a1 100644
+--- a/out/dev-init-savepoints/init-return-20261030/runtime/xrt_thread.c
++++ b/out/dev-init/runtime/xrt_thread.c
+@@ -207,3 +207,42 @@ XRT_NORETURN void xrt_thread_exit(CPU* c, uint32_t code) {
+     xm_unwind(c,0,3);
+     longjmp(t->exit_jmp, 1);
+ }
++
++/* Runtime-owned guest thread for native components that call guest code from their own
++ * threads (DirectMusic tool callbacks). Like a guest CreateThread thread it has a real host
++ * thread, its own guest stack/TEB and DLL_THREAD_ATTACH, but no guest handle. The body runs
++ * without the baton and acquires it only around guest execution. Called with the baton held. */
++typedef struct { XrtThread* t; void (*body)(CPU*, void*); void* arg; } ServiceStart;
++static DWORD WINAPI service_proc(void* p) {
++    ServiceStart s = *(ServiceStart*)p;
++    free(p);
++    xrt_cur = s.t;
++    xrt_baton_acquire();
++    s.t->state = 1;
++    xrt_dll_thread_notify(&s.t->cpu, 2);                              /* DLL_THREAD_ATTACH */
++    xrt_baton_release();
++    s.body(&s.t->cpu, s.arg);
++    return 0;
++}
++void xrt_thread_service(CPU* c, const char* name, void (*body)(CPU*, void*), void* arg) {
++    ServiceStart* s = (ServiceStart*)calloc(1, sizeof *s);
++    HANDLE h;
++    DWORD htid;
++    if (!s)
++        xrt_fatal(c, XRT_EXIT_SETUP, "service thread allocation");
++    s->t = new_thread(xrt_default_stack_reserve);
++    s->body = body;
++    s->arg = arg;
++    if (!InterlockedExchange(&ticker_started, 1))
++        CloseHandle(CreateThread(NULL, 0, ticker, NULL, 0, NULL));
++    h = CreateThread(NULL, 64u << 20, service_proc, s, CREATE_SUSPENDED | STACK_SIZE_PARAM_IS_A_RESERVATION, &htid);
++    if (!h)
++        xrt_fatal(c, XRT_EXIT_SETUP, "host CreateThread failed (%lu)", GetLastError());
++    s->t->host_handle = h;
++    s->t->host_tid = s->t->guest_tid = htid;
++    wr32(s->t->teb + 0x24, htid);
++    xrt_log("runtime service thread %d (%s): guest stack %08x-%08x teb %08x", s->t->index, name, s->t->stack_lo,
++            s->t->stack_hi, s->t->teb);
++    xrt_event("thread_service", "\"index\": %d, \"name\": \"%s\"", s->t->index, name);
++    ResumeThread(h);
++}
