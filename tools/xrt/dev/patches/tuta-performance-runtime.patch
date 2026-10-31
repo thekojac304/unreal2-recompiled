@@ -1,0 +1,772 @@
+diff --git a/out/dev-init-savepoints/tuta-gameplay-20261031/runtime/hle_d3d8_device.inc b/out/dev-init/runtime/hle_d3d8_device.inc
+index f32db05..46b2c51 100644
+--- a/out/dev-init-savepoints/tuta-gameplay-20261031/runtime/hle_d3d8_device.inc
++++ b/out/dev-init/runtime/hle_d3d8_device.inc
+@@ -20,19 +20,30 @@ static const GUID d8_device_iid={0x7385e5df,0x8fe8,0x41d5,{0x86,0xb6,0xd7,0xb4,0
+ 
+ /* A writable Windows page is also readable. Check the entire range, including
+  * the last scalar/page; com_memory alone checks commitment, not protection. */
++/* Hints: the last eight whole regions verified committed, writable and not guard pages (valid for both
++ * modes) until an overlapping guest range is decommitted (xrt_mem_hint_valid). */
++static struct {uint64_t lo,hi;long gen;} d8_memory_hint[8];static unsigned d8_memory_next;
+ static void d8_device_memory(CPU*c,uint32_t p,uint32_t size,int writable) {
+-    uint64_t at=p,end=(uint64_t)p+size;
+-    if(!p || end>0x100000000ull || !xrt_is_committed(p,size))
++    uint64_t at=p,end=(uint64_t)p+size;unsigned h;long gen=xrt_mem_generation;
++    if(!p || end>0x100000000ull)
++        xrt_fatal(c,76,"D3D8 device: invalid %s guest range %08x size %u",writable?"writable":"readable",p,size);
++    for(h=0;h<8;h++)
++        if(at>=d8_memory_hint[h].lo && end<=d8_memory_hint[h].hi &&
++           xrt_mem_hint_valid(d8_memory_hint[h].lo,d8_memory_hint[h].hi,&d8_memory_hint[h].gen))return;
++    if(!xrt_is_committed(p,size))
+         xrt_fatal(c,76,"D3D8 device: invalid %s guest range %08x size %u",writable?"writable":"readable",p,size);
+     while(at<end) {
+-        MEMORY_BASIC_INFORMATION m;DWORD prot;int ok;
++        MEMORY_BASIC_INFORMATION m;DWORD prot;int ok,rw;uint64_t lo;
+         if(!VirtualQuery(G2H((uint32_t)at),&m,sizeof m))xrt_fatal(c,76,"D3D8 device: guest range query failed");
+         prot=m.Protect&255;
+-        ok=prot==PAGE_READWRITE || prot==PAGE_WRITECOPY || prot==PAGE_EXECUTE_READWRITE || prot==PAGE_EXECUTE_WRITECOPY;
++        ok=rw=prot==PAGE_READWRITE || prot==PAGE_WRITECOPY || prot==PAGE_EXECUTE_READWRITE || prot==PAGE_EXECUTE_WRITECOPY;
+         if(!writable)ok=ok || prot==PAGE_READONLY || prot==PAGE_EXECUTE_READ;
+         if(m.State!=MEM_COMMIT || (m.Protect&PAGE_GUARD) || !ok)
+             xrt_fatal(c,76,"D3D8 device: invalid %s guest range %08x size %u",writable?"writable":"readable",p,size);
+-        at=(uint64_t)((BYTE*)m.BaseAddress-xrt_g)+m.RegionSize;
++        lo=(uint64_t)((BYTE*)m.BaseAddress-xrt_g);
++        at=lo+m.RegionSize;
++        if(rw && p>=lo && end<=at){d8_memory_hint[d8_memory_next].lo=lo;d8_memory_hint[d8_memory_next].hi=at;
++            d8_memory_hint[d8_memory_next].gen=gen;d8_memory_next=(d8_memory_next+1)&7;}
+     }
+ }
+ static D8DeviceObject* d8_device_object(CPU*c,uint32_t p) {
+diff --git a/out/dev-init-savepoints/tuta-gameplay-20261031/runtime/monitor.c b/out/dev-init/runtime/monitor.c
+index e12cded..a467da5 100644
+--- a/out/dev-init-savepoints/tuta-gameplay-20261031/runtime/monitor.c
++++ b/out/dev-init/runtime/monitor.c
+@@ -156,10 +156,16 @@ void xm_restore(CPU*c,const void*cookie,unsigned reason){unsigned i;
+ }
+ #include "routine_trace.inc"
+ 
++/* Developer "quiet" profile (XRT_MONITOR_PROFILE=quiet): the development stream without
++ * routine detail. BEGIN/END/DATA/RESOURCE/OMITTED records are not built at all (no record
++ * fill, CPU/stack copy, identity scan, CRC or snapshot work); OPEN/CLOSE, checkpoints,
++ * FATAL, GAP and ABORT, and the UGameEngine.Init milestone, are recorded as before.
++ * Adapter argument, memory, COM and resource checks are upstream and unaffected. */
++unsigned xm_quiet;
+ /* Only xm_probe calls this. Host state restored by assembly on every return. */
+ void xm_emit(CPU*c,const XmRequest*q,const XmHost*host) {
+     DWORD saved=GetLastError();XmRecord r;unsigned i;int bad=0;
+-    if(!initialized)return;
++    if(!initialized||xm_quiet_drop(q))return;
+     if(!c)c=xm_current_cpu();
+     if(tls.busy)xm_failure(1);
+     tls.busy=1;
+@@ -244,10 +250,11 @@ void xm_resource(CPU*c,unsigned iface,unsigned guest,unsigned generation,uint64_
+     q.generation=generation;q.interface_id=iface;q.host=host;q.refs=refs;q.bindings=bindings;xm_probe(c,&q);
+ }
+ void xm_blob(CPU*c,const char*name,const void*trusted,unsigned size) {
+-    XmRequest q={0};q.event=XM_DATA;q.name=name;q.blob=trusted;q.blob_size=size;xm_probe(c,&q);
++    XmRequest q={0};if(xm_quiet)return;q.event=XM_DATA;q.name=name;q.blob=trusted;q.blob_size=size;xm_probe(c,&q);
+ }
+ void xm_span(CPU*c,const char*name,const void*trusted,unsigned size) {
+     unsigned off;XmValue v[2]={{XM_U32,4,size},{XM_U32,4,0}};
++    if(xm_quiet)return;
+     /* Only these two explicitly approved bulk evidence categories are omitted.
+      * Adapter range, ownership, pitch, transfer and COM checks stay upstream.
+      * No pointer is dereferenced here or forwarded to native code. */
+@@ -260,12 +267,12 @@ void xm_span(CPU*c,const char*name,const void*trusted,unsigned size) {
+         v[1].value=off;xm_values(c,name,2,v);xm_blob(c,name,(const unsigned char*)trusted+off,n);}
+ }
+ void xm_values(CPU*c,const char*name,unsigned count,const XmValue*v) {
+-    XmRequest q={0};q.event=XM_DATA;q.name=name;q.count=count;
++    XmRequest q={0};if(xm_quiet)return;q.event=XM_DATA;q.name=name;q.count=count;
+     if(count<=12)memcpy(q.values,v,count*sizeof *v);xm_probe(c,&q);
+ }
+ void xm_guest(CPU*c,const char*name,unsigned address,unsigned size) {
+     DWORD saved=GetLastError();unsigned char bytes[256];XmRequest q={0};
+-    if(!initialized)return;
++    if(!initialized||xm_quiet)return;
+     q.event=XM_DATA;q.name=name;q.guest=address;
+     if(size>sizeof bytes||!copy_guest(bytes,address,size)){q.event=XM_GAP;q.result=10;}
+     else {q.blob=bytes;q.blob_size=size;}
+@@ -279,6 +286,7 @@ void xm_init(const char*path) {
+     {const char*p=getenv("XRT_MONITOR_PROFILE");
+      if(!p || !strcmp(p,"forensic"))xm_profile=0;
+      else if(!strcmp(p,"development"))xm_profile=1;
++     else if(!strcmp(p,"quiet"))xm_profile=xm_quiet=1;
+      else xm_failure(24);}
+     sink=CreateFileA(path,GENERIC_WRITE,FILE_SHARE_READ,NULL,CREATE_NEW,
+         FILE_ATTRIBUTE_NORMAL|(xm_profile?0:FILE_FLAG_WRITE_THROUGH),NULL);
+diff --git a/out/dev-init-savepoints/tuta-gameplay-20261031/runtime/monitor.h b/out/dev-init/runtime/monitor.h
+index 98ff0d9..1775ed2 100644
+--- a/out/dev-init-savepoints/tuta-gameplay-20261031/runtime/monitor.h
++++ b/out/dev-init/runtime/monitor.h
+@@ -39,6 +39,7 @@ void xm_close(void);
+ void xm_checkpoint(CPU*,const char*name);
+ extern volatile uint64_t xm_recorded, xm_written, xm_flushes;
+ extern volatile unsigned xm_buffer_count, xm_profile;
++extern unsigned xm_quiet; /* developer quiet profile: no routine records */
+ extern XmRecord xm_buffer[4096];
+ int xm_enabled(void);
+ CPU* xm_current_cpu(void);
+@@ -48,6 +49,13 @@ void xm_restore(CPU*,const void*cookie,unsigned reason);
+ void xm_unwind(CPU*,unsigned depth,unsigned reason);
+ /* MASM saves/restores ALL GPRs, flags and complete legacy x87/SSE state. */
+ void xm_probe(CPU*,const XmRequest*);
++/* Quiet profile: routine records are dropped before the probe saves any host state. */
++static __inline int xm_quiet_drop(const XmRequest*q) {
++    return xm_quiet && (q->event==XM_BEGIN||q->event==XM_END||q->event==XM_DATA||q->event==XM_RESOURCE||q->event==XM_OMITTED) &&
++           !(q->name && !strcmp(q->name,"UGameEngine.Init"));
++}
++static __inline void xm_probe_gated(CPU*c,const XmRequest*q) { if(!xm_quiet_drop(q))xm_probe(c,q); }
++#define xm_probe xm_probe_gated
+ void xm_scope(CPU*,unsigned event,unsigned domain,const char*name,uint64_t result);
+ void xm_native(CPU*,unsigned event,const char*name,uint64_t host,uint64_t result);
+ void xm_resource(CPU*,unsigned iface,unsigned guest,unsigned generation,
+diff --git a/out/dev-init-savepoints/tuta-gameplay-20261031/runtime/resource_draw.inc b/out/dev-init/runtime/resource_draw.inc
+index f19aacd..e93662e 100644
+--- a/out/dev-init-savepoints/tuta-gameplay-20261031/runtime/resource_draw.inc
++++ b/out/dev-init/runtime/resource_draw.inc
+@@ -38,8 +38,9 @@ static void d8_device_UpdateTexture(CPU*c) {
+  prev=d8_native_enter(c,29,NULL,0);hr=XM_UpdateTexture(c,o->host,(D8Texture*)(s?s->host:NULL),(D8Texture*)(t?t->host:NULL));error=GetLastError();d8_semantic_return(c,prev,id,3,hr,error);
+ }
+ static void d8_buffer_readable(CPU*c,D8Resource*r,uint64_t start,uint64_t size) {
+- uint64_t i;if(!r||!r->shadow||start+size<start||start+size>r->length)xrt_fatal(c,76,"D3D8 draw: buffer range outside owned upload");
+- for(i=start;i<start+size;i++)if(!r->valid[i])xrt_fatal(c,76,"D3D8 draw: buffer range has no validated upload");
++ if(!r||!r->shadow||start+size<start||start+size>r->length)xrt_fatal(c,76,"D3D8 draw: buffer range outside owned upload");
++ /* valid[] holds 0/1 per byte: any zero byte in the range fails (memchr scans it vectorized). */
++ if(size&&memchr(r->valid+start,0,(size_t)size))xrt_fatal(c,76,"D3D8 draw: buffer range has no validated upload");
+ }
+ static void d8_buffer_draw(CPU*c,int indexed) {
+  unsigned n=indexed?6:4,slot=indexed?71:70;LONG id=d8_api_entry(c,slot,n);D8DeviceObject*o=d8_semantic_frame(c);
+@@ -66,8 +67,11 @@ static void d8_buffer_draw(CPU*c,int indexed) {
+  }
+  if(indexed){unsigned isize=b->format==101?2:b->format==102?4:0;if(!isize)xrt_fatal(c,76,"D3D8 draw: unknown index format");
+   d8_buffer_readable(c,b,(uint64_t)start*isize,(uint64_t)nv*isize);
+-  for(i=0;i<nv;i++){if(isize==2){WORD value;memcpy(&value,b->shadow+((size_t)start+i)*2,2);ix=value;}else memcpy(&ix,b->shadow+((size_t)start+i)*4,4);
+-   if(ix<min||(uint64_t)ix>=((uint64_t)min+num))xrt_fatal(c,76,"D3D8 draw: index outside declared vertices");}
++  /* Every index must lie in [min, min+num): checked as the range of the smallest and largest index. */
++  if(nv){unsigned lo=~0u,hi=0;
++   if(isize==2){const WORD*p=(const WORD*)(b->shadow+(size_t)start*2);for(i=0;i<nv;i++){WORD v;memcpy(&v,p+i,2);lo=v<lo?v:lo;hi=v>hi?v:hi;}}
++   else{const BYTE*p=b->shadow+(size_t)start*4;for(i=0;i<nv;i++){memcpy(&ix,p+(size_t)i*4,4);lo=ix<lo?ix:lo;hi=ix>hi?ix:hi;}}
++   if(lo<min||(uint64_t)hi>=((uint64_t)min+num))xrt_fatal(c,76,"D3D8 draw: index outside declared vertices");}
+  }
+  prev=d8_native_enter(c,slot,NULL,0);hr=indexed?XM_DrawIndexedPrimitive(c,o->host,type,min,num,start,count):XM_DrawPrimitive(c,o->host,type,min,count);error=GetLastError();d8_count_draw(hr,count);d8_semantic_return(c,prev,id,n,hr,error);
+ }
+diff --git a/out/dev-init-savepoints/tuta-gameplay-20261031/runtime/resources.inc b/out/dev-init/runtime/resources.inc
+index 19c1063..2e1f52c 100644
+--- a/out/dev-init-savepoints/tuta-gameplay-20261031/runtime/resources.inc
++++ b/out/dev-init/runtime/resources.inc
+@@ -50,11 +50,20 @@ static void d8_resource_guard(CPU*c) {
+  if(d8_rendering||d8_creating||d8_native_failed)xrt_fatal(c,76,"D3D8 resource: reentrant or failed native operation");
+  if(d8_device.host){xrt_gui_device_window(c,d8_device.focus);xrt_gui_device_window(c,d8_device.window);}
+ }
++/* Slot hint per guest token (index+1). Tokens are fresh xrt_rt_alloc cells, never reused, so at most one
++ * live slot holds a token; a hint is used only after the same live-slot test as the scan. */
++static unsigned d8_resource_hint[1024];
+ static D8Resource*d8_resource(CPU*c,uint32_t guest,unsigned kind) {
+- unsigned i;d8_resource_guard(c);
+- for(i=0;i<d8_resource_used;i++) {D8Resource*r=&d8_resources[i];
++ unsigned i,h=(guest>>2)&1023;D8Resource*r;d8_resource_guard(c);
++ i=d8_resource_hint[h]-1;
++ if(i<d8_resource_used&&(r=&d8_resources[i],guest&&r->guest==guest&&r->refs&&r->host)) {
++  if(kind&&r->kind!=kind)xrt_fatal(c,76,"D3D8 resource: wrong interface type");
++  xm_d8_resource(c,r,"receiver");return r;
++ }
++ for(i=0;i<d8_resource_used;i++) {r=&d8_resources[i];
+   if(guest&&r->guest==guest&&r->refs&&r->host) {
+    if(kind&&r->kind!=kind)xrt_fatal(c,76,"D3D8 resource: wrong interface type");
++   d8_resource_hint[h]=i+1;
+    xm_d8_resource(c,r,"receiver");return r;
+   }
+  }
+diff --git a/out/dev-init-savepoints/tuta-gameplay-20261031/runtime/semantic_evidence.inc b/out/dev-init/runtime/semantic_evidence.inc
+index c539a17..8ce4fea 100644
+--- a/out/dev-init-savepoints/tuta-gameplay-20261031/runtime/semantic_evidence.inc
++++ b/out/dev-init/runtime/semantic_evidence.inc
+@@ -1,17 +1,27 @@
+ /* Evidence precedes validation, including unreadable stacks. No guest writes. */
+ static volatile LONG d8_evidence_serial;
++/* Evidence is formatted only when it can still be stored: once the event timeline is full
++ * (or under the quiet profile) xrt_event discards it, so encoding it is pure overhead. */
++static int d8_evidence_on(void){return !xm_quiet && xrt_event_room();}
+ static void d8_evidence_blob(LONG id,const char*area,const void*data,unsigned bytes) {
+     const BYTE*p=(const BYTE*)data;unsigned off,i,n;char hex[129];
+     static const char digits[]="0123456789abcdef";
++    if(!d8_evidence_on())return;
+     for(off=0;off<bytes;off+=64) {
+         n=bytes-off;if(n>64)n=64;
+         for(i=0;i<n;i++){hex[2*i]=digits[p[off+i]>>4];hex[2*i+1]=digits[p[off+i]&15];}hex[2*n]=0;
+         xrt_event("d3d8_semantic_blob","\"id\":%ld,\"area\":\"%s\",\"offset\":%u,\"size\":%u,\"hex\":\"%s\"",id,area,off,bytes,hex);
+     }
+ }
++/* Last region verified readable, valid while no overlapping guest range has been decommitted since
++ * (xrt_mem_hint_valid; guest pages are never reprotected): one VirtualQuery per region, not per call. */
++static struct {uint64_t lo,hi;long gen;} d8_readable_hint;
+ static int d8_evidence_readable(uint32_t p,uint32_t size) {
+-    uint64_t at=p,end=(uint64_t)p+size;
+-    if(!p || end>0x100000000ull || !xrt_is_committed(p,size))return 0;
++    uint64_t at=p,end=(uint64_t)p+size;long gen=xrt_mem_generation;
++    if(!p || end>0x100000000ull)return 0;
++    if(at>=d8_readable_hint.lo && end<=d8_readable_hint.hi &&
++       xrt_mem_hint_valid(d8_readable_hint.lo,d8_readable_hint.hi,&d8_readable_hint.gen))return 1;
++    if(!xrt_is_committed(p,size))return 0;
+     while(at<end) {
+         MEMORY_BASIC_INFORMATION m;DWORD prot;uint64_t next;
+         if(!VirtualQuery(G2H((uint32_t)at),&m,sizeof m))return 0;
+@@ -19,7 +29,9 @@ static int d8_evidence_readable(uint32_t p,uint32_t size) {
+         if(m.State!=MEM_COMMIT || (m.Protect&PAGE_GUARD) ||
+            (prot!=PAGE_READONLY && prot!=PAGE_READWRITE && prot!=PAGE_WRITECOPY &&
+             prot!=PAGE_EXECUTE_READ && prot!=PAGE_EXECUTE_READWRITE && prot!=PAGE_EXECUTE_WRITECOPY))return 0;
+-        next=(uint64_t)((BYTE*)m.BaseAddress-xrt_g)+m.RegionSize;if(next<=at)return 0;at=next;
++        next=(uint64_t)((BYTE*)m.BaseAddress-xrt_g)+m.RegionSize;if(next<=at)return 0;
++        if(p>=(uint64_t)((BYTE*)m.BaseAddress-xrt_g) && end<=next){d8_readable_hint.lo=(uint64_t)((BYTE*)m.BaseAddress-xrt_g);d8_readable_hint.hi=next;d8_readable_hint.gen=gen;}
++        at=next;
+     }
+     return 1;
+ }
+@@ -37,12 +49,14 @@ __declspec(noinline) static LONG d8_api_entry(CPU*c,unsigned slot,unsigned nargs
+     DWORD error=GetLastError(),mxcsr=_mm_getcsr();LONG id=InterlockedIncrement(&d8_evidence_serial);
+     __declspec(align(16)) CONTEXT host;
+     int readable=d8_evidence_readable(c->r[ESP],4*(nargs+1));
++    if(d8_evidence_on()) {
+     RtlCaptureContext(&host);
+     xrt_event("d3d8_semantic_entry","\"id\":%ld,\"slot\":%u,\"site\":%u,\"esp\":%u,\"host_error\":%lu,\"guest_error\":%u,\"stack_readable\":%s,\"rendering\":%d,\"device\":%u,\"refs\":%u,\"host\":%llu,\"focus\":%u,\"window\":%u",
+        id,slot,c->pc,c->r[ESP],error,xrt_get_last_error(c),readable?"true":"false",d8_rendering,d8_device.guest,d8_device.refs,(unsigned long long)(uintptr_t)d8_device.host,d8_device.focus,d8_device.window);
+     d8_evidence_blob(id,"guest_cpu",c,sizeof *c);d8_evidence_blob(id,"host_context",&host,sizeof host);
+     if(readable)d8_evidence_blob(id,"arguments",G2H(c->r[ESP]),4*(nargs+1));
+     if(d8_evidence_readable(c->r[ESP],128))d8_evidence_blob(id,"stack",G2H(c->r[ESP]),128);
++    }
+     _mm_setcsr(mxcsr);SetLastError(error);
+     d8_semantic_checkpoint(c,0,slot,NULL,0,0,error);
+     if(!readable)xrt_fatal(c,76,"SAFETY: D3D8 slot %u unreadable/overflowing argument frame",slot);
+diff --git a/out/dev-init-savepoints/tuta-gameplay-20261031/runtime/xrt.h b/out/dev-init/runtime/xrt.h
+index e96495b..3d31f35 100644
+--- a/out/dev-init-savepoints/tuta-gameplay-20261031/runtime/xrt.h
++++ b/out/dev-init/runtime/xrt.h
+@@ -12,6 +12,15 @@
+  * Portable C99 except where marked; host Win32 services are confined to the xrt_*.c adapters. */
+ #ifndef XRT_H
+ #define XRT_H
++/* The guest load/store, stack, flag and x87 helpers are forced inline: at /O2 MSVC otherwise leaves
++ * thousands of out-of-line calls to them in large translated functions. */
++#if defined(XRT_NO_FORCE_INLINE)   /* units whose compile time explodes when forced */
++#define XRT_INLINE static inline
++#elif defined(_MSC_VER)
++#define XRT_INLINE static __forceinline
++#else
++#define XRT_INLINE static inline __attribute__((always_inline))
++#endif
+ #include <math.h>
+ #include <stdint.h>
+ #include <string.h>
+@@ -44,38 +53,38 @@ extern uint8_t* xrt_g;                 /* host address of guest address 0 */
+ #define G2H(a) ((void*)(xrt_g + (uint32_t)(a)))
+ uint32_t xrt_h2g(const void* p);       /* fatal if p is not inside guest memory */
+ 
+-static inline uint8_t rd8(uint32_t a) { return xrt_g[a]; }
+-static inline uint16_t rd16(uint32_t a) { uint16_t v; memcpy(&v, xrt_g + a, 2); return v; }
+-static inline uint32_t rd32(uint32_t a) { uint32_t v; memcpy(&v, xrt_g + a, 4); return v; }
+-static inline uint64_t rd64(uint32_t a) { uint64_t v; memcpy(&v, xrt_g + a, 8); return v; }
+-static inline void wr8(uint32_t a, uint8_t v) { xrt_g[a] = v; }
+-static inline void wr16(uint32_t a, uint16_t v) { memcpy(xrt_g + a, &v, 2); }
+-static inline void wr32(uint32_t a, uint32_t v) { memcpy(xrt_g + a, &v, 4); }
+-static inline void wr64(uint32_t a, uint64_t v) { memcpy(xrt_g + a, &v, 8); }
+-static inline float rdf32(uint32_t a) { float f; memcpy(&f, xrt_g + a, 4); return f; }
+-static inline double rdf64(uint32_t a) { double d; memcpy(&d, xrt_g + a, 8); return d; }
+-static inline void wrf32(uint32_t a, float f) { memcpy(xrt_g + a, &f, 4); }
+-static inline void wrf64(uint32_t a, double d) { memcpy(xrt_g + a, &d, 8); }
+-
+-static inline void push32(CPU* c, uint32_t v) { c->r[ESP] -= 4; wr32(c->r[ESP], v); }
+-static inline uint32_t pop32(CPU* c) { uint32_t v = rd32(c->r[ESP]); c->r[ESP] += 4; return v; }
++XRT_INLINE uint8_t rd8(uint32_t a) { return xrt_g[a]; }
++XRT_INLINE uint16_t rd16(uint32_t a) { uint16_t v; memcpy(&v, xrt_g + a, 2); return v; }
++XRT_INLINE uint32_t rd32(uint32_t a) { uint32_t v; memcpy(&v, xrt_g + a, 4); return v; }
++XRT_INLINE uint64_t rd64(uint32_t a) { uint64_t v; memcpy(&v, xrt_g + a, 8); return v; }
++XRT_INLINE void wr8(uint32_t a, uint8_t v) { xrt_g[a] = v; }
++XRT_INLINE void wr16(uint32_t a, uint16_t v) { memcpy(xrt_g + a, &v, 2); }
++XRT_INLINE void wr32(uint32_t a, uint32_t v) { memcpy(xrt_g + a, &v, 4); }
++XRT_INLINE void wr64(uint32_t a, uint64_t v) { memcpy(xrt_g + a, &v, 8); }
++XRT_INLINE float rdf32(uint32_t a) { float f; memcpy(&f, xrt_g + a, 4); return f; }
++XRT_INLINE double rdf64(uint32_t a) { double d; memcpy(&d, xrt_g + a, 8); return d; }
++XRT_INLINE void wrf32(uint32_t a, float f) { memcpy(xrt_g + a, &f, 4); }
++XRT_INLINE void wrf64(uint32_t a, double d) { memcpy(xrt_g + a, &d, 8); }
++
++XRT_INLINE void push32(CPU* c, uint32_t v) { c->r[ESP] -= 4; wr32(c->r[ESP], v); }
++XRT_INLINE uint32_t pop32(CPU* c) { uint32_t v = rd32(c->r[ESP]); c->r[ESP] += 4; return v; }
+ 
+ /* ---------------------------------------------------------------- flags */
+-static inline uint32_t parity8(uint32_t v) { v &= 0xFF; v ^= v >> 4; v ^= v >> 2; v ^= v >> 1; return (~v) & 1; }
+-static inline uint32_t msb(uint32_t v, int bits) { return (v >> (bits - 1)) & 1; }
+-static inline uint32_t bmask(int bits) { return bits == 32 ? 0xFFFFFFFFu : ((1u << bits) - 1); }
+-static inline void fl_szp(CPU* c, uint32_t res, int bits) {
++XRT_INLINE uint32_t parity8(uint32_t v) { v &= 0xFF; v ^= v >> 4; v ^= v >> 2; v ^= v >> 1; return (~v) & 1; }
++XRT_INLINE uint32_t msb(uint32_t v, int bits) { return (v >> (bits - 1)) & 1; }
++XRT_INLINE uint32_t bmask(int bits) { return bits == 32 ? 0xFFFFFFFFu : ((1u << bits) - 1); }
++XRT_INLINE void fl_szp(CPU* c, uint32_t res, int bits) {
+     res &= bmask(bits);
+     c->zf = res == 0; c->sf = msb(res, bits); c->pf = parity8(res);
+ }
+-static inline void fl_logic(CPU* c, uint32_t res, int bits) { fl_szp(c, res, bits); c->cf = 0; c->of = 0; }
+-static inline void fl_add(CPU* c, uint32_t a, uint32_t b, uint32_t res, int bits) {
++XRT_INLINE void fl_logic(CPU* c, uint32_t res, int bits) { fl_szp(c, res, bits); c->cf = 0; c->of = 0; }
++XRT_INLINE void fl_add(CPU* c, uint32_t a, uint32_t b, uint32_t res, int bits) {
+     uint32_t m = bmask(bits);
+     a &= m; b &= m; res &= m;
+     c->cf = res < a; fl_szp(c, res, bits);
+     c->of = msb((a ^ res) & (b ^ res), bits);
+ }
+-static inline void fl_sub(CPU* c, uint32_t a, uint32_t b, uint32_t res, int bits) {
++XRT_INLINE void fl_sub(CPU* c, uint32_t a, uint32_t b, uint32_t res, int bits) {
+     uint32_t m = bmask(bits);
+     a &= m; b &= m; res &= m;
+     c->cf = a < b; fl_szp(c, res, bits);
+@@ -83,20 +92,20 @@ static inline void fl_sub(CPU* c, uint32_t a, uint32_t b, uint32_t res, int bits
+ }
+ 
+ /* ---------------------------------------------------------------- x87 (host-double model) */
+-static inline double* ST(CPU* c, int i) { return &c->st[(c->top + i) & 7]; }
+-static inline void fpush(CPU* c, double v) { c->top = (c->top - 1) & 7; c->st[c->top] = v; }
+-static inline void fpop(CPU* c) { c->top = (c->top + 1) & 7; }
++XRT_INLINE double* ST(CPU* c, int i) { return &c->st[(c->top + i) & 7]; }
++XRT_INLINE void fpush(CPU* c, double v) { c->top = (c->top - 1) & 7; c->st[c->top] = v; }
++XRT_INLINE void fpop(CPU* c) { c->top = (c->top + 1) & 7; }
+ double xrt_fround(CPU* c, double v);                    /* round to integer per FCW.RC */
+ int64_t xrt_fist64(CPU* c, double v);                   /* integer indefinite on overflow/NaN */
+ int32_t xrt_fist32(CPU* c, double v);
+ int16_t xrt_fist16(CPU* c, double v);
+-static inline void fcompare(CPU* c, double a, double b) { /* C0 (bit 8), C2 (bit 10), C3 (bit 14) */
++XRT_INLINE void fcompare(CPU* c, double a, double b) { /* C0 (bit 8), C2 (bit 10), C3 (bit 14) */
+     c->fsw &= (uint16_t)~0x4500;
+     if (isnan(a) || isnan(b)) c->fsw |= 0x4500;
+     else if (a < b) c->fsw |= 0x0100;
+     else if (a == b) c->fsw |= 0x4000;
+ }
+-static inline uint16_t fstatus(CPU* c) { return (uint16_t)((c->fsw & ~0x3800) | ((c->top & 7) << 11)); }
++XRT_INLINE uint16_t fstatus(CPU* c) { return (uint16_t)((c->fsw & ~0x3800) | ((c->top & 7) << 11)); }
+ void xrt_fsin(CPU* c);
+ void xrt_fcos(CPU* c);
+ void xrt_fptan(CPU* c);
+diff --git a/out/dev-init-savepoints/tuta-gameplay-20261031/runtime/xrt_events.c b/out/dev-init/runtime/xrt_events.c
+index 683d5f7..4a72a0c 100644
+--- a/out/dev-init-savepoints/tuta-gameplay-20261031/runtime/xrt_events.c
++++ b/out/dev-init/runtime/xrt_events.c
+@@ -34,8 +34,9 @@ typedef struct {
+     uint32_t self,world,esp,ret,popped;
+ } WorldCall;
+ static __declspec(thread) WorldCall world_calls[128];
+-/* Pending entries on this thread: returns skip the 128-slot scan when none is pending. */
+-static __declspec(thread) unsigned world_pending;
++/* Pending entries on this thread: returns skip the 128-slot scan when none is pending,
++ * and scan only below world_top (one past the highest occupied slot) otherwise. */
++static __declspec(thread) unsigned world_pending,world_top;
+ /* Developer first-scene counters, read and reset by the D3D8 Present handler. */
+ int xrt_scene_level_depth,xrt_scene_camera_depth;unsigned xrt_scene_level_renders,xrt_scene_camera_renders,xrt_scene_engine_ticks,xrt_scene_level_ticks;
+ 
+@@ -61,16 +62,21 @@ void xrt_world_enter(CPU*c,uint32_t target) {
+     for(i=0;i<128;i++)if(!world_calls[i].kind) {
+         WorldCall*p=&world_calls[i];char event[64];
+         p->kind=kind;p->stage=stage;p->self=self;p->world=world;p->esp=c->r[ESP];p->ret=rd32(p->esp);p->popped=popped;world_pending++;
++        if(i>=world_top)world_top=i+1;
++        if(c->thread&&(!c->thread->world_floor||(uint64_t)p->esp+p->popped<c->thread->world_floor))
++            c->thread->world_floor=(uint64_t)p->esp+p->popped;
+         snprintf(event,sizeof event,"%s_call",kind);
+         xrt_event(event,"\"stage\":\"%s\",\"this\":%u,\"world\":%u,\"esp\":%u,\"return\":%u",stage,self,world,p->esp,p->ret);
+         return;
+     }
+     xrt_fatal(c,XRT_EXIT_SETUP,"world observer pending-call bound exceeded");
+ }
++/* Called after translated calls return while c->r[ESP] >= c->thread->world_floor (0: unknown); a pending
++ * call can only complete at esp == its esp + popped, so returns below the floor are skipped by the caller. */
+ void xrt_world_return(CPU*c) {
+-    unsigned i;
+-    if(!world_pending)return;
+-    for(i=0;i<128;i++) {
++    unsigned i;uint64_t floor=~0ull;
++    if(!world_pending){if(c->thread)c->thread->world_floor=~0ull;return;}
++    for(i=0;i<world_top;i++) {
+         WorldCall*p=&world_calls[i];char event[64];
+         if(!p->kind || c->rv!=p->ret || c->r[ESP]!=p->esp+p->popped)continue;
+         snprintf(event,sizeof event,"%s_return",p->kind);
+@@ -82,7 +88,12 @@ void xrt_world_return(CPU*c) {
+         if(!strcmp(p->kind,"level_tick"))xrt_scene_level_ticks++;
+         p->kind=NULL;world_pending--;
+     }
++    while(world_top&&!world_calls[world_top-1].kind)world_top--;
++    for(i=0;i<world_top;i++)if(world_calls[i].kind&&(uint64_t)world_calls[i].esp+world_calls[i].popped<floor)
++        floor=(uint64_t)world_calls[i].esp+world_calls[i].popped;
++    if(c->thread)c->thread->world_floor=floor;
+ }
++int xrt_event_room(void){return events&&event_seq<MAX_EVENTS;}
+ 
+ /* s is an ANSI (CP_ACP) string, as the guest and the host adapters use them; the JSON text stays pure ASCII:
+  * every character outside printable ASCII becomes a \uXXXX escape of its UTF-16 value. Truncated to fit n. */
+diff --git a/out/dev-init-savepoints/tuta-gameplay-20261031/runtime/xrt_internal.h b/out/dev-init/runtime/xrt_internal.h
+index d46c632..7b8109f 100644
+--- a/out/dev-init-savepoints/tuta-gameplay-20261031/runtime/xrt_internal.h
++++ b/out/dev-init/runtime/xrt_internal.h
+@@ -68,6 +68,9 @@ extern volatile long xrt_dying;
+ /* ---------------------------------------------------------------- evidence timeline (xrt_events.c) */
+ void xrt_events_init(void);
+ void xrt_event(const char* kind, const char* fmt, ...);     /* fmt: further JSON members, may be NULL */
++int xrt_event_room(void);                                    /* 0 once further events would only be counted */
++extern volatile long xrt_mem_generation;                     /* bumped before guest pages are decommitted */
++int xrt_mem_hint_valid(uint64_t lo, uint64_t hi, long* gen); /* range checked under *gen not decommitted since */
+ const char* xrt_jstr(char* out, size_t n, const char* s);   /* quoted, escaped JSON string in out */
+ void xrt_watches_arm(void);                                  /* after the modules are mapped */
+ void xrt_watches_arm_module(struct XrtModule* m);            /* a module mapped later (LoadLibrary) */
+@@ -94,12 +97,14 @@ struct XrtThread {
+     int eh_unwinding;              /* > 0 while the dispatcher runs unwind actions (a throw then is terminate()) */
+     int loader_lock;               /* > 0 while this thread runs DllMain notifications (no baton hand-over) */
+     unsigned com_initializations;  /* successful guest COM initializations owned by this host thread */
++    uint64_t world_floor;          /* lowest esp at which a pending world-observer call returns (0: unknown) */
+ };
+ extern __declspec(thread) XrtThread* xrt_cur;
+ void xrt_com_thread_cleanup(CPU* c); /* owning thread only; Loader8 references before apartment balance */
+ extern volatile long xrt_exiting;          /* set when ExitProcess starts: no more baton hand-overs */
+ void xrt_baton_acquire(void);
+ void xrt_baton_release(void);
++void xrt_baton_stats_log(void);           /* hand-over statistics to the log (diagnostic) */
+ void xrt_thread_service(CPU* c, const char* name, void (*body)(CPU*, void*), void* arg); /* runtime-owned guest thread */
+ XrtThread* xrt_thread_main(uint32_t stack_reserve);
+ uint32_t xrt_thread_create(CPU* c, uint32_t stack_size, uint32_t start, uint32_t param, uint32_t* tid);
+diff --git a/out/dev-init-savepoints/tuta-gameplay-20261031/runtime/xrt_loader.c b/out/dev-init/runtime/xrt_loader.c
+index 57bb5a8..194f683 100644
+--- a/out/dev-init-savepoints/tuta-gameplay-20261031/runtime/xrt_loader.c
++++ b/out/dev-init/runtime/xrt_loader.c
+@@ -107,7 +107,10 @@ static uint32_t module_generation;
+  * Guest execution is serialized by the baton. */
+ enum {CALL_INPUT_INIT=1,CALL_VIEWPORT_OPEN=2,CALL_VIEWPORT_TRY=4,CALL_LOADMAP=8,CALL_POSTLOAD=16,CALL_SETRES=32};
+ typedef struct {uint32_t va,gen;XrtFn fn;unsigned flags;} CallCache;
+-static CallCache call_cache[8192];static uint32_t call_cache_gen=1;
++/* Direct-mapped indirect-call target cache: 64K entries, indexed by a hash of the target that mixes in the
++ * high bits (vtable targets of different modules otherwise collide in the low bits). */
++#define CALL_CACHE_SLOT(t) ((((t)>>2)^((t)>>18))&65535)
++static CallCache call_cache[65536];static uint32_t call_cache_gen=1;
+ 
+ XrtModule* xrt_module_load(const char* host_path, const XrtLiftedModule* lifted) {
+     FILE* f = fopen(host_path, "rb");
+@@ -518,9 +521,9 @@ XrtFn xrt_lookup(uint32_t va, const char** stub_name) {
+ }
+ 
+ /* Routine tracing is centralized in the developer monitor. */
+-static const CallCache*call_target(uint32_t target) {
+-    CallCache*e=&call_cache[(target>>2)&8191];
+-    if(e->va!=target||e->gen!=call_cache_gen){
++static __declspec(noinline) const CallCache*call_target_fill(uint32_t target) {
++    CallCache*e=&call_cache[CALL_CACHE_SLOT(target)];
++    {
+         XrtModule*m=xrt_module_by_addr(target);XrtFn fn=lookup_lifted(target);unsigned flags=0;
+         if(!fn)return NULL;
+         if(m&&!_stricmp(m->name,"WinDrv.dll"))flags=target-m->base==0x17c0?CALL_INPUT_INIT:target-m->base==0x3390?CALL_VIEWPORT_OPEN:target-m->base==0x49b0?CALL_VIEWPORT_TRY:0;
+@@ -530,6 +533,11 @@ static const CallCache*call_target(uint32_t target) {
+     }
+     return e;
+ }
++/* Every indirect call looks its target up here (twice for icalls): keep the hit path inline. */
++static __forceinline const CallCache*call_target(uint32_t target) {
++    CallCache*e=&call_cache[CALL_CACHE_SLOT(target)];
++    return e->va==target&&e->gen==call_cache_gen?e:call_target_fill(target);
++}
+ 
+ static void dispatch(CPU* c, uint32_t target, uint32_t site, const char* what) {
+     XrtFn fn;
+@@ -546,7 +554,8 @@ static void dispatch(CPU* c, uint32_t target, uint32_t site, const char* what) {
+                 site_count((int)i, rd32(c->r[ESP]));
+             if (nwatch)
+                 watch_check(c, (int)i, site);
+-            xrt_watches_check(c, stubs[i].name, site);
++            if (!xm_quiet)   /* evidence only: unattributed changes of marks.json watches */
++                xrt_watches_check(c, stubs[i].name, site);
+             /* import calls are preemption points too (e.g. spin loops on timeGetTime) - except the calls that end the
+              * calling thread or the process: handing the baton away between a thread's last store and its ExitThread
+              * would be a scheduling artefact of this runtime, not a guest behaviour */
+@@ -580,7 +589,7 @@ static void dispatch(CPU* c, uint32_t target, uint32_t site, const char* what) {
+             xrt_fatal(c, XRT_EXIT_TRAP, "%s at %s to %s, which is not a translated function entry or import", what, d, t);
+         }
+         fn=e->fn;
+-        if(!(e->flags&~CALL_SETRES)){fn(c);xrt_world_return(c);return;}
++        if(!(e->flags&~CALL_SETRES)){fn(c);if(!c->thread||c->r[ESP]>=c->thread->world_floor)xrt_world_return(c);return;}
+     }
+     {
+         const CallCache*e=call_target(target);
+diff --git a/out/dev-init-savepoints/tuta-gameplay-20261031/runtime/xrt_mem.c b/out/dev-init/runtime/xrt_mem.c
+index 0e266c6..4f38f41 100644
+--- a/out/dev-init-savepoints/tuta-gameplay-20261031/runtime/xrt_mem.c
++++ b/out/dev-init/runtime/xrt_mem.c
+@@ -28,21 +28,63 @@ void xrt_commit(uint32_t a, uint32_t size) {
+     }
+ }
+ 
++/* Counts guest decommits. xrt_decommit is the only path that takes guest pages out of MEM_COMMIT (and
++ * guest pages are never reprotected), so a range observed committed under generation g is still committed
++ * unless a decommit since g overlapped it. The last XRT_DECOMMIT_LOG decommitted ranges are kept for that
++ * test (a buffer Unlock decommits its staging block every time; that must not invalidate the guest stack).
++ * Decommits run on guest threads holding the execution baton. */
++#define XRT_DECOMMIT_LOG 64
++volatile long xrt_mem_generation = 1;
++static struct { uint64_t lo, hi; } decommit_log[XRT_DECOMMIT_LOG];
++
+ void xrt_decommit(uint32_t a, uint32_t size) {   /* an unloaded module's image: later accesses fault */
+     uint64_t lo = a & ~0xFFFull, hi = ((uint64_t)a + size + 0xFFF) & ~0xFFFull;
++    long g = xrt_mem_generation;
++    decommit_log[g % XRT_DECOMMIT_LOG].lo = lo;
++    decommit_log[g % XRT_DECOMMIT_LOG].hi = hi;
++    MemoryBarrier();
++    InterlockedIncrement(&xrt_mem_generation);
+     if (size && !VirtualFree(xrt_g + lo, (SIZE_T)(hi - lo), MEM_DECOMMIT)) {
+         fprintf(stderr, "xrt: decommit of guest %08x+%x failed (error %lu)\n", a, size, GetLastError());
+         exit(XRT_EXIT_SETUP);
+     }
+ }
+ 
++/* 1 if guest range [lo, hi) verified under *gen is unaffected by every decommit since; *gen is advanced. */
++int xrt_mem_hint_valid(uint64_t lo, uint64_t hi, long* gen) {
++    long now = xrt_mem_generation, g = *gen;
++    if (g == now)
++        return 1;
++    if (!g || now - g > XRT_DECOMMIT_LOG)
++        return 0;
++    for (; g != now; g++)
++        if (decommit_log[g % XRT_DECOMMIT_LOG].lo < hi && lo < decommit_log[g % XRT_DECOMMIT_LOG].hi)
++            return 0;
++    *gen = now;
++    return 1;
++}
++
++/* Per-thread hints of the last eight committed regions VirtualQuery reported (the guest stack and the heap
++ * blocks holding D3D8 arguments): the D3D8 argument checks call this for every device method. */
++static __declspec(thread) struct { uint64_t lo, hi; long gen; } commit_hint[8];
++static __declspec(thread) unsigned commit_next;
+ int xrt_is_committed(uint32_t a, uint32_t size) {
+     uint64_t p = a, end = (uint64_t)a + size;
++    long gen = xrt_mem_generation;
++    unsigned h;
++    for (h = 0; h < 8; h++)
++        if (p >= commit_hint[h].lo && end <= commit_hint[h].hi &&
++            xrt_mem_hint_valid(commit_hint[h].lo, commit_hint[h].hi, &commit_hint[h].gen))
++            return 1;
+     while (p < end) {
+         MEMORY_BASIC_INFORMATION mbi;
++        uint64_t lo;
+         if (!VirtualQuery(xrt_g + p, &mbi, sizeof mbi) || mbi.State != MEM_COMMIT)
+             return 0;
+-        p = (uint64_t)((uint8_t*)mbi.BaseAddress - xrt_g) + mbi.RegionSize;
++        lo = (uint64_t)((uint8_t*)mbi.BaseAddress - xrt_g);
++        p = lo + mbi.RegionSize;
++        commit_hint[commit_next].lo = lo; commit_hint[commit_next].hi = p; commit_hint[commit_next].gen = gen;
++        commit_next = (commit_next + 1) & 7;
+     }
+     return 1;
+ }
+diff --git a/out/dev-init-savepoints/tuta-gameplay-20261031/runtime/xrt_thread.c b/out/dev-init/runtime/xrt_thread.c
+index f7ae8a1..992b14d 100644
+--- a/out/dev-init-savepoints/tuta-gameplay-20261031/runtime/xrt_thread.c
++++ b/out/dev-init/runtime/xrt_thread.c
+@@ -44,13 +44,26 @@ void xrt_preempt(CPU* c) {
+     xrt_baton_acquire();
+ }
+ 
++/* The 1 ms time slice is measured from the holder's acquisition (QPC); release resets it to "no holder",
++ * so a waiter or the ticker never measures the previous holder's slice. */
++static volatile LONGLONG baton_slice_start = MAXLONGLONG;
++static LARGE_INTEGER baton_qpf;
++static unsigned baton_ticker_requests;   /* diagnostic: preemption requests raised by the ticker */
++static int baton_slice_expired(LONGLONG now) {
++    return baton_qpf.QuadPart && now - baton_slice_start >= baton_qpf.QuadPart / 1000;
++}
++
+ static DWORD WINAPI ticker(void* unused) {
+     (void)unused;
+     timeBeginPeriod(1);
+     while (!xrt_exiting) {
++        LARGE_INTEGER t;
+         Sleep(1);
+-        if (baton_waiters() > 0)
++        QueryPerformanceCounter(&t);
++        if (baton_waiters() > 0 && baton_slice_expired(t.QuadPart)) {
++            if (!xrt_preempt_req) baton_ticker_requests++;
+             xrt_preempt_req = 1;
++        }
+     }
+     return 0;
+ }
+@@ -60,12 +73,75 @@ static int nthreads;
+ static uint32_t stack_next = XRT_STACK_BASE;
+ static uint32_t peb;
+ 
++/* Hand-offs are frequent (time slices; Core's FFileStream worker polls with Sleep(1) ~1000 times a
++ * second). A waiter first spins for up to XRT_BATON_SPIN_US, so the next ticket holder usually resumes
++ * without a kernel wake-up; then it sleeps on the condition variable. The FIFO ticket order is unchanged,
++ * and release wakes the condition variable only when a waiter actually sleeps on it. */
++#define XRT_BATON_SPIN_US 2000
++static unsigned baton_sleepers;
++/* A spinning waiter requests preemption itself once the holder's slice has expired, instead of waiting
++ * for the next ticker period (1-2 ms later). A new holder starts with no request pending: a request
++ * raised during the hand-over was meant for the previous holder. */
++/* Hand-over statistics per guest thread index (63: host threads without one), logged by
++ * xrt_baton_stats_log: diagnostic only, updated under the baton lock or by the holder. */
++static struct { uint64_t acquires, waits, wait_ticks, wait_max, cv_sleeps, hold_ticks, hold_max, requests; LONGLONG held_at; } baton_stats[64];
++static unsigned baton_slot(void) { return xrt_cur && xrt_cur->index >= 0 && xrt_cur->index < 63 ? (unsigned)xrt_cur->index : 63; }
++void xrt_baton_stats_log(void) {
++    unsigned i;
++    double ms = baton_qpf.QuadPart ? 1000.0 / (double)baton_qpf.QuadPart : 0;
++    xrt_log("baton stats: ticker requests %u", baton_ticker_requests);
++    for (i = 0; i < 64; i++)
++        if (baton_stats[i].acquires)
++            xrt_log("baton stats thread %u: acquires %llu, waited %llu (%.1f ms total, max %.3f ms, %llu condition-variable sleeps), "
++                    "held %.1f ms total (max %.3f ms), preemption requests raised while waiting %llu", i,
++                    baton_stats[i].acquires, baton_stats[i].waits, baton_stats[i].wait_ticks * ms, baton_stats[i].wait_max * ms,
++                    baton_stats[i].cv_sleeps, baton_stats[i].hold_ticks * ms, baton_stats[i].hold_max * ms, baton_stats[i].requests);
++}
+ void xrt_baton_acquire(void) {
+     uint64_t mine;
++    unsigned slot = baton_slot();
++    int requested = 0;
++    LARGE_INTEGER f, t0, t;
+     AcquireSRWLockExclusive(&baton_lock);
+     mine = ticket_next++;
+-    while (mine != ticket_serving)
+-        SleepConditionVariableSRW(&baton_cv, &baton_lock, INFINITE, 0);
++    if (!baton_qpf.QuadPart)
++        QueryPerformanceFrequency(&baton_qpf);
++    f = baton_qpf;
++    if (mine != ticket_serving) {
++        unsigned n = 0;
++        ReleaseSRWLockExclusive(&baton_lock);
++        QueryPerformanceCounter(&t0);
++        t = t0;
++        while (*(volatile uint64_t*)&ticket_serving != mine) {
++            if (baton_slice_expired(t.QuadPart)) {
++                if (!xrt_preempt_req && !requested) { requested = 1; baton_stats[slot].requests++; }
++                xrt_preempt_req = 1;
++            }
++            YieldProcessor();
++            if (!(++n & 63)) {
++                QueryPerformanceCounter(&t);
++                if ((uint64_t)(t.QuadPart - t0.QuadPart) * 1000000u >= (uint64_t)f.QuadPart * XRT_BATON_SPIN_US)
++                    break;
++            }
++        }
++        AcquireSRWLockExclusive(&baton_lock);
++        while (mine != ticket_serving) {
++            baton_sleepers++;
++            baton_stats[slot].cv_sleeps++;
++            SleepConditionVariableSRW(&baton_cv, &baton_lock, INFINITE, 0);
++            baton_sleepers--;
++        }
++        QueryPerformanceCounter(&t);
++        baton_stats[slot].waits++;
++        baton_stats[slot].wait_ticks += (uint64_t)(t.QuadPart - t0.QuadPart);
++        if ((uint64_t)(t.QuadPart - t0.QuadPart) > baton_stats[slot].wait_max)
++            baton_stats[slot].wait_max = (uint64_t)(t.QuadPart - t0.QuadPart);
++    }
++    QueryPerformanceCounter(&t);
++    baton_stats[slot].acquires++;
++    baton_stats[slot].held_at = t.QuadPart;
++    baton_slice_start = t.QuadPart;
++    xrt_preempt_req = 0;
+     baton_owner = GetCurrentThreadId();
+     ReleaseSRWLockExclusive(&baton_lock);
+ }
+@@ -77,9 +153,18 @@ void xrt_baton_release(void) {
+     AcquireSRWLockExclusive(&baton_lock);
+     if (baton_owner != GetCurrentThreadId())
+         xrt_fatal(NULL, XRT_EXIT_SETUP, "baton released by a thread that does not hold it");
++    {
++        LARGE_INTEGER t; unsigned slot = baton_slot(); uint64_t held;
++        QueryPerformanceCounter(&t);
++        held = (uint64_t)(t.QuadPart - baton_stats[slot].held_at);
++        baton_stats[slot].hold_ticks += held;
++        if (held > baton_stats[slot].hold_max) baton_stats[slot].hold_max = held;
++    }
+     baton_owner = 0;
++    baton_slice_start = MAXLONGLONG;
+     ticket_serving++;
+-    WakeAllConditionVariable(&baton_cv);
++    if (baton_sleepers)
++        WakeAllConditionVariable(&baton_cv);
+     ReleaseSRWLockExclusive(&baton_lock);
+ }
+ 
+@@ -207,42 +292,42 @@ XRT_NORETURN void xrt_thread_exit(CPU* c, uint32_t code) {
+     xm_unwind(c,0,3);
+     longjmp(t->exit_jmp, 1);
+ }
+-
+-/* Runtime-owned guest thread for native components that call guest code from their own
+- * threads (DirectMusic tool callbacks). Like a guest CreateThread thread it has a real host
+- * thread, its own guest stack/TEB and DLL_THREAD_ATTACH, but no guest handle. The body runs
+- * without the baton and acquires it only around guest execution. Called with the baton held. */
+-typedef struct { XrtThread* t; void (*body)(CPU*, void*); void* arg; } ServiceStart;
+-static DWORD WINAPI service_proc(void* p) {
+-    ServiceStart s = *(ServiceStart*)p;
+-    free(p);
+-    xrt_cur = s.t;
+-    xrt_baton_acquire();
+-    s.t->state = 1;
+-    xrt_dll_thread_notify(&s.t->cpu, 2);                              /* DLL_THREAD_ATTACH */
+-    xrt_baton_release();
+-    s.body(&s.t->cpu, s.arg);
+-    return 0;
+-}
+-void xrt_thread_service(CPU* c, const char* name, void (*body)(CPU*, void*), void* arg) {
+-    ServiceStart* s = (ServiceStart*)calloc(1, sizeof *s);
+-    HANDLE h;
+-    DWORD htid;
+-    if (!s)
+-        xrt_fatal(c, XRT_EXIT_SETUP, "service thread allocation");
+-    s->t = new_thread(xrt_default_stack_reserve);
+-    s->body = body;
+-    s->arg = arg;
+-    if (!InterlockedExchange(&ticker_started, 1))
+-        CloseHandle(CreateThread(NULL, 0, ticker, NULL, 0, NULL));
+-    h = CreateThread(NULL, 64u << 20, service_proc, s, CREATE_SUSPENDED | STACK_SIZE_PARAM_IS_A_RESERVATION, &htid);
+-    if (!h)
+-        xrt_fatal(c, XRT_EXIT_SETUP, "host CreateThread failed (%lu)", GetLastError());
+-    s->t->host_handle = h;
+-    s->t->host_tid = s->t->guest_tid = htid;
+-    wr32(s->t->teb + 0x24, htid);
+-    xrt_log("runtime service thread %d (%s): guest stack %08x-%08x teb %08x", s->t->index, name, s->t->stack_lo,
+-            s->t->stack_hi, s->t->teb);
+-    xrt_event("thread_service", "\"index\": %d, \"name\": \"%s\"", s->t->index, name);
+-    ResumeThread(h);
+-}
++
++/* Runtime-owned guest thread for native components that call guest code from their own
++ * threads (DirectMusic tool callbacks). Like a guest CreateThread thread it has a real host
++ * thread, its own guest stack/TEB and DLL_THREAD_ATTACH, but no guest handle. The body runs
++ * without the baton and acquires it only around guest execution. Called with the baton held. */
++typedef struct { XrtThread* t; void (*body)(CPU*, void*); void* arg; } ServiceStart;
++static DWORD WINAPI service_proc(void* p) {
++    ServiceStart s = *(ServiceStart*)p;
++    free(p);
++    xrt_cur = s.t;
++    xrt_baton_acquire();
++    s.t->state = 1;
++    xrt_dll_thread_notify(&s.t->cpu, 2);                              /* DLL_THREAD_ATTACH */
++    xrt_baton_release();
++    s.body(&s.t->cpu, s.arg);
++    return 0;
++}
++void xrt_thread_service(CPU* c, const char* name, void (*body)(CPU*, void*), void* arg) {
++    ServiceStart* s = (ServiceStart*)calloc(1, sizeof *s);
++    HANDLE h;
++    DWORD htid;
++    if (!s)
++        xrt_fatal(c, XRT_EXIT_SETUP, "service thread allocation");
++    s->t = new_thread(xrt_default_stack_reserve);
++    s->body = body;
++    s->arg = arg;
++    if (!InterlockedExchange(&ticker_started, 1))
++        CloseHandle(CreateThread(NULL, 0, ticker, NULL, 0, NULL));
++    h = CreateThread(NULL, 64u << 20, service_proc, s, CREATE_SUSPENDED | STACK_SIZE_PARAM_IS_A_RESERVATION, &htid);
++    if (!h)
++        xrt_fatal(c, XRT_EXIT_SETUP, "host CreateThread failed (%lu)", GetLastError());
++    s->t->host_handle = h;
++    s->t->host_tid = s->t->guest_tid = htid;
++    wr32(s->t->teb + 0x24, htid);
++    xrt_log("runtime service thread %d (%s): guest stack %08x-%08x teb %08x", s->t->index, name, s->t->stack_lo,
++            s->t->stack_hi, s->t->teb);
++    xrt_event("thread_service", "\"index\": %d, \"name\": \"%s\"", s->t->index, name);
++    ResumeThread(h);
++}

@@ -1,6 +1,7 @@
 """Local build/debug loop. No supervisor imports, queues, seals or ledger access."""
 import argparse
 import ctypes
+import hashlib
 import importlib.util
 import json
 import os
@@ -15,6 +16,9 @@ HERE = Path(__file__).resolve().parent
 WS = HERE.parents[2]
 BASE = WS / 'out/recovery/practical-init-20261031-01'
 DEV_OBSERVED_UNITS = {'Engine_026.c'}
+GEN_OPT = '/O2'
+# Forcing the xrt.h helpers inline makes this unit's compile exceed the 600 s command limit.
+GEN_NO_FORCE_INLINE = {'GlmLib_020.c'}
 DEV = WS / 'out/dev-init'
 RT = DEV / 'runtime'
 BUILD = DEV / 'build'
@@ -125,6 +129,7 @@ def build(full=False, fixtures_only=False):
     if not stamp.exists() and abi != (BASE / 'runtime/xrt.h').read_bytes() and not full:
         raise RuntimeError('xrt.h differs from object baseline: build --full required')
     objects = []
+    jobs = []
     for rel, row in lineage.items():
         if rel.startswith('obj/rt/'):
             continue
@@ -139,20 +144,36 @@ def build(full=False, fixtures_only=False):
         # inherited object lacks the existing world observer, so the dev build adds it.
         observed = src.name in DEV_OBSERVED_UNITS
         marker = obj.with_suffix('.observer')
-        if full or endpoint or observed:
-            if (full or not obj.exists() or (observed and not marker.exists()) or
-                    obj.stat().st_mtime < max(src.stat().st_mtime, (RT / 'xrt.h').stat().st_mtime,
-                                              (RT / 'world_observer.h').stat().st_mtime if observed else 0)):
-                flags = ['/O1', '/wd4102', '/wd4146']
-                if observed or '/FIworld_observer.h' in row.get('command', []):
-                    flags.append('/FIworld_observer.h')
-                compile_one(src, obj, env, [RT, Path(row['source']).parent], flags)
-                if observed:
-                    marker.write_text('compiled with /FIworld_observer.h\n')
-        elif not obj.exists():
-            obj.parent.mkdir(parents=True, exist_ok=True)
-            shutil.copy2(old / rel, obj)
+        # Generated code is compiled /O2 like the runtime: under /O1 (no /Oi) MSVC emitted an
+        # out-of-line memcpy call for every 4-byte guest load/store. /fp:strict is unchanged.
+        opt = obj.with_suffix('.opt')
+        if (full or not obj.exists() or (observed and not marker.exists()) or
+                not opt.exists() or opt.read_text() != GEN_OPT or
+                obj.stat().st_mtime < max(src.stat().st_mtime, (RT / 'xrt.h').stat().st_mtime,
+                                          (RT / 'world_observer.h').stat().st_mtime if observed else 0)):
+            flags = [GEN_OPT, '/wd4102', '/wd4146']
+            if src.name in GEN_NO_FORCE_INLINE:
+                flags.append('/DXRT_NO_FORCE_INLINE')
+            if observed or '/FIworld_observer.h' in row.get('command', []):
+                flags.append('/FIworld_observer.h')
+            # Shared generated sources must be the ones the baseline objects came from.
+            expected = None if endpoint else row.get('source_sha256')
+            jobs.append((src, obj, [RT, Path(row['source']).parent], flags, observed, marker, opt, expected))
         objects.append(obj)
+    def compile_job(job):
+        src, obj, includes, flags, observed, marker, opt, expected = job
+        if expected and hashlib.sha256(src.read_bytes()).hexdigest() != expected:
+            raise RuntimeError(f'{src} differs from the lineage source hash; refusing to recompile it')
+        opt.unlink(missing_ok=True)
+        compile_one(src, obj, env, includes, flags)
+        if observed:
+            marker.write_text('compiled with /FIworld_observer.h\n')
+        opt.write_text(GEN_OPT)
+    if jobs:
+        print(f'Compiling {len(jobs)} generated units {GEN_OPT}', flush=True)
+        from concurrent.futures import ThreadPoolExecutor
+        with ThreadPoolExecutor(max_workers=max(1, (os.cpu_count() or 2) - 2)) as pool:
+            list(pool.map(compile_job, jobs))
     headers = [*RT.glob('*.h'), *RT.glob('*.inc'), *HERE.glob('*.inc'), HERE / 'dev_support.h']
     header_time = max(p.stat().st_mtime for p in headers)
     for src in [*RT.glob('*.c'), HERE / 'dev_support.c']:
@@ -173,7 +194,9 @@ def build(full=False, fixtures_only=False):
              f'/OUT:{BUILD / "unreal2-dev.exe"}', f'/PDB:{BUILD / "unreal2-dev.pdb"}', '@' + str(rsp),
              'winmm.lib', 'advapi32.lib', 'ole32.lib', 'bcrypt.lib', 'user32.lib', 'gdi32.lib', 'dbghelp.lib'], env, 'link')
     stamp.write_bytes(abi)
-    write(BUILD / 'build-state.json', {'ok': True, 'executable': str(BUILD / 'unreal2-dev.exe')})
+    write(BUILD / 'build-state.json', {'ok': True, 'executable': str(BUILD / 'unreal2-dev.exe'),
+                                      'generated_optimization': GEN_OPT, 'generated_units': len(lineage) - sum(
+                                          1 for rel in lineage if rel.startswith('obj/rt/'))})
     print('Built (not executed):', BUILD / 'unreal2-dev.exe')
 
 def fresh_run():
@@ -425,6 +448,8 @@ def run(args):
             env['XRT_DMUSIC_SCRIPT_TRACK'] = 'helper'
         if args.draw_dump:
             env['XRT_DEV_DRAW_FRAMES'] = ','.join(map(str, args.draw_dump[:4]))
+        if args.sample_hz:
+            env['XRT_DEV_SAMPLE_HZ'] = str(args.sample_hz)
     graphics.environment(env, out)
     write(out / 'trace-profile.json', {'profile': args.trace_profile, 'full': args.trace_full,
                                      'addresses': [hex(a) for a in args.trace_address],
@@ -432,7 +457,7 @@ def run(args):
                                      'scene_seconds': args.scene_seconds,
                                      'music_script_track': args.music_script_track,
                                      'input_script': args.input, 'allowed_maps': args.allow_map,
-                                     'campaign_assets': args.campaign_assets})
+                                     'campaign_assets': args.campaign_assets, 'sample_hz': args.sample_hz})
     if args.attach:
         env['XRT_DEV_ATTACH'] = '1'
     command_args = ['--guest', sandbox / 'System/Unreal2.exe', '--log', out / 'xrt.log',
@@ -486,7 +511,10 @@ def main():
                    help='first-scene: helper dispatches DirectMusic script-track events (host workaround)')
     r.add_argument('--draw-dump', type=int, action='append', default=[], metavar='WORLD_FRAME',
                    help='first-scene: log every draw of this world frame (up to four)')
-    r.add_argument('--trace-profile', choices=('development', 'forensic'), default='development')
+    r.add_argument('--trace-profile', choices=('development', 'quiet', 'forensic'), default='development',
+                   help='quiet: development stream without routine call/data/resource records (checkpoints, fatal, gaps kept)')
+    r.add_argument('--sample-hz', type=int, choices=range(0, 1001), default=0, metavar='0..1000',
+                   help='first-scene: sample the game thread stack N times a second (samples.bin; perf_report.py)')
     r.add_argument('--trace-full', action='append', default=[], metavar='DLL!NAME',
                    help='retain full tracing for this exact import name; repeat as needed')
     def guest_address(value):

@@ -2,6 +2,8 @@
 #define WIN32_LEAN_AND_MEAN
 #include <windows.h>
 #include <dbghelp.h>
+#include <tlhelp32.h>
+#include <psapi.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include "dev_support.h"
@@ -81,7 +83,143 @@ static int scene_mode(void) {
 /* Powers of two, then every 256th world frame. XRT_DEV_SCENE_MS adds a clean
  * wall-clock stop so long runs end with a report before the outer deadline. */
 static int scene_capture_frame(unsigned n) { return (n & (n - 1)) == 0 || !(n % 256) || n == scene_limit; }
+/* Performance evidence (first-scene mode): the QPC time of every post-Init present goes
+ * to frames.csv at the stop; thread CPU times are logged at each scripted "shot".
+ * XRT_DEV_SAMPLE_HZ=N samples the game thread: suspend, copy the top of its stack and
+ * context, resume, then unwind the copy (no lock is taken while it is suspended).
+ * Samples (host stack + guest pc) go to samples.bin, loaded modules to modules.txt. */
+typedef struct { ULONGLONG qpc; unsigned draws, prims, world; } FrameRow;
+#define FRAME_ROWS 131072
+#define SAMPLE_DEPTH 24
+#define SAMPLE_STACK 65536
+typedef struct { ULONGLONG qpc; unsigned guest_pc, depth; ULONGLONG rip[SAMPLE_DEPTH]; } Sample;
+static FrameRow *frame_rows; static unsigned frame_count;
+static LARGE_INTEGER qpc_freq, qpc_init;
+static Sample *samples; static volatile LONG sample_count, sampler_stop; static unsigned sample_max;
+static HANDLE sampled, sampler; static CPU *sampled_cpu; static ULONG_PTR stack_lo, stack_hi;
+static unsigned char *stack_copy;
+/* Sample times are de-aliased from the 1 ms timer tick: Sleep alone wakes on the same ticks as the
+ * guest's Sleep(1) poller and the scheduler ticker, and then over-samples baton hand-overs. Each
+ * sample is taken at a QPC deadline (period + random 0..1 ms), reached by Sleep then a short spin. */
+static DWORD WINAPI sampler_main(void *arg) {
+    unsigned ms = (unsigned)(UINT_PTR)arg, rng = 0x9e3779b9u;
+    LARGE_INTEGER f, next, now;
+    QueryPerformanceFrequency(&f); QueryPerformanceCounter(&next);
+    while (!sampler_stop && (unsigned)sample_count < sample_max) {
+        CONTEXT ctx; ULONG_PTR rsp, n, copy; Sample *s; unsigned k;
+        rng ^= rng << 13; rng ^= rng >> 17; rng ^= rng << 5;
+        next.QuadPart += f.QuadPart * ms / 1000 + (LONGLONG)(rng % 1000) * f.QuadPart / 1000000;
+        if (ms > 2) Sleep(ms - 2);
+        do { YieldProcessor(); QueryPerformanceCounter(&now); } while (now.QuadPart < next.QuadPart);
+        ctx.ContextFlags = CONTEXT_CONTROL | CONTEXT_INTEGER;
+        if (SuspendThread(sampled) == (DWORD)-1) break;
+        if (!GetThreadContext(sampled, &ctx) || ctx.Rsp < stack_lo || ctx.Rsp >= stack_hi) { ResumeThread(sampled); continue; }
+        rsp = ctx.Rsp; n = stack_hi - rsp; if (n > SAMPLE_STACK) n = SAMPLE_STACK;
+        memcpy(stack_copy, (void *)rsp, n);
+        s = &samples[sample_count];
+        s->guest_pc = sampled_cpu ? sampled_cpu->pc : 0;
+        ResumeThread(sampled);
+        QueryPerformanceCounter((LARGE_INTEGER *)&s->qpc);
+        copy = (ULONG_PTR)stack_copy;
+        ctx.Rsp = copy; if (ctx.Rbp >= rsp && ctx.Rbp < rsp + n) ctx.Rbp = copy + (ctx.Rbp - rsp);
+        k = 0;
+        __try {
+            while (k < SAMPLE_DEPTH) {
+                DWORD64 base; PRUNTIME_FUNCTION fe; void *hd; DWORD64 ef;
+                s->rip[k++] = ctx.Rip;
+                fe = RtlLookupFunctionEntry(ctx.Rip, &base, NULL);
+                if (!fe) {
+                    if (ctx.Rsp < copy || ctx.Rsp + 8 > copy + n) break;
+                    ctx.Rip = *(DWORD64 *)ctx.Rsp; ctx.Rsp += 8;
+                } else RtlVirtualUnwind(UNW_FLAG_NHANDLER, base, ctx.Rip, fe, &ctx, &hd, &ef, NULL);
+                if (!ctx.Rip || ctx.Rsp < copy || ctx.Rsp >= copy + n) break;
+            }
+        } __except (EXCEPTION_EXECUTE_HANDLER) {}
+        s->depth = k;
+        InterlockedIncrement(&sample_count);
+    }
+    return 0;
+}
+static double qpc_ms(ULONGLONG t) { return (double)(LONGLONG)(t - (ULONGLONG)qpc_init.QuadPart) * 1000.0 / (double)qpc_freq.QuadPart; }
+static void perf_start(CPU *c) {
+    const char *v = getenv("XRT_DEV_SAMPLE_HZ");
+    unsigned hz = v && *v ? (unsigned)strtoul(v, NULL, 10) : 0;
+    QueryPerformanceFrequency(&qpc_freq); QueryPerformanceCounter(&qpc_init);
+    frame_rows = calloc(FRAME_ROWS, sizeof *frame_rows);
+    if (!hz || hz > 1000) return;
+    sample_max = hz * 400;
+    samples = calloc(sample_max, sizeof *samples); stack_copy = malloc(SAMPLE_STACK);
+    if (!samples || !stack_copy) { xrt_log("DEV sampler: allocation failed; not sampling"); return; }
+    GetCurrentThreadStackLimits(&stack_lo, &stack_hi);
+    if (!DuplicateHandle(GetCurrentProcess(), GetCurrentThread(), GetCurrentProcess(), &sampled,
+                         THREAD_SUSPEND_RESUME | THREAD_GET_CONTEXT | THREAD_QUERY_INFORMATION, FALSE, 0)) return;
+    sampled_cpu = c;
+    sampler = CreateThread(NULL, 0, sampler_main, (void *)(UINT_PTR)(1000 / hz ? 1000 / hz : 1), 0, NULL);
+    xrt_log("DEV sampler: game thread %lu at %u Hz (stack %p-%p)", GetCurrentThreadId(), hz, (void *)stack_lo, (void *)stack_hi);
+}
+static void perf_frame(unsigned draws, unsigned prims, int world) {
+    if (frame_rows && frame_count < FRAME_ROWS) {
+        FrameRow *r = &frame_rows[frame_count++];
+        QueryPerformanceCounter((LARGE_INTEGER *)&r->qpc); r->draws = draws; r->prims = prims; r->world = (unsigned)world;
+    }
+}
+/* One line per thread of this process: user/kernel CPU ms since thread creation. */
+static void perf_threads(const char *why) {
+    HANDLE snap = CreateToolhelp32Snapshot(TH32CS_SNAPTHREAD, 0); THREADENTRY32 te; LARGE_INTEGER now;
+    if (snap == INVALID_HANDLE_VALUE) return;
+    QueryPerformanceCounter(&now);
+    te.dwSize = sizeof te;
+    if (Thread32First(snap, &te)) do {
+        HANDLE h; FILETIME cr, ex, k, u;
+        if (te.th32OwnerProcessID != GetCurrentProcessId()) continue;
+        if (!(h = OpenThread(THREAD_QUERY_LIMITED_INFORMATION, FALSE, te.th32ThreadID))) continue;
+        if (GetThreadTimes(h, &cr, &ex, &k, &u))
+            xrt_log("DEV threads %s at %.1f ms: tid %lu%s user %.1f kernel %.1f", why, qpc_ms((ULONGLONG)now.QuadPart), te.th32ThreadID,
+                    te.th32ThreadID == GetCurrentThreadId() ? " (game)" : "",
+                    (double)(((ULONGLONG)u.dwHighDateTime << 32) | u.dwLowDateTime) / 1e4,
+                    (double)(((ULONGLONG)k.dwHighDateTime << 32) | k.dwLowDateTime) / 1e4);
+        CloseHandle(h);
+    } while (Thread32Next(snap, &te));
+    CloseHandle(snap);
+}
+static void perf_write(void) {
+    char path[1024]; const char *root = getenv("XRT_DEV_OUTPUT"); FILE *f; unsigned i;
+    if (!root || !frame_rows) return;
+    if (sampler) { sampler_stop = 1; WaitForSingleObject(sampler, 2000); }
+    perf_threads("stop");
+    xrt_baton_stats_log();
+    snprintf(path, sizeof path, "%s\\frames.csv", root);
+    if ((f = fopen(path, "w"))) {
+        fprintf(f, "present,ms,world,draws,prims\n");
+        for (i = 0; i < frame_count; i++)
+            fprintf(f, "%u,%.3f,%u,%u,%u\n", i + 1, qpc_ms(frame_rows[i].qpc), frame_rows[i].world, frame_rows[i].draws, frame_rows[i].prims);
+        fclose(f);
+    }
+    if (!samples) return;
+    snprintf(path, sizeof path, "%s\\samples.bin", root);
+    if ((f = fopen(path, "wb"))) {
+        double ms;
+        for (i = 0; i < (unsigned)sample_count; i++) {
+            ms = qpc_ms(samples[i].qpc);
+            fwrite(&ms, sizeof ms, 1, f); fwrite(&samples[i].guest_pc, 4, 1, f); fwrite(&samples[i].depth, 4, 1, f);
+            fwrite(samples[i].rip, 8, samples[i].depth, f);
+        }
+        fclose(f);
+    }
+    snprintf(path, sizeof path, "%s\\modules.txt", root);
+    if ((f = fopen(path, "w"))) {
+        HMODULE mods[512]; DWORD need; MODULEINFO mi; wchar_t name[MAX_PATH];
+        if (K32EnumProcessModules(GetCurrentProcess(), mods, sizeof mods, &need))
+            for (i = 0; i < need / sizeof mods[0] && i < 512; i++)
+                if (K32GetModuleInformation(GetCurrentProcess(), mods[i], &mi, sizeof mi) &&
+                    GetModuleFileNameW(mods[i], name, MAX_PATH))
+                    fprintf(f, "%p %lu %ls\n", mi.lpBaseOfDll, mi.SizeOfImage, name);
+        fclose(f);
+    }
+    xrt_log("DEV perf: %u presents, %ld samples written", frame_count, sample_count);
+}
 static __declspec(noreturn) void scene_stop(CPU *c, const char *why) {
+    perf_write();
     xrt_event("dev_scene_present", "\"world_frames\":%u,\"presents\":%u,\"elapsed_ms\":%llu,\"reason\":\"%s\"",
               world_frames, post_presents, GetTickCount64() - init_ms, why);
     xm_checkpoint(c, "dev.scene.present");
@@ -303,7 +441,7 @@ void xrt_dev_input_tick(void) {
             if (in_button) continue;
             in_button = 1; in_button_up = now + (s->a > 0 ? (unsigned)s->a : 100);
             di_push(12, 0x80); input_allow(WM_LBUTTONDOWN, MK_LBUTTON, client_point(), 0);
-        } else if (s->verb == 's') in_shot = 1;
+        } else if (s->verb == 's') { in_shot = 1; perf_threads("shot"); }
         {
             POINT p = in_cursor; ScreenToClient(in_window, &p);
             xrt_log("DEV input cursor client %ld,%ld", p.x, p.y);
@@ -403,6 +541,7 @@ void xrt_dev_scene_present(CPU *c, long hr, unsigned draws, unsigned prims, unsi
     engine = xrt_scene_engine_ticks - last_engine; last_engine = xrt_scene_engine_ticks;
     level = xrt_scene_level_ticks - last_level; last_level = xrt_scene_level_ticks;
     world = hr >= 0 && renders && scene_draws;
+    perf_frame(draws, prims, world);
     if (world) world_frames++;
     else if (hr >= 0) nonworld++;
     if (post_presents <= 32 || (world && scene_capture_frame(world_frames)) || !(post_presents % 64))
@@ -420,6 +559,7 @@ __declspec(noinline) void xrt_dev_init_return(CPU *c) {
     if (scene_mode()) {
         /* Continue into the normal post-Init caller; counters start here. */
         post_init = 1; init_ms = GetTickCount64();
+        perf_start(c);
         last_renders = xrt_scene_level_renders + xrt_scene_camera_renders; last_engine = xrt_scene_engine_ticks; last_level = xrt_scene_level_ticks;
         xrt_log("DEV first-scene mode: continuing to guest 0x1090ed5c; stop after %u world frames", scene_limit);
         fprintf(stderr, "dev: Init returned; first-scene mode continues (%u world frames)\n", scene_limit);
