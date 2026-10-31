@@ -1,8 +1,8 @@
 diff --git a/experiments/xrt/dmusic_helper/main.c b/out/dev-init/dmusic_helper/main.c
-index 1b0627b..703eef1 100644
+index 1b0627b..1af75f4 100644
 --- a/experiments/xrt/dmusic_helper/main.c
 +++ b/out/dev-init/dmusic_helper/main.c
-@@ -1,189 +1,371 @@
+@@ -1,189 +1,392 @@
 -/* Project-owned x86 DirectMusic backend. Every native COM call runs on this
 - * process's main STA. Only measured methods are dispatchable. */
 -#define COBJMACROS
@@ -422,6 +422,20 @@ index 1b0627b..703eef1 100644
 +          ++n,(unsigned long)h1,rt/10000,mt,(unsigned long)h2,async_seq);fflush(stderr);}
 + return 0;
 +}
++/* Opt-in script-track fallback (XRT_DMUSIC_SCRIPT_TRACK=helper), developer only. */
++#define ST_FAIL(m) die(m)
++#define ST_LOG(...) (fprintf(stderr,__VA_ARGS__),fflush(stderr))
++#include "script_track.h"
++static int st_enabled;
++static IUnknown*st_game_script(const GUID*script){unsigned i;GUID g;
++ for(i=0;i<used;i++)if(objects[i].refs&&objects[i].type==DMB_SCRIPT_OBJECT&&st_object_guid(objects[i].p,&g)&&IsEqualGUID(&g,script))return objects[i].p;
++ return NULL;
++}
++static void st_release(void){unsigned i;
++ if(st_state)IUnknown_Release(st_state);st_state=NULL;st_row=-1;
++ for(i=0;i<st_nseg;i++)if(st_seg[i].segment){IUnknown_Release(st_seg[i].segment);st_seg[i].segment=NULL;}
++ st_bound=0;st_script=NULL;
++}
 +static void dispatch(DmbMessage*q,DmbMessage*r){
 + Object*o=NULL,*other;IUnknown*p=NULL;HRESULT hr=E_NOTIMPL;uint32_t type=0;WCHAR folder[600];unsigned i;
 + *r=*q;r->kind=DMB_REPLY;memset(r->v,0,sizeof r->v);memset(r->text,0,sizeof r->text);
@@ -432,6 +446,7 @@ index 1b0627b..703eef1 100644
 + if(q->op==DMB_TEST_PROCESS&&testing&&tool_count)tool_message(&tools[0],NULL,NULL);
 + if(q->op==DMB_TEST_CALLBACK&&testing&&tool_count){tool_callback(&tools[0],7,NULL,0);return;}
 + if(q->op==DMB_SHUTDOWN){
++  st_release();
 +  for(i=0;i<256;i++)if(pmsgs[i].native){Object*pf=get(pmsgs[i].perf,DMB_PERFORMANCE);if(pf)((FreePMsgFn)method(pf->p,17))(pf->p,pmsgs[i].native);memset(&pmsgs[i],0,sizeof pmsgs[i]);}
 +  /* Release bridge-owned references in reverse acquisition order; native cached
 +   * references remain native-owned. CloseDown is never synthesized here. */
@@ -469,7 +484,9 @@ index 1b0627b..703eef1 100644
 +  hr=((Insert)method(o->p,4))(o->p,(IUnknown*)&tools[tool_count++],NULL,0,0);break;
 + case DMB_LOAD:
 +  REQUIRE(DMB_LOADER);if(wcscmp((WCHAR*)q->text,L"Intro.con")||!IsEqualGUID((GUID*)q->guid[0],&cls_container)||!IsEqualGUID((GUID*)q->guid[1],&ids[DMB_CONTAINER])){r->status=DMB_UNSUPPORTED;return;}
-+  hr=((LoadFile)method(o->p,14))(o->p,&cls_container,&ids[DMB_CONTAINER],L"Intro.con",(void**)&p);type=DMB_CONTAINER;break;
++  hr=((LoadFile)method(o->p,14))(o->p,&cls_container,&ids[DMB_CONTAINER],L"Intro.con",(void**)&p);type=DMB_CONTAINER;
++  if(SUCCEEDED(hr)&&st_enabled&&!st_bound){swprintf(folder,600,L"%s\\Music\\Intro.con",sandbox);st_load(folder);st_bind(o->p);}
++  break;
 + case DMB_SCRIPT:{BYTE expected[848]={0};
 +  REQUIRE(DMB_LOADER);*(DWORD*)expected=848;*(DWORD*)(expected+4)=0x206;memcpy(expected+24,&cls_script,16);memcpy(expected+56,L"Script1",16);
 +  if(memcmp(expected,q->data,848)||!IsEqualGUID((GUID*)q->guid[0],&ids[DMB_SCRIPT_OBJECT])){r->status=DMB_UNSUPPORTED;return;}
@@ -518,7 +535,7 @@ index 1b0627b..703eef1 100644
 + * STA reads the music script's TrackIndex, which only dmPlayNext advances.
 + * Read-only; no messages are dispatched. */
 +typedef HRESULT(WINAPI*GetVarNumFn)(IUnknown*,WCHAR*,LONG*,void*);
-+static int wait_request(void){DWORD have;static ULONGLONG next;static LONG last=-2;unsigned i;
++static int wait_request(void){DWORD have;static ULONGLONG next,st_next_tick;static LONG last=-2;unsigned i;
 + for(;;){
 +  if(!PeekNamedPipe(input,NULL,0,NULL,&have,NULL))return 0;
 +  if(have)return 1;
@@ -526,6 +543,8 @@ index 1b0627b..703eef1 100644
 +   for(i=0;i<used;i++)if(objects[i].refs&&objects[i].type==DMB_SCRIPT_OBJECT){LONG v=-1;
 +    HRESULT h=((GetVarNumFn)method(objects[i].p,8))(objects[i].p,L"TrackIndex",&v,NULL);
 +    if(v!=last){fprintf(stderr,"helper script TrackIndex %ld (hr %08lx)\n",v,(unsigned long)h);last=v;}}}
++  if(st_bound&&GetTickCount64()>=st_next_tick){st_next_tick=GetTickCount64()+5;
++   for(i=0;i<used;i++)if(objects[i].refs&&objects[i].type==DMB_PERFORMANCE){st_tick(objects[i].p);break;}}
 +  Sleep(1);
 + }
 +}
@@ -540,6 +559,8 @@ index 1b0627b..703eef1 100644
 + input=(HANDLE)(uintptr_t)_wcstoui64(argv[2],NULL,10);output=(HANDLE)(uintptr_t)_wcstoui64(argv[3],NULL,10);
 + if(wcslen(argv[5])>=550||!GetFullPathNameW(argv[5],600,sandbox,NULL))return 2;
 + owner=GetCurrentThreadId();SetErrorMode(SEM_FAILCRITICALERRORS|SEM_NOGPFAULTERRORBOX);
++ {const WCHAR*v=_wgetenv(L"XRT_DMUSIC_SCRIPT_TRACK");st_enabled=v&&!wcscmp(v,L"helper");
++  if(st_enabled)fprintf(stderr,"helper script-track fallback enabled (developer opt-in)\n");}
 + /* A noninherited Job owned by the parent kills us even during a stuck native
 +  * call. Outside a call, pipe EOF terminates the receive loop. */
 + if(!guard_install(sandbox))die("cannot install isolated disk-open guard");

@@ -346,8 +346,8 @@ def run(args):
         raise RuntimeError('No launch: separate explicit owner authorization is required; then use --authorize-init')
     if args.first_scene and not args.authorize_first_scene:
         raise RuntimeError('No launch: --first-scene needs the separately granted --authorize-first-scene scope')
-    if args.first_scene and args.timeout > 180:
-        raise RuntimeError('First-scene runs are limited to 180 seconds')
+    if args.first_scene and args.timeout > 360:
+        raise RuntimeError('First-scene runs are limited to 360 seconds')
     if args.scene_seconds and (not args.first_scene or args.scene_seconds >= args.timeout):
         raise RuntimeError('--scene-seconds needs --first-scene and must end before --timeout')
     if not args.question.strip() or not args.change.strip():
@@ -394,13 +394,22 @@ def run(args):
         env['XRT_DEV_SCENE'] = str(args.first_scene)
         if args.scene_seconds:
             env['XRT_DEV_SCENE_MS'] = str(args.scene_seconds * 1000)
+        if not args.allow_input:
+            env['XRT_DEV_NO_INPUT'] = '1'
+        if args.allow_map:
+            env['XRT_DEV_ALLOW_MAPS'] = ';'.join(args.allow_map)
+        if args.music_script_track:
+            # Developer workaround: helper dispatches DirectMusic script-track events
+            # (experiments/xrt/DMUSIC_SCRIPT_TRACK_DESIGN.md); native tracks are disabled.
+            env['XRT_DMUSIC_SCRIPT_TRACK'] = 'helper'
         if args.draw_dump:
             env['XRT_DEV_DRAW_FRAMES'] = ','.join(map(str, args.draw_dump[:4]))
     graphics.environment(env, out)
     write(out / 'trace-profile.json', {'profile': args.trace_profile, 'full': args.trace_full,
                                      'addresses': [hex(a) for a in args.trace_address],
                                      'first_scene_frames': args.first_scene,
-                                     'scene_seconds': args.scene_seconds})
+                                     'scene_seconds': args.scene_seconds,
+                                     'music_script_track': args.music_script_track})
     if args.attach:
         env['XRT_DEV_ATTACH'] = '1'
     command_args = ['--guest', sandbox / 'System/Unreal2.exe', '--log', out / 'xrt.log',
@@ -433,7 +442,7 @@ def main():
     r = sub.add_parser('run')
     r.add_argument('--authorize-init', action='store_true', help='acknowledge separately granted owner authorization for this development Init run')
     r.add_argument('--question', required=True); r.add_argument('--change', required=True)
-    r.add_argument('--timeout', type=int, choices=range(1, 301), default=60, metavar='1..300')
+    r.add_argument('--timeout', type=int, choices=range(1, 361), default=60, metavar='1..360')
     r.add_argument('--attach', action='store_true')
     r.add_argument('--authorize-first-scene', action='store_true',
                    help='acknowledge separately granted owner authorization to continue past Init into world frames')
@@ -441,6 +450,12 @@ def main():
                    help='continue past Init; stop after this many presented frames with level/camera scene-node draws (exit 11)')
     r.add_argument('--scene-seconds', type=int, default=0, metavar='SECONDS',
                    help='first-scene: also stop cleanly (exit 11) at the first world frame this long after Init')
+    r.add_argument('--allow-input', action='store_true',
+                   help='first-scene: let physical keyboard/mouse input reach the game (isolated by default)')
+    r.add_argument('--allow-map', action='append', default=[], metavar='FILE.un2',
+                   help='first-scene: continue (instead of stopping) when this map file is opened post-Init')
+    r.add_argument('--music-script-track', action='store_true',
+                   help='first-scene: helper dispatches DirectMusic script-track events (host workaround)')
     r.add_argument('--draw-dump', type=int, action='append', default=[], metavar='WORLD_FRAME',
                    help='first-scene: log every draw of this world frame (up to four)')
     r.add_argument('--trace-profile', choices=('development', 'forensic'), default='development')

@@ -1,7 +1,13 @@
 # DirectMusic script-track dispatch in the helper — design
 
-2026-10-31. Developer CS_Intro scope. **Proposed, not implemented.** Needs owner approval because it makes
-the bridge perform work that native DirectMusic is supposed to do (see "Fidelity position").
+2026-10-31. Developer CS_Intro scope. **Approved (option A), implemented and verified.**
+Helper: `out/dev-init/dmusic_helper/script_track.h` (patch `tools/xrt/dev/patches/dmusic-script-track.patch`),
+enabled by `dev.py run --music-script-track` (`XRT_DMUSIC_SCRIPT_TRACK=helper`). Genuine run
+`out/dev-init/runs/20261031-024122-65bd52c2`: 14 dispatches, 0-24 ticks late, every segment in order,
+`beginscene` x4 and `FinalEvent` reached the game, title card shown, then the game restarted its intro loop.
+Deviation found in the real game: it releases loader cache entries after obtaining the script, so the event's
+script is matched by object GUID (`IDirectMusicObject::GetDescriptor`) instead of a loader lookup. Native
+script tracks are switched off on bound segments (`SetTrackConfig`, PLAY_ENABLED off): one executor.
 
 ## Problem (observed)
 

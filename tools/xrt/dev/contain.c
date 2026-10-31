@@ -31,7 +31,7 @@ int wmain(int argc, wchar_t **argv) {
     wchar_t logfile[1024], result[1024]; FILE *f;
     if (argc != 5) { fwprintf(stderr, L"contain TIMEOUT_SECONDS OUTPUT_DIR CWD COMMAND_LINE\n"); return 125; }
     ms = (DWORD)_wtoi(argv[1]);
-    if (ms < 1 || ms > 300) return 125;
+    if (ms < 1 || ms > 360) return 125;
     ms *= 1000;
     SetConsoleCtrlHandler(control, TRUE);
     if (_wgetenv(L"XRT_DEV_GAME") && !interactive_desktop()) {

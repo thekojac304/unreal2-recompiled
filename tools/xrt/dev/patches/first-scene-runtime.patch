@@ -565,8 +565,20 @@ index 4a1a96c..77da0a0 100644
          /* Allocate all guest state before invoking the host. The reserved object
           * has zero refs and is unreachable through the guest output in callbacks. */
          if(!d8_device_vtable)d8_device_vtable=com_vtable(d8_device_slot_names,97);
+diff --git a/out/dev-init-savepoints/init-return-20261030/runtime/hle_dinput.inc b/out/dev-init/runtime/hle_dinput.inc
+index 6c8864b..d322bce 100644
+--- a/out/dev-init-savepoints/init-return-20261030/runtime/hle_dinput.inc
++++ b/out/dev-init/runtime/hle_dinput.inc
+@@ -187,6 +187,7 @@ static void did_GetDeviceData(CPU*c) {
+         wr32(q,data[i].dwOfs);wr32(q+4,data[i].dwData);wr32(q+8,data[i].dwTimeStamp);
+         wr32(q+12,data[i].dwSequence);wr32(q+16,(uint32_t)app);
+     }
++    if(count&&xrt_dev_input_blocked("DirectInput buffered data"))count=0; /* developer input isolation: consumed, not delivered */
+     wr32(pc,count);
+     xrt_event("dinput_data","\"object\":%u,\"capacity\":%u,\"count\":%u,\"guest_size\":20,\"host_size\":%u,\"result\":%u",o->guest,capacity,count,(unsigned)sizeof data[0],(uint32_t)hr);
+     RET_STD(5,hr);
 diff --git a/out/dev-init-savepoints/init-return-20261030/runtime/hle_dmusic_guest.inc b/out/dev-init/runtime/hle_dmusic_guest.inc
-index 72a172a..d5043e4 100644
+index 72a172a..061098a 100644
 --- a/out/dev-init-savepoints/init-return-20261030/runtime/hle_dmusic_guest.inc
 +++ b/out/dev-init/runtime/hle_dmusic_guest.inc
 @@ -34,15 +34,15 @@ static uint32_t dmi_wrap(CPU*c,DmbMessage*m){
@@ -588,7 +600,7 @@ index 72a172a..d5043e4 100644
   CPU*c=(CPU*)context,nested;DmiTool*t=NULL;uint32_t a[4],scratch,table,fn,result;unsigned i,nargs=1;
   xm_scope(c,XM_BEGIN,XM_CALLBACK,"DirectMusic.IPC.callback",q->op);
   xm_span(c,"DirectMusic.IPC.callback.request",q,sizeof *q);
-@@ -71,12 +71,153 @@ static int dmi_callback(void*context,const DmbMessage*q,DmbMessage*r){
+@@ -71,12 +71,154 @@ static int dmi_callback(void*context,const DmbMessage*q,DmbMessage*r){
   if(q->op==6){if(rd32(scratch)!=scratch+4)xrt_fatal(c,XRT_EXIT_UNSUPPORTED,"DirectMusic tool changed media buffer");r->v[1]=rd32(scratch+4);r->v[2]=rd32(scratch+8);}
   xrt_event("dmusic_tool_callback","\"id\": %u, \"slot\": %u, \"result\": %u, \"value1\": %u, \"value2\": %u",t->id,q->op,result,r->v[1],r->v[2]);xm_span(c,"DirectMusic.IPC.callback.response",r,sizeof *r);xm_scope(c,XM_END,XM_CALLBACK,"DirectMusic.IPC.callback",1);return 1;
  }
@@ -669,6 +681,7 @@ index 72a172a..d5043e4 100644
 +  /* Not retained (DMUS_S_FREE/REQUEUE/failure): DirectMusic keeps ownership natively. */
 +  if(result!=S_OK){for(i=0;i<256;i++)if(dmi_pmsgs[i].guest==g){memset(&dmi_pmsgs[i],0,sizeof dmi_pmsgs[i]);dmi_pmsg_live--;}xrt_heap_free(c,g);}}
 + if(q->op==8)xrt_heap_free(c,g);
++ if(q->op==7&&type==13)xrt_dev_music_cue((const unsigned short*)(q->data+DMB_PMSG_HEADER));
 + if(q->op>=7&&dmi_async_logged<64){dmi_async_logged++;
 +  xrt_log("DirectMusic async slot %u tool %u pmsg %u type %u guest %08x text '%ls' result %08x live %u",q->op,t->id,q->v[0],type,g,(const wchar_t*)(q->data+DMB_PMSG_HEADER),result,dmi_pmsg_live);}
 + if(dmi_async_events++<4096)
@@ -743,7 +756,7 @@ index 72a172a..d5043e4 100644
  }
  static int dmipc_factory(CPU*c,const GUID*cls,const GUID*iid){
   DmbMessage m;uint32_t type,p;
-@@ -84,7 +225,7 @@ static int dmipc_factory(CPU*c,const GUID*cls,const GUID*iid){
+@@ -84,7 +226,7 @@ static int dmipc_factory(CPU*c,const GUID*cls,const GUID*iid){
   if(dm_equal(cls,&dm_clsid_loader)&&dm_equal(iid,&dm_iid_loader8))type=DMB_LOADER;
   else if(dm_equal(cls,&dm_clsid_performance)&&dm_equal(iid,&dm_iid_performance8))type=DMB_PERFORMANCE;
   else xrt_fatal(c,XRT_EXIT_UNSUPPORTED,"DirectMusic unmeasured factory");
@@ -752,7 +765,7 @@ index 72a172a..d5043e4 100644
   dmb_message(&m,DMB_CREATE,0);m.v[0]=type;dm_backend_invoke(c,&m);p=dmi_wrap(c,&m);wr32(ARG(4),p);
   xrt_event("com_factory","\"class\": \"%s\", \"backend\": \"ipc\", \"result\": %u, \"object\": %u",type==DMB_LOADER?"DirectMusicLoader8":"DirectMusicPerformance8",m.v[0],p);
   RET_STD(5,m.v[0]);return 1;
-@@ -117,7 +258,7 @@ static void dmi_Script(CPU*c){uint32_t p;DMI_BEGIN(DMB_SCRIPT);com_memory(c,ARG(
+@@ -117,7 +259,7 @@ static void dmi_Script(CPU*c){uint32_t p;DMI_BEGIN(DMB_SCRIPT);com_memory(c,ARG(
   dmi_guid(c,ARG(2),m.guid[0]);com_memory(c,ARG(3),4,"DirectMusic script output");dm_backend_invoke(c,&m);p=dmi_wrap(c,&m);wr32(ARG(3),p);RET_STD(4,m.v[0]);}
  static void dmi_ScriptInit(CPU*c){DMI_BEGIN(DMB_SCRIPT_INIT);if(ARG(2))xrt_fatal(c,XRT_EXIT_UNSUPPORTED,"DirectMusic script error-info pointer is unmeasured");m.v[0]=dmi_find(c,ARG(1))->id;dm_backend_invoke(c,&m);RET_STD(3,m.v[0]);}
  static void dmi_Volume(CPU*c){DMI_BEGIN(DMB_VOLUME);dmi_guid(c,ARG(1),m.guid[0]);if(ARG(3)!=4)xrt_fatal(c,XRT_EXIT_UNSUPPORTED,"DirectMusic unmeasured global parameter size");com_memory(c,ARG(2),4,"DirectMusic volume");m.v[0]=rd32(ARG(2));m.v[1]=ARG(3);dm_backend_invoke(c,&m);RET_STD(4,m.v[0]);}
@@ -761,7 +774,7 @@ index 72a172a..d5043e4 100644
  static void dmi_ReleaseObject(CPU*c){DMI_BEGIN(DMB_RELEASE_OBJECT);m.v[0]=dmi_find(c,ARG(1))->id;dm_backend_invoke(c,&m);RET_STD(2,m.v[0]);}
  static void dmi_Stop(CPU*c){DMI_BEGIN(DMB_STOP);if(ARG(1)||ARG(2)||ARG(3)||ARG(4))xrt_fatal(c,XRT_EXIT_UNSUPPORTED,"DirectMusic unmeasured Stop arguments");dm_backend_invoke(c,&m);RET_STD(5,m.v[0]);}
  static void dmi_Close(CPU*c){DMI_BEGIN(DMB_CLOSE);dm_backend_invoke(c,&m);RET_STD(1,m.v[0]);}
-@@ -126,7 +267,7 @@ static void dmi_Close(CPU*c){DMI_BEGIN(DMB_CLOSE);dm_backend_invoke(c,&m);RET_ST
+@@ -126,7 +268,7 @@ static void dmi_Close(CPU*c){DMI_BEGIN(DMB_CLOSE);dm_backend_invoke(c,&m);RET_ST
   {"xrt.com","DMI.Unsupported",dmi_Unsupported},{"xrt.com","DMI.QI",dmi_QI}, \
   {"xrt.com","DMI.AddRef",dmi_AddRef},{"xrt.com","DMI.Release",dmi_Release}, \
   {"xrt.com","DMI.InitAudio",dmi_InitAudio},{"xrt.com","DMI.Search",dmi_Search}, \
@@ -771,10 +784,18 @@ index 72a172a..d5043e4 100644
   {"xrt.com","DMI.Volume",dmi_Volume},{"xrt.com","DMI.Routine",dmi_Routine}, \
   {"xrt.com","DMI.ReleaseObject",dmi_ReleaseObject},{"xrt.com","DMI.Stop",dmi_Stop},{"xrt.com","DMI.Close",dmi_Close},
 diff --git a/out/dev-init-savepoints/init-return-20261030/runtime/hle_gui.c b/out/dev-init/runtime/hle_gui.c
-index c9ff9c9..33c6960 100644
+index c9ff9c9..b4d630d 100644
 --- a/out/dev-init-savepoints/init-return-20261030/runtime/hle_gui.c
 +++ b/out/dev-init/runtime/hle_gui.c
-@@ -466,8 +466,15 @@ static void hle_ClipCursor(CPU* c)
+@@ -74,6 +74,7 @@ static void hle_GetKeyState(CPU*c) {
+     uint32_t key=ARG(0);SHORT result;
+     if(key>255)xrt_fatal(c,XRT_EXIT_UNSUPPORTED,"GetKeyState(%u): unmeasured virtual key",key);
+     begin(c);result=xm_win_GetKeyState((int)key);end(c);
++    if((result&0x8000)&&xrt_dev_input_blocked("GetKeyState down state"))result&=1; /* developer input isolation */
+     RET_STD(1,(uint32_t)(int32_t)result);
+ }
+ static void hle_SetKeyboardState(CPU*c) {
+@@ -466,8 +467,15 @@ static void hle_ClipCursor(CPU* c)
  {
      uint32_t p=ARG(0),esp=c->r[ESP],caller=rd32(esp);BOOL result;
      xrt_event("gui_clip_cursor_call","\"rect\":%u,\"esp\":%u,\"return\":%u,\"last_error\":%u",p,esp,caller,xrt_get_last_error(c));
@@ -792,7 +813,7 @@ index c9ff9c9..33c6960 100644
      RET_STD(1,result);
      xrt_event("gui_clip_cursor_return","\"rect\":%u,\"result\":%u,\"last_error\":%u,\"esp_before\":%u,\"esp_after\":%u,\"return\":%u,\"actual_return\":%u",p,(unsigned)result,xrt_get_last_error(c),esp,c->r[ESP],caller,c->rv);
  }
-@@ -556,6 +563,7 @@ static void unpack_windowpos(WINDOWPOS *w, uint32_t p)
+@@ -556,6 +564,7 @@ static void unpack_windowpos(WINDOWPOS *w, uint32_t p)
  }
  #include "hle_gui_diag.inc"
  #include "window_transitions.inc"
@@ -800,7 +821,7 @@ index c9ff9c9..33c6960 100644
  static INT_PTR invoke_gui_proc(HWND h, UINT msg, WPARAM wp, LPARAM lp, uint32_t explicit_proc)
  {
      xm_scope(callback_cpu,XM_BEGIN,XM_CALLBACK,"USER32.invoke_gui_proc",msg);
-@@ -653,6 +661,11 @@ static INT_PTR invoke_gui_proc(HWND h, UINT msg, WPARAM wp, LPARAM lp, uint32_t
+@@ -653,13 +662,21 @@ static INT_PTR invoke_gui_proc(HWND h, UINT msg, WPARAM wp, LPARAM lp, uint32_t
          if (wp || lp)
              xrt_fatal(&nested, XRT_EXIT_UNSUPPORTED, "theme destruction notification has nonzero arguments");
          break;
@@ -812,7 +833,19 @@ index c9ff9c9..33c6960 100644
      case WM_GETDLGCODE:
          if (lp)
              xrt_fatal(&nested, XRT_EXIT_UNSUPPORTED, "WM_GETDLGCODE MSG pointer requires marshalling");
-@@ -742,6 +755,14 @@ static INT_PTR invoke_gui_proc(HWND h, UINT msg, WPARAM wp, LPARAM lp, uint32_t
+         break;
+     case WM_NCPAINT:
+-        if (wp != 1)
+-            xrt_fatal(&nested, XRT_EXIT_UNSUPPORTED, "WM_NCPAINT region requires handle translation");
++        /* wParam 1 = whole frame, else an update-region HRGN. A 32-bit process sees the
++         * handle's 32-bit value (GDI handles are 32-bit significant); forward_message
++         * restores the host value when the guest passes it on to the default procedure. */
++        if (wp != 1 && (WPARAM)(LONG_PTR)(int32_t)(uint32_t)wp != wp)
++            xrt_fatal(&nested, XRT_EXIT_UNSUPPORTED, "WM_NCPAINT region handle is not 32-bit representable");
+         break;
+     case WM_STYLECHANGING: case WM_STYLECHANGED:
+         if(!lp || ((int32_t)wp!=GWL_STYLE && (int32_t)wp!=GWL_EXSTYLE))
+@@ -742,6 +759,14 @@ static INT_PTR invoke_gui_proc(HWND h, UINT msg, WPARAM wp, LPARAM lp, uint32_t
      case WM_PALETTECHANGED:
          args[2] = window_token((HWND)wp);
          break;
@@ -827,7 +860,7 @@ index c9ff9c9..33c6960 100644
      case WM_NOTIFY:
      case WM_DRAWITEM:
      case WM_MEASUREITEM:
-@@ -752,13 +773,15 @@ static INT_PTR invoke_gui_proc(HWND h, UINT msg, WPARAM wp, LPARAM lp, uint32_t
+@@ -752,13 +777,15 @@ static INT_PTR invoke_gui_proc(HWND h, UINT msg, WPARAM wp, LPARAM lp, uint32_t
          xrt_fatal(&nested, XRT_EXIT_UNSUPPORTED, "dialog callback pointer message 0x%x requires marshalling", msg);
      default:
          /* Exact measured registered notification; preserve error while resolving its session identity. */
@@ -848,7 +881,7 @@ index c9ff9c9..33c6960 100644
          }
          /* Only measured scalar messages may cross unmodified. */
          if (!((msg <= WM_ENABLE && msg != WM_GETTEXT) || msg == WM_PAINT || msg == WM_ERASEBKGND ||
-@@ -766,7 +789,13 @@ static INT_PTR invoke_gui_proc(HWND h, UINT msg, WPARAM wp, LPARAM lp, uint32_t
+@@ -766,7 +793,13 @@ static INT_PTR invoke_gui_proc(HWND h, UINT msg, WPARAM wp, LPARAM lp, uint32_t
                msg == WM_NCDESTROY || msg == WM_CANCELMODE || msg == WM_GETDLGCODE || msg == WM_GETFONT ||
                msg == WM_CHANGEUISTATE || msg == WM_UPDATEUISTATE || msg == WM_QUERYUISTATE ||
                msg == WM_QUERYNEWPALETTE || msg == WM_PALETTECHANGED || msg == WM_DWMNCRENDERINGCHANGED ||
@@ -863,7 +896,7 @@ index c9ff9c9..33c6960 100644
              xrt_fatal(&nested, XRT_EXIT_UNSUPPORTED, "dialog callback message 0x%x unsupported (wp=%llx lp=%llx)",
                        msg, (unsigned long long)wp, (unsigned long long)lp);
      }
-@@ -1140,6 +1169,19 @@ const XrtHle xrt_hle_gui[] = {{"comctl32.dll", "#17", hle_InitCommonControls},
+@@ -1140,6 +1173,19 @@ const XrtHle xrt_hle_gui[] = {{"comctl32.dll", "#17", hle_InitCommonControls},
                                {"user32.dll", "SetMenu", hle_SetMenu},
                                {"user32.dll", "PostMessageA", hle_PostMessageA},
                                {"user32.dll", "PostMessageW", hle_PostMessageW},
@@ -1103,10 +1136,10 @@ index 499eb50..c0f4c4b 100644
      {"msvcr70.dll", "_isnan", hle_isnan},
 diff --git a/out/dev-init/runtime/message_pump.inc b/out/dev-init/runtime/message_pump.inc
 new file mode 100644
-index 0000000..e427973
+index 0000000..7f91981
 --- /dev/null
 +++ b/out/dev-init/runtime/message_pump.inc
-@@ -0,0 +1,118 @@
+@@ -0,0 +1,123 @@
 +/* Main-loop message pump. Guest MSG is 28 bytes: hwnd token, message, wParam,
 + * lParam, time, pt.x, pt.y. The native MSG last returned by PeekMessage is kept,
 + * so Translate/Dispatch of that unchanged guest copy forward the exact native
@@ -1138,6 +1171,11 @@ index 0000000..e427973
 +    r=wide?PeekMessageW(&m,h,ARG(2),ARG(3),flags):PeekMessageA(&m,h,ARG(2),ARG(3),flags);
 +    pump_probe(&q,XM_END,q.name,(uint64_t)(uintptr_t)h,flags,(uint64_t)r);
 +    end(c);xrt_gui_callback_leave(prev);
++    /* Developer input isolation: physical input messages reach the guest as WM_NULL. */
++    if(r && ((m.message>=WM_KEYFIRST&&m.message<=WM_KEYLAST)||(m.message>=WM_MOUSEFIRST&&m.message<=WM_MOUSELAST)||
++             (m.message>=WM_NCMOUSEMOVE&&m.message<=WM_NCXBUTTONDBLCLK)||m.message==WM_INPUT) && xrt_dev_input_blocked(NULL)) {
++        xrt_dev_input_blocked("window input message");m.message=WM_NULL;m.wParam=0;m.lParam=0;
++    }
 +    if(r) {
 +        words[0]=window_token(m.hwnd);words[1]=m.message;
 +        words[2]=pump_scalar(c,m.wParam,m.message,"wParam");
@@ -1226,21 +1264,589 @@ index 0000000..e427973
 +    HWND p;gui_transition_memory(c,c->r[ESP],8,0);begin(c);p=GetParent(xrt_gui_device_window(c,ARG(0)));end(c);RET_STD(1,window_token(p));
 +}
 diff --git a/out/dev-init-savepoints/init-return-20261030/runtime/monitor.c b/out/dev-init/runtime/monitor.c
-index 9393060..b4360c7 100644
+index 9393060..e12cded 100644
 --- a/out/dev-init-savepoints/init-return-20261030/runtime/monitor.c
 +++ b/out/dev-init/runtime/monitor.c
-@@ -158,7 +158,10 @@ void xm_emit(CPU*c,const XmRequest*q,const XmHost*host) {
-     if(q->event==XM_RESOURCE && q->guest){
-         for(i=0;i<identity_count;i++)if(identities[i].guest==q->guest && (!q->generation||identities[i].generation==q->generation) && identities[i].iface==q->interface_id)break;
-         if(i<identity_count&&!q->generation)r.generation=identities[i].generation;
+@@ -1,275 +1,304 @@
+-#define WIN32_LEAN_AND_MEAN
+-#include <windows.h>
+-#include <stddef.h>
+-#include <stdlib.h>
+-#include "xrt_internal.h"
+-#include "monitor.h"
+-
+-#define XM_MAGIC 0x31544d58u
+-#define XM_LIMIT 131072u
+-#define XM_DEPTH 128u
+-static HANDLE sink=INVALID_HANDLE_VALUE;
+-static SRWLOCK lock=SRWLOCK_INIT;
+-static uint64_t serial, next_invocation;
+-static uint32_t chain;
+-/* Tail contains ALL accepted records after the last successful flush. It is
+- * never reused until WriteFile and FlushFileBuffers have both succeeded. */
+-volatile uint64_t xm_recorded, xm_written, xm_flushes;
+-volatile unsigned xm_buffer_count, xm_profile;
+-XmRecord xm_buffer[4096];
+-#ifdef XM_QUALIFICATION
+-static unsigned hold_drain, fail_flush, partial_write;
+-void xm_qualification_hold_drain(void){hold_drain=1;}
+-void xm_qualification_fail_flush(void){fail_flush=1;}
+-void xm_qualification_partial_write(void){partial_write=1;}
+-#endif
+-/* Called under the recorder lock, inside the state-preserving assembly probe.
+- * Counters are conservative on interruption. Flush success is the Windows
+- * persistence contract; storage firmware/power-loss behavior is not measured. */
+-static void drain(void) {
+- DWORD written;unsigned bytes=xm_buffer_count*(unsigned)sizeof(XmRecord);
+- if(!bytes)return;
+-#ifdef XM_QUALIFICATION
+- if(hold_drain)return;
+- if(partial_write){WriteFile(sink,xm_buffer,bytes/2,&written,NULL);xm_failure(9);}
+-#endif
+- if(!WriteFile(sink,xm_buffer,bytes,&written,NULL)||written!=bytes)xm_failure(9);
+- xm_written=xm_recorded;MemoryBarrier();
+-#ifdef XM_QUALIFICATION
+- if(fail_flush)xm_failure(23);
+-#endif
+- if(!FlushFileBuffers(sink))xm_failure(9);
+- xm_committed=xm_recorded;xm_flushes++;MemoryBarrier();xm_buffer_count=0;
+-}
+-
+-static struct {uint64_t host;unsigned guest,generation,iface,refs,bindings;} identities[4608];
+-static unsigned identity_count;
+-#ifdef XM_QUALIFICATION
+-void xm_qualification_break_sink(void){CloseHandle(sink);sink=INVALID_HANDLE_VALUE;}
+-#endif
+-static volatile LONG active, initialized;
+-volatile long xm_failed;
+-volatile uint64_t xm_committed;
+-XmRecord xm_pending;
+-static __declspec(thread) struct { unsigned depth, busy; uint64_t id[XM_DEPTH],parent[XM_DEPTH]; unsigned domain[XM_DEPTH]; const char*name[XM_DEPTH]; CPU*cpu[XM_DEPTH];
+- struct {const void*cookie;unsigned depth;} marks[8192];unsigned marks_used;
+-} tls;
+-typedef char cpu_fits[sizeof(CPU)<=416?1:-1];
+-typedef char fx_aligned[offsetof(XmHost,fx)==144?1:-1];
+-
+-/* A failed write leaves the complete intended record in debugger-readable
+- * xm_pending. No recursion into logging, cleanup, COM or guest execution. */
+-__declspec(noinline) __declspec(noreturn) void xm_failure(unsigned reason) {
+-    InterlockedExchange(&xm_failed,(LONG)reason);
+-    TerminateProcess(GetCurrentProcess(),0xe04d0000u|reason);
+-    for(;;){}
+-}
+-#include "monitor_crc.inc"
+-static unsigned crc32(const void *data,unsigned n) {
+-    const unsigned char*p=data;unsigned crc=~0u;
+-    while(n--)crc=(crc>>8)^xm_crc_table[(crc^*p++)&255];
+-    return ~crc;
+-}
+-/* Per-thread hint of the last two single readable regions (typically guest stack and TEB): avoids two VirtualQuery
+- * syscalls per event. The runtime never sets guard pages on guest memory; a later decommit still faults inside
+- * copy_guest's __try and reports the copy as missing. */
+-static __declspec(thread) struct {uintptr_t lo,hi;} rd_hint[2];static __declspec(thread) unsigned rd_next;
+-static int readable(const void*p,size_t n) {
+-    uintptr_t at=(uintptr_t)p,end=at+n;unsigned h;
+-    if(!at||end<at)return 0;
+-    for(h=0;h<2;h++)if(at>=rd_hint[h].lo&&end<=rd_hint[h].hi)return 1;
+-    {MEMORY_BASIC_INFORMATION m;DWORD prot;
+-     if(VirtualQuery((void*)at,&m,sizeof m)&&m.State==MEM_COMMIT&&!(m.Protect&(PAGE_GUARD|PAGE_NOACCESS))){
+-      prot=m.Protect&255;
+-      if((prot==PAGE_READONLY||prot==PAGE_READWRITE||prot==PAGE_WRITECOPY||prot==PAGE_EXECUTE_READ||
+-          prot==PAGE_EXECUTE_READWRITE||prot==PAGE_EXECUTE_WRITECOPY)&&end<=(uintptr_t)m.BaseAddress+m.RegionSize){
+-       rd_hint[rd_next].lo=(uintptr_t)m.BaseAddress;rd_hint[rd_next].hi=(uintptr_t)m.BaseAddress+m.RegionSize;
+-       rd_next^=1;return 1;}}}
+-    while(at<end){MEMORY_BASIC_INFORMATION m;DWORD prot;uintptr_t next;
+-        if(!VirtualQuery((void*)at,&m,sizeof m))return 0;
+-        prot=m.Protect&255;
+-        if(m.State!=MEM_COMMIT||(m.Protect&(PAGE_GUARD|PAGE_NOACCESS))||
+-           !(prot==PAGE_READONLY||prot==PAGE_READWRITE||prot==PAGE_WRITECOPY||
+-             prot==PAGE_EXECUTE_READ||prot==PAGE_EXECUTE_READWRITE||prot==PAGE_EXECUTE_WRITECOPY))return 0;
+-        next=(uintptr_t)m.BaseAddress+m.RegionSize;if(next<=at)return 0;at=next;
+-    }return 1;
+-}
+-static int copy_guest(void*out,uint32_t address,unsigned size) {
+-    if(!xrt_g||!address||(uint64_t)address+size>0x100000000ull||!readable(G2H(address),size))return 0;
+-    __try {memcpy(out,G2H(address),size);} __except(EXCEPTION_EXECUTE_HANDLER){return 0;}
+-    return 1;
+-}
+-int xm_enabled(void){return initialized!=0;}
+-CPU* xm_current_cpu(void){return tls.depth?tls.cpu[tls.depth-1]:NULL;}
+-/* Marks are kept in push order and searched newest-first: landing records are LIFO, so mark/forget are O(1) in
+- * deep guarded recursion. A duplicate cookie resolves to its newest (live) entry; leaks still end in failure 18. */
+-void xm_mark(const void*cookie){unsigned i;if(!initialized)return;
+- i=tls.marks_used;
+- if(i&&tls.marks[i-1].cookie==cookie)i--;
+- else {if(i==8192)xm_failure(18);tls.marks_used++;}
+- tls.marks[i].cookie=cookie;tls.marks[i].depth=tls.depth;
+-}
+-void xm_forget(const void*cookie){unsigned i;if(!initialized)return;
+- for(i=tls.marks_used;i-->0;)if(tls.marks[i].cookie==cookie){
+-  memmove(&tls.marks[i],&tls.marks[i+1],(tls.marks_used-i-1)*sizeof tls.marks[0]);tls.marks_used--;return;}
+- xm_failure(19);
+-}
+-void xm_unwind(CPU*c,unsigned depth,unsigned reason){
+- if(!initialized)return;if(depth>tls.depth)xm_failure(20);
+- while(tls.depth>depth){unsigned d=tls.depth-1;
+-  xm_scope(c,XM_ABORT,tls.domain[d],tls.name[d],reason);}
+-}
+-void xm_restore(CPU*c,const void*cookie,unsigned reason){unsigned i;
+- if(!initialized)return;
+- for(i=tls.marks_used;i-->0;)if(tls.marks[i].cookie==cookie){unsigned depth=tls.marks[i].depth,j,k;
+-  xm_unwind(c,depth,reason);
+-  /* Abandoned higher frames no longer own valid host-stack cookies. */
+-  for(j=k=0;j<tls.marks_used;j++)if(tls.marks[j].depth<=depth)tls.marks[k++]=tls.marks[j];
+-  tls.marks_used=k;
+-  return;}
+- xm_failure(21);
+-}
+-#include "routine_trace.inc"
+-
+-/* Only xm_probe calls this. Host state restored by assembly on every return. */
+-void xm_emit(CPU*c,const XmRequest*q,const XmHost*host) {
+-    DWORD saved=GetLastError();XmRecord r;unsigned i;int bad=0;
+-    if(!initialized)return;
+-    if(!c)c=xm_current_cpu();
+-    if(tls.busy)xm_failure(1);
+-    tls.busy=1;
+-    memset(&r,0,sizeof r);r.magic=XM_MAGIC;r.version=xm_profile?5:3;r.size=sizeof r;
+-    r.event=q->event;r.domain=q->domain;r.slot=q->slot;r.thread=GetCurrentThreadId();
+-    r.error=saved;r.result=q->result;r.host=q->host;r.guest=q->guest;
+-    r.generation=q->generation;r.interface_id=q->interface_id;r.refs=q->refs;r.bindings=q->bindings;
+-    r.context=*host;
+-    if(q->count>12||q->blob_size>256)bad=2;
+-    else {r.count=q->count;r.blob_size=q->blob_size;memcpy(r.values,q->values,q->count*sizeof(XmValue));
+-        /* The producer supplies a typed local span; invalid spans fail closed. */
+-        if(q->blob_size){if(!readable(q->blob,q->blob_size))bad=3;
+-            else {__try {memcpy(r.blob,q->blob,q->blob_size);}__except(EXCEPTION_EXECUTE_HANDLER){bad=3;}}}
+-    }
+-    if(q->name){for(i=0;i<sizeof r.name-1 && q->name[i];i++)r.name[i]=q->name[i];if(q->name[i])bad=4;}
+-    if(c){r.cpu_size=sizeof *c;memcpy(r.cpu,c,sizeof *c);
+-        if(copy_guest(r.stack,c->r[ESP],128))r.stack_size=128;else r.flags|=1;
+-        if(!copy_guest(&r.guest_error,c->fs_base+0x34,4))r.flags|=2;
+-    }
+-    AcquireSRWLockExclusive(&lock);
+-    if(q->event==XM_RESOURCE && q->guest){
+-        for(i=0;i<identity_count;i++)if(identities[i].guest==q->guest && (!q->generation||identities[i].generation==q->generation) && identities[i].iface==q->interface_id)break;
+-        if(i<identity_count&&!q->generation)r.generation=identities[i].generation;
 -        if(i==identity_count){if(identity_count==4608)bad=15;else identity_count++;}
+-        if(!bad){identities[i].host=q->host;identities[i].guest=q->guest;identities[i].generation=r.generation;
+-            identities[i].iface=q->interface_id;identities[i].refs=q->refs;identities[i].bindings=q->bindings;}
+-    }
+-    if(q->domain==XM_NATIVE && q->host){
+-        unsigned matches=0;
+-        for(i=0;i<identity_count;i++)if(identities[i].host==q->host && (identities[i].refs||identities[i].bindings)){
+-            matches++;r.guest=identities[i].guest;r.generation=identities[i].generation;r.refs=identities[i].refs;r.bindings=identities[i].bindings;
+-            /* Buffer wrapper's canonical vertex type is resolved by registry. */
+-            if(!r.interface_id || r.interface_id==106)r.interface_id=identities[i].iface;
+-        }
+-        if(matches!=1){r.flags|=4;r.guest=0;r.generation=0;}
+-        if(matches>1)bad=16;
+-    }
+-    if(!xm_profile && serial>=XM_LIMIT)bad=5;
+-    if(q->event==XM_BEGIN){
+-        if(tls.depth>=XM_DEPTH)bad=6;
+-        else {unsigned d=tls.depth++;tls.parent[d]=d?tls.id[d-1]:0;
+-            tls.id[d]=++next_invocation;tls.domain[d]=q->domain;tls.name[d]=q->name;tls.cpu[d]=c;InterlockedIncrement(&active);}
+-    }
+-    if(tls.depth){r.invocation=tls.id[tls.depth-1];r.parent=tls.parent[tls.depth-1];}
+-    else {r.invocation=++next_invocation;r.parent=0;}
+-    r.depth=tls.depth;
+-    if((q->event==XM_END||q->event==XM_ABORT) && (!tls.depth||tls.domain[tls.depth-1]!=q->domain||
+-       !q->name||!tls.name[tls.depth-1]||strcmp(q->name,tls.name[tls.depth-1])))bad=7;
+-    if(q->event==XM_CLOSE&&active)bad=8;
+-    if(bad){r.event=XM_GAP;r.result=bad;}
+-    if(xm_profile){
+-        if(xd_route(&r,bad))goto finished;
+-        xd_append(&r);
+-        if(xd_force_flush){drain();xd_flush();}
+-    }else{
+-    r.sequence=++serial;r.previous_crc=chain;r.crc=crc32(&r,offsetof(XmRecord,crc));
+-    xm_pending=r;MemoryBarrier();
+-    if(xm_buffer_count>=4096)xm_failure(22);
+-    xm_buffer[xm_buffer_count]=r;MemoryBarrier();xm_buffer_count++;
+-    chain=r.crc;xm_recorded=r.sequence;MemoryBarrier();
+-    }
+-    if(!xm_profile || xm_buffer_count>=256 || bad || q->event==XM_OPEN ||
+-       q->event==XM_CLOSE || q->event==XM_FATAL || q->event==XM_GAP ||
+-       q->event==XM_CHECKPOINT ||
+-       (q->event==XM_END && q->name && !strcmp(q->name,"UGameEngine.Init")))drain();
+-    if(bad)xm_failure(bad);
+-finished:
+-    if(q->event==XM_END||q->event==XM_ABORT){tls.depth--;InterlockedDecrement(&active);}
+-    ReleaseSRWLockExclusive(&lock);tls.busy=0;SetLastError(saved);
+-}
+-void xm_scope(CPU*c,unsigned event,unsigned domain,const char*name,uint64_t result) {
+-    XmRequest q={0};q.event=event;q.domain=domain;q.name=name;q.result=result;xm_probe(c,&q);
+-}
+-void xm_native(CPU*c,unsigned event,const char*name,uint64_t host,uint64_t result) {
+-    XmRequest q={0};q.event=event;q.domain=XM_NATIVE;q.name=name;q.host=host;q.result=result;xm_probe(c,&q);
+-}
+-void xm_resource(CPU*c,unsigned iface,unsigned guest,unsigned generation,uint64_t host,unsigned refs,unsigned bindings,const char*name) {
+-    XmRequest q={0};q.event=XM_RESOURCE;q.domain=XM_LIFETIME;q.name=name;q.guest=guest;
+-    q.generation=generation;q.interface_id=iface;q.host=host;q.refs=refs;q.bindings=bindings;xm_probe(c,&q);
+-}
+-void xm_blob(CPU*c,const char*name,const void*trusted,unsigned size) {
+-    XmRequest q={0};q.event=XM_DATA;q.name=name;q.blob=trusted;q.blob_size=size;xm_probe(c,&q);
+-}
+-void xm_span(CPU*c,const char*name,const void*trusted,unsigned size) {
+-    unsigned off;XmValue v[2]={{XM_U32,4,size},{XM_U32,4,0}};
+-    /* Only these two explicitly approved bulk evidence categories are omitted.
+-     * Adapter range, ownership, pitch, transfer and COM checks stay upstream.
+-     * No pointer is dereferenced here or forwarded to native code. */
+-    if(xm_profile && !xd_selected_name(name) && !(tls.depth&&xd_tls.frames[tls.depth-1].selected) && (!strcmp(name,"resource.map.download") || !strcmp(name,"resource.map.upload"))){
+-        XmRequest q={0};q.event=XM_OMITTED;q.name=name;q.result=size;
+-        q.count=1;q.values[0]=v[0];xm_probe(c,&q);return;
+-    }
+-    if(size>16384){xm_scope(c,XM_GAP,0,"typed span capacity",size);xm_failure(17);}
+-    for(off=0;off<size;off+=256){unsigned n=size-off;if(n>256)n=256;
+-        v[1].value=off;xm_values(c,name,2,v);xm_blob(c,name,(const unsigned char*)trusted+off,n);}
+-}
+-void xm_values(CPU*c,const char*name,unsigned count,const XmValue*v) {
+-    XmRequest q={0};q.event=XM_DATA;q.name=name;q.count=count;
+-    if(count<=12)memcpy(q.values,v,count*sizeof *v);xm_probe(c,&q);
+-}
+-void xm_guest(CPU*c,const char*name,unsigned address,unsigned size) {
+-    DWORD saved=GetLastError();unsigned char bytes[256];XmRequest q={0};
+-    if(!initialized)return;
+-    q.event=XM_DATA;q.name=name;q.guest=address;
+-    if(size>sizeof bytes||!copy_guest(bytes,address,size)){q.event=XM_GAP;q.result=10;}
+-    else {q.blob=bytes;q.blob_size=size;}
+-    SetLastError(saved);xm_probe(c,&q);if(q.event==XM_GAP)xm_failure(10);
+-}
+-void xm_init(const char*path) {
+-    DWORD saved=GetLastError();
+-    if(!path||!*path)xm_failure(11);
+-    if(InterlockedCompareExchange(&initialized,1,0))xm_failure(12);
+-    {const char*p=getenv("XRT_MONITOR_PROFILE");
+-     if(!p || !strcmp(p,"forensic"))xm_profile=0;
+-     else if(!strcmp(p,"development"))xm_profile=1;
+-     else xm_failure(24);}
+-    sink=CreateFileA(path,GENERIC_WRITE,FILE_SHARE_READ,NULL,CREATE_NEW,
+-        FILE_ATTRIBUTE_NORMAL|(xm_profile?0:FILE_FLAG_WRITE_THROUGH),NULL);
+-    if(sink==INVALID_HANDLE_VALUE)xm_failure(13);
+-    xd_init(path);
+-    SetLastError(saved);
+-    {XmRequest q={0};q.event=XM_OPEN;q.name=xm_profile?"xrt.monitor.v5.development":"xrt.monitor.v3.forensic";
+-     q.count=4;q.values[0]=(XmValue){XM_U32,4,xm_profile};
+-     q.values[1]=(XmValue){XM_U32,4,4096};q.values[2]=(XmValue){XM_U32,4,xm_profile?256:1};
+-     q.values[3]=(XmValue){XM_U32,4,xm_profile?3:0};xm_probe(NULL,&q);}
+-}
+-void xm_close(void) {
+-    DWORD saved=GetLastError();
+-    xm_scope(NULL,XM_CLOSE,0,"xrt.monitor.v3",0);
+-    /* Test/owned orderly shutdown only; genuine bounded termination uses the
+-     * independently captured committed counter and live pending record. */
+-    if(xm_profile&&!CloseHandle(xd_sink))xm_failure(25);
+-    if(!CloseHandle(sink))xm_failure(14);sink=INVALID_HANDLE_VALUE;initialized=0;SetLastError(saved);
+-}
+-
+-void xm_checkpoint(CPU*c,const char*name) {
+-    xm_scope(c,XM_CHECKPOINT,0,name,0);
+-}
++#define WIN32_LEAN_AND_MEAN
++#include <windows.h>
++#include <stddef.h>
++#include <stdlib.h>
++#include "xrt_internal.h"
++#include "monitor.h"
++
++#define XM_MAGIC 0x31544d58u
++#define XM_LIMIT 131072u
++#define XM_DEPTH 128u
++static HANDLE sink=INVALID_HANDLE_VALUE;
++static SRWLOCK lock=SRWLOCK_INIT;
++static uint64_t serial, next_invocation;
++static uint32_t chain;
++/* Tail contains ALL accepted records after the last successful flush. It is
++ * never reused until WriteFile and FlushFileBuffers have both succeeded. */
++volatile uint64_t xm_recorded, xm_written, xm_flushes;
++volatile unsigned xm_buffer_count, xm_profile;
++XmRecord xm_buffer[4096];
++#ifdef XM_QUALIFICATION
++static unsigned hold_drain, fail_flush, partial_write;
++void xm_qualification_hold_drain(void){hold_drain=1;}
++void xm_qualification_fail_flush(void){fail_flush=1;}
++void xm_qualification_partial_write(void){partial_write=1;}
++#endif
++/* Called under the recorder lock, inside the state-preserving assembly probe.
++ * Counters are conservative on interruption. Flush success is the Windows
++ * persistence contract; storage firmware/power-loss behavior is not measured. */
++static void drain(void) {
++ DWORD written;unsigned bytes=xm_buffer_count*(unsigned)sizeof(XmRecord);
++ if(!bytes)return;
++#ifdef XM_QUALIFICATION
++ if(hold_drain)return;
++ if(partial_write){WriteFile(sink,xm_buffer,bytes/2,&written,NULL);xm_failure(9);}
++#endif
++ if(!WriteFile(sink,xm_buffer,bytes,&written,NULL)||written!=bytes)xm_failure(9);
++ xm_written=xm_recorded;MemoryBarrier();
++#ifdef XM_QUALIFICATION
++ if(fail_flush)xm_failure(23);
++#endif
++ if(!FlushFileBuffers(sink))xm_failure(9);
++ xm_committed=xm_recorded;xm_flushes++;MemoryBarrier();xm_buffer_count=0;
++}
++
++static struct {uint64_t host;unsigned guest,generation,iface,refs,bindings;} identities[4608];
++static unsigned identity_count;
++#ifdef XM_QUALIFICATION
++void xm_qualification_break_sink(void){CloseHandle(sink);sink=INVALID_HANDLE_VALUE;}
++#endif
++static volatile LONG active, initialized;
++volatile long xm_failed;
++volatile uint64_t xm_committed;
++XmRecord xm_pending;
++static __declspec(thread) struct { unsigned depth, busy; uint64_t id[XM_DEPTH],parent[XM_DEPTH]; unsigned domain[XM_DEPTH]; const char*name[XM_DEPTH]; CPU*cpu[XM_DEPTH];
++ struct {const void*cookie;unsigned depth;} marks[8192];unsigned marks_used;
++} tls;
++typedef char cpu_fits[sizeof(CPU)<=416?1:-1];
++typedef char fx_aligned[offsetof(XmHost,fx)==144?1:-1];
++
++/* A failed write leaves the complete intended record in debugger-readable
++ * xm_pending. No recursion into logging, cleanup, COM or guest execution. */
++__declspec(noinline) __declspec(noreturn) void xm_failure(unsigned reason) {
++    InterlockedExchange(&xm_failed,(LONG)reason);
++    TerminateProcess(GetCurrentProcess(),0xe04d0000u|reason);
++    for(;;){}
++}
++#include "monitor_crc.inc"
++static unsigned crc32_bytewise(const void *data,unsigned n) {
++    const unsigned char*p=data;unsigned crc=~0u;
++    while(n--)crc=(crc>>8)^xm_crc_table[(crc^*p++)&255];
++    return ~crc;
++}
++/* Same IEEE CRC-32, slice-by-8 (tables derived from xm_crc_table). The development
++ * recorder checksums its ~6 MB snapshot ~20 times a second during the intro; the
++ * bytewise loop was ~24% of game-thread samples. Used only after xm_init has
++ * checked it against the bytewise loop; otherwise the bytewise loop is used. */
++static uint32_t xm_crc8[8][256];static int xm_crc8_ready;
++static unsigned crc32_slice8(const void *data,unsigned n) {
++    const unsigned char*p=data;unsigned crc=~0u;
++    while(n&&((uintptr_t)p&7)){crc=(crc>>8)^xm_crc_table[(crc^*p++)&255];n--;}
++    while(n>=8){uint32_t lo=*(const uint32_t*)p^crc,hi=*(const uint32_t*)(p+4);
++        crc=xm_crc8[7][lo&255]^xm_crc8[6][(lo>>8)&255]^xm_crc8[5][(lo>>16)&255]^xm_crc8[4][lo>>24]^
++            xm_crc8[3][hi&255]^xm_crc8[2][(hi>>8)&255]^xm_crc8[1][(hi>>16)&255]^xm_crc8[0][hi>>24];p+=8;n-=8;}
++    while(n--)crc=(crc>>8)^xm_crc_table[(crc^*p++)&255];
++    return ~crc;
++}
++static void crc32_tables(void) {
++    static unsigned char probe[4099];unsigned i,k,x=0x12345678u;
++    for(i=0;i<256;i++){xm_crc8[0][i]=xm_crc_table[i];
++        for(k=1;k<8;k++)xm_crc8[k][i]=(xm_crc8[k-1][i]>>8)^xm_crc_table[xm_crc8[k-1][i]&255];}
++    for(i=0;i<sizeof probe;i++){x=x*1103515245u+12345u;probe[i]=(unsigned char)(x>>16);}
++    for(i=0;i<1000;i+=37)if(crc32_slice8(probe+i%8,sizeof probe-i-8)!=crc32_bytewise(probe+i%8,sizeof probe-i-8))return;
++    xm_crc8_ready=1;
++}
++static unsigned crc32(const void *data,unsigned n) {
++    return xm_crc8_ready?crc32_slice8(data,n):crc32_bytewise(data,n);
++}
++/* Per-thread hint of the last two single readable regions (typically guest stack and TEB): avoids two VirtualQuery
++ * syscalls per event. The runtime never sets guard pages on guest memory; a later decommit still faults inside
++ * copy_guest's __try and reports the copy as missing. */
++static __declspec(thread) struct {uintptr_t lo,hi;} rd_hint[2];static __declspec(thread) unsigned rd_next;
++static int readable(const void*p,size_t n) {
++    uintptr_t at=(uintptr_t)p,end=at+n;unsigned h;
++    if(!at||end<at)return 0;
++    for(h=0;h<2;h++)if(at>=rd_hint[h].lo&&end<=rd_hint[h].hi)return 1;
++    {MEMORY_BASIC_INFORMATION m;DWORD prot;
++     if(VirtualQuery((void*)at,&m,sizeof m)&&m.State==MEM_COMMIT&&!(m.Protect&(PAGE_GUARD|PAGE_NOACCESS))){
++      prot=m.Protect&255;
++      if((prot==PAGE_READONLY||prot==PAGE_READWRITE||prot==PAGE_WRITECOPY||prot==PAGE_EXECUTE_READ||
++          prot==PAGE_EXECUTE_READWRITE||prot==PAGE_EXECUTE_WRITECOPY)&&end<=(uintptr_t)m.BaseAddress+m.RegionSize){
++       rd_hint[rd_next].lo=(uintptr_t)m.BaseAddress;rd_hint[rd_next].hi=(uintptr_t)m.BaseAddress+m.RegionSize;
++       rd_next^=1;return 1;}}}
++    while(at<end){MEMORY_BASIC_INFORMATION m;DWORD prot;uintptr_t next;
++        if(!VirtualQuery((void*)at,&m,sizeof m))return 0;
++        prot=m.Protect&255;
++        if(m.State!=MEM_COMMIT||(m.Protect&(PAGE_GUARD|PAGE_NOACCESS))||
++           !(prot==PAGE_READONLY||prot==PAGE_READWRITE||prot==PAGE_WRITECOPY||
++             prot==PAGE_EXECUTE_READ||prot==PAGE_EXECUTE_READWRITE||prot==PAGE_EXECUTE_WRITECOPY))return 0;
++        next=(uintptr_t)m.BaseAddress+m.RegionSize;if(next<=at)return 0;at=next;
++    }return 1;
++}
++static int copy_guest(void*out,uint32_t address,unsigned size) {
++    if(!xrt_g||!address||(uint64_t)address+size>0x100000000ull||!readable(G2H(address),size))return 0;
++    __try {memcpy(out,G2H(address),size);} __except(EXCEPTION_EXECUTE_HANDLER){return 0;}
++    return 1;
++}
++int xm_enabled(void){return initialized!=0;}
++CPU* xm_current_cpu(void){return tls.depth?tls.cpu[tls.depth-1]:NULL;}
++/* Marks are kept in push order and searched newest-first: landing records are LIFO, so mark/forget are O(1) in
++ * deep guarded recursion. A duplicate cookie resolves to its newest (live) entry; leaks still end in failure 18. */
++void xm_mark(const void*cookie){unsigned i;if(!initialized)return;
++ i=tls.marks_used;
++ if(i&&tls.marks[i-1].cookie==cookie)i--;
++ else {if(i==8192)xm_failure(18);tls.marks_used++;}
++ tls.marks[i].cookie=cookie;tls.marks[i].depth=tls.depth;
++}
++void xm_forget(const void*cookie){unsigned i;if(!initialized)return;
++ for(i=tls.marks_used;i-->0;)if(tls.marks[i].cookie==cookie){
++  memmove(&tls.marks[i],&tls.marks[i+1],(tls.marks_used-i-1)*sizeof tls.marks[0]);tls.marks_used--;return;}
++ xm_failure(19);
++}
++void xm_unwind(CPU*c,unsigned depth,unsigned reason){
++ if(!initialized)return;if(depth>tls.depth)xm_failure(20);
++ while(tls.depth>depth){unsigned d=tls.depth-1;
++  xm_scope(c,XM_ABORT,tls.domain[d],tls.name[d],reason);}
++}
++void xm_restore(CPU*c,const void*cookie,unsigned reason){unsigned i;
++ if(!initialized)return;
++ for(i=tls.marks_used;i-->0;)if(tls.marks[i].cookie==cookie){unsigned depth=tls.marks[i].depth,j,k;
++  xm_unwind(c,depth,reason);
++  /* Abandoned higher frames no longer own valid host-stack cookies. */
++  for(j=k=0;j<tls.marks_used;j++)if(tls.marks[j].depth<=depth)tls.marks[k++]=tls.marks[j];
++  tls.marks_used=k;
++  return;}
++ xm_failure(21);
++}
++#include "routine_trace.inc"
++
++/* Only xm_probe calls this. Host state restored by assembly on every return. */
++void xm_emit(CPU*c,const XmRequest*q,const XmHost*host) {
++    DWORD saved=GetLastError();XmRecord r;unsigned i;int bad=0;
++    if(!initialized)return;
++    if(!c)c=xm_current_cpu();
++    if(tls.busy)xm_failure(1);
++    tls.busy=1;
++    memset(&r,0,sizeof r);r.magic=XM_MAGIC;r.version=xm_profile?5:3;r.size=sizeof r;
++    r.event=q->event;r.domain=q->domain;r.slot=q->slot;r.thread=GetCurrentThreadId();
++    r.error=saved;r.result=q->result;r.host=q->host;r.guest=q->guest;
++    r.generation=q->generation;r.interface_id=q->interface_id;r.refs=q->refs;r.bindings=q->bindings;
++    r.context=*host;
++    if(q->count>12||q->blob_size>256)bad=2;
++    else {r.count=q->count;r.blob_size=q->blob_size;memcpy(r.values,q->values,q->count*sizeof(XmValue));
++        /* The producer supplies a typed local span; invalid spans fail closed. */
++        if(q->blob_size){if(!readable(q->blob,q->blob_size))bad=3;
++            else {__try {memcpy(r.blob,q->blob,q->blob_size);}__except(EXCEPTION_EXECUTE_HANDLER){bad=3;}}}
++    }
++    if(q->name){for(i=0;i<sizeof r.name-1 && q->name[i];i++)r.name[i]=q->name[i];if(q->name[i])bad=4;}
++    if(c){r.cpu_size=sizeof *c;memcpy(r.cpu,c,sizeof *c);
++        if(copy_guest(r.stack,c->r[ESP],128))r.stack_size=128;else r.flags|=1;
++        if(!copy_guest(&r.guest_error,c->fs_base+0x34,4))r.flags|=2;
++    }
++    AcquireSRWLockExclusive(&lock);
++    if(q->event==XM_RESOURCE && q->guest){
++        for(i=0;i<identity_count;i++)if(identities[i].guest==q->guest && (!q->generation||identities[i].generation==q->generation) && identities[i].iface==q->interface_id)break;
++        if(i<identity_count&&!q->generation)r.generation=identities[i].generation;
 +        /* Guest tokens are never reused, so a full table may recycle an entry whose
 +         * object is gone (no references or bindings); live identities never are. */
 +        if(i==identity_count){if(identity_count<4608)identity_count++;
 +            else {for(i=0;i<identity_count&&(identities[i].refs||identities[i].bindings);i++){}if(i==identity_count)bad=15;}}
-         if(!bad){identities[i].host=q->host;identities[i].guest=q->guest;identities[i].generation=r.generation;
-             identities[i].iface=q->interface_id;identities[i].refs=q->refs;identities[i].bindings=q->bindings;}
-     }
++        if(!bad){identities[i].host=q->host;identities[i].guest=q->guest;identities[i].generation=r.generation;
++            identities[i].iface=q->interface_id;identities[i].refs=q->refs;identities[i].bindings=q->bindings;}
++    }
++    if(q->domain==XM_NATIVE && q->host){
++        unsigned matches=0;
++        for(i=0;i<identity_count;i++)if(identities[i].host==q->host && (identities[i].refs||identities[i].bindings)){
++            matches++;r.guest=identities[i].guest;r.generation=identities[i].generation;r.refs=identities[i].refs;r.bindings=identities[i].bindings;
++            /* Buffer wrapper's canonical vertex type is resolved by registry. */
++            if(!r.interface_id || r.interface_id==106)r.interface_id=identities[i].iface;
++        }
++        if(matches!=1){r.flags|=4;r.guest=0;r.generation=0;}
++        if(matches>1)bad=16;
++    }
++    if(!xm_profile && serial>=XM_LIMIT)bad=5;
++    if(q->event==XM_BEGIN){
++        if(tls.depth>=XM_DEPTH)bad=6;
++        else {unsigned d=tls.depth++;tls.parent[d]=d?tls.id[d-1]:0;
++            tls.id[d]=++next_invocation;tls.domain[d]=q->domain;tls.name[d]=q->name;tls.cpu[d]=c;InterlockedIncrement(&active);}
++    }
++    if(tls.depth){r.invocation=tls.id[tls.depth-1];r.parent=tls.parent[tls.depth-1];}
++    else {r.invocation=++next_invocation;r.parent=0;}
++    r.depth=tls.depth;
++    if((q->event==XM_END||q->event==XM_ABORT) && (!tls.depth||tls.domain[tls.depth-1]!=q->domain||
++       !q->name||!tls.name[tls.depth-1]||strcmp(q->name,tls.name[tls.depth-1])))bad=7;
++    if(q->event==XM_CLOSE&&active)bad=8;
++    if(bad){r.event=XM_GAP;r.result=bad;}
++    if(xm_profile){
++        if(xd_route(&r,bad))goto finished;
++        xd_append(&r);
++        if(xd_force_flush){drain();xd_flush();}
++    }else{
++    r.sequence=++serial;r.previous_crc=chain;r.crc=crc32(&r,offsetof(XmRecord,crc));
++    xm_pending=r;MemoryBarrier();
++    if(xm_buffer_count>=4096)xm_failure(22);
++    xm_buffer[xm_buffer_count]=r;MemoryBarrier();xm_buffer_count++;
++    chain=r.crc;xm_recorded=r.sequence;MemoryBarrier();
++    }
++    if(!xm_profile || xm_buffer_count>=256 || bad || q->event==XM_OPEN ||
++       q->event==XM_CLOSE || q->event==XM_FATAL || q->event==XM_GAP ||
++       q->event==XM_CHECKPOINT ||
++       (q->event==XM_END && q->name && !strcmp(q->name,"UGameEngine.Init")))drain();
++    if(bad)xm_failure(bad);
++finished:
++    if(q->event==XM_END||q->event==XM_ABORT){tls.depth--;InterlockedDecrement(&active);}
++    ReleaseSRWLockExclusive(&lock);tls.busy=0;SetLastError(saved);
++}
++void xm_scope(CPU*c,unsigned event,unsigned domain,const char*name,uint64_t result) {
++    XmRequest q={0};q.event=event;q.domain=domain;q.name=name;q.result=result;xm_probe(c,&q);
++}
++void xm_native(CPU*c,unsigned event,const char*name,uint64_t host,uint64_t result) {
++    XmRequest q={0};q.event=event;q.domain=XM_NATIVE;q.name=name;q.host=host;q.result=result;xm_probe(c,&q);
++}
++void xm_resource(CPU*c,unsigned iface,unsigned guest,unsigned generation,uint64_t host,unsigned refs,unsigned bindings,const char*name) {
++    XmRequest q={0};q.event=XM_RESOURCE;q.domain=XM_LIFETIME;q.name=name;q.guest=guest;
++    q.generation=generation;q.interface_id=iface;q.host=host;q.refs=refs;q.bindings=bindings;xm_probe(c,&q);
++}
++void xm_blob(CPU*c,const char*name,const void*trusted,unsigned size) {
++    XmRequest q={0};q.event=XM_DATA;q.name=name;q.blob=trusted;q.blob_size=size;xm_probe(c,&q);
++}
++void xm_span(CPU*c,const char*name,const void*trusted,unsigned size) {
++    unsigned off;XmValue v[2]={{XM_U32,4,size},{XM_U32,4,0}};
++    /* Only these two explicitly approved bulk evidence categories are omitted.
++     * Adapter range, ownership, pitch, transfer and COM checks stay upstream.
++     * No pointer is dereferenced here or forwarded to native code. */
++    if(xm_profile && !xd_selected_name(name) && !(tls.depth&&xd_tls.frames[tls.depth-1].selected) && (!strcmp(name,"resource.map.download") || !strcmp(name,"resource.map.upload"))){
++        XmRequest q={0};q.event=XM_OMITTED;q.name=name;q.result=size;
++        q.count=1;q.values[0]=v[0];xm_probe(c,&q);return;
++    }
++    if(size>16384){xm_scope(c,XM_GAP,0,"typed span capacity",size);xm_failure(17);}
++    for(off=0;off<size;off+=256){unsigned n=size-off;if(n>256)n=256;
++        v[1].value=off;xm_values(c,name,2,v);xm_blob(c,name,(const unsigned char*)trusted+off,n);}
++}
++void xm_values(CPU*c,const char*name,unsigned count,const XmValue*v) {
++    XmRequest q={0};q.event=XM_DATA;q.name=name;q.count=count;
++    if(count<=12)memcpy(q.values,v,count*sizeof *v);xm_probe(c,&q);
++}
++void xm_guest(CPU*c,const char*name,unsigned address,unsigned size) {
++    DWORD saved=GetLastError();unsigned char bytes[256];XmRequest q={0};
++    if(!initialized)return;
++    q.event=XM_DATA;q.name=name;q.guest=address;
++    if(size>sizeof bytes||!copy_guest(bytes,address,size)){q.event=XM_GAP;q.result=10;}
++    else {q.blob=bytes;q.blob_size=size;}
++    SetLastError(saved);xm_probe(c,&q);if(q.event==XM_GAP)xm_failure(10);
++}
++void xm_init(const char*path) {
++    DWORD saved=GetLastError();
++    crc32_tables();
++    if(!path||!*path)xm_failure(11);
++    if(InterlockedCompareExchange(&initialized,1,0))xm_failure(12);
++    {const char*p=getenv("XRT_MONITOR_PROFILE");
++     if(!p || !strcmp(p,"forensic"))xm_profile=0;
++     else if(!strcmp(p,"development"))xm_profile=1;
++     else xm_failure(24);}
++    sink=CreateFileA(path,GENERIC_WRITE,FILE_SHARE_READ,NULL,CREATE_NEW,
++        FILE_ATTRIBUTE_NORMAL|(xm_profile?0:FILE_FLAG_WRITE_THROUGH),NULL);
++    if(sink==INVALID_HANDLE_VALUE)xm_failure(13);
++    xd_init(path);
++    SetLastError(saved);
++    {XmRequest q={0};q.event=XM_OPEN;q.name=xm_profile?"xrt.monitor.v5.development":"xrt.monitor.v3.forensic";
++     q.count=4;q.values[0]=(XmValue){XM_U32,4,xm_profile};
++     q.values[1]=(XmValue){XM_U32,4,4096};q.values[2]=(XmValue){XM_U32,4,xm_profile?256:1};
++     q.values[3]=(XmValue){XM_U32,4,xm_profile?3:0};xm_probe(NULL,&q);}
++}
++void xm_close(void) {
++    DWORD saved=GetLastError();
++    xm_scope(NULL,XM_CLOSE,0,"xrt.monitor.v3",0);
++    /* Test/owned orderly shutdown only; genuine bounded termination uses the
++     * independently captured committed counter and live pending record. */
++    if(xm_profile&&!CloseHandle(xd_sink))xm_failure(25);
++    if(!CloseHandle(sink))xm_failure(14);sink=INVALID_HANDLE_VALUE;initialized=0;SetLastError(saved);
++}
++
++void xm_checkpoint(CPU*c,const char*name) {
++    xm_scope(c,XM_CHECKPOINT,0,name,0);
++}
 diff --git a/out/dev-init-savepoints/init-return-20261030/runtime/resource_draw.inc b/out/dev-init/runtime/resource_draw.inc
 index c8a0407..f19aacd 100644
 --- a/out/dev-init-savepoints/init-return-20261030/runtime/resource_draw.inc
@@ -1264,7 +1870,7 @@ index c8a0407..f19aacd 100644
  static void d8_device_DrawPrimitive(CPU*c){d8_buffer_draw(c,0);}
  static void d8_device_DrawIndexedPrimitive(CPU*c){d8_buffer_draw(c,1);}
 diff --git a/out/dev-init-savepoints/init-return-20261030/runtime/resource_storage.inc b/out/dev-init/runtime/resource_storage.inc
-index f0ac737..4e43539 100644
+index f0ac737..55310c2 100644
 --- a/out/dev-init-savepoints/init-return-20261030/runtime/resource_storage.inc
 +++ b/out/dev-init/runtime/resource_storage.inc
 @@ -10,6 +10,37 @@ static void d8_device_CreateTexture(CPU*c) {
@@ -1358,16 +1964,27 @@ index f0ac737..4e43539 100644
   prev=xrt_gui_callback_enter(c);d8_rendering=1;hr=XM_GetDesc(c,(D8Buffer*)r->host,&desc);d8_rendering=0;xrt_gui_callback_leave(prev);SetLastError(saved);
   if(FAILED(hr)||offset>desc.size)xrt_fatal(c,76,"Lock: unsafe buffer descriptor/range");
   if(!r->shadow){
-@@ -102,7 +137,7 @@ static void d8_resource_Lock(CPU*c) {
+@@ -102,19 +137,28 @@ static void d8_resource_Lock(CPU*c) {
   if(!size||(uint64_t)offset+size>desc.size||size>64u*1024u*1024u)xrt_fatal(c,76,"Lock: unsafe buffer range");
   prev=d8_native_enter(c,311,NULL,0);hr=XM_Lock(c,(D8Buffer*)r->host,offset,ARG(2),&data,flags);error=GetLastError();
   if(SUCCEEDED(hr)) {
 -  d8_locks=1;r->locked=data;r->flags=flags;r->offset=offset;r->bytes=size;r->rows=1;r->rowbytes=size;r->pitch=size;
 +  d8_locks++;r->locked=data;r->flags=flags;r->offset=offset;r->bytes=size;r->rows=1;r->rowbytes=size;r->pitch=size;
    if(!data){d8_native_failed=1;xrt_fatal(c,76,"Lock: NULL native map");}
-   r->staging=xrt_virtual_alloc(c,size);if(!r->staging)xrt_fatal(c,76,"Lock: staging allocation failed");d8_device_memory(c,r->staging,size,1);memcpy(G2H(r->staging),data,size);
+-  r->staging=xrt_virtual_alloc(c,size);if(!r->staging)xrt_fatal(c,76,"Lock: staging allocation failed");d8_device_memory(c,r->staging,size,1);memcpy(G2H(r->staging),data,size);
++  r->staging=xrt_virtual_alloc(c,size);if(!r->staging)xrt_fatal(c,76,"Lock: staging allocation failed");d8_device_memory(c,r->staging,size,1);
++  /* Reads from the native map hit GPU-visible (uncached) memory and dominated Lock.
++   * Only our Unlock writes these buffers natively (ProcessVertices is refused), so
++   * valid shadow bytes equal the native ones and every other byte is undefined by
++   * D3D (never written, or invalidated by DISCARD): the staging copy comes from the
++   * host shadow. Invalid bytes are counted for evidence. */
++  {static unsigned locks,undefined_locks;
++   if(memchr(r->valid+offset,0,size))undefined_locks++;
++   memcpy(G2H(r->staging),r->shadow+offset,size);
++   if(!(++locks&0xffff))xrt_log("D3D8 buffer Lock downloads from shadow: %u (%u with D3D-undefined bytes)",locks,undefined_locks);}
    if(flags&0x2000)memset(r->valid,0,r->length);
-@@ -111,10 +146,10 @@ static void d8_resource_Lock(CPU*c) {
+   d8_device_memory(c,out,4,1);wr32(out,r->staging);xm_d8_resource(c,r,"mapped");xm_span(c,"resource.map.download",G2H(r->staging),r->bytes);
+  } else {if(data&&(uintptr_t)data!=1){d8_native_failed=1;xrt_fatal(c,76,"Lock: failed native map");}if(!data){d8_device_memory(c,out,4,1);wr32(out,0);}}
   d8_semantic_return(c,prev,id,5,hr,error);
  }
  static void d8_unlock(CPU*c,int rectangle) {
@@ -1381,7 +1998,7 @@ index f0ac737..4e43539 100644
   if(!(r->flags&0x10)) {
    /* Snapshot before entering native code; revalidate even if callback changed pages. */
    copy=d8_draw_copy(c,r->staging,r->bytes);xm_span(c,"resource.map.upload",copy,r->bytes);
-@@ -123,33 +158,35 @@ static void d8_unlock(CPU*c,int rectangle) {
+@@ -123,33 +167,35 @@ static void d8_unlock(CPU*c,int rectangle) {
    HeapFree(GetProcessHeap(),0,copy);
   }
   prev=d8_native_enter(c,rectangle?317:312,NULL,0);
@@ -1591,19 +2208,21 @@ index 9e570a5..43e5c74 100644
  static void d8_device_GetVertexShader(CPU*c) {
   LONG id=d8_api_entry(c,77,2);D8DeviceObject*o=d8_semantic_frame(c);DWORD value,error;CPU*prev;HRESULT hr;uint32_t out=ARG(1);D8Declaration*d;
 diff --git a/out/dev-init-savepoints/init-return-20261030/runtime/xrt_events.c b/out/dev-init/runtime/xrt_events.c
-index 3819bd4..dbb7d1a 100644
+index 3819bd4..683d5f7 100644
 --- a/out/dev-init-savepoints/init-return-20261030/runtime/xrt_events.c
 +++ b/out/dev-init/runtime/xrt_events.c
-@@ -34,6 +34,8 @@ typedef struct {
+@@ -34,6 +34,10 @@ typedef struct {
      uint32_t self,world,esp,ret,popped;
  } WorldCall;
  static __declspec(thread) WorldCall world_calls[128];
++/* Pending entries on this thread: returns skip the 128-slot scan when none is pending. */
++static __declspec(thread) unsigned world_pending;
 +/* Developer first-scene counters, read and reset by the D3D8 Present handler. */
 +int xrt_scene_level_depth,xrt_scene_camera_depth;unsigned xrt_scene_level_renders,xrt_scene_camera_renders,xrt_scene_engine_ticks,xrt_scene_level_ticks;
  
  void xrt_world_enter(CPU*c,uint32_t target) {
      const char*kind=NULL,*stage="";uint32_t popped=4,self=c->r[ECX],world=0;unsigned i;
-@@ -45,6 +47,11 @@ void xrt_world_enter(CPU*c,uint32_t target) {
+@@ -45,13 +49,18 @@ void xrt_world_enter(CPU*c,uint32_t target) {
      case 0x8f460:xm_scope(c,XM_BEGIN,XM_ADAPTER,"UGameEngine.Init",target);kind="engine_init";break;
      case 0x938f0:kind="engine_tick";popped=8;break; /* thiscall Tick(float), RET 4 */
      case 0xb5be0:kind="level_tick";world=self;popped=12;break;
@@ -1615,19 +2234,36 @@ index 3819bd4..dbb7d1a 100644
      default:return;
      }
      /* Native GetLevel is MOV EAX,[ECX+d4]; RET. Never infer world from call context. */
-@@ -66,6 +73,10 @@ void xrt_world_return(CPU*c) {
+     if(*stage && xrt_is_committed(self+0xd4,4))world=rd32(self+0xd4);
+     for(i=0;i<128;i++)if(!world_calls[i].kind) {
+         WorldCall*p=&world_calls[i];char event[64];
+-        p->kind=kind;p->stage=stage;p->self=self;p->world=world;p->esp=c->r[ESP];p->ret=rd32(p->esp);p->popped=popped;
++        p->kind=kind;p->stage=stage;p->self=self;p->world=world;p->esp=c->r[ESP];p->ret=rd32(p->esp);p->popped=popped;world_pending++;
+         snprintf(event,sizeof event,"%s_call",kind);
+         xrt_event(event,"\"stage\":\"%s\",\"this\":%u,\"world\":%u,\"esp\":%u,\"return\":%u",stage,self,world,p->esp,p->ret);
+         return;
+@@ -60,13 +69,18 @@ void xrt_world_enter(CPU*c,uint32_t target) {
+ }
+ void xrt_world_return(CPU*c) {
+     unsigned i;
++    if(!world_pending)return;
+     for(i=0;i<128;i++) {
+         WorldCall*p=&world_calls[i];char event[64];
+         if(!p->kind || c->rv!=p->ret || c->r[ESP]!=p->esp+p->popped)continue;
          snprintf(event,sizeof event,"%s_return",p->kind);
          xrt_event(event,"\"stage\":\"%s\",\"this\":%u,\"world\":%u,\"esp_before\":%u,\"esp_after\":%u,\"return\":%u,\"actual_return\":%u",p->stage,p->self,p->world,p->esp,c->r[ESP],p->ret,c->rv);
          if(!strcmp(p->kind,"engine_init"))xm_scope(c,XM_END,XM_ADAPTER,"UGameEngine.Init",c->r[EAX]);
+-        p->kind=NULL;
 +        if(!strcmp(p->kind,"level_render")){xrt_scene_level_depth--;xrt_scene_level_renders++;}
 +        if(!strcmp(p->kind,"camera_render")){xrt_scene_camera_depth--;xrt_scene_camera_renders++;}
 +        if(!strcmp(p->kind,"engine_tick"))xrt_scene_engine_ticks++;
 +        if(!strcmp(p->kind,"level_tick"))xrt_scene_level_ticks++;
-         p->kind=NULL;
++        p->kind=NULL;world_pending--;
      }
  }
+ 
 diff --git a/out/dev-init-savepoints/init-return-20261030/runtime/xrt_internal.h b/out/dev-init/runtime/xrt_internal.h
-index 641fccc..3db1f65 100644
+index 641fccc..10f0138 100644
 --- a/out/dev-init-savepoints/init-return-20261030/runtime/xrt_internal.h
 +++ b/out/dev-init/runtime/xrt_internal.h
 @@ -100,6 +100,7 @@ void xrt_com_thread_cleanup(CPU* c); /* owning thread only; Loader8 references b
@@ -1638,7 +2274,7 @@ index 641fccc..3db1f65 100644
  XrtThread* xrt_thread_main(uint32_t stack_reserve);
  uint32_t xrt_thread_create(CPU* c, uint32_t stack_size, uint32_t start, uint32_t param, uint32_t* tid);
  XRT_NORETURN void xrt_thread_exit(CPU* c, uint32_t code);
-@@ -140,6 +141,13 @@ XrtFn xrt_lookup(uint32_t va, const char** stub_name);
+@@ -140,6 +141,15 @@ XrtFn xrt_lookup(uint32_t va, const char** stub_name);
  uint32_t xrt_lookup_containing(uint32_t va);                /* lifted function entry at or below va */
  uint32_t xrt_call_guest(CPU* c, uint32_t va, int nargs, const uint32_t* args, int stdcall);
  void xrt_world_enter(CPU* c, uint32_t target);
@@ -1648,10 +2284,134 @@ index 641fccc..3db1f65 100644
 +void xrt_dev_scene_frame(unsigned frame,unsigned width,unsigned height,unsigned format,const void*bits,int pitch);
 +void xrt_dev_map_open(CPU*c,const char*path);
 +int xrt_dev_draw_dump(void);
++void xrt_dev_music_cue(const unsigned short*text);
++int xrt_dev_input_blocked(const char*what);
 +void xrt_dev_scene_present(CPU*c,long hr,unsigned draws,unsigned prims,unsigned scene_draws,unsigned scene_prims,unsigned level_draws);
  void xrt_world_return(CPU* c);
  uint32_t xrt_call_funclet(CPU* c, uint32_t va);   /* EH funclet call: no args, not a host boundary */
  uint32_t xrt_call_continuation(CPU* c, uint32_t va, uint32_t expected_return);  /* run code at va until it returns */
+diff --git a/out/dev-init-savepoints/init-return-20261030/runtime/xrt_loader.c b/out/dev-init/runtime/xrt_loader.c
+index 7d22e6e..57bb5a8 100644
+--- a/out/dev-init-savepoints/init-return-20261030/runtime/xrt_loader.c
++++ b/out/dev-init/runtime/xrt_loader.c
+@@ -101,6 +101,13 @@ static int cmp_exname(const void* a, const void* b) {
+ 
+ static void relocate(XrtModule* m, uint32_t dir, uint32_t size);
+ static uint32_t module_generation;
++/* Lifted-target cache for indirect calls (performance only). Every lookup it
++ * answers is the pure function of the loaded module set that lookup_lifted and
++ * the diagnostic-site checks below compute; any module map/unmap invalidates it.
++ * Guest execution is serialized by the baton. */
++enum {CALL_INPUT_INIT=1,CALL_VIEWPORT_OPEN=2,CALL_VIEWPORT_TRY=4,CALL_LOADMAP=8,CALL_POSTLOAD=16,CALL_SETRES=32};
++typedef struct {uint32_t va,gen;XrtFn fn;unsigned flags;} CallCache;
++static CallCache call_cache[8192];static uint32_t call_cache_gen=1;
+ 
+ XrtModule* xrt_module_load(const char* host_path, const XrtLiftedModule* lifted) {
+     FILE* f = fopen(host_path, "rb");
+@@ -131,7 +138,7 @@ XrtModule* xrt_module_load(const char* host_path, const XrtLiftedModule* lifted)
+         m = &mods[nmods++];
+     }
+     memset(m, 0, sizeof *m);
+-    m->generation=++module_generation;
++    m->generation=++module_generation;call_cache_gen++;
+     snprintf(m->path, sizeof m->path, "%s", host_path);
+     snprintf(m->name, sizeof m->name, "%s", basename_of(host_path));
+     m->lifted = lifted;
+@@ -185,6 +192,7 @@ XrtModule* xrt_module_load(const char* host_path, const XrtLiftedModule* lifted)
+         }
+         qsort(exnames, nexnames, sizeof *exnames, cmp_exname);
+     }
++    call_cache_gen++;
+     xrt_log("mapped %s at %08x%s size %x entry %08x sha256 %s (%u lifted functions, %u static traps)", m->name, m->base,
+             m->base != m->preferred_base ? " (rebased)" : "", m->size, m->entry, digest, lifted->nfuncs, lifted->ntraps);
+     return m;
+@@ -223,7 +231,7 @@ void xrt_module_unmap(XrtModule* m) {
+             exnames[k++] = exnames[i];
+     nexnames = k;
+     xrt_decommit(m->base, m->size);
+-    m->unloaded = 1;
++    m->unloaded = 1;call_cache_gen++;
+     xrt_log("unmapped %s from %08x", m->name, m->base);
+ }
+ 
+@@ -299,7 +307,9 @@ static int stub_quiet(const char* key) {
+         "msvcr70.dll!wcslen", "msvcr70.dll!strlen", "msvcr70.dll!_wcsicmp", "msvcr70.dll!_stricmp",
+         "msvcr70.dll!_wcsnicmp", "msvcr70.dll!_strnicmp", "msvcr70.dll!wcscmp", "msvcr70.dll!wcsncmp",
+         "msvcr70.dll!wcscpy", "msvcr70.dll!wcsncpy", "msvcr70.dll!wcscat", "msvcr70.dll!wcsstr",
+-        "msvcr70.dll!wcschr", "msvcr70.dll!wcsrchr", "msvcr70.dll!_msize", "winmm.dll!timeGetTime"};
++        "msvcr70.dll!wcschr", "msvcr70.dll!wcsrchr", "msvcr70.dll!_msize", "winmm.dll!timeGetTime",
++        /* Pure x87 math leaves: AFluidSurfaceInfo::UpdateSimulation -> appRound -> floor was 48% of recorded calls. */
++        "msvcr70.dll!floor", "msvcr70.dll!ceil", "msvcr70.dll!_CIfmod"};
+     const char *profile = getenv("XRT_MONITOR_PROFILE"), *full = getenv("XRT_DEV_TRACE_FULL"),
+                *address = getenv("XRT_DEV_TRACE_ADDRESS");
+     size_t i;
+@@ -508,6 +518,18 @@ XrtFn xrt_lookup(uint32_t va, const char** stub_name) {
+ }
+ 
+ /* Routine tracing is centralized in the developer monitor. */
++static const CallCache*call_target(uint32_t target) {
++    CallCache*e=&call_cache[(target>>2)&8191];
++    if(e->va!=target||e->gen!=call_cache_gen){
++        XrtModule*m=xrt_module_by_addr(target);XrtFn fn=lookup_lifted(target);unsigned flags=0;
++        if(!fn)return NULL;
++        if(m&&!_stricmp(m->name,"WinDrv.dll"))flags=target-m->base==0x17c0?CALL_INPUT_INIT:target-m->base==0x3390?CALL_VIEWPORT_OPEN:target-m->base==0x49b0?CALL_VIEWPORT_TRY:0;
++        if(m&&!_stricmp(m->name,"Engine.dll"))flags=target-m->base==0x90f00?CALL_LOADMAP:target-m->base==0xb9160?CALL_POSTLOAD:0;
++        if(m&&!_stricmp(m->name,"D3DDrv.dll")&&target-m->base==0xe890)flags=CALL_SETRES;
++        e->va=target;e->gen=call_cache_gen;e->fn=fn;e->flags=flags;
++    }
++    return e;
++}
+ 
+ static void dispatch(CPU* c, uint32_t target, uint32_t site, const char* what) {
+     XrtFn fn;
+@@ -549,20 +571,24 @@ static void dispatch(CPU* c, uint32_t target, uint32_t site, const char* what) {
+             return;
+         }
+     }
+-    fn = lookup_lifted(target);
+-    if (!fn) {
+-        char d[512], t[512];
+-        xrt_describe(d, sizeof d, site);
+-        xrt_describe(t, sizeof t, target);
+-        xrt_fatal(c, XRT_EXIT_TRAP, "%s at %s to %s, which is not a translated function entry or import", what, d, t);
++    {
++        const CallCache*e=call_target(target);
++        if (!e) {
++            char d[512], t[512];
++            xrt_describe(d, sizeof d, site);
++            xrt_describe(t, sizeof t, target);
++            xrt_fatal(c, XRT_EXIT_TRAP, "%s at %s to %s, which is not a translated function entry or import", what, d, t);
++        }
++        fn=e->fn;
++        if(!(e->flags&~CALL_SETRES)){fn(c);xrt_world_return(c);return;}
+     }
+     {
+-        XrtModule *m=xrt_module_by_addr(target);
+-        int input_init=m && !_stricmp(m->name,"WinDrv.dll") && target-m->base==0x17c0;
+-        int viewport_open=m && !_stricmp(m->name,"WinDrv.dll") && target-m->base==0x3390;
+-        int viewport_try=m && !_stricmp(m->name,"WinDrv.dll") && target-m->base==0x49b0;
+-        int loadmap=m && !_stricmp(m->name,"Engine.dll") && target-m->base==0x90f00;
+-        int postload=m && !_stricmp(m->name,"Engine.dll") && target-m->base==0xb9160;
++        const CallCache*e=call_target(target);
++        int input_init=!!(e->flags&CALL_INPUT_INIT);
++        int viewport_open=!!(e->flags&CALL_VIEWPORT_OPEN);
++        int viewport_try=!!(e->flags&CALL_VIEWPORT_TRY);
++        int loadmap=!!(e->flags&CALL_LOADMAP);
++        int postload=!!(e->flags&CALL_POSTLOAD);
+         uint32_t esp=0,ret=0,self=0;
+         if(input_init || loadmap || postload || viewport_open || viewport_try) { esp=c->r[ESP]; ret=rd32(esp); self=c->r[ECX]; }
+         if(viewport_try) xrt_event("viewport_try_render_call","\"target\":%u,\"esp\":%u,\"return\":%u,\"this\":%u",target,esp,ret,self);
+@@ -586,8 +612,8 @@ static void dispatch(CPU* c, uint32_t target, uint32_t site, const char* what) {
+ 
+ #include "setres_evidence.inc"
+ void xrt_icall(CPU* c, uint32_t target, uint32_t site) {
+-    XrtModule*m=xrt_module_by_addr(target);
+-    int observed=m && !_stricmp(m->name,"D3DDrv.dll") && target-m->base==0xe890;
++    const CallCache*cached=target - XRT_STUB_BASE < XRT_STUB_END - XRT_STUB_BASE ? NULL : call_target(target);
++    int observed=cached && (cached->flags&CALL_SETRES);
+     LONG id=0;uint32_t esp=0,ret=0;
+     if(observed) {
+         DWORD saved_error=GetLastError();
 diff --git a/out/dev-init-savepoints/init-return-20261030/runtime/xrt_thread.c b/out/dev-init/runtime/xrt_thread.c
 index eacce9d..f7ae8a1 100644
 --- a/out/dev-init-savepoints/init-return-20261030/runtime/xrt_thread.c

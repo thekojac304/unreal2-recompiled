@@ -59,6 +59,13 @@ __declspec(noreturn) void dev_finish(void) {
 static int scene = -1, post_init;
 static unsigned scene_limit, world_frames, post_presents, last_renders, last_engine, last_level;
 static ULONGLONG init_ms;
+static unsigned nonworld, cue_frames[16], cue_count;
+/* World frames scheduled for capture by scene cues (beginscene, FinalEvent). */
+static int cue_capture(unsigned frame) {
+    unsigned i;
+    for (i = 0; i < cue_count; i++) if (cue_frames[i] == frame) return 1;
+    return 0;
+}
 static unsigned scene_ms;
 static int scene_mode(void) {
     if (scene < 0) {
@@ -97,11 +104,44 @@ int xrt_dev_draw_dump(void) {
     for (i = 0; i < count; i++) if (frames[i] == world_frames + 1) return 1;
     return 0;
 }
+/* Scene cues from the music's lyric track: logged with timing, and the next
+ * world frame plus one 64 frames later are captured (bounded). */
+void xrt_dev_music_cue(const unsigned short *text) {
+    static unsigned cues;
+    if (!scene_mode() || !post_init) return;
+    if (wcscmp((const wchar_t *)text, L"beginscene") && wcscmp((const wchar_t *)text, L"FinalEvent")) return;
+    cues++;
+    xrt_log("DEV music cue %u '%ls' at world frame %u, present %u, +%llu ms", cues, (const wchar_t *)text,
+            world_frames, post_presents, GetTickCount64() - init_ms);
+    xrt_event("dev_music_cue", "\"cue\":%u,\"world_frame\":%u,\"presents\":%u", cues, world_frames, post_presents);
+    if (cue_count + 2 <= 16) { cue_frames[cue_count++] = world_frames + 1; cue_frames[cue_count++] = world_frames + 64; }
+}
+/* XRT_DEV_NO_INPUT=1: physical keyboard/mouse never reaches the experiment. */
+int xrt_dev_input_blocked(const char *what) {
+    static int mode = -1; static unsigned dropped;
+    if (mode < 0) { const char *v = getenv("XRT_DEV_NO_INPUT"); mode = v && *v == '1'; }
+    if (mode && what && dropped++ < 16) xrt_log("DEV input isolation: dropped %s", what);
+    return mode;
+}
+static int map_allowed(const char *path) {
+    const char *v = getenv("XRT_DEV_ALLOW_MAPS"), *base = strrchr(path, '\\');
+    char list[512], *tok, *ctx = NULL;
+    base = base ? base + 1 : path;
+    if (!v || !*v || strlen(v) >= sizeof list) return 0;
+    strcpy(list, v);
+    for (tok = strtok_s(list, ";", &ctx); tok; tok = strtok_s(NULL, ";", &ctx)) if (!_stricmp(tok, base)) return 1;
+    return 0;
+}
 /* A successful post-Init open of a map file is the natural transition out of
  * CS_Intro: record it and stop before the next level loads (no gameplay). */
 void xrt_dev_map_open(CPU *c, const char *path) {
     size_t n = strlen(path);
     if (!scene_mode() || !post_init || n < 4 || _stricmp(path + n - 4, ".un2")) return;
+    if (map_allowed(path)) {
+        xrt_log("DEV map transition (allowed): post-Init open of \"%s\" after %u world frames, +%llu ms", path, world_frames,
+                GetTickCount64() - init_ms);
+        return;
+    }
     xrt_log("DEV map transition: post-Init open of \"%s\" after %u world frames", path, world_frames);
     xrt_event("dev_map_transition", "\"world_frames\":%u", world_frames);
     scene_stop(c, "map transition");
@@ -110,9 +150,15 @@ void xrt_dev_map_open(CPU *c, const char *path) {
  * non-world post-Init presents (a readback reference from the same run). */
 int xrt_dev_scene_capture(unsigned level_renders, unsigned scene_draws) {
     if (!scene_mode() || !post_init) return 0;
-    if (level_renders == last_renders || !scene_draws)
-        return post_presents < 2 ? (int)(0x10000u | (post_presents + 1)) : 0;
-    return scene_capture_frame(world_frames + 1) ? (int)(world_frames + 1) : 0;
+    if (level_renders == last_renders || !scene_draws) {
+        unsigned n = nonworld + 1;
+        if (post_presents < 2) return (int)(0x10000u | (post_presents + 1));
+        /* After world frames began: non-world presents 1,2,4..64, then every 256th. */
+        if (world_frames && ((n <= 64 && !(n & (n - 1))) || !(n % 256)) && post_presents + 1 <= 0xffffu)
+            return (int)(0x20000u | (post_presents + 1));
+        return 0;
+    }
+    return scene_capture_frame(world_frames + 1) || cue_capture(world_frames + 1) ? (int)(world_frames + 1) : 0;
 }
 void xrt_dev_scene_frame(unsigned frame, unsigned width, unsigned height, unsigned format, const void *bits, int pitch) {
     char path[1024];
@@ -126,7 +172,8 @@ void xrt_dev_scene_frame(unsigned frame, unsigned width, unsigned height, unsign
         xrt_log("DEV scene frame %u: unsupported readback %ux%u format %u", frame, width, height, format);
         return;
     }
-    if (frame & 0x10000u) snprintf(path, sizeof path, "%s\\startup-present-%04u.bmp", root, frame & 0xffffu);
+    if (frame & 0x20000u) snprintf(path, sizeof path, "%s\\present-%05u.bmp", root, frame & 0xffffu);
+    else if (frame & 0x10000u) snprintf(path, sizeof path, "%s\\startup-present-%04u.bmp", root, frame & 0xffffu);
     else snprintf(path, sizeof path, "%s\\scene-frame-%04u.bmp", root, frame);
     if (!(f = fopen(path, "wb")) || !(line = malloc(row))) { if (f) fclose(f); xrt_log("DEV scene frame %u: cannot write", frame); return; }
     {
@@ -165,13 +212,14 @@ void xrt_dev_scene_present(CPU *c, long hr, unsigned draws, unsigned prims, unsi
     level = xrt_scene_level_ticks - last_level; last_level = xrt_scene_level_ticks;
     world = hr >= 0 && renders && scene_draws;
     if (world) world_frames++;
+    else if (hr >= 0) nonworld++;
     if (post_presents <= 32 || (world && scene_capture_frame(world_frames)) || !(post_presents % 64))
         xrt_log("DEV post-Init present %u at +%llu ms hr=%08lx draws=%u prims=%u level_renders=%u scene_draws=%u "
                 "scene_prims=%u level_draws=%u engine_ticks=%u level_ticks=%u world_frame=%u",
                 post_presents, GetTickCount64() - init_ms, (unsigned long)hr, draws, prims, renders, scene_draws,
                 scene_prims, level_draws, engine, level, world ? world_frames : 0);
     if (world && world_frames == scene_limit) scene_stop(c, "frame limit");
-    if (world && scene_ms && GetTickCount64() - init_ms >= scene_ms) scene_stop(c, "time limit");
+    if (hr >= 0 && scene_ms && GetTickCount64() - init_ms >= scene_ms) scene_stop(c, "time limit");
 }
 __declspec(noinline) void xrt_dev_init_return(CPU *c) {
     xrt_log("DEV Init returned: caller=1090ed59 return=%08x esp=%08x", c->rv, c->r[ESP]);

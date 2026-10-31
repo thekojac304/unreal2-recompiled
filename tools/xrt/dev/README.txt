@@ -38,6 +38,21 @@ and the beginscene cues in Intro07+ never arrive; the intro holds in its white p
 Reproduced without the game: dmusic_chain_probe.c (x86; build like the helper; usage in its header).
 Run 20261031-014918-2bf1b6b4 reached UIScripts\NormalCredits.ui only after real keyboard input reached
 the focused window (GetKeyState key-down): not a natural transition.
+Intro-completion batch (2026-10-31 night, 10 launches, ~1930 s): BLOCKER RESOLVED by the opt-in
+script-track fallback (--music-script-track; experiments/xrt/DMUSIC_SCRIPT_TRACK_DESIGN.md; helper
+source patches/dmusic-script-track.patch + dmusic-helper-async.patch). Run 20261031-024122-65bd52c2:
+full music chain twice, beginscene x4 then FinalEvent at +118 s (title card), then the game itself
+restarts the intro (a001_start again: attract loop behind "PRESS ESCAPE TO BEGIN"; no map load).
+Owned tests: chain_probe parse/dispatch (TrackIndex 1..8 without the game, negative cases fail closed),
+dmusic_async_test 11/11, selftest 28/28. Defaults now: --timeout up to 360 (contain.exe cap 360),
+physical input isolated (XRT_DEV_NO_INPUT; --allow-input to disable), time stop on any present,
+--allow-map FILE.un2, captures at beginscene/FinalEvent cues and sparse non-world presents.
+Performance (frames to FinalEvent, same music-timed section): 946 -> 1129 (recorder CRC slice-by-8)
+-> 1798 (buffer Lock staging from host shadow, no GPU-visible reads) -> 2103 (indirect-call target
+cache, world-return fast path): 8.0 -> 18.3 fps average. Legend logo scene stays ~2 fps:
+AFluidSurfaceInfo::UpdateSimulation -> appRound -> msvcr70 floor was 48% of recorded calls; floor/ceil/
+_CIfmod are now quiet leaves (UNMEASURED: final launch hit a host WM_NCPAINT region at startup, fixed
+by 32-bit handle pass-through, also not yet run).
 
 The third developer run (20261030-221937-21570264) reached successful window
 creation and continued file-backed loading. Its last completed ReadFile returned
