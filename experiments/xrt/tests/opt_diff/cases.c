@@ -133,6 +133,14 @@ static const double k_decay = 0.5;
 static __declspec(naked) void x87_square(void) { __asm { fld st(0)
                                                          fmulp st(1), st(0)
                                                          ret } }
+/* loads the caller's ST(1) on one branch only, then reads it after the merge (x87v must not keep values across labels) */
+static __declspec(naked) void x87_branchy(void) { __asm { test eax, 0x100
+                                                        jz merge
+                                                        fld st(1)
+                                                        fstp st(0)
+                                                    merge:
+                                                        fadd st(0), st(1)
+                                                        ret } }
 static const double k_three = 3.0;      /* not fldpi: the hardware loads pi with 64 mantissa bits, the model 53 */
 static __declspec(naked) void x87_push_three(void) { __asm { fld qword ptr [k_three]
                                                           ret } }
@@ -158,6 +166,7 @@ EXPORT __declspec(naked) uint64_t __cdecl t_asm_x87(const uint8_t* in, uint8_t* 
         fmulp st(1), st(0)
         fcom st(1)
         fnstsw ax
+        call x87_branchy
         test ah, 1
         jz not_below
         fsub st(0), st(2)

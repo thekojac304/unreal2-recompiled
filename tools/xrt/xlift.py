@@ -121,6 +121,18 @@ X87_STATE_CALLS = re.compile(r"\b(xrt_fround|xrt_fist16|xrt_fist32|xrt_fist64|xr
 LOCAL_MAX_INSNS = 2000
 X87_SPILL = "c->top = ft_; c->fsw = fsw_;"
 X87_RELOAD = "ft_ = c->top; fsw_ = c->fsw;"
+# --opt x87v: calls that cannot change c->st or TOP (a statement calling anything else ends the cached values)
+X87V_PURE = {n for n in NO_SPILL_CALLS if not n.startswith("xrt_f")} | {"XST", "XFPUSH", "XFPOP", "XFCOMPARE", "XFSTATUS"}
+XST_REF = re.compile(r"\*XST\((\d)\)")
+CALL_NAME = re.compile(r"\b([A-Za-z_]\w*)\s*\(")
+COMMENT = re.compile(r"/\*.*?\*/")
+
+
+def called(s):
+    """Names called in translated statements; comments are skipped (their disassembly, e.g. 'fadd st(1)', is not code)."""
+    return set(CALL_NAME.findall(COMMENT.sub("", s)))
+
+
 REG_WRITE = re.compile(r"\br(?P<r>[0-7])_\s*(=[^=]|[-+&|^]=|<<=|>>=|\+\+|--)|(\+\+|--)\s*r(?P<p>[0-7])_")
 
 
@@ -330,7 +342,7 @@ class Lifter:
         s = " ".join(out)
         if "push32b(" in s or "pop32b(" in s:
             raise AssertionError(f"unpromoted stack access in {stmts}")
-        calls = set(re.findall(r"\b([A-Za-z_]\w*)\s*\(", s))
+        calls = called(s)
         spill = bool(calls - NO_SPILL_CALLS) or "return" in s
         if not spill:
             return out
@@ -365,6 +377,92 @@ class Lifter:
             raise AssertionError(f"x87 state access left in CPU form: {out}")
         return out
 
+    @staticmethod
+    def x87v_ends(x):
+        """--opt x87v: the statement may change c->st or TOP (calls anything but pure helpers, or reloads TOP)."""
+        return bool(called(x) - X87V_PURE) or "c->st" in x or "ft_ =" in x
+
+    def x87_values(self, body, labels):
+        """--opt x87v (after x87): the x87 register values live in locals fc0_..fc7_ within straight-line code, so the
+        compiler can keep them in registers. A value is named by its slot relative to TOP at the start of the run
+        (pushes and pops since then are counted statically), every write also goes to c->st (write-through), and
+        the cache ends at every label, at every statement that calls anything but pure helpers (register/x87
+        spills, calls, x87 helpers in the CPU form) and at any x87 statement this pass does not recognise. So
+        c->st, TOP and FSW are exactly as without x87v wherever the runtime or another function can see them."""
+        out, used = [], False
+        valid, d = set(), 0
+
+        def split(t):
+            parts, depth, cur = [], 0, ""
+            for ch in t:
+                depth += ch == "("
+                depth -= ch == ")"
+                if ch == ";" and depth == 0:
+                    parts.append(cur.strip())
+                    cur = ""
+                else:
+                    cur += ch
+            if cur.strip():
+                parts.append(cur.strip())
+            return parts
+
+        def reads(expr, pre):
+            def one(m):
+                r = (d + int(m.group(1))) & 7
+                if r not in valid:
+                    pre.append(f"fc{r}_ = c->st[(ft_ + {m.group(1)}u) & 7u];")
+                    valid.add(r)
+                return f"fc{r}_"
+            return XST_REF.sub(one, expr)
+
+        for va, stmts in body:
+            if va is not None and va in labels:
+                valid = set()
+                d = 0
+            new = []
+            for x in stmts:
+                if "XST(" not in x and "XFPUSH(" not in x and "XFPOP(" not in x:
+                    if self.x87v_ends(x):
+                        valid, d = set(), 0
+                    new.append(x)
+                    continue
+                braced = x.startswith("{") and x.endswith("}")
+                parts = split(x[1:-1] if braced else x)
+                res = []
+                ok = True
+                for part in parts:
+                    pre = []
+                    if part == "XFPOP()":
+                        res.append("XFPOP();")
+                        d += 1
+                    elif part.startswith("XFPUSH(") and part.endswith(")"):
+                        e = reads(part[len("XFPUSH("):-1], pre)
+                        r = (d - 1) & 7
+                        res += pre + [f"fc{r}_ = {e}; ft_ = (ft_ - 1u) & 7u; c->st[ft_] = fc{r}_;"]
+                        d -= 1
+                        valid.add(r)
+                    elif part.startswith("*XST(") and re.match(r"\*XST\((\d)\) = (?!=)", part):
+                        k = int(part[5])
+                        e = reads(part[part.index("=") + 1:].strip(), pre)
+                        r = (d + k) & 7
+                        res += pre + [f"fc{r}_ = {e}; c->st[(ft_ + {k}u) & 7u] = fc{r}_;"]
+                        valid.add(r)
+                    elif "XFPUSH(" in part or "XFPOP(" in part or re.search(r"\*XST\(\d\) =(?!=)", part):
+                        ok = False
+                        break
+                    else:
+                        e = reads(part, pre)
+                        res += pre + [e + ";"]
+                if not ok:
+                    valid, d = set(), 0
+                    new.append(x)
+                    continue
+                self.opt_stats["x87_values_statements"] += 1
+                used = True
+                new.append(("{ " + " ".join(res) + " }") if braced else " ".join(res))
+            out.append((va, new))
+        return out, used
+
     def rebase(self, s):
         """--opt base: guest accesses through the function's local copy of xrt_g (xrt.h rd32b ...)."""
         s, n = BASE_ACCESS.subn(r"\1b(xg_, ", s)
@@ -378,7 +476,7 @@ class Lifter:
         """--opt pc: the translated statements touch no guest memory, call nothing that can fault, trap or
         reach the runtime, and do not leave the function, so nothing can read c->pc while they run."""
         s = " ".join(stmts)
-        return "return" not in s and set(re.findall(r"\b([A-Za-z_]\w*)\s*\(", s)) <= PURE_CALLS
+        return "return" not in s and called(s) <= PURE_CALLS
 
     def cfof(self, expr):
         """mul/imul: CF = OF = overflow, dropped (--opt flags) when neither flag is live."""
@@ -1084,6 +1182,11 @@ class Lifter:
                 self.opt_stats["x87_functions"] += 1
                 lines.append("    uint32_t ft_ = c->top; uint16_t fsw_ = c->fsw;   /* --opt x87 */")
             body = [(va, [spill if s == SPILL else reload if s == RELOAD else s for s in stmts]) for va, stmts in body]
+            if "x87v" in self.opt and any(l.endswith("/* --opt x87 */") for l in lines):
+                body, used = self.x87_values(body, labels | {fn.entry})
+                if used:
+                    self.opt_stats["x87_values_functions"] += 1
+                    lines.append("    double " + ", ".join(f"fc{i}_ = 0" for i in range(8)) + ";   /* --opt x87v */")
             lines.append("    uint32_t " + ", ".join(f"r{i}_ = c->r[{i}]" for i in range(8)) + ";   /* --opt regs */")
         if hit_index is not None:
             lines.append(f"    xrt_hits_{stem}[{hit_index}] = 1;")
@@ -1154,8 +1257,10 @@ def main():
     # loader applies the same relocations when it maps the module there)
     base = int(args[args.index("--base") + 1], 16) if "--base" in args else None
     opt = set(args[args.index("--opt") + 1].split(",")) if "--opt" in args else set()
-    if opt - {"flags", "pc", "base", "regs", "x87", "icall"}:
-        sys.exit(f"unknown --opt {sorted(opt - {'flags', 'pc', 'base', 'regs', 'x87', 'icall'})} (known: flags, pc, base, regs, x87, icall)")
+    if opt - {"flags", "pc", "base", "regs", "x87", "x87v", "icall"}:
+        sys.exit(f"unknown --opt {sorted(opt - {'flags', 'pc', 'base', 'regs', 'x87', 'x87v', 'icall'})} (known: flags, pc, base, regs, x87, x87v, icall)")
+    if "x87v" in opt and "x87" not in opt:
+        sys.exit("--opt x87v needs x87 (the cached values are indexed by the local TOP)")
     if "regs" in opt and "base" not in opt:
         sys.exit("--opt regs needs base (the promoted stack accesses use the local guest-memory base)")
     if "x87" in opt and "regs" not in opt:

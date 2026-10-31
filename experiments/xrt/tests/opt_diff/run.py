@@ -157,6 +157,20 @@ X87_MUTATIONS = {"x87-no-spill": mut_x87_no_spill, "x87-no-reload": mut_x87_no_r
                  "x87-helper-no-reload": mut_x87_helper_no_reload}
 
 
+def mut_x87v_label_keeps_values(x):
+    orig = x.Lifter.x87_values
+    x.Lifter.x87_values = lambda self, body, labels: orig(self, body, set())
+
+
+def mut_x87v_call_keeps_values(x):
+    x.Lifter.x87v_ends = staticmethod(lambda s: False)
+
+
+# --opt x87v only
+X87V_MUTATIONS = {"x87v-label-keeps-values": mut_x87v_label_keeps_values,
+                  "x87v-call-keeps-values": mut_x87v_call_keeps_values}
+
+
 def main():
     global OPT
     args = sys.argv[1:]
@@ -217,6 +231,8 @@ def main():
             MUTATIONS.update(REG_MUTATIONS)
         if "x87" in OPT.split(","):
             MUTATIONS.update(X87_MUTATIONS)
+        if "x87v" in OPT.split(","):
+            MUTATIONS.update(X87V_MUTATIONS)
         for name in MUTATIONS:
             _, mut = lifted_run("mut", True, name)
             if mut is None:
