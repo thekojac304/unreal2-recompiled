@@ -117,7 +117,7 @@ index f2488aa..2442a88 100644
      {"xrt.com","D8R.UnlockRect",d8_resource_UnlockRect}, \
      {"xrt.com","D8R.Lock",d8_resource_Lock}, \
 diff --git a/out/dev-init-savepoints/init-return-20261030/runtime/hle_d3d8_device.inc b/out/dev-init/runtime/hle_d3d8_device.inc
-index 4a1a96c..1301c47 100644
+index 4a1a96c..9df17dd 100644
 --- a/out/dev-init-savepoints/init-return-20261030/runtime/hle_d3d8_device.inc
 +++ b/out/dev-init/runtime/hle_d3d8_device.inc
 @@ -131,17 +131,47 @@ static void d8_render_ready(CPU*c,D8DeviceObject*o) {
@@ -190,8 +190,26 @@ index 4a1a96c..1301c47 100644
  #include "d3d8_device_slots.inc"
  static void d8_CreateDevice(CPU*c) {
      d8_api_entry(c,100,7);
+@@ -183,8 +216,15 @@ static void d8_CreateDevice(CPU*c) {
+     n.flags=rd32(pp+40);n.refresh=rd32(pp+44);n.interval=rd32(pp+48);
+     {
+         HWND focus_host=xrt_gui_device_window(c,focus);
+-        if(InterlockedCompareExchange(&d8_attempted,1,0))
+-            xrt_fatal(c,76,"IDirect3D8::CreateDevice: one native attempt per process; retry refused");
++        if(InterlockedCompareExchange(&d8_attempted,1,0)) {
++            /* Sequential re-creation only: D3DDrv released its device to native count 0
++             * (observed: DeleteVertexShader..., Release->0, CreateDevice). A device that is
++             * still referenced, has live children, is mapped or failed keeps the refusal. */
++            if(o->host || o->refs || o->children || d8_native_failed || d8_locks)
++                xrt_fatal(c,76,"IDirect3D8::CreateDevice: previous device still live (refs %u children %u); simultaneous devices refused",o->refs,o->children);
++            xrt_log("D3D8 CreateDevice: sequential re-creation after previous device destroyed");
++            xrt_event("d3d8_device_recreate","\"previous_guest\":%u,\"presents\":%u",o->guest,o->presents);
++        }
+         /* Allocate all guest state before invoking the host. The reserved object
+          * has zero refs and is unreachable through the guest output in callbacks. */
+         if(!d8_device_vtable)d8_device_vtable=com_vtable(d8_device_slot_names,97);
 diff --git a/out/dev-init-savepoints/init-return-20261030/runtime/hle_gui.c b/out/dev-init/runtime/hle_gui.c
-index c9ff9c9..e3af3ea 100644
+index c9ff9c9..8d8c76e 100644
 --- a/out/dev-init-savepoints/init-return-20261030/runtime/hle_gui.c
 +++ b/out/dev-init/runtime/hle_gui.c
 @@ -466,8 +466,15 @@ static void hle_ClipCursor(CPU* c)
@@ -235,7 +253,28 @@ index c9ff9c9..e3af3ea 100644
      case WM_NOTIFY:
      case WM_DRAWITEM:
      case WM_MEASUREITEM:
-@@ -766,7 +782,13 @@ static INT_PTR invoke_gui_proc(HWND h, UINT msg, WPARAM wp, LPARAM lp, uint32_t
+@@ -752,13 +768,15 @@ static INT_PTR invoke_gui_proc(HWND h, UINT msg, WPARAM wp, LPARAM lp, uint32_t
+         xrt_fatal(&nested, XRT_EXIT_UNSUPPORTED, "dialog callback pointer message 0x%x requires marshalling", msg);
+     default:
+         /* Exact measured registered notification; preserve error while resolving its session identity. */
+-        if (msg >= 0xc000u && msg <= 0xffffu && !wp && !lp) {
+-            WCHAR name[32];
++        if (msg >= 0xc000u && msg <= 0xffffu && wp <= 0xffffffffu && !lp) {
++            WCHAR name[40];
+             DWORD lookup_error = GetLastError();
+-            int length = xm_win_GetClipboardFormatNameW(msg, name, 32);
+-            int taskbar_created = length == 20 && xm_win_lstrcmpW(name, L"TaskbarButtonCreated") == 0;
++            int length = xm_win_GetClipboardFormatNameW(msg, name, 40);
++            int taskbar_created = !wp && length == 20 && xm_win_lstrcmpW(name, L"TaskbarButtonCreated") == 0;
++            /* dinput8 posts its registered device notification with a scalar wParam. */
++            int dinput_notify = length == 34 && xm_win_lstrcmpW(name, L"DIRECTINPUT_NOTIFICATION_MSGSTRING") == 0;
+             SetLastError(lookup_error);
+-            if (taskbar_created) break;
++            if (taskbar_created || dinput_notify) break;
+         }
+         /* Only measured scalar messages may cross unmodified. */
+         if (!((msg <= WM_ENABLE && msg != WM_GETTEXT) || msg == WM_PAINT || msg == WM_ERASEBKGND ||
+@@ -766,7 +784,13 @@ static INT_PTR invoke_gui_proc(HWND h, UINT msg, WPARAM wp, LPARAM lp, uint32_t
                msg == WM_NCDESTROY || msg == WM_CANCELMODE || msg == WM_GETDLGCODE || msg == WM_GETFONT ||
                msg == WM_CHANGEUISTATE || msg == WM_UPDATEUISTATE || msg == WM_QUERYUISTATE ||
                msg == WM_QUERYNEWPALETTE || msg == WM_PALETTECHANGED || msg == WM_DWMNCRENDERINGCHANGED ||
@@ -250,7 +289,7 @@ index c9ff9c9..e3af3ea 100644
              xrt_fatal(&nested, XRT_EXIT_UNSUPPORTED, "dialog callback message 0x%x unsupported (wp=%llx lp=%llx)",
                        msg, (unsigned long long)wp, (unsigned long long)lp);
      }
-@@ -1140,6 +1162,19 @@ const XrtHle xrt_hle_gui[] = {{"comctl32.dll", "#17", hle_InitCommonControls},
+@@ -1140,6 +1164,19 @@ const XrtHle xrt_hle_gui[] = {{"comctl32.dll", "#17", hle_InitCommonControls},
                                {"user32.dll", "SetMenu", hle_SetMenu},
                                {"user32.dll", "PostMessageA", hle_PostMessageA},
                                {"user32.dll", "PostMessageW", hle_PostMessageW},
@@ -482,10 +521,10 @@ index 499eb50..c0f4c4b 100644
      {"msvcr70.dll", "_isnan", hle_isnan},
 diff --git a/out/dev-init/runtime/message_pump.inc b/out/dev-init/runtime/message_pump.inc
 new file mode 100644
-index 0000000..37ad05e
+index 0000000..e427973
 --- /dev/null
 +++ b/out/dev-init/runtime/message_pump.inc
-@@ -0,0 +1,109 @@
+@@ -0,0 +1,118 @@
 +/* Main-loop message pump. Guest MSG is 28 bytes: hwnd token, message, wParam,
 + * lParam, time, pt.x, pt.y. The native MSG last returned by PeekMessage is kept,
 + * so Translate/Dispatch of that unchanged guest copy forward the exact native
@@ -519,7 +558,16 @@ index 0000000..37ad05e
 +    end(c);xrt_gui_callback_leave(prev);
 +    if(r) {
 +        words[0]=window_token(m.hwnd);words[1]=m.message;
-+        words[2]=pump_scalar(c,m.wParam,m.message,"wParam");words[3]=pump_scalar(c,(uint64_t)m.lParam,m.message,"lParam");
++        words[2]=pump_scalar(c,m.wParam,m.message,"wParam");
++        if(m.message==WM_TIMER && (uint64_t)m.lParam>0xffffffffull) {
++            /* Host-owned timer: lParam is a TIMERPROC in a loaded host module. Native
++             * DispatchMessage calls it directly; the guest copy carries an opaque 0 and
++             * Translate/Dispatch forward the retained exact host MSG. */
++            HMODULE owner=NULL;
++            if(!GetModuleHandleExW(GET_MODULE_HANDLE_EX_FLAG_FROM_ADDRESS|GET_MODULE_HANDLE_EX_FLAG_UNCHANGED_REFCOUNT,(LPCWSTR)m.lParam,&owner)||!owner)
++                xrt_fatal(c,76,"PeekMessage: WM_TIMER procedure %llx outside host modules",(unsigned long long)m.lParam);
++            words[3]=0;
++        } else words[3]=pump_scalar(c,(uint64_t)m.lParam,m.message,"lParam");
 +        words[4]=m.time;words[5]=(uint32_t)m.pt.x;words[6]=(uint32_t)m.pt.y;
 +        memcpy(G2H(out),words,28);
 +        pump_last=m;pump_guest=out;memcpy(pump_words,words,28);pump_valid=1;

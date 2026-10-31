@@ -69,8 +69,12 @@ static int scene_mode(void) {
     return scene;
 }
 static int scene_capture_frame(unsigned n) { return (n & (n - 1)) == 0 || n == scene_limit; }
+/* Returns the world frame to capture, or 0x10000|present for the first two
+ * non-world post-Init presents (a readback reference from the same run). */
 int xrt_dev_scene_capture(unsigned level_renders, unsigned scene_draws) {
-    if (!scene_mode() || !post_init || level_renders == last_renders || !scene_draws) return 0;
+    if (!scene_mode() || !post_init) return 0;
+    if (level_renders == last_renders || !scene_draws)
+        return post_presents < 2 ? (int)(0x10000u | (post_presents + 1)) : 0;
     return scene_capture_frame(world_frames + 1) ? (int)(world_frames + 1) : 0;
 }
 void xrt_dev_scene_frame(unsigned frame, unsigned width, unsigned height, unsigned format, const void *bits, int pitch) {
@@ -85,7 +89,8 @@ void xrt_dev_scene_frame(unsigned frame, unsigned width, unsigned height, unsign
         xrt_log("DEV scene frame %u: unsupported readback %ux%u format %u", frame, width, height, format);
         return;
     }
-    snprintf(path, sizeof path, "%s\\scene-frame-%04u.bmp", root, frame);
+    if (frame & 0x10000u) snprintf(path, sizeof path, "%s\\startup-present-%04u.bmp", root, frame & 0xffffu);
+    else snprintf(path, sizeof path, "%s\\scene-frame-%04u.bmp", root, frame);
     if (!(f = fopen(path, "wb")) || !(line = malloc(row))) { if (f) fclose(f); xrt_log("DEV scene frame %u: cannot write", frame); return; }
     {
         BITMAPFILEHEADER fh = {0x4d42, (DWORD)(sizeof fh + sizeof(BITMAPINFOHEADER) + row * height), 0, 0, sizeof fh + sizeof(BITMAPINFOHEADER)};

@@ -16,6 +16,11 @@ Last run 20261031-001207-98574d76: first Tick done, Present 2 = 555 draws / 3968
 then a second IDirect3D8::CreateDevice was refused. Scene-node renders read 0 because
 Engine_026 (the Render functions) is not compiled with world_observer.h: fix that first.
 Runtime changes: patches/first-scene-runtime.patch.
+Capture batch (2026-10-31): Engine_026 now built with the observer; run 20261031-003038-903c8da9
+captured world frames 1..8 of CS_Intro (fading in; frame 8 shows letterbox, HUD and a dim nebula).
+Blocked at frame ~10 by asynchronous DirectMusic tool callbacks (helper: "tool callback outside STA").
+Dev DirectMusic helper: out/dev-init/dmusic_helper (patches/dmusic-helper-named-routine.patch), built x86
+to out/dev-init/build/dmusic_helper.exe and preferred by run when present.
 
 The third developer run (20261030-221937-21570264) reached successful window
 creation and continued file-backed loading. Its last completed ReadFile returned

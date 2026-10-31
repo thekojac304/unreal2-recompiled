@@ -14,6 +14,7 @@ import uuid
 HERE = Path(__file__).resolve().parent
 WS = HERE.parents[2]
 BASE = WS / 'out/recovery/practical-init-20261031-01'
+DEV_OBSERVED_UNITS = {'Engine_026.c'}
 DEV = WS / 'out/dev-init'
 RT = DEV / 'runtime'
 BUILD = DEV / 'build'
@@ -131,12 +132,20 @@ def build(full=False, fixtures_only=False):
         endpoint = src.name == 'Unreal2_001.c'
         if endpoint:
             src = DEV / 'generated/Unreal2_001.c'
-        if full or endpoint:
-            if full or not obj.exists() or obj.stat().st_mtime < max(src.stat().st_mtime, (RT / 'xrt.h').stat().st_mtime):
+        # Scene-node Render functions (FLevel/FCamera/FPlayerSceneNode) live here; the
+        # inherited object lacks the existing world observer, so the dev build adds it.
+        observed = src.name in DEV_OBSERVED_UNITS
+        marker = obj.with_suffix('.observer')
+        if full or endpoint or observed:
+            if (full or not obj.exists() or (observed and not marker.exists()) or
+                    obj.stat().st_mtime < max(src.stat().st_mtime, (RT / 'xrt.h').stat().st_mtime,
+                                              (RT / 'world_observer.h').stat().st_mtime if observed else 0)):
                 flags = ['/O1', '/wd4102', '/wd4146']
-                if '/FIworld_observer.h' in row.get('command', []):
+                if observed or '/FIworld_observer.h' in row.get('command', []):
                     flags.append('/FIworld_observer.h')
                 compile_one(src, obj, env, [RT, Path(row['source']).parent], flags)
+                if observed:
+                    marker.write_text('compiled with /FIworld_observer.h\n')
         elif not obj.exists():
             obj.parent.mkdir(parents=True, exist_ok=True)
             shutil.copy2(old / rel, obj)
@@ -359,7 +368,10 @@ def run(args):
     sandbox = WS / 'sandbox_cmp' / ('dev-init-' + out.name)
     assets.check_writable(sandbox)
     shutil.copytree(assets.source(), sandbox)
-    helper = WS / 'experiments/xrt/build/dmusic-ipc/dmusic_helper.exe'
+    # Developer helper copy (out/dev-init/dmusic_helper, named CallRoutine admitted); else the shared build.
+    helper = BUILD / 'dmusic_helper.exe'
+    if not helper.is_file():
+        helper = WS / 'experiments/xrt/build/dmusic-ipc/dmusic_helper.exe'
     if not helper.is_file():
         raise RuntimeError(f'DirectMusic helper missing: {helper}')
     env = {k: v for k, v in os.environ.items() if k.upper() in
