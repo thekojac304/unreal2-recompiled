@@ -1,0 +1,66 @@
+--- a/xrt_loader.c
++++ b/xrt_loader.c
+@@ -25,6 +25,7 @@
+     XrtFn fn;                      /* NULL: unbound import, fatal when called */
+     uint64_t calls[MAX_MODULES + 1];
+     int no_preempt;                /* thread/process termination: never a preemption point (see dispatch) */
++    int quiet;                     /* development recorder: pure leaf CRT call, counted in calls[] but not recorded */
+     char export_owner[64];         /* dynamic system export: cannot outlive its guest module */
+ } Stub;
+ static Stub stubs[(XRT_STUB_END - XRT_STUB_BASE) / XRT_STUB_SIZE - 1];
+@@ -289,6 +290,27 @@
+     return NULL;
+ }
+ 
++/* Development profile only, with no --trace-full/--trace-address selection: these pure CRT leaves are called millions
++ * of times by name lookups and cost ~2 us each to record, against ns to execute. Their calls[] counts remain; any
++ * fault still reaches xrt_fatal, which records its own FATAL event. */
++static int stub_quiet(const char* key) {
++    static const char* const leaves[] = {
++        "msvcr70.dll!toupper", "msvcr70.dll!tolower", "msvcr70.dll!towupper", "msvcr70.dll!towlower",
++        "msvcr70.dll!wcslen", "msvcr70.dll!strlen", "msvcr70.dll!_wcsicmp", "msvcr70.dll!_stricmp",
++        "msvcr70.dll!_wcsnicmp", "msvcr70.dll!_strnicmp", "msvcr70.dll!wcscmp", "msvcr70.dll!wcsncmp",
++        "msvcr70.dll!wcscpy", "msvcr70.dll!wcsncpy", "msvcr70.dll!wcscat", "msvcr70.dll!wcsstr",
++        "msvcr70.dll!wcschr", "msvcr70.dll!wcsrchr", "msvcr70.dll!_msize", "winmm.dll!timeGetTime"};
++    const char *profile = getenv("XRT_MONITOR_PROFILE"), *full = getenv("XRT_DEV_TRACE_FULL"),
++               *address = getenv("XRT_DEV_TRACE_ADDRESS");
++    size_t i;
++    if (!profile || strcmp(profile, "development") || (full && *full) || (address && *address))
++        return 0;
++    for (i = 0; i < sizeof leaves / sizeof leaves[0]; i++)
++        if (!strcmp(key, leaves[i]))
++            return 1;
++    return 0;
++}
++
+ static uint32_t stub_for(const char* key, XrtFn fn) {
+     int i;
+     for (i = 0; i < nstubs; i++)
+@@ -298,6 +320,7 @@
+         xrt_fatal(NULL, XRT_EXIT_SETUP, "out of import stubs");
+     snprintf(stubs[nstubs].name, sizeof stubs[nstubs].name, "%s", key);
+     stubs[nstubs].fn = fn;
++    stubs[nstubs].quiet = fn && stub_quiet(key);
+     stubs[nstubs].no_preempt = !strcmp(key, "kernel32.dll!ExitThread") || !strcmp(key, "kernel32.dll!ExitProcess") ||
+                                !strcmp(key, "msvcr70.dll!exit") || !strcmp(key, "msvcr70.dll!_exit");
+     return XRT_STUB_BASE + XRT_STUB_SIZE * (uint32_t)nstubs++;
+@@ -492,7 +515,8 @@
+         uint32_t i = (target - XRT_STUB_BASE) / XRT_STUB_SIZE;
+         XrtModule* caller = xrt_module_by_addr(site);
+         if (!(target & (XRT_STUB_SIZE - 1)) && (int)i < nstubs) {
+-            xm_scope(c,XM_BEGIN,XM_ADAPTER,stubs[i].name,0);
++            if (!stubs[i].quiet)
++                xm_scope(c,XM_BEGIN,XM_ADAPTER,stubs[i].name,0);
+             if (stubs[i].export_owner[0] && !xrt_system_export_live(stubs[i].export_owner))
+                 xrt_fatal(c, XRT_EXIT_IMPORT, "call to export %s after its guest module was unloaded", stubs[i].name);
+             stubs[i].calls[caller ? caller - mods : MAX_MODULES]++;
+@@ -520,7 +544,8 @@
+                 xrt_fatal(c, XRT_EXIT_IMPORT, "call to import %s, which has no host implementation (from %s)", stubs[i].name, d);
+             }
+             stubs[i].fn(c);
+-            xm_scope(c,XM_END,XM_ADAPTER,stubs[i].name,c->r[EAX]);
++            if (!stubs[i].quiet)
++                xm_scope(c,XM_END,XM_ADAPTER,stubs[i].name,c->r[EAX]);
+             return;
+         }
+     }

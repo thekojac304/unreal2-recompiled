@@ -1,0 +1,121 @@
+Development trace exhaustion fix — 2026-10-30
+
+1. Last demonstrated progress
+
+Retained run: out/dev-init/runs/20261030-220553-8fd4cb9f.
+The complete 131073-record checksum chain validates. Calibration completed
+passes 0/1/2 with 341558/338377/310978 calls respectively (990913 total).
+Each final batch reports 200 ms elapsed, with no backwards timer observations.
+The final calibration batch is record 101844. Execution continued into native
+CreateWindowExW successes at records 111771 and 112331, then archive/name-table
+loading. ReadFile still returned TRUE at record 130982.
+
+The final CRT sites resolve through retained exports and generated code:
+  wcslen return 1010C4EE: FString::FString(unsigned short const *),
+    call 1010C4E9 in Core_002.c:10483.
+  wcslen return 10141D01 / wcscpy return 10141D35: AllocateNameEntry,
+    calls 10141CFC / 10141D30 in Core_009.c:4734 / 4772.
+  wcscpy return 10144EBF: FArchive & operator<<(FArchive &, FNameEntry &),
+    call 10144EBA in Core_009.c:13107.
+  Its caller 1013995D (return 10139962), inside 101394D0, walks the name table:
+    bounds check 10139946, serialization 1013995D, increment 101399CE.
+
+There are 1681 completed copies at the archive-name site. Saved caller EBX
+progresses through 1672..1679 in the final completed examples and is 1680 at
+the terminal gap; this is an advancing table position, not an invariant spin.
+Late wcslen results range from 1 to 39, with varying source/destination values.
+These calls belong to legitimate name deserialization/allocation. This does
+not establish that the whole package loaded successfully. No UGameEngine.Init
+event, D3D call or Init-return endpoint is recorded in this second run.
+The older renderer run's successes are separate evidence, not progress newly
+demonstrated by this run.
+
+2. Actual termination
+
+Record 131073 is XM_GAP, reason 5, on the attempted wcscpy BEGIN. The unchanged
+131072-record ceiling caused xm_failure(5), which directly terminated the
+process with 0xE04D0005. The final attempted native/adapter call did not execute.
+There are zero XM_FATAL or XM_ABORT records preceding it. Some file probes
+returned failure earlier, followed by successful opens/reads and continued
+execution; the evidence does not establish a fatal or unsupported game error.
+Empty buffered logs and lack of a runtime report do not change that diagnosis.
+
+Reproduce passive analysis: .venv/Scripts/python.exe -B tools/xrt/dev/inspect_second_run.py
+Output: out/dev-init/second-run-analysis.json. Original run evidence was not edited.
+
+3. Implementation and validation
+
+Durable files changed/added under tools/xrt/dev:
+  dev.py — install profile hooks, profile/target CLI, observe summaries, tests.
+  trace_profile.py — checked, repeatable private-runtime hook installer.
+  routine_trace.inc — central semantic import table and bounded diagnostics.
+  trace_reader.py — passive v4 stream/snapshot decoder.
+  trace_fixture.c / trace_test.py — owned native validation.
+  inspect_second_run.py — passive retained-run reconstruction.
+  README.txt / TRACE_REPORT.txt — usage, evidence and limitations.
+Private runtime edits: out/dev-init/runtime/monitor.c and xrt_loader.c.
+The obsolete calibration-only dispatch exception is no longer called. Actual
+import dispatch, validation, preemption, argument/result handling and guest
+execution remain unchanged. Monitor work stays inside the assembly state-save
+boundary. No production/strict runtime or supervisor source was changed.
+
+Default development v4 tracing aggregates known routine imports globally by
+name, without call-site exceptions. Counts, failures/aborts, raw result ranges,
+changes, first/last full examples, 32 recent examples and transitions live in
+a fixed 594496-byte companion snapshot. Routine events spend zero critical
+records. Unknown/import-specific debugging targets, lifecycle, renderer,
+device/resource calls and all fatal/abort/gap diagnostics keep full detail.
+Failed routine returns and active routine parents of critical events are
+promoted into the full stream. Full-record exhaustion remains explicit.
+--trace-profile forensic retains the existing v3 behavior; --trace-full NAME
+selects exact names for full detail in development. See README.txt for format,
+flush behavior and conservative failure predicates.
+
+All 12 tracing cases pass:
+  out/dev-init/runs/20261030-221554-de323c0d/trace-results.json
+  200003 actual native length calls, exact return counts/range, only 6 full
+  records, then successful critical device/resource capture; 3009 calls across
+  three threads; partial-batch checkpoint without close; nested critical scope
+  promotion; abort; failed return (including immediate exit without close);
+  fatal/unsupported diagnostic after high volume; selected full-detail import;
+  explicit snapshot I/O failure; explicit full-budget exhaustion; forensic
+  comparison against the unchanged baseline monitor. CPU bytes, LastError,
+  exact 512-byte FXSAVE state and direction flag are checked at every probe.
+  Forensic streams also pass the existing strict reader and match stable event,
+  invocation, CPU/stack, result and error fields (host addresses/threads differ).
+
+All seven existing launcher/containment cases pass:
+  out/dev-init/runs/20261030-221425-fca2d0ab/
+  normal exit, endpoint, exception dump, descendant timeout, attach timeout,
+  launcher-death cleanup, and missing-authorization rejection.
+Fresh hook installation matches the editable monitor and is idempotent.
+Observer summary/transition/recent-context decoding passes.
+
+Built, never launched:
+  out/dev-init/build/unreal2-dev.exe
+  out/dev-init/build/unreal2-dev.pdb
+PE RSDS and PDB stream-1 GUID/age match:
+  62dbaaba-d5f5-4c7d-9646-781f2371f086, age 6.
+Hashes and matching result: out/dev-init/build/pdb-match.json.
+No game-derived executable was launched during this task.
+
+4. Remaining limitations
+
+Routine history is bounded, not exhaustive. An abrupt kill can lose up to the
+pending 16384 routine events and the pending critical batch; a torn overwritten
+snapshot is detected by CRC. Pointer payloads are not inferred from addresses.
+Existing bulk map payload omissions and variable-payload coverage limits remain;
+full renderer/resource call metadata is retained. Unknown calls and floating
+math retain full tracing and can still exhaust the explicit critical budget.
+Native probe overhead still affects timing. The revised profile has been tested
+with owned code only; no new claim of game progress or strict equivalence follows.
+
+5. One next experiment — separate owner authorization required, not executed
+
+One 60-second run, same isolated Init endpoint and containment:
+  .venv/Scripts/python.exe -B -I tools/xrt/dev/dev.py run --authorize-init --trace-profile development --question "Does UGameEngine::Init return after package loading and the implemented SetRes tail?" --change "Use global bounded routine-import diagnostics while preserving critical tracing" --timeout 60
+
+Observe monitor.bin and monitor.bin.routine together. Stop at Init return
+(status 10), the first real fatal/unsupported operation, an explicit diagnostic
+failure, or the existing deadline. No retries and no main-loop/world tick are
+included. Authorization for that execution is a separate step.

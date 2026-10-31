@@ -1,0 +1,16 @@
+--- a/xrt_diag.c
++++ b/xrt_diag.c
+@@ -92,9 +92,11 @@
+ }
+ 
+ XRT_NORETURN void xrt_fatal(CPU* c, int code, const char* fmt, ...) {
+-    xm_scope(c,XM_FATAL,0,fmt,(unsigned)code);
+     va_list ap;
+-    char msg[1024];
++    char msg[1024], label[128];
++    /* the record name is a bounded label: an over-long format string must not abort before the message is written */
++    snprintf(label, sizeof label, "%s", fmt);
++    xm_scope(c,XM_FATAL,0,label,(unsigned)code);
+     if (InterlockedExchange(&xrt_dying, 1)) {
+         TerminateProcess(GetCurrentProcess(), (UINT)code);
+         for (;;) {}

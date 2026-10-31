@@ -1,0 +1,75 @@
+--- a/routine_trace.inc
++++ b/routine_trace.inc
+@@ -45,7 +45,7 @@
+  uint32_t crc;
+ } xd;
+ static HANDLE xd_sink=INVALID_HANDLE_VALUE;
+-static unsigned xd_dirty, xd_since_flush, xd_force_flush;
++static unsigned xd_dirty, xd_since_flush, xd_force_flush, xd_durable;
+ static char xd_selected[2048], xd_addresses[2048];
+ #ifdef XRT_DEV_TRACE_TEST
+ void xd_test_break_sink(void){CloseHandle(xd_sink);xd_sink=INVALID_HANDLE_VALUE;}
+@@ -69,10 +69,14 @@
+   if(a==pc || a==caller)return 1;if(!*end)break;p=end+1;}
+  return 0;
+ }
++/* Names are mostly stable literals: a pointer-keyed hint, always confirmed by one strcmp, avoids scanning every
++ * slot on each event. A reused buffer with new contents misses the hint and takes the scan. */
++static struct {const char*name;unsigned index;} xd_hint[1024];
+ static unsigned xd_index(const char*name) {
+- unsigned i;
+- for(i=0;i<xd.slots;i++)if(!strcmp(name,xd.imports[i].name))return i;
+- if(xd.slots<XD_SLOTS-1){i=xd.slots++;strcpy(xd.imports[i].name,name);return i;}
++ unsigned i,h=(unsigned)(((uintptr_t)name>>3)^((uintptr_t)name>>13))&1023;
++ if(xd_hint[h].name==name&&!strcmp(name,xd.imports[xd_hint[h].index].name))return xd_hint[h].index;
++ for(i=0;i<xd.slots;i++)if(!strcmp(name,xd.imports[i].name)){xd_hint[h].name=name;xd_hint[h].index=i;return i;}
++ if(xd.slots<XD_SLOTS-1){i=xd.slots++;strcpy(xd.imports[i].name,name);xd_hint[h].name=name;xd_hint[h].index=i;return i;}
+  xd.table_overflow++;return XD_SLOTS-1;
+ }
+ static void xd_flush(void) {
+@@ -83,7 +87,7 @@
+  xd.crc=crc32(&xd,offsetof(struct XdSnapshot,crc));
+  if(!SetFilePointerEx(xd_sink,zero,NULL,FILE_BEGIN)||
+     !WriteFile(xd_sink,&xd,sizeof xd,&written,NULL)||written!=sizeof xd||
+-    !FlushFileBuffers(xd_sink))xm_failure(25);
++    (xd_durable&&!FlushFileBuffers(xd_sink)))xm_failure(25);
+  xd_dirty=xd_since_flush=0;
+ }
+ static void xd_init(const char*path) {
+@@ -125,6 +129,8 @@
+ }
+ static int xd_route(XmRecord*r,int bad) {
+  unsigned d=tls.depth?tls.depth-1:0,i,index=0,selected=0,keep=0,urgent=0;
++ /* Caught C++ exceptions (EH continuation 1 / rethrow 2) are routine control flow: retained, batched, not forced. */
++ int eh_unwind=r->event==XM_ABORT&&(r->result==1||r->result==2);
+  int failed=0,suspect=0;XdSummary*s=NULL;
+  xd_force_flush=0;r->sequence=++xd.observed;xd_dirty=1;xd_since_flush++;
+  if(r->event==XM_BEGIN&&!bad){
+@@ -162,7 +168,7 @@
+    else {s->changes+=s->last_end.result!=r->result;s->error_changes+=s->last_end.guest_error!=r->guest_error||s->last_end.error!=r->error;}
+    s->ends++;if(r->result<s->minimum)s->minimum=r->result;if(r->result>s->maximum)s->maximum=r->result;s->last_end=*r;
+   }
+-  urgent=keep||r->event==XM_ABORT||xd_milestone(r->name);
++  urgent=keep||(r->event==XM_ABORT&&!eh_unwind)||xd_milestone(r->name);
+   keep|=selected||xd_tls.frames[d].emitted||xd_milestone(r->name);
+  }else {
+   selected=xd_selected_name(r->name)||xd_selected_pc(r)||(tls.depth&&xd_tls.frames[d].selected);
+@@ -170,7 +176,8 @@
+  }
+  if(s&&index==XD_SLOTS-1){r->flags|=XD_OVERFLOW;if(s->begins==1)keep=urgent=1;}
+  if(bad||r->event==XM_OPEN||r->event==XM_CLOSE||r->event==XM_CHECKPOINT||
+-    r->event==XM_FATAL||r->event==XM_GAP||r->event==XM_ABORT)keep=urgent=1;
++    r->event==XM_FATAL||r->event==XM_GAP||(r->event==XM_ABORT&&!eh_unwind))keep=urgent=1;
++ if(eh_unwind)keep=1;
+  if(r->event==XM_CLOSE)xd.terminal=1;
+  if(r->event==XM_CHECKPOINT&&!strcmp(r->name,"dev.Init.return"))xd.terminal=2;
+  if(r->event==XM_FATAL)xd.terminal=3;
+@@ -188,6 +195,8 @@
+   }
+  }else xd.routine_events++;
+  xd_force_flush=urgent||xd_since_flush>=XD_BATCH;
++ /* Periodic snapshots are written (they survive process termination) but only urgent ones force the disk. */
++ xd_durable=urgent;
+  /* The caller only appends when keep is true, so flush suppressed batches here. */
+  if(!keep&&xd_force_flush){drain();xd_flush();}
+  return !keep;

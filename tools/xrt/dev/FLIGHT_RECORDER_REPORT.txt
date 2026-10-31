@@ -1,0 +1,68 @@
+Unreal II development flight recorder — 2026-10-30
+
+Last confirmed genuine progress
+Retained run: out/dev-init/runs/20261030-221937-21570264.
+The 131073-record CRC chain and routine snapshot validate: 1093743 observed
+events, 962670 aggregated. Two native CreateWindowExW calls succeeded, followed
+by continued file-backed loading. The final completed ReadFile returned TRUE
+at guest 109074d3, SetFilePointer returned 0x6c560 at 109065a6, and _vsnwprintf
+returned 12. There is no UGameEngine.Init record, Init-return checkpoint,
+D3D record, fatal or abort. The final GAP reason 5 and exit 0xE04D0005 prove
+instrumentation exhaustion, not a guest failure or completed initialization.
+Passive reconstruction: tools/xrt/dev/inspect_third_run.py;
+output: out/dev-init/third-run-analysis.json. Original evidence is unchanged.
+
+Remaining full-record sources
+SetFilePointer 32785 (includes terminal GAP); ReadFile 23824;
+EnterCriticalSection 17984; LeaveCriticalSection 17984; _vsnwprintf 13842;
+xrt_call_guest 7546; _CIpow 6144. These account for 120109 of 131073 records.
+
+Implemented change
+Development v5 rolls ALL events through 512 detailed records; API lists only
+classify results. No cumulative development record ceiling remains. A fixed
+5967984-byte CRC snapshot holds counts, first/last examples, failure statistics,
+file byte counts/EOF, and overwritten/overflow accounting. Only the scalar
+bytes-transferred output is read; file buffers are never copied by inference.
+Milestones, fatal/gap/abort, first classified failures and first unknown/suspect
+returns are durable. Exact import or guest-address selection preserves nested
+detail in the existing stream, without the old development ceiling. Snapshots
+flush every 16384 events and on completion/checkpoint/handled fatal paths.
+Unknown outcomes are explicitly unclassified, never inferred successes.
+Forced kills can lose pending history or tear a snapshot; observe reports that
+uncertainty. Selected tracing may grow on disk; disk failures remain explicit.
+Strict forensic v3 and its capacity limit are unchanged. Dispatch, adapters,
+CPU/FPU save/restore, LastError, preemption, containment, deadline and the fixed
+Init endpoint are unchanged. No supervisor, audit pipeline or new worker added.
+
+Owned fixture results
+21 tracing cases passed: out/dev-init/runs/20261030-222740-aca8553d/trace-results.json.
+70003 real writes, seeks and reads, plus EOF and three failed reads, reached an
+owned Init-return checkpoint: 420030 observed events, 6 durable records,
+419518 ring overwrites, 70003 bytes read/written, one EOF, three failures.
+Also passed: 200003 CRT calls; multithread counters; exact rolling ordinals;
+selected names, addresses and nested payloads; 140003 selected records beyond
+the old limit; first failure/fatal/unsupported preservation; unknown-return and
+operation-table overflow accounting; ambiguous seek sentinel; orderly close;
+checkpoint without close; abrupt termination; corrupt/truncated snapshot
+rejection; sink failure; endpoint evidence rejection when checkpoint/report
+is absent. Every event wrapper checks CPU bytes, LastError, exact 512-byte
+FXSAVE state and direction flag. Forensic streams match baseline stable fields
+and both pass the strict reader. No game objects are linked into these fixtures.
+Seven existing launcher/containment cases also passed:
+out/dev-init/runs/20261030-222735-1c873e2f.
+Fresh hook installation matches the private runtime and is idempotent.
+
+Built, not executed
+out/dev-init/build/unreal2-dev.exe
+out/dev-init/build/unreal2-dev.pdb
+PE CodeView/PDB stream-1 GUID 62dbaaba-d5f5-4c7d-9646-781f2371f086, age 7 match.
+Hashes: out/dev-init/build/pdb-match.json. Game-derived executions: ZERO.
+
+Exact next development-run command (after authorization for that experiment)
+From E:\Unreal2-Port-Investigation in PowerShell:
+.venv/Scripts/python.exe -B -I tools/xrt/dev/dev.py run --authorize-init --trace-profile development --question "Does UGameEngine::Init return?" --change "Use the bounded development flight recorder; preserve the fixed Init-return endpoint" --timeout 60
+
+The command is supplied, not executed. It stops at the existing endpoint before
+0x1090ED5C, first fatal/unsupported operation or deadline. Successful Init requires
+exit 10, the structured dev_init_return event and a validated dev.Init.return
+checkpoint. Owned fixtures and ordinary close do not establish game Init return.
