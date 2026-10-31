@@ -119,6 +119,46 @@ CURRENT build's PDB: analyse a run before rebuilding (save points keep each meas
 dev.py build now records each object's source (.src): switching a unit back from a developer copy to the shared
 source used to keep the stale object, because the copy is newer than the shared file.
 
+120 FPS / 4K batch (2026-10-31 night, 10 launches, 2775 s; commits 7d4e806, f7924c9). Target: consistent 120 FPS.
+Resolution: dev.py run --windowed-res WxH rewrites WindowedViewportX/Y in the run's own sandbox Unreal2.ini;
+bench_tuta.ps1 -Res WxH (menu targets are fixed pixel offsets from the screen centre: the menus keep their pixel size
+at every resolution) and -Delay S (whole script shifted, so CS_Intro 0..10+S s is measured too; -Delay 50 below).
+On this 2560x1440 desktop a requested 3840x2160 window is clamped by Windows (client 3840x1421) while D3DDrv keeps a
+3840x2160 back buffer: DXVK logs "Using GDI for swapchain presentation" and presents through StretchBlt (run
+20261031-172740: menu 133 -> 78 FPS, 35% of the game thread in Present). --windowed-res therefore also sets the
+dev-only XRT_DEV_MAX_TRACK (runtime hle_gui.c dev_max_track raises the WM_GETMINMAXINFO tracking size), so the window
+keeps its client: a genuine 3840x2160 Vulkan swapchain and capture, but a window larger than the display, not native
+display output. Baseline translator-final code, FPS (median/p95 ms):
+  run                       res        intro 0-10   intro 30-60        cutscene          spawn           movement
+  20261031-170016 (old)     1540x945   135.2        -                  71.4 (14.4/18.8)  98.4 (9.9/12.2)  140.3 (6.5/10.9)
+  20261031-180353           1920x1080  132.5        125.6 (7.4/12.3)   71.8 (14.3/18.7)  99.7 (9.8/11.9)  144.8 (6.2/11.1)
+  20261031-180919           2560x1440  128.9        125.9 (7.3/12.3)   70.3 (14.6/18.9)  96.4 (10.1/12.5) 140.7 (6.3/11.5)
+  20261031-175807           3840x2160  130.6        127.6 (7.2/12.3)   73.9 (13.7/18.1) 102.8 (9.4/11.8) 145.3 (6.2/10.4)
+Frame time does not depend on resolution (RTX 5090): the game thread is CPU-bound; 4K BMP captures (25 MB, every
+256th world frame) add the 30-40 ms maxima. Optimizations (all at 3840x2160, -Delay 50):
+  run 20261031-182137  x87 locals + inline ICALL + guarded staging reuse   70.4 cutscene (REGRESSION) / 104.6 / 155.7
+      five large functions (2400-3400 instructions, e.g. GlmLib f_30b6e10 160 -> 525 KB) crossed MSVC's optimization
+      budget; staging: NtProtectVirtualMemory 4.1% replaced Free+Alloc 4.6%, tail memset +1%: no gain, reverted
+  run 20261031-185245  x87 + ICALLI only for functions <= 2000 instructions  77.2 / 106.1 / 154.0; intro 143.8 / 137.8
+  run 20261031-192058  + x87v and comment-aware spill detection               90.3 / 122.6 / 167.4; intro 149.3 / 141.7
+  run 20261031-192710  same build, unsampled, -TimingProbe (headline)          93.8 (10.6/14.6) / 126.3 (7.6/9.8) /
+                       173.1 (5.2/8.7); combined 220-245.5 s 154.3 (6.1/9.1); intro 155.7 (5.9/8.5) / 140.1 (6.6/11.0)
+xlift --opt x87: TOP/FSW in locals; x87v: ST values in locals within straight-line code (write-through to c->st);
+icall: ICALLI per-site hit path of the call-target cache; LOCAL_MAX_INSNS 2000. called(): comments are not calls (the
+comment 'fadd st(1)' had forced a register spill before every x87 register-operand instruction). Tests:
+experiments/xrt/tests/opt_diff --opt flags,pc,base,regs,x87,x87v,icall --mutations (39000 cases, 14 mutations).
+120 FPS NOT met: TutA cutscene 94 FPS (slowest seconds 158-177 s at 71-75 FPS); spawn p95 9.8 ms; CS_Intro 30-60 s
+p95 11 ms. Cutscene costs (run 20261031-192058): translated code 62% (GlmLib animation, Engine), D3D8 HLE ~21% of which
+Lock/Unlock staging ~12% (VirtualAlloc/VirtualFree/VirtualQuery per map for the use-after-unlock guard, plus copies),
+recorder/evidence ~5%. Timing: shots at equal post-Init times match between 57-104 FPS (run 20261031-163246, 1540x945)
+and 94-173 FPS (run 20261031-192710): cutscene frame and subtitle at 180 s, end position after the walk (245.5 s),
+running distance (250.1 s), collision with the console (258.5 s); scripted Space still shows no jump. At 3840x2160 the
+HUD, menus and subtitles keep their pixel size (tiny): original engine behaviour.
+Resize/maximize (static; launch 10's maximize probe hit the 560x480 splash popup, not the game window, so no runtime
+evidence): the viewport window already has WS_OVERLAPPEDWINDOW (style 14CF0000). Dragging sends WM_SIZING (RECT
+pointer), which the GUI layer's message admission refuses (fatal 76); IDirect3DDevice8::Reset (slot 14) is a fatal
+unsupported slot, and a client that differs from the back buffer makes DXVK present through GDI.
+
 The third developer run (20261030-221937-21570264) reached successful window
 creation and continued file-backed loading. Its last completed ReadFile returned
 TRUE, its last SetFilePointer returned 0x6c560, and _vsnwprintf returned 12.
