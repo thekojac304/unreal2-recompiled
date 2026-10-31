@@ -1,0 +1,29 @@
+diff --git a/out/dev-init-savepoints/tuta-performance-20261031/runtime/xrt.h b/out/dev-init/runtime/xrt.h
+index 3d31f35..59ce085 100644
+--- a/out/dev-init-savepoints/tuta-performance-20261031/runtime/xrt.h
++++ b/out/dev-init/runtime/xrt.h
+@@ -69,6 +69,24 @@ XRT_INLINE void wrf64(uint32_t a, double d) { memcpy(xrt_g + a, &d, 8); }
+ XRT_INLINE void push32(CPU* c, uint32_t v) { c->r[ESP] -= 4; wr32(c->r[ESP], v); }
+ XRT_INLINE uint32_t pop32(CPU* c) { uint32_t v = rd32(c->r[ESP]); c->r[ESP] += 4; return v; }
+ 
++/* The same accesses through an explicit base (xlift --opt base): a translated function copies xrt_g into a local
++ * once, because every guest store goes through uint8_t* and may alias the global, so the compiler reloads xrt_g
++ * before each access otherwise. The guest address arithmetic and access widths are identical. */
++XRT_INLINE uint8_t rd8b(const uint8_t* g, uint32_t a) { return g[a]; }
++XRT_INLINE uint16_t rd16b(const uint8_t* g, uint32_t a) { uint16_t v; memcpy(&v, g + a, 2); return v; }
++XRT_INLINE uint32_t rd32b(const uint8_t* g, uint32_t a) { uint32_t v; memcpy(&v, g + a, 4); return v; }
++XRT_INLINE uint64_t rd64b(const uint8_t* g, uint32_t a) { uint64_t v; memcpy(&v, g + a, 8); return v; }
++XRT_INLINE void wr8b(uint8_t* g, uint32_t a, uint8_t v) { g[a] = v; }
++XRT_INLINE void wr16b(uint8_t* g, uint32_t a, uint16_t v) { memcpy(g + a, &v, 2); }
++XRT_INLINE void wr32b(uint8_t* g, uint32_t a, uint32_t v) { memcpy(g + a, &v, 4); }
++XRT_INLINE void wr64b(uint8_t* g, uint32_t a, uint64_t v) { memcpy(g + a, &v, 8); }
++XRT_INLINE float rdf32b(const uint8_t* g, uint32_t a) { float f; memcpy(&f, g + a, 4); return f; }
++XRT_INLINE double rdf64b(const uint8_t* g, uint32_t a) { double d; memcpy(&d, g + a, 8); return d; }
++XRT_INLINE void wrf32b(uint8_t* g, uint32_t a, float f) { memcpy(g + a, &f, 4); }
++XRT_INLINE void wrf64b(uint8_t* g, uint32_t a, double d) { memcpy(g + a, &d, 8); }
++XRT_INLINE void push32b(uint8_t* g, CPU* c, uint32_t v) { c->r[ESP] -= 4; wr32b(g, c->r[ESP], v); }
++XRT_INLINE uint32_t pop32b(const uint8_t* g, CPU* c) { uint32_t v = rd32b(g, c->r[ESP]); c->r[ESP] += 4; return v; }
++
+ /* ---------------------------------------------------------------- flags */
+ XRT_INLINE uint32_t parity8(uint32_t v) { v &= 0xFF; v ^= v >> 4; v ^= v >> 2; v ^= v >> 1; return (~v) & 1; }
+ XRT_INLINE uint32_t msb(uint32_t v, int bits) { return (v >> (bits - 1)) & 1; }

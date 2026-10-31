@@ -287,7 +287,8 @@ def main():
         bad = sorted(((p["failed_cases"], form) for form, p in per_form.items() if p["failed_cases"]), reverse=True)
         print(f"failed cases: {total_fail}; forms: " + ", ".join(f"{fm} ({cnt})" for cnt, fm in bad[:12]))
         return 1 if total_fail else 0
-    with open(os.path.join(HERE, "results.json"), "w", encoding="utf-8", newline="\n") as f:
+    name = args[args.index("--results") + 1] if "--results" in args else "results.json"
+    with open(os.path.join(HERE, name), "w", encoding="utf-8", newline="\n") as f:
         json.dump(res, f, indent=1)
     with open(os.path.join(BUILD, "mismatches.txt"), "w", encoding="utf-8", newline="\n") as f:
         for (form, c), exs in sorted(examples.items(), key=lambda kv: (kv[0][1] not in FAIL, kv[0])):

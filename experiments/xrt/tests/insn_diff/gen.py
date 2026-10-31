@@ -30,7 +30,7 @@ sys.path.insert(0, os.path.join(WS, "tools", "xrt"))
 sys.path.insert(0, HERE)
 import extended  # noqa: E402
 from census import enc_key, encoding, opkind  # noqa: E402
-from xlift import Lifter, Unsupported  # noqa: E402
+from xlift import FLAGS, Lifter, Unsupported  # noqa: E402
 
 BUILD = os.path.join(WS, "experiments", "xrt", "build", "insn_diff")
 ID_DATA, ID_DATA_SIZE, ID_STACK, ID_STACK_SIZE = 0x20008000, 0x200, 0x2000BF00, 0x200
@@ -1047,16 +1047,36 @@ class _StubMod:
     md = md
 
 
-def lift_snippet(sn, idx, lifter):
+FLAG_BITS = {"cf": 0x001, "pf": 0x004, "zf": 0x040, "sf": 0x080, "of": 0x800}
+
+
+def snippet_liveness(sn, lifter, live_end):
+    """Flags live after each instruction of the snippet when `live_end` is live after its last one (the same
+    backward rule as Lifter.flag_liveness on straight-line code)."""
+    out = [None] * len(sn.insns)
+    live = frozenset(live_end)
+    for k in range(len(sn.insns) - 1, -1, -1):
+        out[k] = live
+        eff = lifter.flag_effect(sn.insns[k])
+        uses, kills = eff if eff is not None else (FLAGS, frozenset())
+        live = uses | (live - kills)
+    return out
+
+
+def lift_snippet(sn, idx, lifter, live_end=None):
     lines = [f"static void s_{idx}(CPU* c) {{"]
-    for ins in sn.insns:
+    live = snippet_liveness(sn, lifter, live_end) if live_end is not None else [None] * len(sn.insns)
+    for ins, lv in zip(sn.insns, live):
         text = f"{ins.mnemonic} {ins.op_str}".strip()
         lines.append(f"    P(0x{ins.address:x}u); /* {text} */")
+        lifter.live = lv
         try:
             stmts = lifter.lift_insn(ins, None)
         except Unsupported as exc:
             why = f"unsupported: {text}: {exc}".replace("\\", "\\\\").replace('"', "'")
             stmts = [f'xrt_trap(c, 0x{ins.address:x}u, "{why}");']
+        finally:
+            lifter.live = None
         lines.extend("    " + s for s in stmts)
     lines.append("}")
     return lines
@@ -1082,6 +1102,10 @@ def main():
                 sn.extra["extended"] = True
                 snips.append(sn)
     lifter = Lifter(_StubMod())
+    # --live-random (xlift --opt flags): each snippet gets a random set of flags live after it; flags outside the
+    # set are not compared (they may be stale by design), everything else is compared as usual
+    live_rnd = random.Random(seed + 2) if "--live-random" in args else None
+    dead_bits = []
     blob = b""
     offs = []
     allcases = []
@@ -1094,9 +1118,15 @@ def main():
         blob += sn.code
         for c in cases:
             allcases.append((idx, c))
-        clines.extend(lift_snippet(sn, idx, lifter))
+        live_end = None
+        if live_rnd is not None:
+            live_end = frozenset(f for f in sorted(FLAGS) if live_rnd.random() < 0.5)
+        dead_bits.append(sum(b for f, b in FLAG_BITS.items() if live_end is not None and f not in live_end))
+        clines.extend(lift_snippet(sn, idx, lifter, live_end))
         d = sn.meta()
         d["id"] = idx
+        if live_end is not None:
+            d["live_flags"] = sorted(live_end)
         d["ncases"] = len(cases)
         if sn.family in ("x87", "x87seq"):
             d["x87"] = dict(zip(("pushes", "pops", "need", "cc", "mode"), x87_props(sn.insns[0])))
@@ -1119,7 +1149,7 @@ def main():
             f.write(c.pack(idx))
     with open(os.path.join(BUILD, "expect.bin"), "wb") as f:
         for idx, c in allcases:
-            f.write(struct.pack("<HHB", c.fmask, c.ccmask, c.flags))
+            f.write(struct.pack("<HHB", c.fmask & ~dead_bits[idx] & 0xFFFF, c.ccmask, c.flags))
     with open(os.path.join(BUILD, "snippets.json"), "w", encoding="utf-8", newline="\n") as f:
         json.dump({"seed": seed, "scale": scale, "snippets": meta, "extended_unsupported": ext_unsupported},
                   f, indent=0)

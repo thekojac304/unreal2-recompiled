@@ -31,6 +31,9 @@ rem another vector set, 3x as many vectors per snippet (about 2 min)
 .venv\Scripts\python.exe -I experiments\xrt\tests\insn_diff\run.py --seed 7 --scale 3
 rem sensitivity check: injects 13 plausible lifter bugs into the generated C, each must be detected (about 4 min)
 .venv\Scripts\python.exe -I experiments\xrt\tests\insn_diff\mutation_check.py
+rem xlift --opt flags: every snippet lifted with a random set of flags live after it (reduced flag updates);
+rem only those flags are compared, GPRs/memory/x87 as usual (writes results.live-random.json)
+.venv\Scripts\python.exe -I experiments\xrt\tests\insn_diff\run.py --live-random
 rem lifter unit tests (include the regression test for the bug found here)
 .venv\Scripts\python.exe -I -m unittest discover -s tools\xrt\tests
 ```

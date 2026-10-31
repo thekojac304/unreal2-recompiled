@@ -6,6 +6,7 @@ import importlib.util
 import json
 import os
 from pathlib import Path
+import re
 import shutil
 import subprocess
 import sys
@@ -17,8 +18,11 @@ WS = HERE.parents[2]
 BASE = WS / 'out/recovery/practical-init-20261031-01'
 DEV_OBSERVED_UNITS = {'Engine_026.c'}
 GEN_OPT = '/O2'
-# Forcing the xrt.h helpers inline makes this unit's compile exceed the 600 s command limit.
-GEN_NO_FORCE_INLINE = {'GlmLib_020.c'}
+# Units compiled without forcing the xrt.h helpers inline (GlmLib_020 used to be here: forced inline it exceeds
+# the default 600 s command limit, so it has its own limit below instead).
+GEN_NO_FORCE_INLINE = set()
+# Per-unit compile limits (s) above the default 600: GlmLib_020 forced inline took ~11 min under a parallel build.
+GEN_SLOW_UNITS = {'GlmLib_020.c': 1800}
 DEV = WS / 'out/dev-init'
 RT = DEV / 'runtime'
 BUILD = DEV / 'build'
@@ -81,6 +85,63 @@ def setup():
                               'generated_origin': str(src), 'endpoint': 'before 0x1090ED5C'})
     print('Editable runtime:', RT)
 
+LIFT_SYSTEM = WS / 'sandbox_cmp/level/System'   # module images the shared gen/ units were lifted from
+
+def lift(names, opt):
+    """Re-lift shared generated modules (tools/xrt/xlift.py, --opt) into developer copies in out/dev-init/generated,
+    which build compiles instead of the shared units. Protos/tables must stay identical to the shared ones; chunks
+    identical to the shared unit are not copied (a stale copy is removed). Unreal2_001.c gets the endpoint hooks."""
+    import struct
+    gen = DEV / 'generated'
+    tmp = independent(DEV / 'lift-tmp')
+    shutil.rmtree(tmp, ignore_errors=True)
+    jobs = []
+    for name in names:
+        shared = WS / 'experiments/xrt/gen' / name
+        meta = read(next(shared.glob('*_meta.json')))
+        image = next((p for p in LIFT_SYSTEM.rglob(meta['module'])
+                      if hashlib.sha256(p.read_bytes()).hexdigest() == meta['sha256']), None)
+        if image is None:
+            raise RuntimeError(f'no {meta["module"]} with sha256 {meta["sha256"]} under {LIFT_SYSTEM}')
+        raw = image.read_bytes()
+        preferred = struct.unpack_from('<I', raw, struct.unpack_from('<I', raw, 0x3C)[0] + 52)[0]
+        cmd = [sys.executable, '-I', str(WS / 'tools/xrt/xlift.py'), str(image), '--out', str(tmp / name)]
+        if int(meta['base'], 16) != preferred:
+            cmd += ['--base', meta['base']]
+        if opt:
+            cmd += ['--opt', ','.join(sorted(opt))]
+        jobs.append((name, shared, cmd))
+    from concurrent.futures import ThreadPoolExecutor
+    with ThreadPoolExecutor(max_workers=max(1, (os.cpu_count() or 2) - 2)) as pool:
+        results = list(pool.map(lambda j: subprocess.run(j[2], capture_output=True, text=True), jobs))
+    for (name, shared, cmd), result in zip(jobs, results):
+        if result.returncode:
+            raise RuntimeError(f'xlift {name} failed:\n{result.stdout}{result.stderr}')
+        print(result.stdout.splitlines()[0])
+        out = tmp / name
+        copied = 0
+        for path in sorted(out.iterdir()):
+            if path.suffix == '.json':
+                continue
+            if path.name.endswith(('_protos.h', '_table.c')):
+                # the static-trap count (evidence only) may differ: D3DDrv's ffree fix removed 8 traps
+                ntraps = lambda b: re.sub(rb'(funcs, \d+u, )\d+u', rb'\1Nu', b)
+                if ntraps(path.read_bytes()) != ntraps((shared / path.name).read_bytes()):
+                    raise RuntimeError(f'{path.name} differs from the shared unit; refusing a partial ABI change')
+                continue
+            dest = gen / path.name
+            if path.name == 'Unreal2_001.c':
+                replace_once(path, '#include "Unreal2_protos.h"', '#include "Unreal2_protos.h"\nvoid xrt_dev_init_return(CPU*);')
+                replace_once(path, STOP, '    xrt_dev_init_return(c); /* developer endpoint, never returns */\n' + STOP)
+            elif path.read_bytes() == (shared / path.name).read_bytes():
+                dest.unlink(missing_ok=True)
+                continue
+            if not dest.exists() or dest.read_bytes() != path.read_bytes():
+                shutil.copyfile(path, dest)
+                copied += 1
+        print(f'  {name}: {copied} developer copies updated', flush=True)
+    shutil.rmtree(tmp)
+
 def compiler_environment():
     script = BUILD / 'compiler-env.cmd'
     script.write_text(f'@echo off\ncall "{VC}" x64 >nul\nif errorlevel 1 exit /b 1\nset\n')
@@ -88,19 +149,19 @@ def compiler_environment():
                             capture_output=True, text=True, check=True)
     return dict(line.split('=', 1) for line in result.stdout.splitlines() if '=' in line and not line.startswith('='))
 
-def command(args, env, name):
+def command(args, env, name, timeout=600):
     path = next(value for key, value in env.items() if key.upper() == 'PATH')
     args = [shutil.which(str(args[0]), path=path) or str(args[0]), *args[1:]]
     with (BUILD / (name + '.txt')).open('w') as log:
         result = subprocess.run([str(x) for x in args], cwd=BUILD, env=env,
-                                stdout=log, stderr=subprocess.STDOUT, timeout=600)
+                                stdout=log, stderr=subprocess.STDOUT, timeout=timeout)
     if result.returncode:
         raise RuntimeError(f'{name} failed; see {BUILD / (name + ".txt")}')
 
-def compile_one(src, obj, env, includes=(), flags=()):
+def compile_one(src, obj, env, includes=(), flags=(), timeout=600):
     obj.parent.mkdir(parents=True, exist_ok=True)
     command(['cl', '/nologo', '/c', '/Z7', '/fp:strict', '/W3', '/D_CRT_SECURE_NO_WARNINGS',
-             '/DXRT_WITH_UNREAL2', *flags, *[f'/I{x}' for x in includes], f'/Fo{obj}', src], env, obj.stem)
+             '/DXRT_WITH_UNREAL2', *flags, *[f'/I{x}' for x in includes], f'/Fo{obj}', src], env, obj.stem, timeout)
 
 def build(full=False, fixtures_only=False):
     independent(DEV)
@@ -147,8 +208,13 @@ def build(full=False, fixtures_only=False):
         # Generated code is compiled /O2 like the runtime: under /O1 (no /Oi) MSVC emitted an
         # out-of-line memcpy call for every 4-byte guest load/store. /fp:strict is unchanged.
         opt = obj.with_suffix('.opt')
+        opt_text = GEN_OPT + (' /DXRT_NO_FORCE_INLINE' if src.name in GEN_NO_FORCE_INLINE else '')
+        # The object must come from this source: switching a unit between its developer copy and the shared
+        # source cannot be judged by modification times alone (the copy is newer than the shared file).
+        origin = obj.with_suffix('.src')
         if (full or not obj.exists() or (observed and not marker.exists()) or
-                not opt.exists() or opt.read_text() != GEN_OPT or
+                not origin.exists() or origin.read_text() != str(src) or
+                not opt.exists() or opt.read_text() != opt_text or
                 obj.stat().st_mtime < max(src.stat().st_mtime, (RT / 'xrt.h').stat().st_mtime,
                                           (RT / 'world_observer.h').stat().st_mtime if observed else 0)):
             flags = [GEN_OPT, '/wd4102', '/wd4146']
@@ -158,17 +224,20 @@ def build(full=False, fixtures_only=False):
                 flags.append('/FIworld_observer.h')
             # Shared generated sources must be the ones the baseline objects came from.
             expected = None if endpoint else row.get('source_sha256')
-            jobs.append((src, obj, [RT, Path(row['source']).parent], flags, observed, marker, opt, expected))
+            jobs.append((src, obj, [RT, Path(row['source']).parent], flags, observed, marker, opt, expected, origin,
+                         opt_text))
         objects.append(obj)
     def compile_job(job):
-        src, obj, includes, flags, observed, marker, opt, expected = job
+        src, obj, includes, flags, observed, marker, opt, expected, origin, opt_text = job
         if expected and hashlib.sha256(src.read_bytes()).hexdigest() != expected:
             raise RuntimeError(f'{src} differs from the lineage source hash; refusing to recompile it')
         opt.unlink(missing_ok=True)
-        compile_one(src, obj, env, includes, flags)
+        origin.unlink(missing_ok=True)
+        compile_one(src, obj, env, includes, flags, GEN_SLOW_UNITS.get(src.name, 600))
         if observed:
             marker.write_text('compiled with /FIworld_observer.h\n')
-        opt.write_text(GEN_OPT)
+        opt.write_text(opt_text)
+        origin.write_text(str(src))
     if jobs:
         print(f'Compiling {len(jobs)} generated units {GEN_OPT}', flush=True)
         from concurrent.futures import ThreadPoolExecutor
@@ -485,6 +554,9 @@ def main():
     sub = parser.add_subparsers(dest='action', required=True)
     sub.add_parser('setup')
     b = sub.add_parser('build'); b.add_argument('--full', action='store_true')
+    lp = sub.add_parser('lift', help='re-lift shared generated modules into developer copies (then build)')
+    lp.add_argument('--opt', default='', help='xlift --opt list (flags,pc); empty = plain lift')
+    lp.add_argument('modules', nargs='+', help='gen/ directory names, e.g. fire engine core')
     sub.add_parser('selftest')
     sub.add_parser('observe')
     r = sub.add_parser('run')
@@ -528,6 +600,7 @@ def main():
     independent(DEV)
     if args.action == 'setup': setup()
     elif args.action == 'build': build(args.full)
+    elif args.action == 'lift': lift(args.modules, {x for x in args.opt.split(',') if x})
     elif args.action == 'selftest': selftest()
     elif args.action == 'observe': observe()
     else: return run(args)

@@ -138,5 +138,83 @@ class IntegerSemantics(unittest.TestCase):
         self.assertLess(s.index("rd32"), s.index("push32"))
 
 
+class _Fn:
+    """Minimal discover.Function stand-in for straight-line owned sequences."""
+    def __init__(self, code, va=0x10000000):
+        md = Cs(CS_ARCH_X86, CS_MODE_32)
+        md.detail = True
+        self.insns = {i.address: i for i in md.disasm(code, va)}
+        self.entry, self.tails, self.jumptables, self.fallthrough_into = va, set(), {}, set()
+
+
+class FlagLiveness(unittest.TestCase):
+    """--opt flags: liveness on owned sequences (experiments/xrt/tests/opt_diff runs the end-to-end check)."""
+
+    def live(self, code):
+        lifter = Lifter(core(), opt={"flags"})
+        fn = _Fn(code)
+        out = lifter.flag_liveness(fn)
+        return [out[va] for va in sorted(fn.insns)]
+
+    def test_cmp_jcc_keeps_only_the_tested_flags(self):
+        # sub eax, 1 ; cmp eax, ebx ; jne +0 ; ret
+        lv = self.live(b"\x83\xe8\x01\x39\xd8\x75\x00\xc3")
+        self.assertEqual(lv[0], frozenset())                        # sub: overwritten by cmp
+        self.assertEqual(lv[1], frozenset({"zf"}) | lv[2])          # cmp: jne reads ZF, then the return reads all
+        self.assertEqual(lv[2], frozenset(("cf", "pf", "zf", "sf", "of")))
+
+    def test_inc_does_not_kill_carry(self):
+        # add eax, ecx ; inc ebx ; adc edx, 0 ; xor eax, eax ; ret
+        lv = self.live(b"\x01\xc8\x43\x83\xd2\x00\x31\xc0\xc3")
+        self.assertEqual(lv[0], frozenset({"cf"}))
+
+    def test_shift_by_cl_does_not_kill(self):
+        # cmp eax, ebx ; shl edx, cl ; jb +0 ; xor eax, eax ; ret
+        lv = self.live(b"\x39\xd8\xd3\xe2\x72\x00\x31\xc0\xc3")
+        self.assertIn("cf", lv[0])
+
+    def test_call_and_return_read_every_flag(self):
+        # cmp eax, ebx ; call +0 ; xor eax, eax ; ret
+        lv = self.live(b"\x39\xd8\xe8\x00\x00\x00\x00\x31\xc0\xc3")
+        self.assertEqual(lv[0], frozenset(("cf", "pf", "zf", "sf", "of")))
+
+
+class OptOutput(unittest.TestCase):
+    def test_default_lift_is_unchanged_by_the_option_code(self):
+        m = core()
+        fn = m.functions[0x10101000]
+        self.assertEqual(Lifter(m).lift_function(fn), Lifter(m, opt=()).lift_function(fn))
+
+    def test_pc_store_kept_for_memory_access_and_dropped_for_register_moves(self):
+        m = core()
+        text = "\n".join(Lifter(m, opt={"pc"}).lift_function(m.functions[0x10101000]))
+        self.assertIn("P(0x101011f5u); /* rep movsd", text)       # memory: keeps its pc store
+        plain = "\n".join(Lifter(m).lift_function(m.functions[0x10101000]))
+        self.assertLess(text.count("P(0x"), plain.count("P(0x"))
+
+
+class RegisterPromotion(unittest.TestCase):
+    """--opt base,regs: c->r is only touched by the entry load, spills and reloads; calls are bracketed."""
+
+    def test_cpu_registers_only_at_spill_points(self):
+        import xlift
+        m = core()
+        fn = next(f for f in m.functions.values() if any(i.mnemonic == "call" for i in f.insns.values())
+                  and 50 < len(f.insns) < 400)
+        lines = Lifter(m, opt={"flags", "pc", "base", "regs"}).lift_function(fn)
+        import re
+        spill = re.compile(r"^(c->r\[([0-7])\] = r\2_; ?)+$")       # stores of the registers the function writes
+        for ln in lines:
+            s = ln.strip()
+            if "c->r[" in s:
+                self.assertTrue(spill.match(s) or s == xlift.RELOAD or s.startswith("uint32_t r0_ = c->r[0]"), s)
+        self.assertIn("c->r[4] = r4_;", "\n".join(lines))                  # esp is written (push/pop)
+        for k, ln in enumerate(lines):
+            if ln.strip().startswith("CALL("):                                # spill, [mark], P(...), CALL(...),
+                self.assertTrue(any(spill.match(x.strip()) for x in lines[k - 3:k]))   # [noreturn trap], RELOAD
+                self.assertIn(xlift.RELOAD, [x.strip() for x in lines[k + 1:k + 3]])
+        self.assertNotIn("push32b(", "\n".join(lines))
+
+
 if __name__ == "__main__":
     unittest.main()

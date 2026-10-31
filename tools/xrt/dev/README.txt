@@ -91,6 +91,34 @@ QPC-deadline jittered (run 20261031-145028: baton no longer appears in the profi
 waited 136667 times, 559 ms total in ~300 s. Host messages the runtime still refuses (fail closed, fatal 76):
 WM_DEVICECHANGE 0x8004 with DEV_BROADCAST data, WM_APPCOMMAND 0x319 (media key) - keep the desktop idle.
 
+Translator optimization batch (2026-10-31 evening): tools/xrt/xlift.py --opt LIST (default: none, byte-identical
+output). dev.py lift --opt LIST MODULE... re-lifts shared gen/ modules into developer copies (out/dev-init/generated,
+compiled instead of the shared units; Unreal2_001.c keeps its endpoint hooks; protos/tables must stay identical).
+  flags  per-function flag liveness: only flags some path can read are stored (all live at every call, return,
+         tail/indirect jump, trap, mark, watch, EH registration)
+  pc     no c->pc store before instructions that cannot fault or reach the runtime
+  base   guest memory through a per-function local copy of xrt_g (xrt.h rd32b ...)
+  regs   guest registers in C locals, spilled to CPU before calls/returns/runtime helpers and reloaded after calls
+Correctness: experiments/xrt/tests/opt_diff (owned DLL, native vs plain vs optimized, with mutations) and
+insn_diff run.py --live-random (reduced flag updates against the CPU). Benchmark windows as below plus the
+TutA opening cutscene 150-210 s; bench_tuta.ps1 -TimingProbe adds jump/collision shots after 245.5 s.
+  run 20261031-151325 baseline build d644511 (re-measured)        cutscene 56.5 / spawn 77.1 / movement 104.3
+  run 20261031-153538 Fire.dll only, --opt flags,pc                59.6 / 80.5 / 114.5
+  run 20261031-154954 all 17 modules, --opt flags,pc               62.5 / 85.6 / 121.8
+  run 20261031-160243 + base                                       65.4 / 89.7 / 131.3
+  run 20261031-161455 + regs (-TimingProbe)                        66.0 / 94.5 / 134.7
+  run 20261031-163246 baseline rebuilt from shared gen/ (-TimingProbe) 57.0 / 76.6 / 103.6
+  run 20261031-164525 regs spills limited to written registers      66.6 / 94.7 / 140.1
+  run 20261031-170016 + GlmLib_020 forced inline (1800 s limit)     71.4 / 98.4 / 140.3  (220-245.5 s: 123.6)
+Batch: 8 launches, 2099 s. Save point out/dev-init-savepoints/translator-final-20261031.
+Frame-rate check: the scripted shots (60-245.5 s, probe 247-258.5 s) show the same scene/cutscene state at the
+same times and the same end position and collision outcome (walk into the console) at 77-135 FPS; small heading
+differences after the scripted mouse turns also occur between two runs of one build. The scripted Space press
+produced no visible jump in either build, so jump timing is not covered. perf_report symbolizes a run with the
+CURRENT build's PDB: analyse a run before rebuilding (save points keep each measured exe + PDB).
+dev.py build now records each object's source (.src): switching a unit back from a developer copy to the shared
+source used to keep the stale object, because the copy is newer than the shared file.
+
 The third developer run (20261030-221937-21570264) reached successful window
 creation and continued file-backed loading. Its last completed ReadFile returned
 TRUE, its last SetFilePointer returned 0x6c560, and _vsnwprintf returned 12.

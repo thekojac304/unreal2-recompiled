@@ -23,8 +23,28 @@ Evidence instrumentation (tools/xrt/marks.json, see the comment there): a mark e
 instruction at its address; a watch emits xrt_watch_store() after every instruction that stores to the watched
 global through a constant address. Both only record; they never change guest state.
 
+Optional optimizations (--opt LIST; default none, which keeps the output byte-identical to earlier lifts):
+  flags  per-function backward liveness of CF/PF/ZF/SF/OF: a flag store is emitted only when some path from the
+         instruction can read that flag before overwriting it. Every function boundary is a use of all five
+         flags (call, indirect call/jump, return, tail call, fall-through into another function, trap, mark,
+         watch, EH registration, anything the analysis does not model), so the guest flags in CPU are exact
+         wherever control leaves translated straight-line code; only a fatal guest-memory fault inside a
+         function can show older flag values in its diagnostic dump.
+  pc     omits the c->pc store before instructions that can neither fault nor reach the runtime (register-only
+         arithmetic, moves, setcc/cmov, internal jumps). Every memory access, call, helper and trap keeps its
+         store, so faults and runtime calls see the exact guest pc; an asynchronous watchdog dump may name an
+         earlier instruction of the same straight-line run.
+  base   guest memory accesses go through a per-function local copy of xrt_g (xrt.h rd32b ...): identical
+         addresses and widths; only the compiler no longer reloads the global after every guest store.
+  regs   (needs base) guest registers live in C locals inside a function; they are stored to CPU before every
+         call, return, tail/indirect jump, trap, mark, EH registration and runtime helper that may read or write
+         CPU state, and reloaded after it. Runtime code therefore always sees exact registers; only the
+         diagnostic dump of a fatal guest-memory fault inside a function can show registers as of the last such
+         point (the pc store before the faulting instruction is unchanged).
+
 Usage:
   python -I tools/xrt/xlift.py <module> --out <dir> [--chunk 250] [--only 0xVA,...] [--marks FILE|--no-marks] [--base 0xADDR]
+                               [--opt flags,pc,base,regs]
 Outputs <dir>/<stem>_NNN.c, <stem>_protos.h, <stem>_table.c and <stem>_meta.json.
 """
 import collections
@@ -60,6 +80,31 @@ X87_STORES = {"fst", "fstp", "fist", "fistp", "fisttp", "fnstsw", "fstsw", "fnst
 CAPTURE_REGS = {"eax": 0, "ecx": 1, "edx": 2, "ebx": 3, "esp": 4, "ebp": 5, "esi": 6, "edi": 7}
 DEFAULT_MARKS = os.path.join(os.path.dirname(os.path.abspath(__file__)), "marks.json")
 SIZE_SUFFIX = {"b": 1, "w": 2, "d": 4}
+# --opt flags: the five modelled status flags and the flags each condition reads (DF is never optimized)
+FLAGS = frozenset(("cf", "pf", "zf", "sf", "of"))
+SZP = frozenset(("pf", "zf", "sf"))
+COND_USES = {"e": "zf", "ne": "zf", "l": "sf of", "ge": "sf of", "le": "zf sf of", "g": "zf sf of", "b": "cf",
+             "ae": "cf", "be": "cf zf", "a": "cf zf", "s": "sf", "ns": "sf", "p": "pf", "np": "pf", "o": "of", "no": "of"}
+# instructions whose translation neither reads nor writes CF/PF/ZF/SF/OF
+FLAG_NEUTRAL = {"mov", "movzx", "movsx", "lea", "not", "push", "pop", "xchg", "nop", "fwait", "wait", "leave", "cld",
+                "std", "cdq", "cwde", "cbw", "cwd", "bswap", "div", "idiv", "rdtsc", "cpuid", "jecxz", "loop"}
+# --opt pc: helpers that cannot fault or reach the runtime (pure register/flag/x87-register computations)
+PURE_CALLS = {"fl_add", "fl_sub", "fl_logic", "fl_szp", "msb", "parity8", "ST", "fpush", "fpop", "fcompare",
+              "fstatus", "fabs", "isnan", "if"}
+# --opt base: guest memory helpers that get an explicit-base variant (xrt.h rd32b ...)
+BASE_ACCESS = re.compile(r"\b(rd8|rd16|rd32|rd64|rdf32|rdf64|wr8|wr16|wr32|wr64|wrf32|wrf64)\(")
+# --opt regs: guest register locals; calls that neither read nor write c->r need no spill around them
+REG_REF = re.compile(r"c->r\[([0-7])\]")
+SPILL = " ".join(f"c->r[{i}] = r{i}_;" for i in range(8))
+RELOAD = " ".join(f"r{i}_ = c->r[{i}];" for i in range(8))
+NO_SPILL_CALLS = PURE_CALLS | {n + "b" for n in ("rd8", "rd16", "rd32", "rd64", "rdf32", "rdf64", "wr8", "wr16", "wr32",
+                                                 "wr64", "wrf32", "wrf64")} | {
+    "xrt_fround", "xrt_fist16", "xrt_fist32", "xrt_fist64", "xrt_fsin", "xrt_fcos", "xrt_fptan", "xrt_fpatan",
+    "xrt_fyl2x", "xrt_f2xm1", "xrt_fscale", "xrt_fsqrt", "while", "P"}
+RELOAD_CALLS = {"CALL", "ICALL", "xrt_cpuid", "xrt_rdtsc"}
+# MSVC's register allocation time grows steeply with function size; the few giant functions keep c->r
+REGS_MAX_INSNS = 6000
+REG_WRITE = re.compile(r"\br(?P<r>[0-7])_\s*(=[^=]|[-+&|^]=|<<=|>>=|\+\+|--)|(\+\+|--)\s*r(?P<p>[0-7])_")
 
 
 class Unsupported(Exception):
@@ -86,8 +131,11 @@ def mask_hex(bits):
 
 
 class Lifter:
-    def __init__(self, mod, marks=(), watches=(), stem="m"):
+    def __init__(self, mod, marks=(), watches=(), stem="m", opt=()):
         self.mod = mod
+        self.opt = frozenset(opt)         # subset of {"flags", "pc"}, see the module docstring
+        self.live = None                  # flags live after the instruction being lifted (None: all)
+        self.opt_stats = collections.Counter()
         self.img = mod.img
         self.md = mod.md
         self.traps = collections.Counter()
@@ -118,6 +166,191 @@ class Lifter:
                     self.watch_sites[w].add(ins.address)
                     out.append(f"xrt_watch_store(c, &xrt_watches_{self.stem}[{w}], 0x{ins.address:x}u);")
         return out
+
+    def watched(self, ins):
+        """True if the instruction stores to a watched global (watch_store_stmts without recording the site)."""
+        for op in ins.operands:
+            if op.type != X.X86_OP_MEM or op.mem.base or op.mem.index or op.mem.segment:
+                continue
+            if not (op.access & 2) and ins.mnemonic not in X87_STORES:
+                continue
+            a, n = op.mem.disp & 0xFFFFFFFF, max(op.size, 1)
+            if any(a < wa + wn and wa < a + n for wa, wn, _ in self.watches):
+                return True
+        return False
+
+    # ------------------------------------------------------------------ flag liveness (--opt flags)
+    def flag_effect(self, ins):
+        """(flags read, flags always overwritten) by this instruction's translation, or None if not modelled
+        (the caller then treats it as reading every flag)."""
+        m, ops = ins.mnemonic, ins.operands
+        if m.startswith("lock "):
+            m = m[5:]
+        if m in ("add", "sub", "cmp", "neg", "and", "or", "xor", "test"):
+            return frozenset(), FLAGS
+        if m in ("adc", "sbb"):
+            return frozenset(("cf",)), FLAGS
+        if m in ("inc", "dec"):
+            return frozenset(), FLAGS - {"cf"}
+        if m in ("shl", "sal", "shr", "sar", "rol", "ror", "shld", "shrd"):
+            cnt = 1 if len(ops) == 1 else (ops[-1].imm & 31 if ops[-1].type == X.X86_OP_IMM else None)
+            if cnt is None:
+                return frozenset(), frozenset()       # count in cl: flags change only if it is nonzero
+            if cnt == 0:
+                return frozenset(), frozenset()
+            return frozenset(), (frozenset(("cf", "of")) if m in ("rol", "ror") else FLAGS)
+        if m in ("imul", "mul"):
+            return frozenset(), frozenset(("cf", "of"))
+        if m in ("clc", "stc"):
+            return frozenset(), frozenset(("cf",))
+        if m == "cmc":
+            return frozenset(("cf",)), frozenset(("cf",))
+        suffix = m[1:] if m in JCC else m[3:] if m.startswith("set") else m[4:] if m.startswith("cmov") else None
+        if suffix is not None and cond_of(suffix):
+            return frozenset(COND_USES[ALIAS.get(suffix, suffix)].split()), frozenset()
+        if m in ("loope", "loopne"):
+            return frozenset(("zf",)), frozenset()
+        if m in FLAG_NEUTRAL:
+            return frozenset(), frozenset()
+        base = m.split(" ", 1)[1] if m.startswith(("rep ", "repe ", "repne ", "repz ", "repnz ")) else m
+        if base[:-1] in ("movs", "stos", "lods") and base[-1] in SIZE_SUFFIX:
+            return frozenset(), frozenset()
+        if base[:-1] in ("cmps", "scas") and base[-1] in SIZE_SUFFIX:
+            return frozenset(), (FLAGS if base == m else frozenset())   # rep forms: unchanged when ecx == 0
+        if m.startswith("f") and m not in ("fcomi", "fcomip", "fucomi", "fucomip") and not m.startswith("fcmov"):
+            return frozenset(), frozenset()           # x87 (FPU status word only)
+        return None
+
+    def flag_boundary(self, ins):
+        """Every flag is live before an instruction where control leaves the function's translated code or the
+        runtime records guest state: call, return, trap-only instructions, marks, watched stores, EH registration."""
+        return (ins.mnemonic in ("call", "ret", "retn", "int3", "hlt", "ud2") or bool(self.marks_at.get(ins.address))
+                or bool(self.watches and self.watched(ins)) or self.registers_eh_node(ins))
+
+    def flag_liveness(self, fn):
+        """{va: flags live after the instruction} by backward dataflow over the function's instructions."""
+        self.live = None
+        uses, kills, succ = {}, {}, {}
+        for va, ins in fn.insns.items():
+            m, ops = ins.mnemonic, ins.operands
+            nxt = va + ins.size
+            boundary = self.flag_boundary(ins)
+            s = [nxt]
+            if m in JCC or m in ("loop", "loope", "loopne", "jecxz"):
+                t = ops[0].imm & 0xFFFFFFFF
+                if t in fn.insns:
+                    s = [t, nxt]
+                else:
+                    boundary = True                       # trap on the taken path
+            elif m == "jmp":
+                t = ops[0].imm & 0xFFFFFFFF if ops[0].type == X.X86_OP_IMM else None
+                if t is not None and t in fn.insns and t not in fn.tails:
+                    s = [t]
+                else:
+                    boundary, s = True, []                # tail call, jump table (default traps), indirect jump
+            elif m in ("ret", "retn"):
+                s = []
+            eff = None if boundary else self.flag_effect(ins)
+            if eff is not None and m not in JCC and m not in ("jmp", "loop", "loope", "loopne", "jecxz", "call", "ret", "retn"):
+                try:
+                    self.lift_insn(ins, fn)               # an untranslatable instruction is a trap
+                except Unsupported:
+                    eff = None
+            uses[va], kills[va] = (FLAGS, frozenset()) if eff is None else eff
+            succ[va] = s
+        live_in = {va: frozenset() for va in fn.insns}
+        out = {}
+        order = sorted(fn.insns, reverse=True)
+        changed = True
+        while changed:
+            changed = False
+            for va in order:
+                lo = frozenset()
+                for t in succ[va]:
+                    lo |= live_in[t] if t in fn.insns else FLAGS    # leaving the decoded body: all live
+                li = uses[va] | (lo - kills[va])
+                out[va] = lo
+                if li != live_in[va]:
+                    live_in[va] = li
+                    changed = True
+        return out
+
+    def fl(self, kind, a, b, r, bits, defs=FLAGS):
+        """Flag update of an add/sub/logic/szp result: the xrt.h helper call, or (--opt flags) only the stores
+        of the flags in `defs` that are live after the instruction."""
+        full = {"add": f"fl_add(c, {a}, {b}, {r}, {bits});", "sub": f"fl_sub(c, {a}, {b}, {r}, {bits});",
+                "logic": f"fl_logic(c, {r}, {bits});", "szp": f"fl_szp(c, {r}, {bits});"}[kind]
+        if self.live is None or defs <= self.live:
+            return full
+        live = defs & self.live
+        self.opt_stats["flag_updates_reduced"] += 1
+        msk = (lambda x: x) if bits == 32 else (lambda x: f"({x} & {mask_hex(bits)})")
+        o = []
+        if "cf" in live:
+            o.append({"add": f"c->cf = {msk(r)} < {msk(a)};", "sub": f"c->cf = {msk(a)} < {msk(b)};",
+                      "logic": "c->cf = 0;"}[kind])
+        if "zf" in live:
+            o.append(f"c->zf = {msk(r)} == 0;")
+        if "sf" in live:
+            o.append(f"c->sf = msb({msk(r)}, {bits});")
+        if "pf" in live:
+            o.append(f"c->pf = parity8({msk(r)});")
+        if "of" in live:
+            o.append({"add": f"c->of = msb(({msk(a)} ^ {msk(r)}) & ({msk(b)} ^ {msk(r)}), {bits});",
+                      "sub": f"c->of = msb(({msk(a)} ^ {msk(b)}) & ({msk(a)} ^ {msk(r)}), {bits});",
+                      "logic": "c->of = 0;"}[kind])
+        return " ".join(o) or "/* flags dead */"
+
+    def promote(self, stmts):
+        """--opt regs: guest registers live in the function's locals r0_..r7_. They are stored back to c->r (SPILL)
+        before every statement group that can leave the function, call anything that may read or write CPU state
+        (translated or runtime code, traps, marks, EH registration) or return, and reloaded after it."""
+        out = []
+        for x in stmts:
+            x = re.sub(r"\bpush32b\(xg_, c, (\w+)\);", r"{ r4_ -= 4u; wr32b(xg_, r4_, \1); }", x)
+            x = x.replace("pop32b(xg_, c)", "(r4_ += 4u, rd32b(xg_, r4_ - 4u))")
+            out.append(REG_REF.sub(r"r\1_", x))
+        s = " ".join(out)
+        if "push32b(" in s or "pop32b(" in s:
+            raise AssertionError(f"unpromoted stack access in {stmts}")
+        calls = set(re.findall(r"\b([A-Za-z_]\w*)\s*\(", s))
+        spill = bool(calls - NO_SPILL_CALLS) or "return" in s
+        if not spill:
+            return out
+        self.opt_stats["register_spill_points"] += 1
+        # Reload only after calls that return with changed registers. Their statement group never writes a promoted
+        # register itself (call/icall/cpuid/rdtsc; a following noreturn trap reads c->r), so nothing is lost;
+        # noreturn helpers (trap, divide error) need no reload, and after a return nothing runs.
+        reload = calls & RELOAD_CALLS and "return;" not in out[-1]
+        if reload and REG_WRITE.search(" ".join(out)):
+            raise AssertionError(f"register write in a reloading statement group: {stmts}")
+        return [SPILL] + out + ([RELOAD] if reload else [])
+
+    def rebase(self, s):
+        """--opt base: guest accesses through the function's local copy of xrt_g (xrt.h rd32b ...)."""
+        s, n = BASE_ACCESS.subn(r"\1b(xg_, ", s)
+        s, k = re.subn(r"\bpush32\(c, ", "push32b(xg_, c, ", s)
+        s, j = re.subn(r"\bpop32\(c\)", "pop32b(xg_, c)", s)
+        self.opt_stats["accesses_rebased"] += n + k + j
+        return s
+
+    @staticmethod
+    def pc_unobservable(stmts):
+        """--opt pc: the translated statements touch no guest memory, call nothing that can fault, trap or
+        reach the runtime, and do not leave the function, so nothing can read c->pc while they run."""
+        s = " ".join(stmts)
+        return "return" not in s and set(re.findall(r"\b([A-Za-z_]\w*)\s*\(", s)) <= PURE_CALLS
+
+    def cfof(self, expr):
+        """mul/imul: CF = OF = overflow, dropped (--opt flags) when neither flag is live."""
+        if self.live is not None and not self.live & {"cf", "of"}:
+            self.opt_stats["flag_updates_reduced"] += 1
+            return "/* flags dead */"
+        return f"c->cf = c->of = {expr};"
+
+    def partial(self, defs):
+        """True when --opt flags may drop some of `defs` after the current instruction."""
+        return self.live is not None and not defs <= self.live
 
     # ------------------------------------------------------------------ operands
     def rn(self, op):
@@ -240,24 +473,35 @@ class Lifter:
             a, b = self.read(ops[0]), self.read(ops[1], bits)
             sign = "+" if m == "add" else "-"
             o.append(f"{{ uint32_t a_ = {a}, b_ = {b}; uint32_t r_ = (a_ {sign} b_) & {mask_hex(bits)}; "
-                     f"fl_{'add' if m == 'add' else 'sub'}(c, a_, b_, r_, {bits});")
+                     + self.fl('add' if m == 'add' else 'sub', "a_", "b_", "r_", bits))
             if m != "cmp":
                 o.append("  " + self.write(ops[0], "r_"))
             o.append("}")
         elif m in ("adc", "sbb"):
             a, b = self.read(ops[0]), self.read(ops[1], bits)
             msk = mask_hex(bits)
+            live = FLAGS if self.live is None else self.live
             if m == "adc":
                 o.append(f"{{ uint64_t a_ = {a}, b_ = {b}; uint64_t w_ = a_ + b_ + c->cf; uint32_t r_ = (uint32_t)(w_ & {msk});")
-                o.append(f"  c->cf = (uint32_t)(w_ >> {bits}) & 1u; c->of = msb((uint32_t)((a_ ^ r_) & (b_ ^ r_)), {bits});")
+                cf = f"c->cf = (uint32_t)(w_ >> {bits}) & 1u;"
+                of = f"c->of = msb((uint32_t)((a_ ^ r_) & (b_ ^ r_)), {bits});"
+                seq = [(cf, "cf"), (of, "of")]
             else:
                 o.append(f"{{ uint64_t a_ = {a}, b_ = {b}; uint32_t r_ = (uint32_t)((a_ - b_ - c->cf) & {msk});")
-                o.append(f"  c->of = msb((uint32_t)((a_ ^ b_) & (a_ ^ r_)), {bits}); c->cf = a_ < b_ + c->cf;")
-            o.append(f"  fl_szp(c, r_, {bits}); {self.write(ops[0], 'r_')} }}")
+                of = f"c->of = msb((uint32_t)((a_ ^ b_) & (a_ ^ r_)), {bits});"
+                cf = "c->cf = a_ < b_ + c->cf;"
+                seq = [(of, "of"), (cf, "cf")]
+            if self.partial(FLAGS):
+                kept = " ".join(s for s, f in seq if f in live)
+                if kept:
+                    o.append("  " + kept)
+            else:
+                o.append("  " + " ".join(s for s, _ in seq))
+            o.append(f"  {self.fl('szp', None, None, 'r_', bits, SZP)} {self.write(ops[0], 'r_')} }}")
         elif m in ("and", "or", "xor", "test"):
             a, b = self.read(ops[0]), self.read(ops[1], bits)
             cop = {"and": "&", "test": "&", "or": "|", "xor": "^"}[m]
-            o.append(f"{{ uint32_t r_ = ({a} {cop} {b}) & {mask_hex(bits)}; fl_logic(c, r_, {bits});")
+            o.append(f"{{ uint32_t r_ = ({a} {cop} {b}) & {mask_hex(bits)}; {self.fl('logic', None, None, 'r_', bits)}")
             if m != "test":
                 o.append("  " + self.write(ops[0], "r_"))
             o.append("}")
@@ -265,13 +509,19 @@ class Lifter:
             a = self.read(ops[0])
             sign = "+" if m == "inc" else "-"
             fl = "fl_add" if m == "inc" else "fl_sub"
-            o.append(f"{{ uint32_t a_ = {a}, cf_ = c->cf; uint32_t r_ = (a_ {sign} 1u) & {mask_hex(bits)}; "
-                     f"{fl}(c, a_, 1u, r_, {bits}); c->cf = cf_; {self.write(ops[0], 'r_')} }}")
+            if self.partial(FLAGS - {"cf"}):
+                # CF is preserved by inc/dec: the reduced update never writes it, so no save/restore
+                f = self.fl("add" if m == "inc" else "sub", "a_", "1u", "r_", bits, FLAGS - {"cf"})
+                o.append(f"{{ uint32_t a_ = {a}; uint32_t r_ = (a_ {sign} 1u) & {mask_hex(bits)}; "
+                         f"{f} {self.write(ops[0], 'r_')} }}")
+            else:
+                o.append(f"{{ uint32_t a_ = {a}, cf_ = c->cf; uint32_t r_ = (a_ {sign} 1u) & {mask_hex(bits)}; "
+                         f"{fl}(c, a_, 1u, r_, {bits}); c->cf = cf_; {self.write(ops[0], 'r_')} }}")
         elif m == "not":
             o.append(self.write(ops[0], f"~{self.read(ops[0])}"))
         elif m == "neg":
             a = self.read(ops[0])
-            o.append(f"{{ uint32_t a_ = {a}; uint32_t r_ = (0u - a_) & {mask_hex(bits)}; fl_sub(c, 0u, a_, r_, {bits}); "
+            o.append(f"{{ uint32_t a_ = {a}; uint32_t r_ = (0u - a_) & {mask_hex(bits)}; {self.fl('sub', '0u', 'a_', 'r_', bits)} "
                      f"{self.write(ops[0], 'r_')} }}")
         elif m in ("shl", "sal", "shr", "sar", "rol", "ror"):
             o.extend(self.lift_shift(m, ops, bits))
@@ -294,10 +544,10 @@ class Lifter:
             src = self.read(ops[0])
             if bits == 32:
                 o.append(f"{{ uint64_t p_ = (uint64_t)c->r[0] * (uint64_t)({src}); c->r[0] = (uint32_t)p_; "
-                         f"c->r[2] = (uint32_t)(p_ >> 32); c->cf = c->of = c->r[2] != 0; }}")
+                         f"c->r[2] = (uint32_t)(p_ >> 32); {self.cfof('c->r[2] != 0')} }}")
             elif bits == 8:
                 o.append(f"{{ uint32_t p_ = (c->r[0] & 0xFFu) * ({src}); c->r[0] = (c->r[0] & 0xFFFF0000u) | (p_ & 0xFFFFu); "
-                         f"c->cf = c->of = (p_ >> 8) != 0; }}")
+                         f"{self.cfof('(p_ >> 8) != 0')} }}")
             else:
                 raise Unsupported(f"mul {bits}-bit")
         elif m in ("div", "idiv"):
@@ -376,16 +626,24 @@ class Lifter:
         cnt = "1u" if len(ops) == 1 else self.read(ops[1], 8)
         msk = mask_hex(bits)
         o = [f"{{ uint32_t n_ = ({cnt}) & 31u; if (n_) {{ uint32_t a_ = {a}, r_;"]
+
+        def flags(of):
+            if not self.partial(FLAGS):
+                return f"  fl_logic(c, r_, {bits}); c->cf = cf_; c->of = {of};"
+            s = [self.fl("szp", None, None, "r_", bits, SZP)] if SZP & self.live else []
+            s += ["c->cf = cf_;"] if "cf" in self.live else []
+            s += [f"c->of = {of};"] if "of" in self.live else []
+            return "  " + (" ".join(s) or "/* flags dead */")
         if m in ("shl", "sal"):
             o.append(f"  uint32_t cf_ = (uint32_t)(((uint64_t)a_ << n_ >> {bits}) & 1u); r_ = (uint32_t)(((uint64_t)a_ << n_) & {msk});")
-            o.append(f"  fl_logic(c, r_, {bits}); c->cf = cf_; c->of = msb(r_, {bits}) ^ cf_;")
+            o.append(flags(f"msb(r_, {bits}) ^ cf_"))
         elif m == "shr":
             o.append(f"  uint32_t cf_ = (uint32_t)(((uint64_t)a_ >> (n_ - 1u)) & 1u); r_ = (uint32_t)((uint64_t)a_ >> n_);")
-            o.append(f"  fl_logic(c, r_, {bits}); c->cf = cf_; c->of = msb(a_, {bits});")
+            o.append(flags(f"msb(a_, {bits})"))
         elif m == "sar":
             o.append(f"  int64_t s_ = (int64_t)(int32_t)(a_ << (32 - {bits})) >> (32 - {bits});")
             o.append(f"  uint32_t cf_ = (uint32_t)((s_ >> (n_ - 1u)) & 1); r_ = (uint32_t)(s_ >> n_) & {msk};")
-            o.append(f"  fl_logic(c, r_, {bits}); c->cf = cf_; c->of = 0;")
+            o.append(flags("0"))
         elif m == "rol":
             o.append(f"  uint32_t k_ = n_ % {bits}u; r_ = k_ ? ((a_ << k_) | (a_ >> ({bits}u - k_))) & {msk} : a_;")
             o.append(f"  c->cf = r_ & 1u; c->of = msb(r_, {bits}) ^ c->cf;")
@@ -400,10 +658,10 @@ class Lifter:
             src = self.read(ops[0])
             if bits == 32:
                 return [f"{{ int64_t p_ = (int64_t)(int32_t)c->r[0] * (int64_t)(int32_t)({src}); c->r[0] = (uint32_t)p_; "
-                        f"c->r[2] = (uint32_t)((uint64_t)p_ >> 32); c->cf = c->of = (p_ != (int64_t)(int32_t)c->r[0]); }}"]
+                        f"c->r[2] = (uint32_t)((uint64_t)p_ >> 32); {self.cfof('(p_ != (int64_t)(int32_t)c->r[0])')} }}"]
             if bits == 8:
                 return [f"{{ int32_t p_ = (int32_t)(int8_t)(c->r[0] & 0xFFu) * (int32_t)(int8_t)({src}); "
-                        f"c->r[0] = (c->r[0] & 0xFFFF0000u) | ((uint32_t)p_ & 0xFFFFu); c->cf = c->of = (p_ != (int32_t)(int8_t)p_); }}"]
+                        f"c->r[0] = (c->r[0] & 0xFFFF0000u) | ((uint32_t)p_ & 0xFFFFu); {self.cfof('(p_ != (int32_t)(int8_t)p_)')} }}"]
             raise Unsupported(f"one-operand imul {bits}-bit")
         if len(ops) == 2:
             a, b = self.read(ops[0]), self.read(ops[1])
@@ -411,10 +669,10 @@ class Lifter:
             a, b = self.read(ops[1]), self.read(ops[2], bits)
         if bits == 32:
             return [f"{{ int64_t p_ = (int64_t)(int32_t)({a}) * (int64_t)(int32_t)({b}); uint32_t r_ = (uint32_t)p_; "
-                    f"c->cf = c->of = (p_ != (int64_t)(int32_t)r_); {self.write(ops[0], 'r_')} }}"]
+                    f"{self.cfof('(p_ != (int64_t)(int32_t)r_)')} {self.write(ops[0], 'r_')} }}"]
         if bits == 16:
             return [f"{{ int32_t p_ = (int32_t)(int16_t)({a}) * (int32_t)(int16_t)({b}); uint32_t r_ = (uint32_t)p_ & 0xFFFFu; "
-                    f"c->cf = c->of = (p_ != (int32_t)(int16_t)r_); {self.write(ops[0], 'r_')} }}"]
+                    f"{self.cfof('(p_ != (int32_t)(int16_t)r_)')} {self.write(ops[0], 'r_')} }}"]
         raise Unsupported(f"imul {bits}-bit")
 
     def lift_string(self, m, base_m, ins):
@@ -668,15 +926,18 @@ class Lifter:
         pop = "XRT_EH_POP(); " if pad else ""
         if pad:
             self.eh_pad_functions.add(fn.entry)
+        live_after = self.flag_liveness(fn) if "flags" in self.opt else None
         # pass 1: emit, collecting goto targets
         for i, va in enumerate(order):
             ins = fn.insns[va]
             m, ops = ins.mnemonic, ins.operands
             nxt = va + ins.size
             text = f"{m} {ins.op_str}".strip()
+            self.live = live_after[va] if live_after is not None else None
             stmts = [f"XRT_MARK(&xrt_marks_{self.stem}[{k}]);   /* {self.marks[k][1]} */" for k in self.marks_at.get(va, ())]
             self.marks_emitted.update(self.marks_at.get(va, ()))
             stmts.append(f"P(0x{va:x}u); /* {text} */")
+            pc_at = len(stmts) - 1
             terminal = False
             try:
                 if m in JCC:
@@ -744,6 +1005,12 @@ class Lifter:
             except Unsupported as exc:
                 stmts.append(self.trap(va, f"unsupported: {text}: {exc}"))
                 terminal = True
+            self.live = None
+            if "pc" in self.opt and not self.marks_at.get(va) and self.pc_unobservable(stmts[pc_at + 1:]):
+                stmts[pc_at] = f"/* {va:#x}: {text} */"
+                self.opt_stats["pc_stores_omitted"] += 1
+            if "base" in self.opt:
+                stmts = [self.rebase(s) for s in stmts]
             body.append((va, stmts))
             if not terminal and m not in ("int3", "hlt", "ud2"):
                 if i + 1 < len(order) and order[i + 1] == nxt:
@@ -756,6 +1023,17 @@ class Lifter:
                 else:
                     body.append((None, [self.trap(nxt, "execution continued past decoded code")]))
         lines = [f"void f_{fn.entry:x}(CPU* c) {{", f"    XRT_ENTER(0x{fn.entry:x}u);"]
+        if "base" in self.opt:
+            lines.append("    uint8_t* const xg_ = xrt_g;   /* guest memory base, see xrt.h rd32b */")
+        if "regs" in self.opt and len(fn.insns) <= REGS_MAX_INSNS:
+            body = [(va, self.promote(stmts)) for va, stmts in body]
+            # A register the function never writes still equals c->r at every point (entry load or reload), so
+            # spills store only the written ones; reloads stay complete (any callee may change any register).
+            written = {int(m.group("r") or m.group("p")) for _, stmts in body for s in stmts
+                       if s not in (SPILL, RELOAD) for m in REG_WRITE.finditer(s)}
+            spill = " ".join(f"c->r[{i}] = r{i}_;" for i in sorted(written)) or "/* no register written */"
+            body = [(va, [spill if s == SPILL else s for s in stmts]) for va, stmts in body]
+            lines.append("    uint32_t " + ", ".join(f"r{i}_ = c->r[{i}]" for i in range(8)) + ";   /* --opt regs */")
         if hit_index is not None:
             lines.append(f"    xrt_hits_{stem}[{hit_index}] = 1;")
         if pad:
@@ -824,6 +1102,11 @@ def main():
     # --base: lift for a load address other than the preferred one (the image is relocated first; the runtime
     # loader applies the same relocations when it maps the module there)
     base = int(args[args.index("--base") + 1], 16) if "--base" in args else None
+    opt = set(args[args.index("--opt") + 1].split(",")) if "--opt" in args else set()
+    if opt - {"flags", "pc", "base", "regs"}:
+        sys.exit(f"unknown --opt {sorted(opt - {'flags', 'pc', 'base', 'regs'})} (known: flags, pc, base, regs)")
+    if "regs" in opt and "base" not in opt:
+        sys.exit("--opt regs needs base (the promoted stack accesses use the local guest-memory base)")
     os.makedirs(out, exist_ok=True)
     if base is None:
         mod = Module(path).run()
@@ -834,7 +1117,8 @@ def main():
         mod = Module(path, base, given).run()
     stem = re.sub(r"\W", "_", mod.img.name.rsplit(".", 1)[0])
     marks, watches, marks_digest = load_marks(marks_path, mod.img)
-    lifter = Lifter(mod, marks, watches, stem)
+    lifter = Lifter(mod, marks, watches, stem, opt)
+    tag = f" (--opt {','.join(sorted(opt))})" if opt else ""
     entries = sorted(e for e in mod.functions if only is None or e in only)
     conflicts = mod.conflicting()
     # regression guard (tracer finding): data recovered inside .text (jump tables and their byte
@@ -858,7 +1142,7 @@ def main():
         name = f"{stem}_{k // chunk:03d}.c"
         files.append(name)
         with open(os.path.join(out, name), "w", encoding="utf-8") as f:
-            f.write(f"/* GENERATED by tools/xrt/xlift.py from {mod.img.name} - do not edit, do not distribute. */\n")
+            f.write(f"/* GENERATED by tools/xrt/xlift.py{tag} from {mod.img.name} - do not edit, do not distribute. */\n")
             f.write(f'#include "{hdr}"\n\n')
             for j, e in enumerate(entries[k:k + chunk]):
                 fn = mod.functions[e]
@@ -924,10 +1208,12 @@ def main():
             "instructions": ninsns, "static_traps": len(lifter.trap_sites), "trap_reasons": dict(lifter.traps.most_common()),
             "decode_conflicts": len(conflicts), "text_data_ranges": [[hex(a), hex(b)] for a, b in mod.table_data],
             "files": files + [tab, hdr], "discovery": mod.summary()}
+    if opt:
+        meta["optimizations"] = {"enabled": sorted(opt), **dict(sorted(lifter.opt_stats.items()))}
     with open(os.path.join(out, f"{stem}_meta.json"), "w") as f:
         json.dump(meta, f, indent=1)
     print(f"{mod.img.name}: {len(entries)} functions, {ninsns} instructions, {len(lifter.trap_sites)} static traps "
-          f"-> {out} ({len(files)} chunks); C++ EH: {eh_meta}")
+          f"-> {out} ({len(files)} chunks); C++ EH: {eh_meta}" + (f"; optimizations: {meta['optimizations']}" if opt else ""))
     for r, n in lifter.traps.most_common(30):
         print(f"  {n:6}  {r}")
 
