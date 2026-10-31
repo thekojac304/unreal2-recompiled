@@ -1,0 +1,932 @@
+diff --git a/out/dev-init-savepoints/init-return-20261030/runtime/d3d8_device_slots.inc b/out/dev-init/runtime/d3d8_device_slots.inc
+index e0ba879..a5c3a86 100644
+--- a/out/dev-init-savepoints/init-return-20261030/runtime/d3d8_device_slots.inc
++++ b/out/dev-init/runtime/d3d8_device_slots.inc
+@@ -11,16 +11,7 @@ static void d8_device_Reset(CPU*c) { d8_api_entry(c,14,1);d8_device_object(c,ARG
+ static void d8_device_GetRasterStatus(CPU*c) { d8_api_entry(c,17,1);d8_device_object(c,ARG(0));xrt_fatal(c,76,"IDirect3DDevice8 unsupported slot 17 GetRasterStatus"); }
+ static void d8_device_GetGammaRamp(CPU*c) { d8_api_entry(c,19,1);d8_device_object(c,ARG(0));xrt_fatal(c,76,"IDirect3DDevice8 unsupported slot 19 GetGammaRamp"); }
+ static void d8_device_CreateVolumeTexture(CPU*c) { d8_api_entry(c,21,1);d8_device_object(c,ARG(0));xrt_fatal(c,76,"IDirect3DDevice8 unsupported slot 21 CreateVolumeTexture"); }
+-static void d8_device_CreateCubeTexture(CPU*c) { d8_api_entry(c,22,1);d8_device_object(c,ARG(0));xrt_fatal(c,76,"IDirect3DDevice8 unsupported slot 22 CreateCubeTexture"); }
+-static void d8_device_GetTransform(CPU*c) { d8_api_entry(c,38,1);d8_device_object(c,ARG(0));xrt_fatal(c,76,"IDirect3DDevice8 unsupported slot 38 GetTransform"); }
+-static void d8_device_MultiplyTransform(CPU*c) { d8_api_entry(c,39,1);d8_device_object(c,ARG(0));xrt_fatal(c,76,"IDirect3DDevice8 unsupported slot 39 MultiplyTransform"); }
+ static void d8_device_GetMaterial(CPU*c) { d8_api_entry(c,43,1);d8_device_object(c,ARG(0));xrt_fatal(c,76,"IDirect3DDevice8 unsupported slot 43 GetMaterial"); }
+-static void d8_device_SetLight(CPU*c) { d8_api_entry(c,44,1);d8_device_object(c,ARG(0));xrt_fatal(c,76,"IDirect3DDevice8 unsupported slot 44 SetLight"); }
+-static void d8_device_GetLight(CPU*c) { d8_api_entry(c,45,1);d8_device_object(c,ARG(0));xrt_fatal(c,76,"IDirect3DDevice8 unsupported slot 45 GetLight"); }
+-static void d8_device_LightEnable(CPU*c) { d8_api_entry(c,46,1);d8_device_object(c,ARG(0));xrt_fatal(c,76,"IDirect3DDevice8 unsupported slot 46 LightEnable"); }
+-static void d8_device_GetLightEnable(CPU*c) { d8_api_entry(c,47,1);d8_device_object(c,ARG(0));xrt_fatal(c,76,"IDirect3DDevice8 unsupported slot 47 GetLightEnable"); }
+-static void d8_device_SetClipPlane(CPU*c) { d8_api_entry(c,48,1);d8_device_object(c,ARG(0));xrt_fatal(c,76,"IDirect3DDevice8 unsupported slot 48 SetClipPlane"); }
+-static void d8_device_GetClipPlane(CPU*c) { d8_api_entry(c,49,1);d8_device_object(c,ARG(0));xrt_fatal(c,76,"IDirect3DDevice8 unsupported slot 49 GetClipPlane"); }
+ static void d8_device_GetRenderState(CPU*c) { d8_api_entry(c,51,1);d8_device_object(c,ARG(0));xrt_fatal(c,76,"IDirect3DDevice8 unsupported slot 51 GetRenderState"); }
+ static void d8_device_BeginStateBlock(CPU*c) { d8_api_entry(c,52,1);d8_device_object(c,ARG(0));xrt_fatal(c,76,"IDirect3DDevice8 unsupported slot 52 BeginStateBlock"); }
+ static void d8_device_EndStateBlock(CPU*c) { d8_api_entry(c,53,1);d8_device_object(c,ARG(0));xrt_fatal(c,76,"IDirect3DDevice8 unsupported slot 53 EndStateBlock"); }
+diff --git a/out/dev-init/runtime/fixed_function.inc b/out/dev-init/runtime/fixed_function.inc
+new file mode 100644
+index 0000000..d0b91c0
+--- /dev/null
++++ b/out/dev-init/runtime/fixed_function.inc
+@@ -0,0 +1,79 @@
++/* Fixed-function lighting, clip planes and transform queries reached by the
++ * first world frames. Plain value structures: D3DLIGHT8 is 26 dwords, a clip
++ * plane 4 floats, a matrix 16 floats. The native vtable rows are called
++ * directly (no generated monitor wrapper exists for slots 39 and 43..49). */
++typedef HRESULT(WINAPI*D8SetLightFn)(D8Device*,DWORD,const void*);
++typedef HRESULT(WINAPI*D8GetLightFn)(D8Device*,DWORD,void*);
++typedef HRESULT(WINAPI*D8LightEnableFn)(D8Device*,DWORD,BOOL);
++typedef HRESULT(WINAPI*D8GetLightEnableFn)(D8Device*,DWORD,BOOL*);
++typedef HRESULT(WINAPI*D8MultiplyFn)(D8Device*,DWORD,const D8Matrix*);
++static void*d8_vt_row(D8DeviceObject*o,unsigned slot){return ((void*const*)o->host->vt)[slot];}
++static const char*d8_ff_name(unsigned slot) {
++    switch(slot){case 39:return "D8Device.MultiplyTransform";case 44:return "D8Device.SetLight";case 45:return "D8Device.GetLight";
++    case 46:return "D8Device.LightEnable";case 47:return "D8Device.GetLightEnable";case 48:return "D8Device.SetClipPlane";default:return "D8Device.GetClipPlane";}
++}
++static void d8_ff_probe(XmRequest*q,int event,unsigned slot,uint64_t a,uint64_t result) {
++    q->event=event;q->domain=XM_NATIVE;q->name=d8_ff_name(slot);q->slot=slot;q->interface_id=2;q->count=1;
++    q->values[0].type=XM_U32;q->values[0].bytes=4;q->values[0].value=a;q->result=result;xm_probe(xm_current_cpu(),q);
++}
++static void d8_device_SetLight(CPU*c) {
++    LONG id=d8_api_entry(c,44,3);D8DeviceObject*o=d8_semantic_frame(c);uint32_t w[26];unsigned i;CPU*previous;HRESULT hr;DWORD error;XmRequest q={0};
++    d8_device_memory(c,ARG(2),sizeof w,0);memcpy(w,G2H(ARG(2)),sizeof w);
++    d8_evidence_blob(id,"light",w,sizeof w);
++    d8_domain(c,w[0]>=1&&w[0]<=3?D8_VALID:D8_INVALID,"SetLight type");
++    for(i=1;i<26;i++)d8_domain(c,d8_finite(w[i])?D8_VALID:D8_UNIMPLEMENTED,"SetLight nonfinite input");
++    previous=d8_native_enter(c,44,w,sizeof w);d8_ff_probe(&q,XM_BEGIN,44,ARG(1),0);
++    hr=((D8SetLightFn)d8_vt_row(o,44))(o->host,ARG(1),w);error=GetLastError();d8_ff_probe(&q,XM_END,44,ARG(1),(uint64_t)hr);
++    d8_semantic_return(c,previous,id,3,hr,error);
++}
++static void d8_device_GetLight(CPU*c) {
++    LONG id=d8_api_entry(c,45,3);D8DeviceObject*o=d8_semantic_frame(c);uint32_t w[26],out=ARG(2);CPU*previous;HRESULT hr;DWORD error;XmRequest q={0};
++    d8_device_memory(c,out,sizeof w,1);memcpy(w,G2H(out),sizeof w);
++    previous=d8_native_enter(c,45,w,sizeof w);d8_ff_probe(&q,XM_BEGIN,45,ARG(1),0);
++    hr=((D8GetLightFn)d8_vt_row(o,45))(o->host,ARG(1),w);error=GetLastError();d8_ff_probe(&q,XM_END,45,ARG(1),(uint64_t)hr);
++    d8_device_memory(c,out,sizeof w,1);memcpy(G2H(out),w,sizeof w);d8_semantic_return(c,previous,id,3,hr,error);
++}
++static void d8_device_LightEnable(CPU*c) {
++    LONG id=d8_api_entry(c,46,3);D8DeviceObject*o=d8_semantic_frame(c);CPU*previous;HRESULT hr;DWORD error;XmRequest q={0};
++    previous=d8_native_enter(c,46,NULL,0);d8_ff_probe(&q,XM_BEGIN,46,ARG(1),0);
++    hr=((D8LightEnableFn)d8_vt_row(o,46))(o->host,ARG(1),(BOOL)ARG(2));error=GetLastError();d8_ff_probe(&q,XM_END,46,ARG(1),(uint64_t)hr);
++    d8_semantic_return(c,previous,id,3,hr,error);
++}
++static void d8_device_GetLightEnable(CPU*c) {
++    LONG id=d8_api_entry(c,47,3);D8DeviceObject*o=d8_semantic_frame(c);uint32_t out=ARG(2);BOOL v;CPU*previous;HRESULT hr;DWORD error;XmRequest q={0};
++    d8_device_memory(c,out,4,1);v=(BOOL)rd32(out);
++    previous=d8_native_enter(c,47,NULL,0);d8_ff_probe(&q,XM_BEGIN,47,ARG(1),0);
++    hr=((D8GetLightEnableFn)d8_vt_row(o,47))(o->host,ARG(1),&v);error=GetLastError();d8_ff_probe(&q,XM_END,47,ARG(1),(uint64_t)hr);
++    d8_device_memory(c,out,4,1);wr32(out,(uint32_t)v);d8_semantic_return(c,previous,id,3,hr,error);
++}
++static void d8_device_SetClipPlane(CPU*c) {
++    LONG id=d8_api_entry(c,48,3);D8DeviceObject*o=d8_semantic_frame(c);uint32_t w[4];unsigned i;CPU*previous;HRESULT hr;DWORD error;XmRequest q={0};
++    d8_device_memory(c,ARG(2),sizeof w,0);memcpy(w,G2H(ARG(2)),sizeof w);
++    for(i=0;i<4;i++)d8_domain(c,d8_finite(w[i])?D8_VALID:D8_UNIMPLEMENTED,"SetClipPlane nonfinite input");
++    previous=d8_native_enter(c,48,w,sizeof w);d8_ff_probe(&q,XM_BEGIN,48,ARG(1),0);
++    hr=((D8SetLightFn)d8_vt_row(o,48))(o->host,ARG(1),w);error=GetLastError();d8_ff_probe(&q,XM_END,48,ARG(1),(uint64_t)hr);
++    d8_semantic_return(c,previous,id,3,hr,error);
++}
++static void d8_device_GetClipPlane(CPU*c) {
++    LONG id=d8_api_entry(c,49,3);D8DeviceObject*o=d8_semantic_frame(c);uint32_t w[4],out=ARG(2);CPU*previous;HRESULT hr;DWORD error;XmRequest q={0};
++    d8_device_memory(c,out,sizeof w,1);memcpy(w,G2H(out),sizeof w);
++    previous=d8_native_enter(c,49,w,sizeof w);d8_ff_probe(&q,XM_BEGIN,49,ARG(1),0);
++    hr=((D8GetLightFn)d8_vt_row(o,49))(o->host,ARG(1),w);error=GetLastError();d8_ff_probe(&q,XM_END,49,ARG(1),(uint64_t)hr);
++    d8_device_memory(c,out,sizeof w,1);memcpy(G2H(out),w,sizeof w);d8_semantic_return(c,previous,id,3,hr,error);
++}
++static void d8_device_GetTransform(CPU*c) {
++    LONG id=d8_api_entry(c,38,3);D8DeviceObject*o=d8_semantic_frame(c);D8Matrix m;uint32_t out=ARG(2);CPU*previous;HRESULT hr;DWORD error;
++    d8_device_memory(c,out,sizeof m,1);memcpy(&m,G2H(out),sizeof m);
++    d8_domain(c,d8_transform_domain(ARG(1))?D8_VALID:D8_INVALID,"GetTransform identifier");
++    previous=d8_native_enter(c,38,&m,sizeof m);hr=XM_GetTransform(c,o->host,ARG(1),&m);error=GetLastError();
++    d8_device_memory(c,out,sizeof m,1);memcpy(G2H(out),&m,sizeof m);d8_semantic_return(c,previous,id,3,hr,error);
++}
++static void d8_device_MultiplyTransform(CPU*c) {
++    LONG id=d8_api_entry(c,39,3);D8DeviceObject*o=d8_semantic_frame(c);D8Matrix m;unsigned i;CPU*previous;HRESULT hr;DWORD error;XmRequest q={0};
++    d8_device_memory(c,ARG(2),sizeof m,0);memcpy(&m,G2H(ARG(2)),sizeof m);
++    d8_domain(c,d8_transform_domain(ARG(1))?D8_VALID:D8_INVALID,"MultiplyTransform identifier");
++    for(i=0;i<16;i++)d8_domain(c,d8_finite(m.bits[i])?D8_VALID:D8_UNIMPLEMENTED,"MultiplyTransform nonfinite input");
++    previous=d8_native_enter(c,39,&m,sizeof m);d8_ff_probe(&q,XM_BEGIN,39,ARG(1),0);
++    hr=((D8MultiplyFn)d8_vt_row(o,39))(o->host,ARG(1),&m);error=GetLastError();d8_ff_probe(&q,XM_END,39,ARG(1),(uint64_t)hr);
++    d8_semantic_return(c,previous,id,3,hr,error);
++}
+diff --git a/out/dev-init-savepoints/init-return-20261030/runtime/hle_d3d8.inc b/out/dev-init/runtime/hle_d3d8.inc
+index f2488aa..2442a88 100644
+--- a/out/dev-init-savepoints/init-return-20261030/runtime/hle_d3d8.inc
++++ b/out/dev-init/runtime/hle_d3d8.inc
+@@ -275,6 +275,7 @@ static void hle_Direct3DCreate8(CPU*c) {
+     {"xrt.com","D8R.GetDesc",d8_resource_GetDesc}, \
+     {"xrt.com","D8R.GetLevelDesc",d8_resource_GetLevelDesc}, \
+     {"xrt.com","D8R.GetSurfaceLevel",d8_resource_GetSurfaceLevel}, \
++    {"xrt.com","D8R.GetCubeMapSurface",d8_resource_GetCubeMapSurface}, \
+     {"xrt.com","D8R.LockRect",d8_resource_LockRect}, \
+     {"xrt.com","D8R.UnlockRect",d8_resource_UnlockRect}, \
+     {"xrt.com","D8R.Lock",d8_resource_Lock}, \
+diff --git a/out/dev-init-savepoints/init-return-20261030/runtime/hle_d3d8_device.inc b/out/dev-init/runtime/hle_d3d8_device.inc
+index 4a1a96c..1301c47 100644
+--- a/out/dev-init-savepoints/init-return-20261030/runtime/hle_d3d8_device.inc
++++ b/out/dev-init/runtime/hle_d3d8_device.inc
+@@ -131,17 +131,47 @@ static void d8_render_ready(CPU*c,D8DeviceObject*o) {
+         xrt_fatal(c,76,"Direct3DDevice8: unsupported rendering window tuple (native call refused)");
+     xrt_gui_device_window(c,o->focus);xrt_gui_device_window(c,o->window);
+ }
++/* Developer first-scene evidence: successful native draws since the previous
++ * Present, and those issued inside FLevelSceneNode::Render. Never guest-visible. */
++static unsigned d8_frame_draws,d8_frame_prims,d8_scene_draws,d8_scene_prims,d8_level_draws;
++static void d8_count_draw(HRESULT hr,unsigned primitives) {
++    if(FAILED(hr))return;
++    d8_frame_draws++;d8_frame_prims+=primitives;
++    /* World scene nodes: FLevelSceneNode or FCameraSceneNode (HUD is FPlayerSceneNode). */
++    if(xrt_scene_level_depth>0||xrt_scene_camera_depth>0){d8_scene_draws++;d8_scene_prims+=primitives;}
++    if(xrt_scene_level_depth>0)d8_level_draws++;
++}
++/* Copies the back buffer about to be presented into a private system-memory
++ * surface. Host-only objects; guest last-error and MXCSR are restored. */
++static void d8_dev_readback(CPU*c,D8DeviceObject*o,unsigned frame) {
++    D8Surface*bb=NULL,*sys=NULL;D8SurfaceDesc d;D8Locked l;HRESULT hr;DWORD saved=GetLastError(),csr=_mm_getcsr();
++    hr=XM_GetBackBuffer(c,o->host,0,0,&bb);
++    if(SUCCEEDED(hr))hr=XM_GetDesc(c,bb,&d);
++    if(SUCCEEDED(hr))hr=XM_CreateImageSurface(c,o->host,d.width,d.height,d.format,&sys);
++    if(SUCCEEDED(hr))hr=XM_CopyRects(c,o->host,bb,NULL,0,sys,NULL);
++    if(SUCCEEDED(hr))hr=XM_LockRect(c,sys,&l,NULL,0x10);
++    if(SUCCEEDED(hr)){xrt_dev_scene_frame(frame,d.width,d.height,d.format,l.bits,l.pitch);XM_UnlockRect(c,sys);}
++    else xrt_log("DEV scene readback for world frame %u failed: hr=%08lx",frame,(unsigned long)hr);
++    if(sys)XM_Release(c,(D8Unknown*)sys);
++    if(bb)XM_Release(c,(D8Unknown*)bb);
++    _mm_setcsr(csr);SetLastError(saved);
++}
+ static void d8_device_Present(CPU*c) {
+     d8_api_entry(c,15,5);
+     D8DeviceObject*o=d8_device_object(c,ARG(0));uint32_t esp=c->r[ESP],ret=rd32(esp),fsw=c->fsw;
+-    HRESULT hr;DWORD error,before,after;CPU*previous;
+-    if(ARG(1) || ARG(2) || ARG(3) || ARG(4))
+-        xrt_fatal(c,76,"IDirect3DDevice8::Present: only four NULL arguments measured (native call refused)");
++    HRESULT hr;DWORD error,before,after;CPU*previous;RECT rects[2];HWND override=NULL;unsigned i;
++    /* Source/destination RECTs are copied; the window override is a validated
++     * same-thread GUI token. A dirty region still requires RGNDATA marshalling. */
++    if(ARG(4))
++        xrt_fatal(c,76,"IDirect3DDevice8::Present: dirty region requires marshalling (native call refused)");
++    for(i=0;i<2;i++)if(ARG(1+i)){d8_device_memory(c,ARG(1+i),16,0);memcpy(&rects[i],G2H(ARG(1+i)),16);}
+     d8_render_ready(c,o);
+-    xrt_event("d3d8_render_call","\"method\":\"Present\",\"slot\":15,\"this\":%u,\"source\":0,\"destination\":0,\"override\":0,\"dirty\":0,\"esp\":%u,\"return\":%u",o->guest,esp,ret);
++    if(ARG(3))override=(HWND)xrt_gui_device_window(c,ARG(3));
++    {unsigned frame=xrt_dev_scene_capture(xrt_scene_level_renders+xrt_scene_camera_renders,d8_scene_draws);if(frame)d8_dev_readback(c,o,frame);}
++    xrt_event("d3d8_render_call","\"method\":\"Present\",\"slot\":15,\"this\":%u,\"source\":%u,\"destination\":%u,\"override\":%u,\"dirty\":0,\"esp\":%u,\"return\":%u",o->guest,ARG(1),ARG(2),ARG(3),esp,ret);
+     previous=xrt_gui_callback_enter(c);d8_rendering=1;SetLastError(xrt_get_last_error(c));before=_mm_getcsr();
+     d8_semantic_checkpoint(c,1,15,NULL,0,0,xrt_get_last_error(c));SetLastError(xrt_get_last_error(c));
+-    hr=XM_Present(c,o->host,NULL,NULL,NULL,NULL);error=GetLastError();after=_mm_getcsr();
++    hr=XM_Present(c,o->host,ARG(1)?&rects[0]:NULL,ARG(2)?&rects[1]:NULL,override,NULL);error=GetLastError();after=_mm_getcsr();
+     d8_semantic_checkpoint(c,2,15,NULL,0,(unsigned)hr,error);
+     d8_rendering=0;xrt_gui_callback_leave(previous);
+     /* Pinned DXVK x86, live window, CW=027f: first successful Present sets
+@@ -150,6 +180,8 @@ static void d8_device_Present(CPU*c) {
+      * Subsequent Presents leave the guest status alone, including fnclex. */
+     if(hr==S_OK && !o->presents)c->fsw|=0x20;
+     if(SUCCEEDED(hr))o->presents++;
++    xrt_dev_scene_present(c,hr,d8_frame_draws,d8_frame_prims,d8_scene_draws,d8_scene_prims,d8_level_draws);
++    d8_frame_draws=d8_frame_prims=d8_scene_draws=d8_scene_prims=d8_level_draws=0;
+     xrt_set_last_error(c,error);RET_STD(5,hr);
+     d8_semantic_checkpoint(c,3,15,NULL,0,(unsigned)hr,error);
+     xrt_event("d3d8_render_return","\"method\":\"Present\",\"this\":%u,\"result\":%lu,\"last_error\":%lu,\"esp_before\":%u,\"esp_after\":%u,\"return\":%u,\"actual_return\":%u,\"mxcsr_before\":%lu,\"mxcsr_after\":%lu,\"guest_fsw_before\":%u,\"guest_fsw_after\":%u",o->guest,(DWORD)hr,error,esp,c->r[ESP],ret,c->rv,before,after,fsw,c->fsw);
+@@ -163,6 +195,7 @@ static void d8_device_Present(CPU*c) {
+ #include "vertex_declaration.inc"
+ #include "resource_draw.inc"
+ #include "surface_transfer.inc"
++#include "fixed_function.inc"
+ #include "d3d8_device_slots.inc"
+ static void d8_CreateDevice(CPU*c) {
+     d8_api_entry(c,100,7);
+diff --git a/out/dev-init-savepoints/init-return-20261030/runtime/hle_gui.c b/out/dev-init/runtime/hle_gui.c
+index c9ff9c9..e3af3ea 100644
+--- a/out/dev-init-savepoints/init-return-20261030/runtime/hle_gui.c
++++ b/out/dev-init/runtime/hle_gui.c
+@@ -466,8 +466,15 @@ static void hle_ClipCursor(CPU* c)
+ {
+     uint32_t p=ARG(0),esp=c->r[ESP],caller=rd32(esp);BOOL result;
+     xrt_event("gui_clip_cursor_call","\"rect\":%u,\"esp\":%u,\"return\":%u,\"last_error\":%u",p,esp,caller,xrt_get_last_error(c));
+-    if(p)xrt_fatal(c,XRT_EXIT_UNSUPPORTED,"ClipCursor: non-NULL RECT is unmeasured");
+-    begin(c);result=xm_win_ClipCursor(NULL);end(c);
++    if(p) {
++        /* WinDrv SetMouseCapture: four guest LONGs, copied; the launcher restores the clip. */
++        RECT r;
++        if(!writable_guest_rect(p))xrt_fatal(c,XRT_EXIT_UNSUPPORTED,"ClipCursor: RECT outside writable guest memory");
++        r.left=(LONG)rd32(p);r.top=(LONG)rd32(p+4);r.right=(LONG)rd32(p+8);r.bottom=(LONG)rd32(p+12);
++        begin(c);result=xm_win_ClipCursor(&r);end(c);
++    } else {
++        begin(c);result=xm_win_ClipCursor(NULL);end(c);
++    }
+     RET_STD(1,result);
+     xrt_event("gui_clip_cursor_return","\"rect\":%u,\"result\":%u,\"last_error\":%u,\"esp_before\":%u,\"esp_after\":%u,\"return\":%u,\"actual_return\":%u",p,(unsigned)result,xrt_get_last_error(c),esp,c->r[ESP],caller,c->rv);
+ }
+@@ -556,6 +563,7 @@ static void unpack_windowpos(WINDOWPOS *w, uint32_t p)
+ }
+ #include "hle_gui_diag.inc"
+ #include "window_transitions.inc"
++#include "message_pump.inc"
+ static INT_PTR invoke_gui_proc(HWND h, UINT msg, WPARAM wp, LPARAM lp, uint32_t explicit_proc)
+ {
+     xm_scope(callback_cpu,XM_BEGIN,XM_CALLBACK,"USER32.invoke_gui_proc",msg);
+@@ -742,6 +750,14 @@ static INT_PTR invoke_gui_proc(HWND h, UINT msg, WPARAM wp, LPARAM lp, uint32_t
+     case WM_PALETTECHANGED:
+         args[2] = window_token((HWND)wp);
+         break;
++    case WM_SETCURSOR:
++    case WM_MOUSEACTIVATE: /* wParam is a window; lParam packs scalar hit-test/message words. */
++        args[2] = window_token((HWND)wp);
++        break;
++    case WM_TIMER:
++        if (lp)
++            xrt_fatal(&nested, XRT_EXIT_UNSUPPORTED, "WM_TIMER callback procedure requires marshalling");
++        break;
+     case WM_NOTIFY:
+     case WM_DRAWITEM:
+     case WM_MEASUREITEM:
+@@ -766,7 +782,13 @@ static INT_PTR invoke_gui_proc(HWND h, UINT msg, WPARAM wp, LPARAM lp, uint32_t
+               msg == WM_NCDESTROY || msg == WM_CANCELMODE || msg == WM_GETDLGCODE || msg == WM_GETFONT ||
+               msg == WM_CHANGEUISTATE || msg == WM_UPDATEUISTATE || msg == WM_QUERYUISTATE ||
+               msg == WM_QUERYNEWPALETTE || msg == WM_PALETTECHANGED || msg == WM_DWMNCRENDERINGCHANGED ||
+-              msg == WM_ACTIVATEAPP || msg == WM_IME_SETCONTEXT || msg == WM_IME_NOTIFY || msg==WM_GETTEXTLENGTH))
++              msg == WM_ACTIVATEAPP || msg == WM_IME_SETCONTEXT || msg == WM_IME_NOTIFY || msg==WM_GETTEXTLENGTH ||
++              /* Main-loop input/notifications: wParam/lParam are packed scalars. */
++              (msg >= WM_KEYFIRST && msg <= WM_KEYLAST) || (msg >= WM_MOUSEFIRST && msg <= WM_MOUSELAST) ||
++              (msg >= WM_NCMOUSEMOVE && msg <= WM_NCXBUTTONDBLCLK) || msg == WM_NCHITTEST ||
++              msg == WM_MOUSEHOVER || msg == WM_MOUSELEAVE || msg == WM_NCMOUSEHOVER || msg == WM_NCMOUSELEAVE ||
++              msg == WM_SYSCOMMAND || msg == WM_ENTERSIZEMOVE || msg == WM_EXITSIZEMOVE || msg == WM_CHILDACTIVATE ||
++              msg == WM_DISPLAYCHANGE))
+             xrt_fatal(&nested, XRT_EXIT_UNSUPPORTED, "dialog callback message 0x%x unsupported (wp=%llx lp=%llx)",
+                       msg, (unsigned long long)wp, (unsigned long long)lp);
+     }
+@@ -1140,6 +1162,19 @@ const XrtHle xrt_hle_gui[] = {{"comctl32.dll", "#17", hle_InitCommonControls},
+                               {"user32.dll", "SetMenu", hle_SetMenu},
+                               {"user32.dll", "PostMessageA", hle_PostMessageA},
+                               {"user32.dll", "PostMessageW", hle_PostMessageW},
++                              {"user32.dll", "PeekMessageW", hle_PeekMessageW},
++                              {"user32.dll", "PeekMessageA", hle_PeekMessageA},
++                              {"user32.dll", "TranslateMessage", hle_TranslateMessage},
++                              {"user32.dll", "DispatchMessageW", hle_DispatchMessageW},
++                              {"user32.dll", "DispatchMessageA", hle_DispatchMessageA},
++                              {"user32.dll", "GetCursorPos", hle_GetCursorPos},
++                              {"user32.dll", "ClientToScreen", hle_ClientToScreen},
++                              {"user32.dll", "ScreenToClient", hle_ScreenToClient},
++                              {"user32.dll", "SetCursorPos", hle_SetCursorPos},
++                              {"user32.dll", "ShowCursor", hle_ShowCursor},
++                              {"user32.dll", "ValidateRect", hle_ValidateRect},
++                              {"user32.dll", "GetMessageTime", hle_GetMessageTime},
++                              {"user32.dll", "GetParent", hle_GetParent},
+ 
+                               {"user32.dll", "GetWindowLongA", hle_GetWindowLongA},
+                               {"user32.dll", "IsWindow", hle_IsWindow},
+diff --git a/out/dev-init-savepoints/init-return-20261030/runtime/hle_kernel32.c b/out/dev-init/runtime/hle_kernel32.c
+index a5a4f46..fc09b00 100644
+--- a/out/dev-init-savepoints/init-return-20261030/runtime/hle_kernel32.c
++++ b/out/dev-init/runtime/hle_kernel32.c
+@@ -955,6 +955,22 @@ static void hle_GetLocalTime(CPU* c) {
+ }
+ static void hle_GetCurrentProcessId(CPU* c) { RET_STD(0, rd32(c->fs_base + 0x20)); }
+ static void hle_GetCurrentThreadId(CPU* c) { RET_STD(0, c->thread->guest_tid); }
++/* GetCurrentThread() pseudo handle: always the calling thread, as natively. */
++static void hle_GetCurrentThread(CPU* c) { RET_STD(0, 0xFFFFFFFEu); }
++static void hle_SetThreadPriority(CPU* c) {
++    uint32_t h = ARG(0);
++    HANDLE host = h == 0xFFFFFFFEu ? GetCurrentThread() : xrt_handle_type(h) == XH_THREAD ? (HANDLE)xrt_handle_get(h, XH_THREAD) : NULL;
++    BOOL ok;
++    if (!host) {
++        xrt_set_last_error(c, ERROR_INVALID_HANDLE);
++        RET_STD(2, 0);
++        return;
++    }
++    SetLastError(xrt_get_last_error(c));
++    ok = SetThreadPriority(host, (int)ARG(1));
++    xrt_set_last_error(c, GetLastError());
++    RET_STD(2, ok);
++}
+ static void hle_QueryPerformanceCounter(CPU* c) {
+     LARGE_INTEGER v;
+     QueryPerformanceCounter(&v);
+@@ -1488,6 +1504,8 @@ const XrtHle xrt_hle_kernel32[] = {
+     {"kernel32.dll", "GetLocalTime", hle_GetLocalTime},
+     {"kernel32.dll", "GetCurrentProcessId", hle_GetCurrentProcessId},
+     {"kernel32.dll", "GetCurrentThreadId", hle_GetCurrentThreadId},
++    {"kernel32.dll", "GetCurrentThread", hle_GetCurrentThread},
++    {"kernel32.dll", "SetThreadPriority", hle_SetThreadPriority},
+     {"kernel32.dll", "QueryPerformanceCounter", hle_QueryPerformanceCounter},
+     {"kernel32.dll", "QueryPerformanceFrequency", hle_QueryPerformanceFrequency},
+     {"kernel32.dll", "InterlockedIncrement", hle_InterlockedIncrement},
+diff --git a/out/dev-init-savepoints/init-return-20261030/runtime/hle_msvcr70.c b/out/dev-init/runtime/hle_msvcr70.c
+index 499eb50..c0f4c4b 100644
+--- a/out/dev-init-savepoints/init-return-20261030/runtime/hle_msvcr70.c
++++ b/out/dev-init/runtime/hle_msvcr70.c
+@@ -867,6 +867,124 @@ static void hle_CIfmod(CPU* c) {
+     RET_C_VOID();
+ }
+ 
++/* _CIacos/_CIasin: x in st(0), result replaces it. Developer approximation: host
++ * libm, not msvcr70's translated SSE2 path (may differ in the last ulp). NaN
++ * operands propagate quieted; |x|>1 gives the indefinite NaN and EDOM. */
++static void hle_inverse_trig(CPU* c, int arcsine) {
++    double x = *ST(c, 0), r;
++    static unsigned kept[2];
++    if (isnan(x))
++        r = from_bits(dbits(x) | 1ull << 51);
++    else if (x > 1.0 || x < -1.0) {
++        r = from_bits(NAN_INDEFINITE);
++        set_errno(c, 33);
++    } else
++        r = arcsine ? asin(x) : acos(x);
++    *ST(c, 0) = r;
++    if (kept[arcsine]++ < 32)
++        xrt_event(arcsine ? "crt_asin" : "crt_acos", "\"input\":\"%016llx\",\"result\":\"%016llx\",\"caller\":\"%08x\"",
++                  dbits(x), dbits(r), rd32(c->r[ESP]));
++    RET_C_VOID();
++}
++static void hle_CIacos(CPU* c) { hle_inverse_trig(c, 0); }
++/* _CIsin/_CIcos/_CItan/_CIsqrt: st(0) -> st(0); _CIatan2: y in st(1), x in st(0).
++ * Developer approximation via host libm (sqrt is exact). NaN propagates quieted;
++ * infinite trig operands and negative sqrt give the indefinite NaN and EDOM. */
++static void hle_unary_math(CPU* c, int op) {
++    double x = *ST(c, 0), r;
++    if (isnan(x))
++        r = from_bits(dbits(x) | 1ull << 51);
++    else if ((op < 3 && isinf(x)) || (op == 3 && x < 0.0)) {
++        r = from_bits(NAN_INDEFINITE);
++        set_errno(c, 33);
++    } else
++        r = op == 0 ? sin(x) : op == 1 ? cos(x) : op == 2 ? tan(x) : sqrt(x);
++    *ST(c, 0) = r;
++    RET_C_VOID();
++}
++static void hle_CIsin(CPU* c) { hle_unary_math(c, 0); }
++static void hle_CIcos(CPU* c) { hle_unary_math(c, 1); }
++static void hle_CItan(CPU* c) { hle_unary_math(c, 2); }
++static void hle_CIsqrt(CPU* c) { hle_unary_math(c, 3); }
++static void hle_CIatan2(CPU* c) {
++    double x = *ST(c, 0), y = *ST(c, 1);
++    fpop(c);
++    *ST(c, 0) = isnan(x) || isnan(y) ? x87_nan_result(y, x) : atan2(y, x);
++    RET_C_VOID();
++}
++static void hle_CIasin(CPU* c) { hle_inverse_trig(c, 1); }
++
++/* _ftol: FISTP qword of st(0) with RC=chop (CW saved/restored), result in EDX:EAX,
++ * st(0) popped. Out-of-range/NaN store the integer indefinite and set IE;
++ * an inexact conversion sets PE, as the x87 store does. */
++static void hle_ftol(CPU* c) {
++    double x = *ST(c, 0), t;
++    uint64_t r;
++    fpop(c);
++    if (isnan(x) || x >= 9223372036854775808.0 || x < -9223372036854775808.0) {
++        r = 0x8000000000000000ull;
++        c->fsw |= 1;
++    } else {
++        t = trunc(x);
++        r = (uint64_t)(int64_t)t;
++        if (t != x) c->fsw |= 0x20;
++    }
++    c->r[EDX] = (uint32_t)(r >> 32);
++    RET_C((uint32_t)r);
++}
++static void hle_finite(CPU* c) {          /* exponent field not all ones */
++    RET_C(((ARG(1) >> 20) & 0x7FFu) != 0x7FFu ? 1u : 0u);
++}
++static void hle_clock(CPU* c) { RET_C((uint32_t)clock()); }
++
++/* C-locale ctype (msvcr70 _ctype masks); outside 0..255 (incl. EOF) is 0. */
++static unsigned c_ctype(uint32_t ch) {
++    if (ch > 255) return 0;
++    if (ch >= '0' && ch <= '9') return 0x84;
++    if (ch >= 'A' && ch <= 'Z') return ch <= 'F' ? 0x181 : 0x101;
++    if (ch >= 'a' && ch <= 'z') return ch <= 'f' ? 0x182 : 0x102;
++    if (ch == ' ') return 0x48;
++    if (ch == 9) return 0x68;
++    if (ch >= 10 && ch <= 13) return 0x28;
++    return 0;
++}
++static void hle_isalpha(CPU* c) { RET_C(c_ctype(ARG(0)) & 0x103); }
++static void hle_isdigit(CPU* c) { RET_C(c_ctype(ARG(0)) & 0x04); }
++static void hle_isalnum(CPU* c) { RET_C(c_ctype(ARG(0)) & 0x107); }
++static void hle_isspace(CPU* c) { RET_C(c_ctype(ARG(0)) & 0x08); }
++static void hle_calloc(CPU* c) {
++    uint64_t n = (uint64_t)ARG(0) * ARG(1);
++    uint32_t p = n > 0xFFFFFFE0u ? 0 : xrt_heap_alloc(n ? (uint32_t)n : 1u);
++    if (p) memset(G2H(p), 0, (size_t)n);
++    RET_C(p);
++}
++static void hle_strdup(CPU* c) {
++    uint32_t s = ARG(0), n = 0, p;
++    if (!s) { RET_C(0); return; }
++    while (rd8(s + n)) n++;
++    p = xrt_heap_alloc(n + 1);
++    if (p) memcpy(G2H(p), G2H(s), n + 1);
++    RET_C(p);
++}
++static void hle_strstr(CPU* c) {
++    uint32_t h = ARG(0), nd = ARG(1), i;
++    if (!rd8(nd)) { RET_C(h); return; }
++    for (; rd8(h); h++) {
++        for (i = 0; rd8(nd + i) && rd8(h + i) == rd8(nd + i); i++) {}
++        if (!rd8(nd + i)) { RET_C(h); return; }
++    }
++    RET_C(0);
++}
++static void hle_strnicmp(CPU* c) {         /* ASCII folding, unsigned, -1/0/1 like _stricmp */
++    uint32_t a = ARG(0), b = ARG(1), n = ARG(2);
++    for (; n; n--, a++, b++) {
++        uint8_t x = afold(rd8(a)), y = afold(rd8(b));
++        if (x != y) { RET_C(x < y ? 0xFFFFFFFFu : 1u); return; }
++        if (!x) break;
++    }
++    RET_C(0);
++}
++
+ static void hle_isnan(CPU* c) {           /* the DLL's test of the high word: QNaN or SNaN (not infinity) */
+     uint32_t lo = ARG(0), hi = ARG(1), e = (hi >> 16) & 0x7FF8u;
+     uint32_t r = (e == 0x7FF0u && ((hi & 0x7FFFFu) || lo)) || e == 0x7FF8u ? 1u : 0u;
+@@ -1867,6 +1985,11 @@ static void hle_purecall(CPU* c) { xrt_fatal(c, XRT_EXIT_UNSUPPORTED, "_purecall
+ const XrtHle xrt_hle_msvcr70[] = {
+     {"msvcr70.dll", "malloc", hle_malloc},
+     {"msvcr70.dll", "free", hle_free},
++    /* msvcr70 operator new/new[] are malloc (size 0 -> 1, NULL on failure); delete/delete[] are free. */
++    {"msvcr70.dll", "??2@YAPAXI@Z", hle_malloc},
++    {"msvcr70.dll", "??_U@YAPAXI@Z", hle_malloc},
++    {"msvcr70.dll", "??3@YAXPAX@Z", hle_free},
++    {"msvcr70.dll", "??_V@YAXPAX@Z", hle_free},
+     {"msvcr70.dll", "realloc", hle_realloc},
+     {"msvcr70.dll", "_msize", hle_msize},
+     {"msvcr70.dll", "_initterm", hle_initterm},
+@@ -1880,6 +2003,7 @@ const XrtHle xrt_hle_msvcr70[] = {
+     {"msvcr70.dll", "__p___initenv", hle_p_initenv},
+     {"msvcr70.dll", "__getmainargs", hle_getmainargs},
+     {"msvcr70.dll", "_controlfp", hle_controlfp},
++    {"msvcr70.dll", "_control87", hle_controlfp}, /* same modelled x87 control word, incl. _EM_DENORMAL */
+     {"msvcr70.dll", "wprintf", hle_wprintf},
+     {"msvcr70.dll", "fflush", hle_fflush},
+     {"msvcr70.dll", "_vsnwprintf", hle_vsnwprintf},
+@@ -1928,6 +2052,24 @@ const XrtHle xrt_hle_msvcr70[] = {
+     {"msvcr70.dll", "qsort", hle_qsort},
+     {"msvcr70.dll", "_CIpow", hle_CIpow},
+     {"msvcr70.dll", "_CIfmod", hle_CIfmod},
++    {"msvcr70.dll", "_ftol", hle_ftol},
++    {"msvcr70.dll", "_CIsin", hle_CIsin},
++    {"msvcr70.dll", "_CIcos", hle_CIcos},
++    {"msvcr70.dll", "_CItan", hle_CItan},
++    {"msvcr70.dll", "_CIsqrt", hle_CIsqrt},
++    {"msvcr70.dll", "_CIatan2", hle_CIatan2},
++    {"msvcr70.dll", "isalpha", hle_isalpha},
++    {"msvcr70.dll", "isdigit", hle_isdigit},
++    {"msvcr70.dll", "isalnum", hle_isalnum},
++    {"msvcr70.dll", "isspace", hle_isspace},
++    {"msvcr70.dll", "calloc", hle_calloc},
++    {"msvcr70.dll", "_strdup", hle_strdup},
++    {"msvcr70.dll", "strstr", hle_strstr},
++    {"msvcr70.dll", "_strnicmp", hle_strnicmp},
++    {"msvcr70.dll", "_finite", hle_finite},
++    {"msvcr70.dll", "clock", hle_clock},
++    {"msvcr70.dll", "_CIacos", hle_CIacos},
++    {"msvcr70.dll", "_CIasin", hle_CIasin},
+     {"msvcr70.dll", "floor", hle_floor},
+     {"msvcr70.dll", "ceil", hle_ceil},
+     {"msvcr70.dll", "_isnan", hle_isnan},
+diff --git a/out/dev-init/runtime/message_pump.inc b/out/dev-init/runtime/message_pump.inc
+new file mode 100644
+index 0000000..37ad05e
+--- /dev/null
++++ b/out/dev-init/runtime/message_pump.inc
+@@ -0,0 +1,109 @@
++/* Main-loop message pump. Guest MSG is 28 bytes: hwnd token, message, wParam,
++ * lParam, time, pt.x, pt.y. The native MSG last returned by PeekMessage is kept,
++ * so Translate/Dispatch of that unchanged guest copy forward the exact native
++ * message (pointer-width parameters included). Another guest MSG crosses only
++ * as 32-bit scalars with a validated window token. Native dispatch reaches the
++ * guest WNDPROC through the existing typed callback marshalling. */
++static MSG pump_last;
++static uint32_t pump_guest, pump_words[7];
++static int pump_valid;
++static unsigned pump_events;
++static void pump_probe(XmRequest*q,int event,const char*name,uint64_t a,uint64_t b,uint64_t result) {
++    q->event=event;q->domain=XM_NATIVE;q->name=name;q->count=2;
++    q->values[0].type=XM_OPAQUE;q->values[0].bytes=8;q->values[0].value=a;
++    q->values[1].type=XM_OPAQUE;q->values[1].bytes=8;q->values[1].value=b;
++    q->result=result;xm_probe(xm_current_cpu(),q);
++}
++static uint32_t pump_scalar(CPU*c,uint64_t v,UINT msg,const char*field) {
++    if(v>0xffffffffull && (int64_t)v!=(int64_t)(int32_t)(uint32_t)v)
++        xrt_fatal(c,76,"PeekMessage: message 0x%x %s %llx is not representable in a guest MSG",msg,field,(unsigned long long)v);
++    return (uint32_t)v;
++}
++static void peek_message(CPU*c,int wide) {
++    uint32_t out=ARG(0),filter=ARG(1),flags=ARG(4),words[7];HWND h=NULL;MSG m;BOOL r;CPU*prev;XmRequest q={0};
++    gui_transition_memory(c,c->r[ESP],24,0);gui_transition_memory(c,out,28,1);
++    if(flags&~(PM_REMOVE|PM_NOYIELD))xrt_fatal(c,76,"PeekMessage: queue-status flags %x unmodelled",flags);
++    if(filter==0xffffffffu)h=(HWND)(LONG_PTR)-1;else if(filter)h=xrt_gui_device_window(c,filter);
++    prev=xrt_gui_callback_enter(c);begin(c);
++    pump_probe(&q,XM_BEGIN,wide?"WIN.PeekMessageW":"WIN.PeekMessageA",(uint64_t)(uintptr_t)h,flags,0);
++    r=wide?PeekMessageW(&m,h,ARG(2),ARG(3),flags):PeekMessageA(&m,h,ARG(2),ARG(3),flags);
++    pump_probe(&q,XM_END,q.name,(uint64_t)(uintptr_t)h,flags,(uint64_t)r);
++    end(c);xrt_gui_callback_leave(prev);
++    if(r) {
++        words[0]=window_token(m.hwnd);words[1]=m.message;
++        words[2]=pump_scalar(c,m.wParam,m.message,"wParam");words[3]=pump_scalar(c,(uint64_t)m.lParam,m.message,"lParam");
++        words[4]=m.time;words[5]=(uint32_t)m.pt.x;words[6]=(uint32_t)m.pt.y;
++        memcpy(G2H(out),words,28);
++        pump_last=m;pump_guest=out;memcpy(pump_words,words,28);pump_valid=1;
++        if(pump_events++<4096)
++            xrt_event("gui_peek_message","\"wide\":%d,\"hwnd\":%u,\"message\":%u,\"wparam\":%u,\"lparam\":%u,\"remove\":%u",
++                      wide,words[0],words[1],words[2],words[3],flags&PM_REMOVE);
++    }
++    RET_STD(5,r);
++}
++static void pump_host_message(CPU*c,uint32_t p,MSG*m) {
++    uint32_t words[7];
++    gui_transition_memory(c,p,28,0);memcpy(words,G2H(p),28);
++    if(pump_valid && p==pump_guest && !memcmp(words,pump_words,28)){*m=pump_last;return;}
++    memset(m,0,sizeof *m);
++    m->hwnd=words[0]?xrt_gui_device_window(c,words[0]):NULL;m->message=words[1];
++    m->wParam=(WPARAM)words[2];m->lParam=(LPARAM)(int32_t)words[3];
++    m->time=words[4];m->pt.x=(LONG)words[5];m->pt.y=(LONG)words[6];
++}
++static void translate_message(CPU*c) {
++    MSG m;BOOL r;CPU*prev;XmRequest q={0};
++    gui_transition_memory(c,c->r[ESP],8,0);pump_host_message(c,ARG(0),&m);
++    prev=xrt_gui_callback_enter(c);begin(c);
++    pump_probe(&q,XM_BEGIN,"WIN.TranslateMessage",(uint64_t)(uintptr_t)m.hwnd,m.message,0);
++    r=TranslateMessage(&m);
++    pump_probe(&q,XM_END,q.name,(uint64_t)(uintptr_t)m.hwnd,m.message,(uint64_t)r);
++    end(c);xrt_gui_callback_leave(prev);
++    RET_STD(1,r);
++}
++static void dispatch_message(CPU*c,int wide) {
++    MSG m;LRESULT r;CPU*prev;XmRequest q={0};
++    gui_transition_memory(c,c->r[ESP],8,0);pump_host_message(c,ARG(0),&m);
++    prev=xrt_gui_callback_enter(c);begin(c);
++    pump_probe(&q,XM_BEGIN,wide?"WIN.DispatchMessageW":"WIN.DispatchMessageA",(uint64_t)(uintptr_t)m.hwnd,m.message,0);
++    r=wide?DispatchMessageW(&m):DispatchMessageA(&m);
++    pump_probe(&q,XM_END,q.name,(uint64_t)(uintptr_t)m.hwnd,m.message,(uint64_t)r);
++    end(c);xrt_gui_callback_leave(prev);
++    RET_STD(1,(uint32_t)r);
++}
++static void hle_PeekMessageW(CPU*c){peek_message(c,1);}
++static void hle_PeekMessageA(CPU*c){peek_message(c,0);}
++static void hle_TranslateMessage(CPU*c){translate_message(c);}
++static void hle_DispatchMessageW(CPU*c){dispatch_message(c,1);}
++static void hle_DispatchMessageA(CPU*c){dispatch_message(c,0);}
++/* WinDrv viewport input on the main-loop path. POINT is two guest LONGs. */
++static void cursor_point(CPU*c,int op) {
++    uint32_t w=op?ARG(0):0,p=op?ARG(1):ARG(0);HWND h=NULL;POINT pt;BOOL ok;CPU*prev;
++    gui_transition_memory(c,c->r[ESP],op?12:8,0);gui_transition_memory(c,p,8,1);
++    if(op)h=xrt_gui_device_window(c,w);
++    pt.x=(LONG)rd32(p);pt.y=(LONG)rd32(p+4);
++    prev=xrt_gui_callback_enter(c);begin(c);
++    ok=op==0?GetCursorPos(&pt):op==1?ClientToScreen(h,&pt):ScreenToClient(h,&pt);
++    end(c);xrt_gui_callback_leave(prev);
++    if(ok){wr32(p,(uint32_t)pt.x);wr32(p+4,(uint32_t)pt.y);}
++    RET_STD(op?2:1,ok);
++}
++static void hle_GetCursorPos(CPU*c){cursor_point(c,0);}
++static void hle_ClientToScreen(CPU*c){cursor_point(c,1);}
++static void hle_ScreenToClient(CPU*c){cursor_point(c,2);}
++static void hle_SetCursorPos(CPU*c) {
++    BOOL ok;gui_transition_memory(c,c->r[ESP],12,0);begin(c);ok=SetCursorPos((int)ARG(0),(int)ARG(1));end(c);RET_STD(2,ok);
++}
++static void hle_ShowCursor(CPU*c) {
++    int n;gui_transition_memory(c,c->r[ESP],8,0);begin(c);n=ShowCursor((BOOL)ARG(0));end(c);RET_STD(1,(uint32_t)n);
++}
++static void hle_ValidateRect(CPU*c) {
++    HWND h=NULL;RECT r,*pr=NULL;BOOL ok;CPU*prev;
++    gui_transition_memory(c,c->r[ESP],12,0);
++    if(ARG(0))h=xrt_gui_device_window(c,ARG(0));
++    if(ARG(1)){gui_transition_memory(c,ARG(1),16,0);r.left=(LONG)rd32(ARG(1));r.top=(LONG)rd32(ARG(1)+4);r.right=(LONG)rd32(ARG(1)+8);r.bottom=(LONG)rd32(ARG(1)+12);pr=&r;}
++    prev=xrt_gui_callback_enter(c);begin(c);ok=ValidateRect(h,pr);end(c);xrt_gui_callback_leave(prev);RET_STD(2,ok);
++}
++static void hle_GetMessageTime(CPU*c){RET_STD(0,(uint32_t)GetMessageTime());}
++static void hle_GetParent(CPU*c) {
++    HWND p;gui_transition_memory(c,c->r[ESP],8,0);begin(c);p=GetParent(xrt_gui_device_window(c,ARG(0)));end(c);RET_STD(1,window_token(p));
++}
+diff --git a/out/dev-init-savepoints/init-return-20261030/runtime/resource_draw.inc b/out/dev-init/runtime/resource_draw.inc
+index c8a0407..f19aacd 100644
+--- a/out/dev-init-savepoints/init-return-20261030/runtime/resource_draw.inc
++++ b/out/dev-init/runtime/resource_draw.inc
+@@ -1,7 +1,7 @@
+ static D8Resource*d8_optional(CPU*c,unsigned token,unsigned kind){return token?d8_resource(c,token,kind):NULL;}
+ static void d8_device_SetTexture(CPU*c) {
+  LONG id=d8_api_entry(c,61,3);D8DeviceObject*o=d8_semantic_frame(c);D8Resource*r;CPU*prev;HRESULT hr;DWORD error;unsigned stage=ARG(1);
+- if(stage>=8)xrt_fatal(c,76,"SetTexture: stage outside capacity");r=d8_optional(c,ARG(2),D8_TEXTURE);
++ if(stage>=8)xrt_fatal(c,76,"SetTexture: stage outside capacity");r=d8_optional(c,ARG(2),0);if(r&&!D8_TEXLIKE(r->kind))xrt_fatal(c,76,"SetTexture: wrong resource type");
+  prev=d8_native_enter(c,61,NULL,0);hr=XM_SetTexture(c,o->host,stage,r?r->host:NULL);error=GetLastError();if(SUCCEEDED(hr))d8_resource_bind(&d8_bound_textures[stage],r);d8_semantic_return(c,prev,id,3,hr,error);
+ }
+ static void d8_device_SetStreamSource(CPU*c) {
+@@ -69,7 +69,7 @@ static void d8_buffer_draw(CPU*c,int indexed) {
+   for(i=0;i<nv;i++){if(isize==2){WORD value;memcpy(&value,b->shadow+((size_t)start+i)*2,2);ix=value;}else memcpy(&ix,b->shadow+((size_t)start+i)*4,4);
+    if(ix<min||(uint64_t)ix>=((uint64_t)min+num))xrt_fatal(c,76,"D3D8 draw: index outside declared vertices");}
+  }
+- prev=d8_native_enter(c,slot,NULL,0);hr=indexed?XM_DrawIndexedPrimitive(c,o->host,type,min,num,start,count):XM_DrawPrimitive(c,o->host,type,min,count);error=GetLastError();d8_semantic_return(c,prev,id,n,hr,error);
++ prev=d8_native_enter(c,slot,NULL,0);hr=indexed?XM_DrawIndexedPrimitive(c,o->host,type,min,num,start,count):XM_DrawPrimitive(c,o->host,type,min,count);error=GetLastError();d8_count_draw(hr,count);d8_semantic_return(c,prev,id,n,hr,error);
+ }
+ static void d8_device_DrawPrimitive(CPU*c){d8_buffer_draw(c,0);}
+ static void d8_device_DrawIndexedPrimitive(CPU*c){d8_buffer_draw(c,1);}
+diff --git a/out/dev-init-savepoints/init-return-20261030/runtime/resource_storage.inc b/out/dev-init/runtime/resource_storage.inc
+index f0ac737..4e43539 100644
+--- a/out/dev-init-savepoints/init-return-20261030/runtime/resource_storage.inc
++++ b/out/dev-init/runtime/resource_storage.inc
+@@ -10,6 +10,37 @@ static void d8_device_CreateTexture(CPU*c) {
+  if(SUCCEEDED(hr)&&!q){d8_native_failed=1;xrt_fatal(c,76,"CreateTexture: NULL native success");}
+  d8_resource_output(c,out,hr,q,D8_TEXTURE);d8_semantic_return(c,prev,id,8,hr,error);
+ }
++typedef HRESULT(WINAPI*D8CreateCubeFn)(D8Device*,UINT,UINT,DWORD,DWORD,DWORD,D8Texture**);
++typedef HRESULT(WINAPI*D8CubeSurfaceFn)(D8Texture*,DWORD,UINT,D8Surface**);
++typedef HRESULT(WINAPI*D8CubeLockFn)(D8Texture*,DWORD,UINT,D8Locked*,const RECT*,DWORD);
++typedef HRESULT(WINAPI*D8CubeUnlockFn)(D8Texture*,DWORD,UINT);
++typedef HRESULT(WINAPI*D8CubeDirtyFn)(D8Texture*,DWORD,const RECT*);
++/* IDirect3DCubeTexture8 rows 15..18 differ from the texture wrappers; called directly. */
++static void*d8_cube_row(D8Resource*r,unsigned slot){return (*(void*const**)r->host)[slot];}
++static void d8_cube_probe(XmRequest*q,int event,const char*name,void*host,uint64_t a,uint64_t result) {
++ q->event=event;q->domain=XM_NATIVE;q->name=name;q->host=(uint64_t)(uintptr_t)host;q->count=1;
++ q->values[0].type=XM_U32;q->values[0].bytes=4;q->values[0].value=a;q->result=result;xm_probe(xm_current_cpu(),q);
++}
++static void d8_device_CreateCubeTexture(CPU*c) {
++ LONG id=d8_api_entry(c,22,7);D8DeviceObject*o=d8_semantic_frame(c);D8Texture*q=NULL;CPU*prev;HRESULT hr;DWORD error;uint32_t out=ARG(6);XmRequest x={0};
++ if(out)d8_device_memory(c,out,4,1);d8_resource_reserve(c,D8_CUBE);
++ if(ARG(1)>o->caps.words[22]||ARG(2)>32||ARG(5)>3)xrt_fatal(c,76,"CreateCubeTexture: edge/levels/pool outside bounded domain");
++ prev=d8_native_enter(c,22,NULL,0);d8_cube_probe(&x,XM_BEGIN,"D8Device.CreateCubeTexture",o->host,ARG(1),0);
++ hr=((D8CreateCubeFn)((void*const*)o->host->vt)[22])(o->host,ARG(1),ARG(2),ARG(3),ARG(4),ARG(5),out?&q:NULL);error=GetLastError();
++ d8_cube_probe(&x,XM_END,"D8Device.CreateCubeTexture",o->host,ARG(1),(uint64_t)hr);
++ if(SUCCEEDED(hr)&&!q){d8_native_failed=1;xrt_fatal(c,76,"CreateCubeTexture: NULL native success");}
++ d8_resource_output(c,out,hr,q,D8_CUBE);d8_semantic_return(c,prev,id,7,hr,error);
++}
++static void d8_resource_GetCubeMapSurface(CPU*c) {
++ LONG id=d8_api_entry(c,315,4);D8Resource*r=d8_resource(c,ARG(0),D8_CUBE);D8Surface*q=NULL;CPU*prev;HRESULT hr;DWORD error;uint32_t out=ARG(3);XmRequest x={0};
++ if(out)d8_device_memory(c,out,4,1);d8_resource_reserve(c,D8_SURFACE);
++ if(ARG(1)>5)xrt_fatal(c,76,"GetCubeMapSurface: face outside domain");
++ prev=d8_native_enter(c,315,NULL,0);d8_cube_probe(&x,XM_BEGIN,"D8Cube.GetCubeMapSurface",r->host,ARG(1),0);
++ hr=((D8CubeSurfaceFn)d8_cube_row(r,15))((D8Texture*)r->host,ARG(1),ARG(2),out?&q:NULL);error=GetLastError();
++ d8_cube_probe(&x,XM_END,"D8Cube.GetCubeMapSurface",r->host,ARG(1),(uint64_t)hr);
++ if(SUCCEEDED(hr)&&!q){d8_native_failed=1;xrt_fatal(c,76,"GetCubeMapSurface: NULL native success");}
++ d8_resource_output(c,out,hr,q,D8_SURFACE);d8_semantic_return(c,prev,id,4,hr,error);
++}
+ static void d8_create_buffer(CPU*c,unsigned kind) {
+  unsigned slot=kind==D8_VERTEX?23:24;LONG id=d8_api_entry(c,slot,6);D8DeviceObject*o=d8_semantic_frame(c);D8Buffer*q=NULL;CPU*prev;HRESULT hr;DWORD error;uint32_t out=ARG(5);
+  if(out)d8_device_memory(c,out,4,1);d8_resource_reserve(c,kind);
+@@ -29,13 +60,14 @@ static void d8_resource_GetSurfaceLevel(CPU*c) {
+  d8_resource_output(c,out,hr,q,D8_SURFACE);d8_semantic_return(c,prev,id,3,hr,error);
+ }
+ static void d8_resource_GetLevelDesc(CPU*c) {
+- LONG id=d8_api_entry(c,314,3);D8Resource*r=d8_resource(c,ARG(0),D8_TEXTURE);D8SurfaceDesc desc;CPU*prev;HRESULT hr;DWORD error;uint32_t out=ARG(2);
++ LONG id=d8_api_entry(c,314,3);D8Resource*r=d8_resource(c,ARG(0),0);D8SurfaceDesc desc;CPU*prev;HRESULT hr;DWORD error;uint32_t out=ARG(2);
++ if(!D8_TEXLIKE(r->kind))xrt_fatal(c,76,"GetLevelDesc: wrong resource type");
+  d8_device_memory(c,out,32,1);memcpy(&desc,G2H(out),32);
+  prev=d8_native_enter(c,314,NULL,0);hr=XM_GetLevelDesc(c,(D8Texture*)r->host,ARG(1),&desc);error=GetLastError();
+  d8_device_memory(c,out,32,1);memcpy(G2H(out),&desc,32);d8_semantic_return(c,prev,id,3,hr,error);
+ }
+ static void d8_lock_flags(CPU*c,unsigned flags) {
+- if(d8_locks)xrt_fatal(c,76,"D3D8 map: one outstanding resource map supported");
++ /* Maps of distinct resources may overlap (each owns its staging copy); d8_locks counts them. */
+  if(flags&~(0x10u|0x20u|0x1000u|0x2000u|0x8000u))xrt_fatal(c,76,"D3D8 map: unsupported flags");
+ }
+ static void d8_map_size(CPU*c,unsigned format,unsigned width,unsigned height,unsigned*bytes,unsigned*rows) {
+@@ -61,9 +93,11 @@ static void d8_resource_LockRect(CPU*c) {
+  CPU*prev;HRESULT hr;DWORD error,saved=GetLastError();uint32_t stage;uint64_t size;
+  /* Read this only after validating a minimum complete surface frame. */
+  id=d8_api_entry(c,316,4);r=d8_resource(c,ARG(0),0);
+- if(r->kind!=D8_SURFACE&&r->kind!=D8_TEXTURE)xrt_fatal(c,76,"LockRect: wrong resource type");
+- n=r->kind==D8_TEXTURE?5:4;d8_device_memory(c,c->r[ESP],4*(n+1),0);
+- level=r->kind==D8_TEXTURE?ARG(1):0;out=ARG(n-3);rectarg=ARG(n-2);flags=ARG(n-1);d8_lock_flags(c,flags);d8_device_memory(c,out,8,1);
++ if(r->kind!=D8_SURFACE&&!D8_TEXLIKE(r->kind))xrt_fatal(c,76,"LockRect: wrong resource type");
++ n=r->kind==D8_CUBE?6:r->kind==D8_TEXTURE?5:4;d8_device_memory(c,c->r[ESP],4*(n+1),0);
++ level=r->kind==D8_CUBE?ARG(2):r->kind==D8_TEXTURE?ARG(1):0;out=ARG(n-3);rectarg=ARG(n-2);flags=ARG(n-1);d8_lock_flags(c,flags);
++ if(r->locked)xrt_fatal(c,76,"LockRect: resource already mapped");
++ if(r->kind==D8_CUBE&&ARG(1)>5)xrt_fatal(c,76,"LockRect: cube face outside domain");d8_device_memory(c,out,8,1);
+  if(rectarg){d8_device_memory(c,rectarg,16,0);memcpy(&rect,G2H(rectarg),16);}
+  prev=xrt_gui_callback_enter(c);d8_rendering=1;hr=d8_desc_native(r,level,&desc);d8_rendering=0;xrt_gui_callback_leave(prev);SetLastError(saved);
+  if(FAILED(hr))xrt_fatal(c,76,"LockRect: cannot obtain native mip descriptor");
+@@ -72,10 +106,10 @@ static void d8_resource_LockRect(CPU*c) {
+  if((desc.format&0xffffff)==0x545844 && ((rect.left|rect.top)&3))xrt_fatal(c,76,"LockRect: compressed origin alignment");
+  d8_map_size(c,desc.format,rect.right-rect.left,rect.bottom-rect.top,&rowbytes,&rows);
+  lock.pitch=(INT)rd32(out);lock.bits=(void*)(uintptr_t)1; /* distinguish untouched from native NULL output */
+- prev=d8_native_enter(c,316,&rect,16);hr=r->kind==D8_SURFACE?XM_LockRect(c,(D8Surface*)r->host,&lock,rectarg?&rect:NULL,flags):XM_LockRect(c,(D8Texture*)r->host,level,&lock,rectarg?&rect:NULL,flags);error=GetLastError();
++ prev=d8_native_enter(c,316,&rect,16);hr=r->kind==D8_SURFACE?XM_LockRect(c,(D8Surface*)r->host,&lock,rectarg?&rect:NULL,flags):r->kind==D8_CUBE?((D8CubeLockFn)d8_cube_row(r,16))((D8Texture*)r->host,ARG(1),level,&lock,rectarg?&rect:NULL,flags):XM_LockRect(c,(D8Texture*)r->host,level,&lock,rectarg?&rect:NULL,flags);error=GetLastError();
+  if(SUCCEEDED(hr)) {
+   /* Native map remains owned until matching successful Unlock. */
+-  d8_locks=1;r->locked=lock.bits;r->pitch=lock.pitch;r->level=level;r->flags=flags;r->rows=rows;r->rowbytes=rowbytes;
++  d8_locks++;r->locked=lock.bits;r->pitch=lock.pitch;r->level=level;r->face=r->kind==D8_CUBE?ARG(1):0;r->flags=flags;r->rows=rows;r->rowbytes=rowbytes;
+   size=(uint64_t)(unsigned)lock.pitch*rows;
+   if(!lock.bits||lock.pitch<=0||(unsigned)lock.pitch<rowbytes||size>64u*1024u*1024u){d8_native_failed=1;xrt_fatal(c,76,"LockRect: unsafe native layout");}
+   stage=xrt_virtual_alloc(c,(unsigned)size);if(!stage)xrt_fatal(c,76,"LockRect: staging allocation failed");r->staging=stage;r->bytes=(unsigned)size;xm_d8_resource(c,r,"mapped");
+@@ -89,6 +123,7 @@ static void d8_resource_Lock(CPU*c) {
+  LONG id=d8_api_entry(c,311,5);D8Resource*r=d8_resource(c,ARG(0),0);D8BufferDesc desc={0};unsigned offset=ARG(1),size=ARG(2),out=ARG(3),flags=ARG(4);BYTE*data=(BYTE*)(uintptr_t)1;CPU*prev;HRESULT hr;DWORD error,saved=GetLastError();
+  if(r->kind!=D8_VERTEX&&r->kind!=D8_INDEX)xrt_fatal(c,76,"Lock: wrong resource type");
+  d8_lock_flags(c,flags);d8_device_memory(c,out,4,1);
++ if(r->locked)xrt_fatal(c,76,"Lock: resource already mapped");
+  prev=xrt_gui_callback_enter(c);d8_rendering=1;hr=XM_GetDesc(c,(D8Buffer*)r->host,&desc);d8_rendering=0;xrt_gui_callback_leave(prev);SetLastError(saved);
+  if(FAILED(hr)||offset>desc.size)xrt_fatal(c,76,"Lock: unsafe buffer descriptor/range");
+  if(!r->shadow){
+@@ -102,7 +137,7 @@ static void d8_resource_Lock(CPU*c) {
+  if(!size||(uint64_t)offset+size>desc.size||size>64u*1024u*1024u)xrt_fatal(c,76,"Lock: unsafe buffer range");
+  prev=d8_native_enter(c,311,NULL,0);hr=XM_Lock(c,(D8Buffer*)r->host,offset,ARG(2),&data,flags);error=GetLastError();
+  if(SUCCEEDED(hr)) {
+-  d8_locks=1;r->locked=data;r->flags=flags;r->offset=offset;r->bytes=size;r->rows=1;r->rowbytes=size;r->pitch=size;
++  d8_locks++;r->locked=data;r->flags=flags;r->offset=offset;r->bytes=size;r->rows=1;r->rowbytes=size;r->pitch=size;
+   if(!data){d8_native_failed=1;xrt_fatal(c,76,"Lock: NULL native map");}
+   r->staging=xrt_virtual_alloc(c,size);if(!r->staging)xrt_fatal(c,76,"Lock: staging allocation failed");d8_device_memory(c,r->staging,size,1);memcpy(G2H(r->staging),data,size);
+   if(flags&0x2000)memset(r->valid,0,r->length);
+@@ -111,10 +146,10 @@ static void d8_resource_Lock(CPU*c) {
+  d8_semantic_return(c,prev,id,5,hr,error);
+ }
+ static void d8_unlock(CPU*c,int rectangle) {
+- LONG id=d8_api_entry(c,rectangle?317:312,1);D8Resource*r=d8_resource(c,ARG(0),0);unsigned n=rectangle&&r->kind==D8_TEXTURE?2:1,y;BYTE*copy=NULL;CPU*prev;HRESULT hr;DWORD error;
++ LONG id=d8_api_entry(c,rectangle?317:312,1);D8Resource*r=d8_resource(c,ARG(0),0);unsigned n=rectangle&&r->kind==D8_CUBE?3:rectangle&&r->kind==D8_TEXTURE?2:1,y;BYTE*copy=NULL;CPU*prev;HRESULT hr;DWORD error;
+  d8_device_memory(c,c->r[ESP],4*(n+1),0);
+- if((rectangle&&(r->kind!=D8_TEXTURE&&r->kind!=D8_SURFACE))||(!rectangle&&(r->kind!=D8_VERTEX&&r->kind!=D8_INDEX)))xrt_fatal(c,76,"Unlock: wrong resource type");
+- if(!r->locked||!r->staging||(n==2&&ARG(1)!=r->level))xrt_fatal(c,76,"Unlock: missing or mismatched map");
++ if((rectangle&&(!D8_TEXLIKE(r->kind)&&r->kind!=D8_SURFACE))||(!rectangle&&(r->kind!=D8_VERTEX&&r->kind!=D8_INDEX)))xrt_fatal(c,76,"Unlock: wrong resource type");
++ if(!r->locked||!r->staging||(n==2&&ARG(1)!=r->level)||(n==3&&(ARG(1)!=r->face||ARG(2)!=r->level)))xrt_fatal(c,76,"Unlock: missing or mismatched map");
+  if(!(r->flags&0x10)) {
+   /* Snapshot before entering native code; revalidate even if callback changed pages. */
+   copy=d8_draw_copy(c,r->staging,r->bytes);xm_span(c,"resource.map.upload",copy,r->bytes);
+@@ -123,33 +158,35 @@ static void d8_unlock(CPU*c,int rectangle) {
+   HeapFree(GetProcessHeap(),0,copy);
+  }
+  prev=d8_native_enter(c,rectangle?317:312,NULL,0);
+- hr=!rectangle?XM_Unlock(c,(D8Buffer*)r->host):r->kind==D8_SURFACE?XM_UnlockRect(c,(D8Surface*)r->host):XM_UnlockRect(c,(D8Texture*)r->host,r->level);error=GetLastError();
+- if(SUCCEEDED(hr)){if(!xrt_virtual_free(c,r->staging))xrt_fatal(c,76,"Unlock: staging invalidation failed");r->staging=0;r->locked=NULL;d8_locks=0;xm_d8_resource(c,r,"unlocked");}
++ hr=!rectangle?XM_Unlock(c,(D8Buffer*)r->host):r->kind==D8_SURFACE?XM_UnlockRect(c,(D8Surface*)r->host):r->kind==D8_CUBE?((D8CubeUnlockFn)d8_cube_row(r,17))((D8Texture*)r->host,r->face,r->level):XM_UnlockRect(c,(D8Texture*)r->host,r->level);error=GetLastError();
++ if(SUCCEEDED(hr)){if(!xrt_virtual_free(c,r->staging))xrt_fatal(c,76,"Unlock: staging invalidation failed");r->staging=0;r->locked=NULL;d8_locks--;xm_d8_resource(c,r,"unlocked");}
+  else {d8_native_failed=1; /* Preserve failure HRESULT; retain mapping until process teardown. */}
+  d8_semantic_return(c,prev,id,n,hr,error);
+ }
+ static void d8_resource_UnlockRect(CPU*c){d8_unlock(c,1);}
+ static void d8_resource_Unlock(CPU*c){d8_unlock(c,0);}
+ static void d8_resource_AddDirtyRect(CPU*c) {
+- LONG id=d8_api_entry(c,318,2);D8Resource*r=d8_resource(c,ARG(0),D8_TEXTURE);RECT rect;CPU*prev;HRESULT hr;DWORD error;
+- if(ARG(1)){d8_device_memory(c,ARG(1),16,0);memcpy(&rect,G2H(ARG(1)),16);}
+- prev=d8_native_enter(c,318,NULL,0);hr=XM_AddDirtyRect(c,(D8Texture*)r->host,ARG(1)?&rect:NULL);error=GetLastError();d8_semantic_return(c,prev,id,2,hr,error);
++ D8Resource*r=d8_resource(c,ARG(0),0);int cube=r->kind==D8_CUBE;LONG id=d8_api_entry(c,318,cube?3:2);RECT rect;CPU*prev;HRESULT hr;DWORD error;uint32_t ra=ARG(cube?2:1);
++ if(!D8_TEXLIKE(r->kind))xrt_fatal(c,76,"AddDirtyRect: wrong resource type");
++ if(ra){d8_device_memory(c,ra,16,0);memcpy(&rect,G2H(ra),16);}
++ if(cube){prev=d8_native_enter(c,318,NULL,0);hr=((D8CubeDirtyFn)d8_cube_row(r,18))((D8Texture*)r->host,ARG(1),ra?&rect:NULL);error=GetLastError();d8_semantic_return(c,prev,id,3,hr,error);return;}
++ prev=d8_native_enter(c,318,NULL,0);hr=XM_AddDirtyRect(c,(D8Texture*)r->host,ra?&rect:NULL);error=GetLastError();d8_semantic_return(c,prev,id,2,hr,error);
+ }
+ static void d8_resource_scalar(CPU*c,unsigned slot,unsigned n) {
+  LONG id=d8_api_entry(c,slot+300,n);D8Resource*r=d8_resource(c,ARG(0),0);D8Texture*t=(D8Texture*)r->host;D8Buffer*b=(D8Buffer*)r->host;CPU*prev;DWORD value,error;
+- if(r->kind==D8_SURFACE||(slot>=11&&r->kind!=D8_TEXTURE))xrt_fatal(c,76,"D3D8 resource: scalar method type mismatch");
++ if(r->kind==D8_SURFACE||(slot>=11&&!D8_TEXLIKE(r->kind)))xrt_fatal(c,76,"D3D8 resource: scalar method type mismatch");
+  prev=d8_native_enter(c,slot+300,NULL,0);
+  switch(slot){
+- case 7:value=r->kind==D8_TEXTURE?XM_SetPriority(c,t,ARG(1)):XM_SetPriority(c,b,ARG(1));break;
+- case 8:value=r->kind==D8_TEXTURE?XM_GetPriority(c,t):XM_GetPriority(c,b);break;
++ case 7:value=D8_TEXLIKE(r->kind)?XM_SetPriority(c,t,ARG(1)):XM_SetPriority(c,b,ARG(1));break;
++ case 8:value=D8_TEXLIKE(r->kind)?XM_GetPriority(c,t):XM_GetPriority(c,b);break;
+  case 9:
+-  if(r->kind==D8_TEXTURE)XM_PreLoad(c,t);else XM_PreLoad(c,b);error=GetLastError();
++  if(D8_TEXLIKE(r->kind))XM_PreLoad(c,t);else XM_PreLoad(c,b);error=GetLastError();
+   d8_semantic_checkpoint(c,2,309,NULL,0,0,error);d8_rendering=0;xrt_gui_callback_leave(prev);
+   xrt_set_last_error(c,error);c->rv=pop32(c);c->r[ESP]+=4;
+   d8_semantic_checkpoint(c,3,309,NULL,0,0,error);
+   xrt_event("d3d8_resource_void_return","\"id\":%ld,\"method\":\"PreLoad\",\"last_error\":%lu,\"esp\":%u,\"return\":%u",id,error,c->r[ESP],c->rv);
+   d8_evidence_blob(id,"guest_cpu_return",c,sizeof *c);return;
+- case 10:value=r->kind==D8_TEXTURE?XM_GetType(c,t):XM_GetType(c,b);break;
++ case 10:value=D8_TEXLIKE(r->kind)?XM_GetType(c,t):XM_GetType(c,b);break;
+  case 11:value=XM_SetLOD(c,t,ARG(1));break;case 12:value=XM_GetLOD(c,t);break;default:value=XM_GetLevelCount(c,t);break;
+  }
+  error=GetLastError();d8_semantic_return(c,prev,id,n,(HRESULT)value,error);
+diff --git a/out/dev-init-savepoints/init-return-20261030/runtime/resources.inc b/out/dev-init/runtime/resources.inc
+index fe5176f..7105b79 100644
+--- a/out/dev-init-savepoints/init-return-20261030/runtime/resources.inc
++++ b/out/dev-init/runtime/resources.inc
+@@ -3,13 +3,15 @@
+  * Retired handles are never reassigned, even if the native address is reused.
+  * Native bindings retain native resources; lookups always acquire a real ref.
+  */
+-enum {D8_SURFACE=1,D8_TEXTURE=3,D8_VERTEX=6,D8_INDEX=7,D8_RESOURCE_LIMIT=4096};
++enum {D8_SURFACE=1,D8_TEXTURE=3,D8_CUBE=5,D8_VERTEX=6,D8_INDEX=7,D8_RESOURCE_LIMIT=4096};
++/* Cube textures share the texture vtable layout; slots 15..18 add a face argument. */
++#define D8_TEXLIKE(k) ((k)==D8_TEXTURE||(k)==D8_CUBE)
+ typedef struct D8Resource {
+  uint32_t guest,refs,kind,bindings;
+  D8Unknown*host;
+  BYTE*shadow,*valid;unsigned length,format;
+  /* One outstanding lock per object. Guest staging is never a host pointer. */
+- uint32_t staging,bytes,rows,rowbytes,level,flags,offset;
++ uint32_t staging,bytes,rows,rowbytes,level,flags,offset,face;
+  INT pitch;BYTE*locked;
+ } D8Resource;
+ static D8Resource d8_resources[D8_RESOURCE_LIMIT];
+@@ -29,12 +31,14 @@ static uint32_t d8_resource_vtables[8];
+ static D8Resource*d8_bound_streams[16],*d8_bound_indices,*d8_bound_textures[8];
+ static const GUID d8_surface_iid={0xb96eebca,0xb326,0x4ea5,{0x88,0x2f,0x2f,0xf5,0xba,0xe0,0x21,0xdd}};
+ static const GUID d8_texture_iid={0xe4cdd575,0x2866,0x4f01,{0xb1,0x2e,0x7e,0xec,0xe1,0xec,0x93,0x58}};
++static const GUID d8_cube_iid={0x3ee5b968,0x2aca,0x4c34,{0x8b,0xb5,0x7e,0x0c,0x3d,0x19,0xb7,0x50}};
+ static const GUID d8_vertex_iid={0x8aeeeac7,0x05f9,0x44d4,{0xb5,0x91,0x00,0x0b,0x0d,0xf1,0xcb,0x95}};
+ static const GUID d8_index_iid={0x0e689c9a,0x053d,0x44a0,{0x9d,0x92,0xdb,0x0e,0x3d,0x75,0x0f,0x86}};
+ static const GUID d8_resource_iid={0x1b36bb7b,0x09b7,0x410a,{0xb4,0x45,0x7d,0x14,0x30,0xd7,0xb3,0x3f}};
+ static const GUID d8_base_texture_iid={0xb4211cfa,0x51b9,0x4a9f,{0xab,0x78,0xdb,0x99,0xb2,0xbb,0x67,0x8e}};
+ static const char* d8_surface_names[]={"D8R.QueryInterface","D8R.AddRef","D8R.Release","D8R.GetDevice","D8R.Unsupported","D8R.Unsupported","D8R.Unsupported","D8R.GetContainer","D8R.GetDesc","D8R.LockRect","D8R.UnlockRect"};
+ static const char* d8_texture_names[]={"D8R.QueryInterface","D8R.AddRef","D8R.Release","D8R.GetDevice","D8R.Unsupported","D8R.Unsupported","D8R.Unsupported","D8R.SetPriority","D8R.GetPriority","D8R.PreLoad","D8R.GetType","D8R.SetLOD","D8R.GetLOD","D8R.GetLevelCount","D8R.GetLevelDesc","D8R.GetSurfaceLevel","D8R.LockRect","D8R.UnlockRect","D8R.AddDirtyRect"};
++static const char* d8_cube_names[]={"D8R.QueryInterface","D8R.AddRef","D8R.Release","D8R.GetDevice","D8R.Unsupported","D8R.Unsupported","D8R.Unsupported","D8R.SetPriority","D8R.GetPriority","D8R.PreLoad","D8R.GetType","D8R.SetLOD","D8R.GetLOD","D8R.GetLevelCount","D8R.GetLevelDesc","D8R.GetCubeMapSurface","D8R.LockRect","D8R.UnlockRect","D8R.AddDirtyRect"};
+ static const char* d8_buffer_names[]={"D8R.QueryInterface","D8R.AddRef","D8R.Release","D8R.GetDevice","D8R.Unsupported","D8R.Unsupported","D8R.Unsupported","D8R.SetPriority","D8R.GetPriority","D8R.PreLoad","D8R.GetType","D8R.Lock","D8R.Unlock","D8R.GetDesc"};
+ static void d8_resource_guard(CPU*c) {
+  if(d8_rendering||d8_creating||d8_native_failed)xrt_fatal(c,76,"D3D8 resource: reentrant or failed native operation");
+@@ -53,7 +57,7 @@ static D8Resource*d8_resource(CPU*c,uint32_t guest,unsigned kind) {
+ static void d8_resource_reserve(CPU*c,unsigned kind) {
+  d8_resource_guard(c);
+  if(d8_resource_used==D8_RESOURCE_LIMIT)xrt_fatal(c,76,"D3D8 resource: handle capacity");
+- if(!d8_resource_vtables[kind])d8_resource_vtables[kind]=com_vtable(kind==D8_SURFACE?d8_surface_names:kind==D8_TEXTURE?d8_texture_names:d8_buffer_names,kind==D8_SURFACE?11:kind==D8_TEXTURE?19:14);
++ if(!d8_resource_vtables[kind])d8_resource_vtables[kind]=com_vtable(kind==D8_SURFACE?d8_surface_names:kind==D8_TEXTURE?d8_texture_names:kind==D8_CUBE?d8_cube_names:d8_buffer_names,kind==D8_SURFACE?11:D8_TEXLIKE(kind)?19:14);
+ }
+ /* Called inside the native scope, adopting exactly the returned reference. */
+ static uint32_t d8_resource_adopt(CPU*c,void*host,unsigned kind) {
+@@ -104,8 +108,8 @@ static void d8_resource_drop(D8Resource*r) {
+  xm_d8_resource(NULL,r,"released");
+ }
+ static int d8_resource_iid_known(D8Resource*r,const GUID*iid) {
+- const GUID*own=r->kind==D8_SURFACE?&d8_surface_iid:r->kind==D8_TEXTURE?&d8_texture_iid:r->kind==D8_VERTEX?&d8_vertex_iid:&d8_index_iid;
+- return !memcmp(iid,&com_iunknown,16)||!memcmp(iid,own,16)||(r->kind!=D8_SURFACE&&!memcmp(iid,&d8_resource_iid,16))||(r->kind==D8_TEXTURE&&!memcmp(iid,&d8_base_texture_iid,16));
++ const GUID*own=r->kind==D8_SURFACE?&d8_surface_iid:r->kind==D8_TEXTURE?&d8_texture_iid:r->kind==D8_CUBE?&d8_cube_iid:r->kind==D8_VERTEX?&d8_vertex_iid:&d8_index_iid;
++ return !memcmp(iid,&com_iunknown,16)||!memcmp(iid,own,16)||(r->kind!=D8_SURFACE&&!memcmp(iid,&d8_resource_iid,16))||(D8_TEXLIKE(r->kind)&&!memcmp(iid,&d8_base_texture_iid,16));
+ }
+ static void d8_resource_Unsupported(CPU*c){xrt_fatal(c,76,"D3D8 resource: private data interface unsupported");}
+ static void d8_resource_QueryInterface(CPU*c) {
+@@ -146,7 +150,7 @@ static void d8_resource_GetContainer(CPU*c) {
+  LONG id=d8_api_entry(c,307,3);D8Resource*r=d8_resource(c,ARG(0),D8_SURFACE);GUID iid;void*q=NULL;CPU*prev;HRESULT hr;DWORD error;uint32_t out=ARG(2);unsigned kind;
+  d8_device_memory(c,ARG(1),16,0);memcpy(&iid,G2H(ARG(1)),16);if(out)d8_device_memory(c,out,4,1);
+  /* Container IUnknown is ambiguous; require the exact typed interface. */
+- kind=!memcmp(&iid,&d8_texture_iid,16)?D8_TEXTURE:0;
++ kind=!memcmp(&iid,&d8_texture_iid,16)?D8_TEXTURE:!memcmp(&iid,&d8_cube_iid,16)?D8_CUBE:0;
+  if(!kind&&memcmp(&iid,&d8_device_iid,16))xrt_fatal(c,76,"D3D8 surface: untyped container IID");
+  if(kind)d8_resource_reserve(c,kind);
+  prev=d8_native_enter(c,307,&iid,16);hr=XM_GetContainer(c,(D8Surface*)r->host,&iid,out?&q:NULL);error=GetLastError();
+@@ -156,7 +160,7 @@ static void d8_resource_GetContainer(CPU*c) {
+ }
+ static void d8_resource_GetDesc(CPU*c) {
+  LONG id=d8_api_entry(c,308,2);D8Resource*r=d8_resource(c,ARG(0),0);D8SurfaceDesc desc;CPU*prev;HRESULT hr;DWORD error;unsigned n=r->kind==D8_SURFACE?32:r->kind==D8_VERTEX?24:20;uint32_t out=ARG(1);
+- if(r->kind==D8_TEXTURE)xrt_fatal(c,76,"D3D8 texture: use GetLevelDesc");
++ if(D8_TEXLIKE(r->kind))xrt_fatal(c,76,"D3D8 texture: use GetLevelDesc");
+  d8_device_memory(c,out,n,1);memcpy(&desc,G2H(out),n);
+  prev=d8_native_enter(c,308,NULL,0);hr=r->kind==D8_SURFACE?XM_GetDesc(c,(D8Surface*)r->host,&desc):XM_GetDesc(c,(D8Buffer*)r->host,(D8BufferDesc*)&desc);error=GetLastError();
+  d8_device_memory(c,out,n,1);memcpy(G2H(out),&desc,n);d8_semantic_return(c,prev,id,2,hr,error);
+diff --git a/out/dev-init-savepoints/init-return-20261030/runtime/scene_draw.inc b/out/dev-init/runtime/scene_draw.inc
+index 9ffdbc6..322cb9e 100644
+--- a/out/dev-init-savepoints/init-return-20261030/runtime/scene_draw.inc
++++ b/out/dev-init/runtime/scene_draw.inc
+@@ -78,7 +78,7 @@ static void d8_device_DrawPrimitiveUP(CPU*c) {
+     d8_draw_layout(c,o,count,stride);size=d8_draw_size(c,n,stride);vertices=d8_draw_copy(c,ARG(3),size);
+     evidence[0]=type;evidence[1]=count;evidence[2]=stride;evidence[3]=n;evidence[4]=size;evidence[5]=d8_draw_hash(vertices,size);
+     previous=d8_native_enter(c,72,evidence,sizeof evidence);
+-    hr=XM_DrawPrimitiveUP(c,o->host,type,count,vertices,stride);error=GetLastError();
++    hr=XM_DrawPrimitiveUP(c,o->host,type,count,vertices,stride);error=GetLastError();d8_count_draw(hr,count);
+     d8_resource_up_reset(0);
+     if(vertices)HeapFree(GetProcessHeap(),0,vertices);
+     d8_semantic_return(c,previous,id,5,hr,error);
+@@ -103,7 +103,7 @@ static void d8_device_DrawIndexedPrimitiveUP(CPU*c) {
+     evidence[0]=type;evidence[1]=min;evidence[2]=num;evidence[3]=count;evidence[4]=fmt;evidence[5]=stride;
+     evidence[6]=d8_draw_hash(indices,isz);evidence[7]=d8_draw_hash(vertices,vsz);evidence[8]=vsz;
+     previous=d8_native_enter(c,73,evidence,sizeof evidence);
+-    hr=XM_DrawIndexedPrimitiveUP(c,o->host,type,min,num,count,indices,fmt,vertices,stride);error=GetLastError();
++    hr=XM_DrawIndexedPrimitiveUP(c,o->host,type,min,num,count,indices,fmt,vertices,stride);error=GetLastError();d8_count_draw(hr,count);
+     d8_resource_up_reset(1);
+     if(indices)HeapFree(GetProcessHeap(),0,indices);d8_resource_up_reset(0);
+     if(vertices)HeapFree(GetProcessHeap(),0,vertices);
+diff --git a/out/dev-init-savepoints/init-return-20261030/runtime/xrt_events.c b/out/dev-init/runtime/xrt_events.c
+index 3819bd4..dbb7d1a 100644
+--- a/out/dev-init-savepoints/init-return-20261030/runtime/xrt_events.c
++++ b/out/dev-init/runtime/xrt_events.c
+@@ -34,6 +34,8 @@ typedef struct {
+     uint32_t self,world,esp,ret,popped;
+ } WorldCall;
+ static __declspec(thread) WorldCall world_calls[128];
++/* Developer first-scene counters, read and reset by the D3D8 Present handler. */
++int xrt_scene_level_depth,xrt_scene_camera_depth;unsigned xrt_scene_level_renders,xrt_scene_camera_renders,xrt_scene_engine_ticks,xrt_scene_level_ticks;
+ 
+ void xrt_world_enter(CPU*c,uint32_t target) {
+     const char*kind=NULL,*stage="";uint32_t popped=4,self=c->r[ECX],world=0;unsigned i;
+@@ -45,6 +47,11 @@ void xrt_world_enter(CPU*c,uint32_t target) {
+     case 0x8f460:xm_scope(c,XM_BEGIN,XM_ADAPTER,"UGameEngine.Init",target);kind="engine_init";break;
+     case 0x938f0:kind="engine_tick";popped=8;break; /* thiscall Tick(float), RET 4 */
+     case 0xb5be0:kind="level_tick";world=self;popped=12;break;
++    /* Developer first-scene evidence: Engine exports, thiscall. */
++    case 0x8ed60:kind="game_draw";popped=20;break;      /* UGameEngine::Draw(UViewport*,int,BYTE*,int*), RET 10 */
++    case 0xfc4b0:kind="level_render";popped=8;xrt_scene_level_depth++;break; /* FLevelSceneNode::Render(FRenderInterface*) */
++    case 0xfcc80:kind="camera_render";popped=8;xrt_scene_camera_depth++;break; /* FCameraSceneNode::Render */
++    case 0xfd280:kind="player_render";popped=8;break;   /* FPlayerSceneNode::Render */
+     default:return;
+     }
+     /* Native GetLevel is MOV EAX,[ECX+d4]; RET. Never infer world from call context. */
+@@ -66,6 +73,10 @@ void xrt_world_return(CPU*c) {
+         snprintf(event,sizeof event,"%s_return",p->kind);
+         xrt_event(event,"\"stage\":\"%s\",\"this\":%u,\"world\":%u,\"esp_before\":%u,\"esp_after\":%u,\"return\":%u,\"actual_return\":%u",p->stage,p->self,p->world,p->esp,c->r[ESP],p->ret,c->rv);
+         if(!strcmp(p->kind,"engine_init"))xm_scope(c,XM_END,XM_ADAPTER,"UGameEngine.Init",c->r[EAX]);
++        if(!strcmp(p->kind,"level_render")){xrt_scene_level_depth--;xrt_scene_level_renders++;}
++        if(!strcmp(p->kind,"camera_render")){xrt_scene_camera_depth--;xrt_scene_camera_renders++;}
++        if(!strcmp(p->kind,"engine_tick"))xrt_scene_engine_ticks++;
++        if(!strcmp(p->kind,"level_tick"))xrt_scene_level_ticks++;
+         p->kind=NULL;
+     }
+ }
+diff --git a/out/dev-init-savepoints/init-return-20261030/runtime/xrt_internal.h b/out/dev-init/runtime/xrt_internal.h
+index 641fccc..c6290d6 100644
+--- a/out/dev-init-savepoints/init-return-20261030/runtime/xrt_internal.h
++++ b/out/dev-init/runtime/xrt_internal.h
+@@ -140,6 +140,11 @@ XrtFn xrt_lookup(uint32_t va, const char** stub_name);
+ uint32_t xrt_lookup_containing(uint32_t va);                /* lifted function entry at or below va */
+ uint32_t xrt_call_guest(CPU* c, uint32_t va, int nargs, const uint32_t* args, int stdcall);
+ void xrt_world_enter(CPU* c, uint32_t target);
++extern int xrt_scene_level_depth,xrt_scene_camera_depth;extern unsigned xrt_scene_level_renders,xrt_scene_camera_renders,xrt_scene_engine_ticks,xrt_scene_level_ticks;
++/* Developer first-scene mode (dev_support.c). */
++int xrt_dev_scene_capture(unsigned level_renders,unsigned scene_draws);
++void xrt_dev_scene_frame(unsigned frame,unsigned width,unsigned height,unsigned format,const void*bits,int pitch);
++void xrt_dev_scene_present(CPU*c,long hr,unsigned draws,unsigned prims,unsigned scene_draws,unsigned scene_prims,unsigned level_draws);
+ void xrt_world_return(CPU* c);
+ uint32_t xrt_call_funclet(CPU* c, uint32_t va);   /* EH funclet call: no args, not a host boundary */
+ uint32_t xrt_call_continuation(CPU* c, uint32_t va, uint32_t expected_return);  /* run code at va until it returns */

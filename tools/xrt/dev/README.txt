@@ -7,6 +7,16 @@ No game execution was performed while implementing the tracing update below.
 
 What actually blocks progress
 ----------------------------
+First-scene batch (2026-10-31; journal in out/dev-init/init-batch-20261030.txt):
+  run --authorize-init --authorize-first-scene --first-scene N --timeout 120 ...
+continues past the Init-return checkpoint (still recorded) and stops with exit 11 after N
+presented frames whose draws were issued inside FLevelSceneNode/FCameraSceneNode::Render,
+reading back the presented back buffer to scene-frame-NNNN.bmp at frames 1,2,4,...,N.
+Last run 20261031-001207-98574d76: first Tick done, Present 2 = 555 draws / 396846 prims,
+then a second IDirect3D8::CreateDevice was refused. Scene-node renders read 0 because
+Engine_026 (the Render functions) is not compiled with world_observer.h: fix that first.
+Runtime changes: patches/first-scene-runtime.patch.
+
 The third developer run (20261030-221937-21570264) reached successful window
 creation and continued file-backed loading. Its last completed ReadFile returned
 TRUE, its last SetFilePointer returned 0x6c560, and _vsnwprintf returned 12.

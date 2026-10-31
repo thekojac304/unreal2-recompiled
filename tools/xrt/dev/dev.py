@@ -314,9 +314,31 @@ def endpoint_proven(out, code):
         return False
 
 
+def scene_proven(out, code):
+    """First-scene stop: exit 11, the Init-return milestone and the dev.scene.present checkpoint."""
+    runtime = out / 'runtime-report.json'
+    monitor = out / 'monitor.bin'
+    if code != 11 or not runtime.exists() or not monitor.exists():
+        return False
+    kinds = {e.get('kind') for e in read(runtime).get('events', [])}
+    if 'dev_init_return' not in kinds:
+        return False
+    sys.path.insert(0, str(HERE))
+    from trace_reader import records
+    try:
+        names = {r.name for r in records(monitor) if r.event == 10}
+    except ValueError:
+        return False
+    return {b'dev.Init.return', b'dev.scene.present'} <= names
+
+
 def run(args):
     if not args.authorize_init:
         raise RuntimeError('No launch: separate explicit owner authorization is required; then use --authorize-init')
+    if args.first_scene and not args.authorize_first_scene:
+        raise RuntimeError('No launch: --first-scene needs the separately granted --authorize-first-scene scope')
+    if args.first_scene and args.timeout > 120:
+        raise RuntimeError('First-scene runs are limited to 120 seconds')
     if not args.question.strip() or not args.change.strip():
         raise RuntimeError('Provide one concrete --question and --change')
     exe = BUILD / 'unreal2-dev.exe'
@@ -352,9 +374,14 @@ def run(args):
                XRT_MONITOR_STREAM=str(out / 'monitor.bin'),
                XRT_DMUSIC_BACKEND='ipc', XRT_DMUSIC_HELPER=str(helper),
                XRT_D3D8_DIR=str(graphics.verified_pair('x64')), XRT_STOP_FIRST_LEVEL_TICK='1')
+    if args.first_scene:
+        # Continue past Init and level ticks; the stop is after N presented world frames.
+        del env['XRT_STOP_FIRST_LEVEL_TICK']
+        env['XRT_DEV_SCENE'] = str(args.first_scene)
     graphics.environment(env, out)
     write(out / 'trace-profile.json', {'profile': args.trace_profile, 'full': args.trace_full,
-                                     'addresses': [hex(a) for a in args.trace_address]})
+                                     'addresses': [hex(a) for a in args.trace_address],
+                                     'first_scene_frames': args.first_scene})
     if args.attach:
         env['XRT_DEV_ATTACH'] = '1'
     command_args = ['--guest', sandbox / 'System/Unreal2.exe', '--log', out / 'xrt.log',
@@ -364,10 +391,12 @@ def run(args):
     print('Run output:', out, flush=True)
     try:
         code = launch(exe, command_args, out, sandbox / 'System', env, args.timeout)
-        reached = endpoint_proven(out, code)
+        reached = scene_proven(out, code) if args.first_scene else endpoint_proven(out, code)
         outcome = read(out / 'runtime-report.json').get('outcome') if (out / 'runtime-report.json').exists() else 'No runtime report; inspect console.txt'
+        done = (f'Init returned; {args.first_scene} world frames presented (inspect scene-frame-*.bmp)'
+                if args.first_scene else 'Init returned; main loop not entered')
         report(out, args.change, args.question,
-               'Init returned; main loop not entered' if reached else 'See console.txt, xrt.log and runtime-report.json',
+               done if reached else 'See console.txt, xrt.log and runtime-report.json',
                'None observed before endpoint' if reached else f'{outcome}; exit {code:#x}; 124=deadline, 125=harness, 130=cancel',
                'Review Init return; separately scope first scene/tick' if reached else 'Fix the first fatal/unsupported call; keep the same milestone')
         observe(out)
@@ -387,6 +416,10 @@ def main():
     r.add_argument('--question', required=True); r.add_argument('--change', required=True)
     r.add_argument('--timeout', type=int, choices=range(1, 301), default=60, metavar='1..300')
     r.add_argument('--attach', action='store_true')
+    r.add_argument('--authorize-first-scene', action='store_true',
+                   help='acknowledge separately granted owner authorization to continue past Init into world frames')
+    r.add_argument('--first-scene', type=int, choices=range(1, 601), default=0, metavar='1..600',
+                   help='continue past Init; stop after this many presented frames with level/camera scene-node draws (exit 11)')
     r.add_argument('--trace-profile', choices=('development', 'forensic'), default='development')
     r.add_argument('--trace-full', action='append', default=[], metavar='DLL!NAME',
                    help='retain full tracing for this exact import name; repeat as needed')
