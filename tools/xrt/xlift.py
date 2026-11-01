@@ -255,6 +255,11 @@ class Lifter:
             if cnt == 0:
                 return frozenset(), frozenset()
             return frozenset(), (frozenset(("cf", "of")) if m in ("rol", "ror") else FLAGS)
+        if m in ("rcl", "rcr"):
+            cnt = 1 if len(ops) == 1 else (ops[-1].imm & 31 if ops[-1].type == X.X86_OP_IMM else None)
+            if not cnt:
+                return frozenset(("cf",)), frozenset()   # count in cl (or 0): cf is read, flags may be kept
+            return frozenset(("cf",)), frozenset(("cf", "of"))
         if m in ("imul", "mul"):
             return frozenset(), frozenset(("cf", "of"))
         if m in ("clc", "stc"):
@@ -910,6 +915,22 @@ class Lifter:
                      f"{self.write(ops[0], 'r_')} }}")
         elif m in ("shl", "sal", "shr", "sar", "rol", "ror"):
             o.extend(self.lift_shift(m, ops, bits))
+        elif m in ("rcl", "rcr"):
+            # Rotate through carry (the CRT's _aulldiv/_alldiv normalisation loop: shr/rcr pairs). The rotation is
+            # over bits+1 bits (operand and CF); the count is masked to 5 bits, then taken modulo bits+1. OF is
+            # defined for a count of 1 (rcl: MSB(result) ^ CF after; rcr: MSB(operand) ^ CF before) and is computed
+            # with the same formula otherwise (architecturally undefined there).
+            a = self.read(ops[0])
+            cnt = "1u" if len(ops) == 1 else self.read(ops[1], 8)
+            w = bits + 1
+            o.append(f"{{ uint32_t k_ = (({cnt}) & 31u) % {w}u; if (k_) {{ uint64_t a_ = {a}, v_ = a_ | ((uint64_t)c->cf << {bits}), r_;")
+            if m == "rcl":
+                o.append(f"  r_ = ((v_ << k_) | (v_ >> ({w}u - k_))) & ((1ull << {w}) - 1u);")
+                o.append(f"  c->cf = (uint32_t)(r_ >> {bits}) & 1u; c->of = msb((uint32_t)r_, {bits}) ^ c->cf;")
+            else:
+                o.append(f"  r_ = ((v_ >> k_) | (v_ << ({w}u - k_))) & ((1ull << {w}) - 1u);")
+                o.append(f"  c->of = msb((uint32_t)a_, {bits}) ^ c->cf; c->cf = (uint32_t)(r_ >> {bits}) & 1u;")
+            o.append(f"  {self.write(ops[0], '(uint32_t)r_ & ' + mask_hex(bits))} }} }}")
         elif m in ("shld", "shrd"):
             if bits != 32:
                 raise Unsupported(f"{m} with {bits}-bit operands")
@@ -1363,7 +1384,19 @@ class Lifter:
                     else:
                         imp = self.iat_name(ops[0])
                         note = f"   /* {imp} */" if imp else ""
-                        stmts.append(f"{pop}xrt_ijmp(c, {self.read(ops[0])}, 0x{va:x}u); return;{note}")
+                        mm = ops[0].mem if ops[0].type == X.X86_OP_MEM else None
+                        known = sorted({t for ts in fn.jumptables.values() for t in ts}) \
+                            if mm is not None and mm.index != 0 and mm.scale == 4 and mm.base == 0 and not imp else []
+                        if known:
+                            # A table jump discovery could not bound (memcpy's jmp [ecx*4 + TrailUpVec + 16] after
+                            # sub ecx, 4 / jb: a negative index into the neighbouring table): a target that is one of
+                            # this function's jump-table case labels continues there; any other goes to the runtime.
+                            labels.update(known)
+                            cases = " ".join(f"case 0x{t:x}u: goto L_{t:x};" for t in known)
+                            stmts.append(f"{{ uint32_t t_ = {self.read(ops[0])}; switch (t_) {{ {cases} default: "
+                                         f"{pop}xrt_ijmp(c, t_, 0x{va:x}u); return; }} }}")
+                        else:
+                            stmts.append(f"{pop}xrt_ijmp(c, {self.read(ops[0])}, 0x{va:x}u); return;{note}")
                 elif m == "call":
                     if ops[0].type == X.X86_OP_IMM:
                         t = ops[0].imm & 0xFFFFFFFF

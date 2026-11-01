@@ -10,6 +10,7 @@ EXAMPLES = """
 c1c005 d1c0 d3c0 d2c0 c0c003 66c1c005 66d3c0 d1c8 c1c805 d3c8 d2c8 66d3c8 c0c803 d34310 d14b10
 d2e0 d2e8 d2f8 66d3e0 66d3e8 66d3f8 c0e003 c0f803 66c1e805 d0f8 c16b1005 d07b10 d36310
 0fa4c805 0facc805 0fa54b10 0fad4b10
+d1d0 d1d8 c1d805 d3d8 d1d1 d1d9 c0d003 66d1d8 66d3d0 d15b10 d35310
 0f40c1 0f41c1 0f42c1 0f43c1 0f44c1 0f45c1 0f46c1 0f47c1 0f48c1 0f49c1 0f4ac1 0f4bc1 0f4cc1 0f4dc1 0f4ec1 0f4fc1
 0f444310 660f44c1
 0fc8 0fcb 0fce
@@ -37,7 +38,7 @@ dd7b10 d97b10 d96b10 dbe2 dbe3 9b
 # Forms the lifter deliberately leaves as traps (listed so the report shows them as known, not tested).
 UNSUPPORTED_EXAMPLES = """
 d9e5 d9f8 d9f5 d9f7 d9f6 ddc1 dac1 dbe9 dfe9 df6310 df7310 db6b10 db7b10 d96310 d97310 dd6310 dd7310
-d9f4 d9fb d9f9 66f7e1 66f7e9 f6f1 66f7f1 d1d0 d1d8 0fa3c8 0fbcc1 0fbdc1 0fc14310 0fb14b10 9e 9f 9c 9d 60 61 d7
+d9f4 d9fb d9f9 66f7e1 66f7e9 f6f1 66f7f1 0fa3c8 0fbcc1 0fbdc1 0fc14310 0fb14b10 9e 9f 9c 9d 60 61 d7
 """
 
 

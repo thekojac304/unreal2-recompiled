@@ -1,8 +1,8 @@
 {
  "summary": {
-  "snippets": 2627,
-  "cases": 432304,
-  "forms": 382,
+  "snippets": 2757,
+  "cases": 441696,
+  "forms": 390,
   "census_forms": 203,
   "census_forms_covered": 203,
   "census_encodings": 294,
@@ -23,18 +23,18 @@
    "oracle": 0
   },
   "model_categories": {
-   "x87-not-a-double": 2679,
+   "x87-not-a-double": 2687,
    "x87-transcendental": 424,
    "x87-nan-payload": 40,
-   "x87-c1": 12130,
-   "x87-exception-flags": 33048,
+   "x87-c1": 12073,
+   "x87-exception-flags": 32929,
    "fnstsw-unmodelled": 1226,
-   "fatal-by-design": 1111
+   "fatal-by-design": 1105
   },
   "status_pairs": {
-   "ok/ok": 428551,
+   "ok/ok": 437949,
    "#DE/#DE": 2642,
-   "ok/fatal": 1111
+   "ok/fatal": 1105
   },
   "transcendental_ulp_histogram": {
    "0": 8174,
@@ -46,7 +46,7 @@
     "cases": 23680
    },
    "alu2": {
-    "cases": 110112
+    "cases": 110064
    },
    "div": {
     "cases": 5600
@@ -70,7 +70,7 @@
     "cases": 16640
    },
    "shift": {
-    "cases": 45200
+    "cases": 54640
    },
    "stack": {
     "cases": 8128
@@ -80,13 +80,13 @@
    },
    "x87": {
     "cases": 79360,
-    "x87-exception-flags": 31832,
-    "x87-c1": 12130,
-    "x87-not-a-double": 2679,
+    "x87-exception-flags": 31713,
+    "x87-c1": 12073,
+    "x87-not-a-double": 2687,
     "fnstsw-unmodelled": 10,
     "x87-nan-payload": 40,
     "x87-transcendental": 424,
-    "fatal-by-design": 1111
+    "fatal-by-design": 1105
    },
    "x87seq": {
     "cases": 14080,
@@ -198,7 +198,7 @@
   {
    "text": "ffree st(1)",
    "bytes": "ddc1",
-   "lifter": "x87 instruction ffree"
+   "lifter": null
   },
   {
    "text": "fcmovb st(0), st(1)",
@@ -289,16 +289,6 @@
    "text": "div cx",
    "bytes": "66f7f1",
    "lifter": "div 16-bit"
-  },
-  {
-   "text": "rcl eax, 1",
-   "bytes": "d1d0",
-   "lifter": "instruction rcl"
-  },
-  {
-   "text": "rcr eax, 1",
-   "bytes": "d1d8",
-   "lifter": "instruction rcr"
   },
   {
    "text": "bt eax, ecx",
@@ -1954,7 +1944,7 @@
    "de_cases": 0,
    "failed_cases": 0,
    "categories": {
-    "x87-exception-flags": 58
+    "x87-exception-flags": 44
    }
   },
   "fild m64": {
@@ -3415,7 +3405,7 @@
    "de_cases": 0,
    "failed_cases": 0,
    "categories": {
-    "x87-c1": 183,
+    "x87-c1": 191,
     "x87-exception-flags": 299,
     "x87-transcendental": 2
    }
@@ -3597,8 +3587,8 @@
    "de_cases": 0,
    "failed_cases": 0,
    "categories": {
-    "x87-c1": 153,
     "x87-exception-flags": 307,
+    "x87-c1": 159,
     "x87-transcendental": 140
    }
   },
@@ -3652,8 +3642,8 @@
    "de_cases": 0,
    "failed_cases": 0,
    "categories": {
-    "x87-c1": 148,
     "x87-exception-flags": 300,
+    "x87-c1": 139,
     "x87-transcendental": 67
    }
   },
@@ -3672,7 +3662,7 @@
    "failed_cases": 0,
    "categories": {
     "x87-exception-flags": 303,
-    "x87-c1": 163,
+    "x87-c1": 168,
     "x87-transcendental": 50
    }
   },
@@ -3691,7 +3681,7 @@
    "failed_cases": 0,
    "categories": {
     "x87-exception-flags": 306,
-    "x87-c1": 151,
+    "x87-c1": 150,
     "x87-transcendental": 58
    }
   },
@@ -3709,9 +3699,9 @@
    "de_cases": 0,
    "failed_cases": 0,
    "categories": {
-    "x87-exception-flags": 303,
     "x87-transcendental": 107,
-    "x87-c1": 124
+    "x87-exception-flags": 303,
+    "x87-c1": 129
    }
   },
   "fsqrt": {
@@ -3960,7 +3950,7 @@
    "de_cases": 0,
    "failed_cases": 0,
    "categories": {
-    "x87-exception-flags": 51
+    "x87-exception-flags": 46
    }
   },
   "fdivrp sti": {
@@ -4776,6 +4766,136 @@
     "reg-aliases-base"
    ],
    "cases": 1600,
+   "de_cases": 0,
+   "failed_cases": 0,
+   "categories": {}
+  },
+  "rcl r32,imm": {
+   "family": "shift",
+   "census_count": 0,
+   "in_census": false,
+   "encodings": 1,
+   "census_encodings": 0,
+   "snippets": 1,
+   "variants": [
+    "regs"
+   ],
+   "cases": 320,
+   "de_cases": 0,
+   "failed_cases": 0,
+   "categories": {}
+  },
+  "rcr r32,imm": {
+   "family": "shift",
+   "census_count": 0,
+   "in_census": false,
+   "encodings": 2,
+   "census_encodings": 0,
+   "snippets": 39,
+   "variants": [
+    "regs"
+   ],
+   "cases": 1840,
+   "de_cases": 0,
+   "failed_cases": 0,
+   "categories": {}
+  },
+  "rcr r32,r8": {
+   "family": "shift",
+   "census_count": 0,
+   "in_census": false,
+   "encodings": 1,
+   "census_encodings": 0,
+   "snippets": 2,
+   "variants": [
+    "operand=ecx",
+    "regs"
+   ],
+   "cases": 640,
+   "de_cases": 0,
+   "failed_cases": 0,
+   "categories": {}
+  },
+  "rcl r8,imm": {
+   "family": "shift",
+   "census_count": 0,
+   "in_census": false,
+   "encodings": 1,
+   "census_encodings": 0,
+   "snippets": 78,
+   "variants": [
+    "high-byte",
+    "operand=ecx",
+    "regs"
+   ],
+   "cases": 3120,
+   "de_cases": 0,
+   "failed_cases": 0,
+   "categories": {}
+  },
+  "rcr r16,imm": {
+   "family": "shift",
+   "census_count": 0,
+   "in_census": false,
+   "encodings": 1,
+   "census_encodings": 0,
+   "snippets": 1,
+   "variants": [
+    "regs"
+   ],
+   "cases": 320,
+   "de_cases": 0,
+   "failed_cases": 0,
+   "categories": {}
+  },
+  "rcl r16,r8": {
+   "family": "shift",
+   "census_count": 0,
+   "in_census": false,
+   "encodings": 1,
+   "census_encodings": 0,
+   "snippets": 2,
+   "variants": [
+    "operand=ecx",
+    "regs"
+   ],
+   "cases": 640,
+   "de_cases": 0,
+   "failed_cases": 0,
+   "categories": {}
+  },
+  "rcr m32,imm": {
+   "family": "shift",
+   "census_count": 0,
+   "in_census": false,
+   "encodings": 1,
+   "census_encodings": 0,
+   "snippets": 4,
+   "variants": [
+    "[base+disp8]",
+    "[base+index*scale+disp32]",
+    "[disp32]",
+    "[esp+disp8]"
+   ],
+   "cases": 1280,
+   "de_cases": 0,
+   "failed_cases": 0,
+   "categories": {}
+  },
+  "rcl m32,r8": {
+   "family": "shift",
+   "census_count": 0,
+   "in_census": false,
+   "encodings": 1,
+   "census_encodings": 0,
+   "snippets": 4,
+   "variants": [
+    "[base+disp8]",
+    "[base+index*scale+disp32]",
+    "[disp32]",
+    "[esp+disp8]"
+   ],
+   "cases": 1280,
    "de_cases": 0,
    "failed_cases": 0,
    "categories": {}
@@ -6134,14 +6254,14 @@
    "in_census": false,
    "encodings": 1,
    "census_encodings": 0,
-   "snippets": 14,
+   "snippets": 13,
    "variants": [
     "[base+disp8]",
     "[base+index*scale+disp32]",
     "[disp32]",
     "[esp+disp8]"
    ],
-   "cases": 672,
+   "cases": 624,
    "de_cases": 0,
    "failed_cases": 0,
    "categories": {}
@@ -6486,7 +6606,7 @@
    "de_cases": 0,
    "failed_cases": 0,
    "categories": {
-    "x87-exception-flags": 11
+    "x87-exception-flags": 21
    }
   },
   "ftst": {
@@ -6503,7 +6623,7 @@
    "de_cases": 0,
    "failed_cases": 0,
    "categories": {
-    "x87-exception-flags": 24
+    "x87-exception-flags": 33
    }
   },
   "fldz": {
@@ -6520,7 +6640,7 @@
    "de_cases": 0,
    "failed_cases": 0,
    "categories": {
-    "x87-exception-flags": 17
+    "x87-exception-flags": 12
    }
   },
   "fldpi": {
@@ -6556,7 +6676,7 @@
    "failed_cases": 0,
    "categories": {
     "x87-not-a-double": 320,
-    "x87-exception-flags": 16
+    "x87-exception-flags": 14
    }
   },
   "fldl2t": {
@@ -6574,7 +6694,7 @@
    "failed_cases": 0,
    "categories": {
     "x87-not-a-double": 320,
-    "x87-exception-flags": 14
+    "x87-exception-flags": 11
    }
   },
   "fucom sti": {
@@ -6608,7 +6728,7 @@
    "de_cases": 0,
    "failed_cases": 0,
    "categories": {
-    "x87-exception-flags": 18
+    "x87-exception-flags": 12
    }
   },
   "fucompp": {
@@ -6625,7 +6745,7 @@
    "de_cases": 0,
    "failed_cases": 0,
    "categories": {
-    "x87-exception-flags": 18
+    "x87-exception-flags": 17
    }
   },
   "fcompp": {
@@ -6642,7 +6762,7 @@
    "de_cases": 0,
    "failed_cases": 0,
    "categories": {
-    "x87-exception-flags": 26
+    "x87-exception-flags": 17
    }
   },
   "fild m16": {
@@ -6662,7 +6782,7 @@
    "de_cases": 0,
    "failed_cases": 0,
    "categories": {
-    "x87-exception-flags": 63
+    "x87-exception-flags": 55
    }
   },
   "fist m16": {
@@ -6682,8 +6802,8 @@
    "de_cases": 0,
    "failed_cases": 0,
    "categories": {
-    "x87-exception-flags": 1167,
-    "x87-c1": 80
+    "x87-c1": 96,
+    "x87-exception-flags": 1160
    }
   },
   "fistp m16": {
@@ -6703,8 +6823,8 @@
    "de_cases": 0,
    "failed_cases": 0,
    "categories": {
-    "x87-exception-flags": 1152,
-    "x87-c1": 86
+    "x87-exception-flags": 1165,
+    "x87-c1": 105
    }
   },
   "fist m32": {
@@ -6724,8 +6844,8 @@
    "de_cases": 0,
    "failed_cases": 0,
    "categories": {
-    "x87-exception-flags": 1081,
-    "x87-c1": 174
+    "x87-exception-flags": 1060,
+    "x87-c1": 128
    }
   },
   "fistp m32": {
@@ -6745,8 +6865,8 @@
    "de_cases": 0,
    "failed_cases": 0,
    "categories": {
-    "x87-c1": 159,
-    "x87-exception-flags": 1074
+    "x87-exception-flags": 1051,
+    "x87-c1": 150
    }
   },
   "fiadd m32": {
@@ -6766,8 +6886,8 @@
    "de_cases": 0,
    "failed_cases": 0,
    "categories": {
-    "x87-exception-flags": 663,
-    "x87-c1": 310
+    "x87-c1": 320,
+    "x87-exception-flags": 703
    }
   },
   "fimul m16": {
@@ -6787,9 +6907,9 @@
    "de_cases": 0,
    "failed_cases": 0,
    "categories": {
-    "x87-exception-flags": 509,
-    "x87-c1": 239,
-    "x87-not-a-double": 17
+    "x87-exception-flags": 511,
+    "x87-c1": 197,
+    "x87-not-a-double": 21
    }
   },
   "fisub m32": {
@@ -6809,8 +6929,8 @@
    "de_cases": 0,
    "failed_cases": 0,
    "categories": {
-    "x87-c1": 342,
-    "x87-exception-flags": 708
+    "x87-c1": 332,
+    "x87-exception-flags": 667
    }
   },
   "fisubr m32": {
@@ -6830,8 +6950,8 @@
    "de_cases": 0,
    "failed_cases": 0,
    "categories": {
-    "x87-c1": 322,
-    "x87-exception-flags": 673
+    "x87-c1": 317,
+    "x87-exception-flags": 682
    }
   },
   "fidivr m16": {
@@ -6851,9 +6971,9 @@
    "de_cases": 0,
    "failed_cases": 0,
    "categories": {
-    "x87-exception-flags": 1037,
-    "x87-not-a-double": 24,
-    "x87-c1": 484
+    "x87-exception-flags": 1023,
+    "x87-c1": 481,
+    "x87-not-a-double": 25
    }
   },
   "ficom m32": {
@@ -6873,7 +6993,7 @@
    "de_cases": 0,
    "failed_cases": 0,
    "categories": {
-    "x87-exception-flags": 96
+    "x87-exception-flags": 89
    }
   },
   "ficomp m16": {
@@ -6893,7 +7013,7 @@
    "de_cases": 0,
    "failed_cases": 0,
    "categories": {
-    "x87-exception-flags": 83
+    "x87-exception-flags": 99
    }
   },
   "fsubrp sti": {
@@ -6910,8 +7030,8 @@
    "de_cases": 0,
    "failed_cases": 0,
    "categories": {
-    "x87-c1": 100,
-    "x87-exception-flags": 213
+    "x87-exception-flags": 204,
+    "x87-c1": 103
    }
   },
   "fadd sti,st0": {
@@ -6928,8 +7048,8 @@
    "de_cases": 0,
    "failed_cases": 0,
    "categories": {
-    "x87-exception-flags": 225,
-    "x87-c1": 104
+    "x87-c1": 91,
+    "x87-exception-flags": 204
    }
   },
   "fsub sti,st0": {
@@ -6946,8 +7066,8 @@
    "de_cases": 0,
    "failed_cases": 0,
    "categories": {
-    "x87-c1": 104,
-    "x87-exception-flags": 214
+    "x87-exception-flags": 215,
+    "x87-c1": 107
    }
   },
   "fsubr sti,st0": {
@@ -6964,8 +7084,8 @@
    "de_cases": 0,
    "failed_cases": 0,
    "categories": {
-    "x87-c1": 106,
-    "x87-exception-flags": 227
+    "x87-c1": 116,
+    "x87-exception-flags": 217
    }
   },
   "fdiv sti,st0": {
@@ -6982,9 +7102,9 @@
    "de_cases": 0,
    "failed_cases": 0,
    "categories": {
-    "x87-exception-flags": 261,
-    "x87-c1": 115,
-    "x87-not-a-double": 11
+    "x87-exception-flags": 269,
+    "x87-c1": 120,
+    "x87-not-a-double": 14
    }
   },
   "fdivr sti,st0": {
@@ -7001,9 +7121,9 @@
    "de_cases": 0,
    "failed_cases": 0,
    "categories": {
-    "x87-exception-flags": 266,
-    "x87-c1": 132,
-    "x87-not-a-double": 8
+    "x87-exception-flags": 260,
+    "x87-c1": 130,
+    "x87-not-a-double": 16
    }
   },
   "fmul sti,st0": {
@@ -7020,9 +7140,9 @@
    "de_cases": 0,
    "failed_cases": 0,
    "categories": {
-    "x87-exception-flags": 223,
-    "x87-c1": 90,
-    "x87-not-a-double": 19
+    "x87-exception-flags": 203,
+    "x87-c1": 77,
+    "x87-not-a-double": 14
    }
   },
   "fsubr sti": {
@@ -7039,8 +7159,8 @@
    "de_cases": 0,
    "failed_cases": 0,
    "categories": {
-    "x87-c1": 100,
-    "x87-exception-flags": 221
+    "x87-c1": 117,
+    "x87-exception-flags": 225
    }
   },
   "fdivr sti": {
@@ -7057,9 +7177,9 @@
    "de_cases": 0,
    "failed_cases": 0,
    "categories": {
+    "x87-c1": 128,
     "x87-exception-flags": 266,
-    "x87-c1": 139,
-    "x87-not-a-double": 16
+    "x87-not-a-double": 13
    }
   },
   "fst sti": {
@@ -7076,7 +7196,7 @@
    "de_cases": 0,
    "failed_cases": 0,
    "categories": {
-    "x87-exception-flags": 16
+    "x87-exception-flags": 20
    }
   },
   "fnstsw m16": {
@@ -7114,7 +7234,7 @@
    "de_cases": 0,
    "failed_cases": 0,
    "categories": {
-    "x87-exception-flags": 56
+    "x87-exception-flags": 55
    }
   },
   "fldcw m16": {
@@ -7134,8 +7254,8 @@
    "de_cases": 0,
    "failed_cases": 0,
    "categories": {
-    "fatal-by-design": 791,
-    "x87-exception-flags": 25
+    "fatal-by-design": 785,
+    "x87-exception-flags": 23
    }
   },
   "fnclex": {

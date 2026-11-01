@@ -59,6 +59,7 @@ class Module:
         self.functions = {}
         self.owner = {}          # insn va -> set of function entries
         self.data_in_text = []   # (start, end) of byte-index tables found next to jump tables
+        self.table_slots = {}    # jump table address -> slots read (more than its targets when unused slots were skipped)
         self.data_refs = set()   # code-section addresses used as absolute memory operands
 
     def decode(self, va):
@@ -132,7 +133,11 @@ class Module:
         idx_reg = mm.index
         bound = None
         btab = None
-        # walk back within the block for movzx idx, byte [idx + btab] and cmp idx, N / ja
+        family = lambda r: self.md.reg_name(r)[-2:] if self.md.reg_name(r) in ("eax", "ecx", "edx", "ebx", "esi", "edi", "ebp", "esp") \
+            else {"al": "ax", "cl": "cx", "dl": "dx", "bl": "bx"}.get(self.md.reg_name(r), self.md.reg_name(r))
+        # walk back within the block for movzx idx, byte [idx + btab] and cmp idx, N / ja. Without a byte table the
+        # bound must constrain the index register itself: the CRT's memcpy compares the dword count (cmp ecx, 8)
+        # right before jmp [edx*4 + TrailUpVec], where edx was masked by and edx, 3 (that mask is the bound).
         for prev in reversed(block_insns[-6:]):
             m = prev.mnemonic
             ops = prev.operands
@@ -140,7 +145,13 @@ class Module:
                     and ops[1].mem.disp and btab is None:
                 btab = (ops[1].mem.disp & 0xFFFFFFFF)
             if m == "cmp" and len(ops) == 2 and ops[1].type == X.X86_OP_IMM and ops[0].type == X.X86_OP_REG:
+                if btab is None and family(ops[0].reg) != family(idx_reg):
+                    continue
                 bound = ops[1].imm & 0xFFFFFFFF
+                break
+            if m == "and" and btab is None and len(ops) == 2 and ops[0].type == X.X86_OP_REG and ops[1].type == X.X86_OP_IMM \
+                    and family(ops[0].reg) == family(idx_reg) and ops[1].imm in (1, 3, 7, 15, 31):
+                bound = ops[1].imm
                 break
         count = None
         if btab is not None and bound is not None and self.img.in_image(btab):
@@ -149,6 +160,19 @@ class Module:
         elif btab is None and bound is not None:
             count = bound + 1
         targets = []
+        prev = block_insns[-2] if len(block_insns) >= 2 else None
+        if bound is None and btab is None and self.img.relocs and prev is not None and prev.mnemonic == "neg" and \
+                prev.operands[0].type == X.X86_OP_REG and family(prev.operands[0].reg) == family(idx_reg):
+            # neg idx; jmp [idx*4 + tab]: the table ends at tab and is indexed downwards (the CRT memcpy's
+            # UnwindDownVec, entries for -7..0 below the label it is addressed by)
+            k = 0
+            while tab - 4 * k in self.relocs and self.img.in_image(tab - 4 * k) and self.img.in_text(self.img.u32(tab - 4 * k)) \
+                    and k <= 4096:
+                targets.append(self.img.u32(tab - 4 * k))
+                k += 1
+            if targets:
+                self.data_in_text.append((tab - 4 * (k - 1), tab + 4))
+            return targets or None
         k = 0
         while True:
             slot = tab + 4 * k
@@ -162,11 +186,18 @@ class Module:
             if not self.img.in_text(t):
                 if count is None:
                     break
+                if self.img.relocs and slot not in self.relocs:
+                    # a bounded table whose unused slot overlaps other bytes (memcpy's LeadUpVec slot 0 is the end of
+                    # the preceding jmp: index 0 cannot occur after and eax, 3 with eax != 0); not a case label
+                    k += 1
+                    continue
                 return None
             targets.append(t)
             k += 1
             if k > 4096:
                 return None
+        if targets:
+            self.table_slots[tab] = max(k, self.table_slots.get(tab, 0))
         return targets or None
 
     # ---------------------------------------------------------------- per-function descent
@@ -267,7 +298,7 @@ class Module:
         for fn in self.functions.values():
             for jva, targets in fn.jumptables.items():
                 tab = fn.insns[jva].operands[0].mem.disp & 0xFFFFFFFF
-                data_ranges.append((tab, tab + 4 * len(targets)))
+                data_ranges.append((tab, tab + 4 * max(len(targets), self.table_slots.get(tab, 0))))
                 case_labels.update(targets)
         data_ranges = data_ranges + self.data_in_text
         self.table_data = data_ranges

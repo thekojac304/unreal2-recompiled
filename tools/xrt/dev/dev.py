@@ -93,6 +93,26 @@ def setup():
     print('Editable runtime:', RT)
 
 LIFT_SYSTEM = WS / 'sandbox_cmp/level/System'   # module images the shared gen/ units were lifted from
+# Sound (developer-owned lifts, not in the shared gen/ or the object lineage): Core's and ALAudio's Ogg Vorbis
+# libraries and ALAudio.dll. All prefer 0x10000000; these bases fill the gap below U2.dll (0x10060000) in load order.
+AUDIO_LIFT = DEV / 'audio-lift'
+AUDIO_MODULES = [('vorbisfile', 'vorbisfile.dll', '0x10000000'), ('ogg', 'ogg.dll', '0x10010000'),
+                 ('vorbis', 'vorbis.dll', '0x10020000'), ('alaudio', 'ALAudio.dll', '0x10040000')]
+
+def lift_audio(opt):
+    """Lift the sound modules (tools/xrt/xlift.py) into out/dev-init/audio-lift/<name>; build compiles them and
+    defines XRT_WITH_AUDIO (runtime xrt_main.c registers them; ALAudio's OpenAL driver is runtime hle_openal.c)."""
+    for name, module, base in AUDIO_MODULES:
+        out = AUDIO_LIFT / name
+        shutil.rmtree(out, ignore_errors=True)
+        cmd = [sys.executable, '-I', str(WS / 'tools/xrt/xlift.py'), str(LIFT_SYSTEM / module), '--out', str(out), '--base', base]
+        if opt:
+            cmd += ['--opt', ','.join(sorted(opt))]
+        result = subprocess.run(cmd, capture_output=True, text=True)
+        if result.returncode:
+            raise RuntimeError(f'xlift {module} failed:\n{result.stdout}{result.stderr}')
+        print(result.stdout.splitlines()[0], flush=True)
+
 
 def lift(names, opt):
     """Re-lift shared generated modules (tools/xrt/xlift.py, --opt) into developer copies in out/dev-init/generated,
@@ -254,14 +274,29 @@ def build(full=False, fixtures_only=False, native=False, diag_move=False):
         from concurrent.futures import ThreadPoolExecutor
         with ThreadPoolExecutor(max_workers=max(1, (os.cpu_count() or 2) - 2)) as pool:
             list(pool.map(compile_job, jobs))
+    audio = sorted(AUDIO_LIFT.glob('*/*.c')) if AUDIO_LIFT.is_dir() else []
+    audio_jobs = []
+    for src in audio:
+        obj = BUILD / 'obj/audio' / (src.stem + '.obj')
+        if full or not obj.exists() or obj.stat().st_mtime < max(src.stat().st_mtime, (RT / 'xrt.h').stat().st_mtime):
+            audio_jobs.append((src, obj))
+        objects.append(obj)
+    if audio_jobs:
+        print(f'Compiling {len(audio_jobs)} sound units {GEN_OPT}', flush=True)
+        from concurrent.futures import ThreadPoolExecutor
+        with ThreadPoolExecutor(max_workers=max(1, (os.cpu_count() or 2) - 2)) as pool:
+            list(pool.map(lambda j: compile_one(j[0], j[1], env, [RT, j[0].parent], [GEN_OPT, '/wd4102', '/wd4146']), audio_jobs))
+    rt_flags = ['/O2', '/std:c11'] + (['/DXRT_WITH_AUDIO'] if audio else [])
+    rt_stamp = BUILD / 'rt-flags.txt'
+    rt_flags_changed = not rt_stamp.exists() or rt_stamp.read_text() != ' '.join(rt_flags)
     headers = [*RT.glob('*.h'), *RT.glob('*.inc'), *HERE.glob('*.inc'), HERE / 'dev_support.h']
     header_time = max(p.stat().st_mtime for p in headers)
     for src in [*RT.glob('*.c'), HERE / 'dev_support.c']:
         obj = BUILD / 'obj/rt' / (src.stem + '.obj')
-        if full or not obj.exists() or obj.stat().st_mtime < max(src.stat().st_mtime, header_time):
+        if full or rt_flags_changed or not obj.exists() or obj.stat().st_mtime < max(src.stat().st_mtime, header_time):
             print('Compiling', src.name, flush=True)
             # Same optimisation as the production client runtime (build_client.cmd: /O2 /fp:strict); /Z7 keeps symbols.
-            compile_one(src, obj, env, [RT, HERE], ['/O2', '/std:c11'])
+            compile_one(src, obj, env, [RT, HERE], rt_flags)
         objects.append(obj)
     natives = [src for units in NATIVE.values() for _, src in units] if native else []
     for src in natives:
@@ -274,17 +309,19 @@ def build(full=False, fixtures_only=False, native=False, diag_move=False):
     if full or not asm.exists() or asm.stat().st_mtime < (RT / 'monitor.asm').stat().st_mtime:
         command(['ml64', '/nologo', '/c', '/Zi', f'/Fo{asm}', RT / 'monitor.asm'], env, 'monitor-asm')
     objects.append(asm)
+    rt_stamp.write_text(' '.join(rt_flags))
     rsp = BUILD / 'objects.rsp'
     rsp.write_text('\n'.join('"' + str(p) + '"' for p in objects))
     # Inherited generated objects may refer to their existing compiler PDBs.
     command(['link', '/nologo', '/DEBUG', '/INCREMENTAL:NO', '/STACK:0x10000000',
              f'/OUT:{BUILD / "unreal2-dev.exe"}', f'/PDB:{BUILD / "unreal2-dev.pdb"}', '@' + str(rsp),
-             'winmm.lib', 'advapi32.lib', 'ole32.lib', 'bcrypt.lib', 'user32.lib', 'gdi32.lib', 'dbghelp.lib'], env, 'link')
+             'winmm.lib', 'advapi32.lib', 'ole32.lib', 'bcrypt.lib', 'user32.lib', 'gdi32.lib', 'dbghelp.lib', 'xaudio2.lib'], env, 'link')
     stamp.write_bytes(abi)
     write(BUILD / 'build-state.json', {'ok': True, 'executable': str(BUILD / 'unreal2-dev.exe'),
                                       'generated_optimization': GEN_OPT, 'generated_units': len(lineage) - sum(
                                           1 for rel in lineage if rel.startswith('obj/rt/')),
-                                      'native': [fn for units in NATIVE.values() for fn, _ in units] if native else []})
+                                      'native': [fn for units in NATIVE.values() for fn, _ in units] if native else [],
+                                      'audio_units': len(audio)})
     print('Built (not executed):', BUILD / 'unreal2-dev.exe')
 
 def fresh_run():
@@ -596,13 +633,17 @@ def run(args):
                                      'campaign_assets': args.campaign_assets, 'sample_hz': args.sample_hz,
                                      'windowed_res': args.windowed_res, 'capture': args.capture,
                                      'staging': args.staging, 'fps_cap': args.fps_cap, 'background': args.background, 'seed_save': args.seed_save, 'native_verify': args.native_verify,
-                                     'native': read(BUILD / 'build-state.json').get('native', [])})
+                                     'native': read(BUILD / 'build-state.json').get('native', []), 'sound': args.sound})
     if args.attach:
         env['XRT_DEV_ATTACH'] = '1'
+    if args.sound != 'off':
+        if not read(BUILD / 'build-state.json').get('audio_units'):
+            raise RuntimeError('No launch: --sound needs a build with the sound modules (dev.py lift-audio, then build)')
+        env['XRT_DEV_SOUND'] = args.sound   # muted: full ALAudio/OpenAL/XAudio2 path, mastering volume 0 (hle_openal.c)
     command_args = ['--guest', sandbox / 'System/Unreal2.exe', '--log', out / 'xrt.log',
                     '--report', out / 'runtime-report.json', '--run-id', out.name,
                     '--timeout-ms', str(args.timeout * 1000), '--', 'CS_Intro.un2',
-                    '-windowed', '-nosound', '-NOMMX', '-NOSSE']
+                    '-windowed', *([] if args.sound != 'off' else ['-nosound']), '-NOMMX', '-NOSSE']
     print('Run output:', out, flush=True)
     try:
         code = launch(exe, command_args, out, sandbox / 'System', env, args.timeout)
@@ -629,6 +670,8 @@ def main():
     lp = sub.add_parser('lift', help='re-lift shared generated modules into developer copies (then build)')
     lp.add_argument('--opt', default='', help='xlift --opt list (flags,pc); empty = plain lift')
     lp.add_argument('modules', nargs='+', help='gen/ directory names, e.g. fire engine core')
+    la = sub.add_parser('lift-audio', help='lift ALAudio.dll and the Ogg Vorbis DLLs into out/dev-init/audio-lift')
+    la.add_argument('--opt', default='', help='xlift --opt list; empty = plain lift')
     sub.add_parser('selftest')
     sub.add_parser('observe')
     r = sub.add_parser('run')
@@ -660,6 +703,9 @@ def main():
     r.add_argument('--background', action='store_true',
                    help="developer background mode: the game runs behind the owner's foreground application and never "
                         'takes focus; only --input reaches it (needs isolation; dev_support.c xrt_dev_background)')
+    r.add_argument('--sound', choices=('off', 'muted', 'on'), default='off',
+                   help='off: -nosound (default); muted/on: ALAudio through runtime hle_openal.c (XAudio2); muted keeps the '
+                        'whole path running with the mastering volume at 0 (mix levels are still measured)')
     r.add_argument('--fps-cap', type=int, choices=range(0, 1001), default=0, metavar='0..1000',
                    help='first-scene: development frame limiter after each post-Init Present (waitable timer, baton released; 0 = uncapped)')
     r.add_argument('--native-verify', type=int, default=0, metavar='N',
@@ -690,6 +736,7 @@ def main():
     if args.action == 'setup': setup()
     elif args.action == 'build': build(args.full, native=args.native, diag_move=args.diag_move)
     elif args.action == 'lift': lift(args.modules, {x for x in args.opt.split(',') if x})
+    elif args.action == 'lift-audio': lift_audio({x for x in args.opt.split(',') if x})
     elif args.action == 'selftest': selftest()
     elif args.action == 'observe': observe()
     else: return run(args)
