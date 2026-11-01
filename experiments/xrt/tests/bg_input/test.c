@@ -9,9 +9,10 @@
  *             focus): BG_PROBE=a / f / ca calls SetActiveWindow / SetFocus [after SetForegroundWindow(current)] on it.
  *             Measured 2026-11-01 with the owner idle in a browser: SetActiveWindow took the foreground even after
  *             SetForegroundWindow(current) succeeded - the reason the runtime keeps activation virtual in this mode
- *   script    background mode: scripted key/move/click steps run on time without the foreground; WM_KEYDOWN/UP,
- *             WM_LBUTTONDOWN/UP and WM_MOUSEMOVE reach the window procedure; GetKeyState's scripted hold is reported;
- *             DirectInput records sum to the scripted motion and carry button 0 down/up
+ *   script    background mode: scripted key/move/click/rclick steps run on time without the foreground; WM_KEYDOWN/UP,
+ *             WM_LBUTTONDOWN/UP, WM_RBUTTONDOWN/UP (button masks while both are held) and WM_MOUSEMOVE reach the window
+ *             procedure; GetKeyState's scripted holds (W, VK_RBUTTON) are reported; DirectInput records sum to the
+ *             scripted motion and carry button 0 and button 1 down/up
  *   leak      unscripted (physical-like) WM_KEYDOWN/WM_MOUSEMOVE/WM_LBUTTONDOWN posted to the window never pass the filter
  *   control   without XRT_DEV_BACKGROUND (child process) the schedule pauses while not foreground: nothing delivered
  *   refused   XRT_DEV_BACKGROUND without isolation (child process) is refused (mode off)
@@ -40,14 +41,16 @@ void xrt_report_write(uint32_t exit_code, const char* outcome) { (void)exit_code
 static int failures;
 #define CHECK(cond, ...) do { printf((cond) ? "ok   " : "FAIL "); printf(__VA_ARGS__); printf("\n"); if (!(cond)) failures++; } while (0)
 
-static struct { unsigned keydown[256], keyup[256], lbdown, lbup, moves, chars, other_input; } got;
+static struct { unsigned keydown[256], keyup[256], lbdown, lbup, rbdown, rbup, rbboth, lbup_rheld, moves, chars, other_input; } got;
 static LRESULT CALLBACK wndproc(HWND h, UINT m, WPARAM wp, LPARAM lp) {
     switch (m) {
     case WM_KEYDOWN: if (wp < 256) got.keydown[wp]++; return 0;
     case WM_KEYUP: if (wp < 256) got.keyup[wp]++; return 0;
     case WM_CHAR: got.chars++; return 0;
     case WM_LBUTTONDOWN: got.lbdown++; return 0;
-    case WM_LBUTTONUP: got.lbup++; return 0;
+    case WM_LBUTTONUP: got.lbup++; if (wp & MK_RBUTTON) got.lbup_rheld++; return 0;
+    case WM_RBUTTONDOWN: got.rbdown++; if ((wp & (MK_RBUTTON | MK_LBUTTON)) == (MK_RBUTTON | MK_LBUTTON)) got.rbboth++; return 0;
+    case WM_RBUTTONUP: got.rbup++; return 0;
     case WM_MOUSEMOVE: got.moves++; return 0;
     }
     return DefWindowProcW(h, m, wp, lp);
@@ -57,7 +60,7 @@ static int input_message(UINT m) {
            (m >= WM_NCMOUSEMOVE && m <= WM_NCXBUTTONDBLCLK) || m == WM_INPUT;
 }
 static unsigned filtered;
-static int di_x, di_y, di_button_down, di_button_up, held_w_seen;
+static int di_x, di_y, di_button_down, di_button_up, di_rbutton_down, di_rbutton_up, held_w_seen, held_r_seen;
 /* The runtime's pump: xrt_dev_input_tick before each peek, then the isolation filter (message_pump.inc). */
 static void pump(unsigned ms) {
     ULONGLONG end = GetTickCount64() + ms; MSG m; unsigned ofs, data;
@@ -71,8 +74,10 @@ static void pump(unsigned ms) {
         while (xrt_dev_input_mouse(&ofs, &data)) {
             if (ofs == 0) di_x += (int)data; else if (ofs == 4) di_y += (int)data;
             else if (ofs == 12) { if (data & 0x80) di_button_down++; else di_button_up++; }
+            else if (ofs == 13) { if (data & 0x80) di_rbutton_down++; else di_rbutton_up++; }
         }
         if (xrt_dev_key_held('W')) held_w_seen++;
+        if (xrt_dev_key_held(VK_RBUTTON)) held_r_seen++;
         Sleep(1);
     }
 }
@@ -116,7 +121,7 @@ static void setup_env(const char* dir, int background, int isolation) {
     _putenv_s("XRT_DEV_OUTPUT", dir); _putenv_s("XRT_DEV_SCENE", "100000");
     _putenv_s("XRT_DEV_NO_INPUT", isolation ? "1" : "");
     _putenv_s("XRT_DEV_BACKGROUND", background ? "1" : "");
-    _putenv_s("XRT_DEV_INPUT", "100:key:87:300;150:move:40:-30:200;600:click:80;700:key:32:50");
+    _putenv_s("XRT_DEV_INPUT", "100:key:87:300;150:move:40:-30:200;600:click:80;640:rclick:150;700:key:32:50");
 }
 static int child(const char* dir, const char* which) {
     HWND h;
@@ -201,16 +206,21 @@ int main(int argc, char** argv) {
     pump(1100);
     verbose = 0;
     printf("     background: steps %u/%u, delivered %u, filtered %u, paused %llu ms; keys W %u/%u space %u/%u X %u; "
-           "button %u/%u moves %u chars %u; DirectInput x %d y %d button %d/%d; W held in %d pump passes\n",
+           "button %u/%u right %u/%u (both held %u, left up with right held %u) moves %u chars %u; DirectInput x %d y %d "
+           "button %d/%d right %d/%d; W held in %d, right in %d pump passes\n",
            in_next, in_count, in_delivered, filtered, in_paused, got.keydown['W'], got.keyup['W'], got.keydown[' '], got.keyup[' '],
-           got.keydown['X'], got.lbdown, got.lbup, got.moves, got.chars, di_x, di_y, di_button_down, di_button_up, held_w_seen);
-    CHECK(in_next == in_count && in_count == 4 && in_paused == 0, "script: all 4 steps ran on time without the foreground (paused %llu ms)", in_paused);
+           got.keydown['X'], got.lbdown, got.lbup, got.rbdown, got.rbup, got.rbboth, got.lbup_rheld, got.moves, got.chars, di_x, di_y,
+           di_button_down, di_button_up, di_rbutton_down, di_rbutton_up, held_w_seen, held_r_seen);
+    CHECK(in_next == in_count && in_count == 5 && in_paused == 0, "script: all 5 steps ran on time without the foreground (paused %llu ms)", in_paused);
     CHECK(got.keydown['W'] == 1 && got.keyup['W'] == 1 && got.keydown[' '] == 1 && got.keyup[' '] == 1,
           "script: scripted WM_KEYDOWN/WM_KEYUP (W, Space) reached the window procedure");
     CHECK(held_w_seen >= 10, "script: GetKeyState hold reported for the scripted W (%d passes)", held_w_seen);
     CHECK(got.lbdown == 1 && got.lbup == 1 && got.moves >= 1, "script: WM_LBUTTONDOWN/UP and WM_MOUSEMOVE delivered (%u moves)", got.moves);
     CHECK(di_x == 40 && di_y == -30 && di_button_down == 1 && di_button_up == 1,
           "script: DirectInput records sum to the scripted motion 40,-30 with button 0 down/up");
+    CHECK(got.rbdown == 1 && got.rbup == 1 && got.rbboth == 1 && got.lbup_rheld == 1 && di_rbutton_down == 1 && di_rbutton_up == 1,
+          "script: rclick - WM_RBUTTONDOWN/UP (MK_LBUTTON|MK_RBUTTON while both are held), DirectInput button 1 down/up");
+    CHECK(held_r_seen >= 5, "script: GetKeyState hold reported for the scripted right button (%d passes)", held_r_seen);
     CHECK(got.keydown['X'] == 0 && filtered >= 3, "leak: unscripted WM_KEYDOWN/WM_MOUSEMOVE/WM_LBUTTONDOWN dropped by the filter (%u filtered)", filtered);
     fg1 = GetForegroundWindow();
     CHECK(fg1 == fg0, "focus: the foreground window is unchanged after the scripted input (%p)", fg1);

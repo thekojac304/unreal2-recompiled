@@ -647,7 +647,7 @@ def main():
     r.add_argument('--allow-map', action='append', default=[], metavar='FILE.un2',
                    help='first-scene: continue (instead of stopping) when this map file is opened post-Init')
     r.add_argument('--input', default='', metavar='SCRIPT',
-                   help='first-scene: short explicit input script "T:verb[:args];..." (key/move/click/shot/cpu), '
+                   help='first-scene: short explicit input script "T:verb[:args];..." (key/move/click/rclick/shot/cpu/size), '
                         'T in ms after Init; delivered to the game window only, isolation stays on')
     r.add_argument('--staging', choices=('strict', 'reuse'), default='strict',
                    help='D3D8 buffer Lock staging: strict (default; decommitted at Unlock, stale pointers fault) or reuse (per-buffer block, stale pointers into it not trapped)')

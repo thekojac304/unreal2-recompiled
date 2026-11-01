@@ -363,6 +363,7 @@ int xrt_dev_background(void) {
  *   move:DX:DY[:MS]  mouse motion spread over MS: DirectInput axis data, the virtual cursor
  *                    and WM_MOUSEMOVE, as one physical mouse produces them together
  *   click[:HOLD]     left button: DirectInput button 0 and WM_LBUTTONDOWN/UP
+ *   rclick[:HOLD]    right button: DirectInput button 1 and WM_RBUTTONDOWN/UP (the game binds it to AltFire)
  *   shot             capture the next present
  *   cpu              thread CPU snapshot only (threads.csv), no capture
  *   size:W:H         resize the game window to a W x H client area (SetWindowPos without activation or z-order
@@ -377,8 +378,8 @@ static int in_parsed;
 static HWND in_window;
 static struct { unsigned vk; ULONGLONG up; } in_keys[8];
 static struct { ULONGLONG start; unsigned ms; int dx, dy, done_x, done_y; } in_moves[4];
-static ULONGLONG in_button_up, in_paused;
-static int in_button, in_resize_w, in_resize_h;
+static ULONGLONG in_button_up, in_rbutton_up, in_paused;
+static int in_button, in_rbutton, in_resize_w, in_resize_h;
 static struct { UINT msg; WPARAM wp; LPARAM lp; ULONGLONG expires; int any_wp; } in_allow[32];
 static struct { unsigned ofs, data; } in_di[256];
 static unsigned in_di_head, in_di_tail, in_shot;
@@ -397,6 +398,7 @@ static void input_parse(void) {
         while (*v && *v != ':' && *v != ';' && n < 15) verb[n++] = *v++;
         if (!strcmp(verb, "key")) s.verb = 'k'; else if (!strcmp(verb, "move")) s.verb = 'm';
         else if (!strcmp(verb, "click")) s.verb = 'c'; else if (!strcmp(verb, "shot")) s.verb = 's';
+        else if (!strcmp(verb, "rclick")) s.verb = 'r';
         else if (!strcmp(verb, "cpu")) s.verb = 'u';
         else if (!strcmp(verb, "size")) s.verb = 'z';
         else { xrt_log("DEV input script: unknown verb '%s'; script ignored from here", verb); break; }
@@ -473,7 +475,7 @@ static LPARAM client_point(void) {
 int xrt_dev_key_held(unsigned vk) {
     unsigned i;
     for (i = 0; i < 8; i++) if (in_keys[i].up && in_keys[i].vk == vk) return 1;
-    return vk == VK_LBUTTON && in_button;
+    return (vk == VK_LBUTTON && in_button) || (vk == VK_RBUTTON && in_rbutton);
 }
 static void key_post(unsigned vk, int down) {
     UINT sc = MapVirtualKeyW(vk, MAPVK_VK_TO_VSC);
@@ -518,7 +520,10 @@ void xrt_dev_input_tick(void) {
     cursor_init();
     for (i = 0; i < 8; i++) if (in_keys[i].up && now >= in_keys[i].up) { key_post(in_keys[i].vk, 0); in_keys[i].up = 0; }
     if (in_button && now >= in_button_up) {
-        in_button = 0; di_push(12, 0); input_allow(WM_LBUTTONUP, 0, client_point(), 0);
+        in_button = 0; di_push(12, 0); input_allow(WM_LBUTTONUP, in_rbutton ? MK_RBUTTON : 0, client_point(), 0);
+    }
+    if (in_rbutton && now >= in_rbutton_up) {
+        in_rbutton = 0; di_push(13, 0); input_allow(WM_RBUTTONUP, in_button ? MK_LBUTTON : 0, client_point(), 0);
     }
     if (!ours) return;
     for (i = 0; i < 4; i++) {
@@ -533,7 +538,7 @@ void xrt_dev_input_tick(void) {
             if (ddx) di_push(0, (unsigned)ddx);
             if (ddy) di_push(4, (unsigned)ddy);
             in_cursor.x += ddx; in_cursor.y += ddy; cursor_clamp();
-            input_allow(WM_MOUSEMOVE, in_button ? MK_LBUTTON : 0, client_point(), 0);
+            input_allow(WM_MOUSEMOVE, (in_button ? MK_LBUTTON : 0) | (in_rbutton ? MK_RBUTTON : 0), client_point(), 0);
         }
         if (f >= 1.0) in_moves[i].start = 0;
     }
@@ -553,7 +558,11 @@ void xrt_dev_input_tick(void) {
         } else if (s->verb == 'c') {
             if (in_button) continue;
             in_button = 1; in_button_up = now + (s->a > 0 ? (unsigned)s->a : 100);
-            di_push(12, 0x80); input_allow(WM_LBUTTONDOWN, MK_LBUTTON, client_point(), 0);
+            di_push(12, 0x80); input_allow(WM_LBUTTONDOWN, MK_LBUTTON | (in_rbutton ? MK_RBUTTON : 0), client_point(), 0);
+        } else if (s->verb == 'r') {
+            if (in_rbutton) continue;
+            in_rbutton = 1; in_rbutton_up = now + (s->a > 0 ? (unsigned)s->a : 100);
+            di_push(13, 0x80); input_allow(WM_RBUTTONDOWN, MK_RBUTTON | (in_button ? MK_LBUTTON : 0), client_point(), 0);
         } else if (s->verb == 'z') {
             if (s->a < 160 || s->b < 120 || s->a > 8192 || s->b > 8192) { xrt_log("DEV input: size step refused"); continue; }
             in_resize_w = s->a; in_resize_h = s->b;

@@ -1,0 +1,13 @@
+diff --git a/out/dev-init-savepoints/gameplay-final-20261101/runtime/hle_gui.c b/out/dev-init/runtime/hle_gui.c
+index 56184dc..1d7e2a9 100644
+--- a/out/dev-init-savepoints/gameplay-final-20261101/runtime/hle_gui.c
++++ b/out/dev-init/runtime/hle_gui.c
+@@ -879,6 +879,8 @@ static INT_PTR invoke_gui_proc(HWND h, UINT msg, WPARAM wp, LPARAM lp, uint32_t
+         break;
+     case WM_SETCURSOR:
+     case WM_MOUSEACTIVATE: /* wParam is a window; lParam packs scalar hit-test/message words. */
++    case WM_CONTEXTMENU:   /* DefWindowProc's answer to a right-button release: wParam is the window, lParam the packed
++                            * screen point (or -1). The game binds the right button to AltFire (launch 20261101-150848). */
+         args[2] = window_token((HWND)wp);
+         break;
+     case WM_TIMER:
