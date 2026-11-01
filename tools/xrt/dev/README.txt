@@ -365,6 +365,41 @@ natural transition TutB -> PD_Avalon (intro cinematic) -> Atlantis (player contr
   - Not covered: sound (still -nosound; ALAudio/OpenAL has no runtime adapter), maximize/borderless, Unreal2.log beyond its
     first 4 KB (file-writer buffer is lost at the endpoint stop).
 
+Audio / campaign / Windows batch (2026-11-01 night, 18 of 30 owner-authorized launches, 2656 s of 12000; journal, maps,
+helpers and key images in out/dev-init/campaign-evidence-20261101):
+  - SOUND: AudioDevice=ALAudio.ALAudioSubsystem (OpenAL). ALAudio.dll and its/Core's Ogg Vorbis DLLs (vorbisfile, ogg, vorbis)
+    are lifted (dev.py lift-audio; bases fill the gap below U2.dll) and registered with XRT_WITH_AUDIO; the OpenAL driver
+    DefOpenAL32.dll (Creative's mixer: DirectSound3D/waveOut + timer thread) is replaced by runtime hle_openal.c, an OpenAL 1.0
+    adapter on XAudio2 behind a DefOpenAL32.dll module identity (exports checked against the game file; unimplemented = trap).
+    run --sound off|muted|on (default off = -nosound; muted runs everything with the mastering volume at 0, the meter is on the
+    submix). Owned tests: experiments/xrt/tests/openal_bridge (adapter through guest calls, real XAudio2, mixed output measured),
+    crt_memcpy (lifted static-CRT memcpy, 10616 cases). In game: UI sounds, ambient loops, Atlantis dialogue (109 AL buffers
+    during the briefing), PA_Sanctuary streamed voice/music (2-buffer queues), M08A1 sounds; mix peaks 0.05-0.20, 0 glitches.
+    Translator: rcl/rcr (insn_diff 441696/0); discovery of the CRT memcpy tables (index-register bound, and-mask bound, unused
+    overlapping slot, neg-indexed table) + xlift fallback dispatch to the function's own case labels.
+    Adapters added: HeapReAlloc, DisableThreadLibraryCalls, GetOEMCP/GetStringTypeA/LCMapStringA/GetLocaleInfoA, _wfopen, ftell,
+    ldexp. Open: ALAudio's Update stops and replays ~1000 ambient plays/s (stops from its ambient range check
+    dist^2 > (slot radius * GAudioMaxRadiusMultiplier)^2, multiplier 100 live, slot radius = SoundRadius * zone multiplier;
+    lifted compare checked; not ref-distance-0 sources) - cause not resolved, audibility not assessed (runs were muted).
+  - CAMPAIGN (normal play, no cheats): Atlantis: Aida's welcome conversation (choices by number keys), "Briefing" -> Aida walks
+    to the briefing room; Use on her (crosshair target within TalkRadius 96: U2UseManagerPlayer.LookingAt / HasDialog) ->
+    "Ready?" -> 1 Yes -> full console + holotank briefing with subtitles; walk back to the dropship; Use on Trigger37
+    (TriggerType 5) -> PA_Sanctuary (arrival cinematic) -> M08A1 (Sanctuary mission; the M08 maps, not m01) -> intro cutscene ->
+    player control at the landing pad, assault rifle. Navigation from the maps' own ReachSpecs (helpers/route.py); Atlantis:
+    5.2 mouse units/deg, walk 0.243 uu/ms; M08A1: 4.2 units/deg, ~0.27 uu/ms. Save/load: every run quick-loaded the previous
+    checkpoint in a fresh sandbox (saves/20261101-1706-*-tobriefing, 1752-*-postbriefing, 1814-checkpoint-m08a1-start).
+    NOT demonstrated: a hit on an enemy (M08A1's Izarians were not in view at the first group's position; a civilian was).
+  - DirectMusic helper: levels load their own music containers (M08.con); the developer helper admitted only Intro.con
+    (FATAL 76 on the M08A1 load). Now any plain *.con name (patches/dmusic-helper-level-containers.patch); dmusic_async_test
+    11/11. Campaign runs drop --music-script-track (an intro-only workaround).
+  - WINDOWS: opt-in run --borderless (viewport window as WS_POPUP at the monitor origin; --windowed-res = monitor size gives a
+    borderless full-screen window); resize 2560x1440 -> 1920x1080 -> 2560x1440 with genuine back buffers (Vulkan swapchain
+    reset, no GDI). Maximize/restore NOT exercised: Windows has no non-activating maximize and background runs must not take
+    the owner's foreground. Foreground interactive play not exercised (needs the owner at the machine).
+  - PERFORMANCE (3840x2160, 90 FPS cap): PA_Sanctuary cinematic, M08A1 cutscene/start/advance/rifle fire, Atlantis briefing all
+    ~90 FPS median, p95 12.1-13.2 ms (p99 20 ms during rifle fire); least headroom in the briefing (2.5 ms limiter wait).
+    No area below 60 FPS. Maxima ~100-128 ms are the scripted screenshot readbacks.
+
 Background developer mode (2026-11-01, gameplay batch): dev.py run --background (bench_tuta.ps1 -Background), only with
 input isolation. The owner keeps using the desktop; the game window never takes focus and only the --input script reaches it.
   - GUI (hle_gui.c, xrt_dev_background): visible top-level windows are created hidden and shown SW_SHOWNOACTIVATE at

@@ -620,7 +620,9 @@ def run(args):
         if args.capture == 'shots':
             env['XRT_DEV_CAPTURE'] = 'shots'   # no periodic/cue/startup readbacks (dev_support.c)
         if args.fps_cap:
-            env['XRT_DEV_FPS_CAP'] = str(args.fps_cap)   # development frame limiter (dev_support.c perf_cap_wait)
+            env['XRT_DEV_FPS_CAP'] = str(args.fps_cap)
+        if args.borderless:
+            env['XRT_DEV_BORDERLESS'] = '1'   # opt-in borderless viewport window (runtime hle_gui_classes.inc create_window)   # development frame limiter (dev_support.c perf_cap_wait)
         if args.native_verify:
             env['XRT_NATIVE_VERIFY'] = str(args.native_verify)   # tools/xrt/dev/native: compare every Nth call
     graphics.environment(env, out)
@@ -703,6 +705,8 @@ def main():
     r.add_argument('--background', action='store_true',
                    help="developer background mode: the game runs behind the owner's foreground application and never "
                         'takes focus; only --input reaches it (needs isolation; dev_support.c xrt_dev_background)')
+    r.add_argument('--borderless', action='store_true',
+                   help='opt-in borderless viewport window at the monitor origin (use --windowed-res = monitor size for borderless full screen)')
     r.add_argument('--sound', choices=('off', 'muted', 'on'), default='off',
                    help='off: -nosound (default); muted/on: ALAudio through runtime hle_openal.c (XAudio2); muted keeps the '
                         'whole path running with the mastering volume at 0 (mix levels are still measured)')

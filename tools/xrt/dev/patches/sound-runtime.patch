@@ -1,3 +1,34 @@
+diff --git a/out/dev-init-savepoints/tutb-combat-20261101/runtime/hle_gui_classes.inc b/out/dev-init/runtime/hle_gui_classes.inc
+index 40ad812..0df255b 100644
+--- a/out/dev-init-savepoints/tutb-combat-20261101/runtime/hle_gui_classes.inc
++++ b/out/dev-init/runtime/hle_gui_classes.inc
+@@ -395,6 +395,15 @@ static void def_window_proc(CPU* c,int wide) {
+ static void create_window(CPU* c,int wide) {
+     HINSTANCE instance=class_module(c,ARG(10)); HWND parent=window_host(ARG(8)),h;
+     CPU* previous=callback_cpu; uint32_t token=0,style=ARG(3);
++    int x=(int)ARG(4),y=(int)ARG(5);
++    /* Opt-in borderless window (XRT_DEV_BORDERLESS=1, dev.py run --borderless): the game's top-level viewport window
++     * (WinDrv class ...ViewportWindow) is created as a WS_POPUP without caption or frame at the primary monitor's
++     * origin. The game sizes its back buffer from the client area as on any resize, so a WindowedViewportX/Y equal
++     * to the monitor size gives a borderless full-screen window rendering at that size; nothing is stretched. */
++    {char bl[4];DWORD n=GetEnvironmentVariableA("XRT_DEV_BORDERLESS",bl,sizeof bl);
++     if(n==1&&bl[0]=='1'&&wide&&ARG(1)>=0x10000&&!(style&WS_CHILD)&&wcsstr((const WCHAR*)G2H(ARG(1)),L"ViewportWindow")){
++        style=(style&~(uint32_t)(WS_CAPTION|WS_THICKFRAME|WS_SYSMENU|WS_MINIMIZEBOX|WS_MAXIMIZEBOX))|WS_POPUP;x=0;y=0;
++        xrt_log("DEV borderless: viewport window style %08x -> %08x at 0,0",ARG(3),style);}}
+     uint32_t esp=c->r[ESP],caller=rd32(esp);
+     /* Developer background mode: a visible top-level window is created hidden, then shown without activation
+      * at the bottom of the z-order (hle_gui.c dev_background_show/bottom). */
+@@ -404,8 +413,8 @@ static void create_window(CPU* c,int wide) {
+     xrt_event("gui_create_window_call","\"wide\":%d,\"style\":%u,\"esp\":%u,\"return\":%u",wide,ARG(3),esp,caller);
+     if(background_show){style&=~WS_VISIBLE;xrt_log("DEV background: CreateWindowEx style %08x shown without activation",ARG(3));}
+     begin(c);callback_cpu=c;
+-    h=wide?xm_win_CreateWindowExW(ARG(0),class_string(ARG(1)),class_string(ARG(2)),style,(int)ARG(4),(int)ARG(5),(int)ARG(6),(int)ARG(7),parent,(HMENU)(uintptr_t)ARG(9),instance,(void*)(uintptr_t)ARG(11)):
+-        xm_win_CreateWindowExA(ARG(0),class_string(ARG(1)),class_string(ARG(2)),style,(int)ARG(4),(int)ARG(5),(int)ARG(6),(int)ARG(7),parent,(HMENU)(uintptr_t)ARG(9),instance,(void*)(uintptr_t)ARG(11));
++    h=wide?xm_win_CreateWindowExW(ARG(0),class_string(ARG(1)),class_string(ARG(2)),style,x,y,(int)ARG(6),(int)ARG(7),parent,(HMENU)(uintptr_t)ARG(9),instance,(void*)(uintptr_t)ARG(11)):
++        xm_win_CreateWindowExA(ARG(0),class_string(ARG(1)),class_string(ARG(2)),style,x,y,(int)ARG(6),(int)ARG(7),parent,(HMENU)(uintptr_t)ARG(9),instance,(void*)(uintptr_t)ARG(11));
+     if(h && background_show){xm_win_ShowWindow(h,SW_SHOWNOACTIVATE);dev_background_bottom(h);}
+     end(c); if(h) token=window_token(h);callback_cpu=previous;forget_dead_windows();
+     xrt_event("gui_create_window","\"handle\": %u, \"wide\": %d, \"error\": %u",token,wide,xrt_get_last_error(c));
 diff --git a/out/dev-init-savepoints/tutb-combat-20261101/runtime/hle_kernel32.c b/out/dev-init/runtime/hle_kernel32.c
 index df3bbb1..37c1059 100644
 --- a/out/dev-init-savepoints/tutb-combat-20261101/runtime/hle_kernel32.c

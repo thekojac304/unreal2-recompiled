@@ -1,0 +1,23 @@
+diff --git a/out/dev-init/dmusic_helper/main.c b/out/dev-init/dmusic_helper/main.c
+index 6243496..647d093 100644
+--- a/out/dev-init/dmusic_helper/main.c
++++ b/out/dev-init/dmusic_helper/main.c
+@@ -290,9 +290,15 @@ static void dispatch(DmbMessage*q,DmbMessage*r){
+   tools[tool_count].vt=&tool_vt;tools[tool_count].token=q->v[0];tools[tool_count].graph=q->object;
+   hr=((Insert)method(o->p,4))(o->p,(IUnknown*)&tools[tool_count++],NULL,0,0);break;
+  case DMB_LOAD:
+-  REQUIRE(DMB_LOADER);if(wcscmp((WCHAR*)q->text,L"Intro.con")||!IsEqualGUID((GUID*)q->guid[0],&cls_container)||!IsEqualGUID((GUID*)q->guid[1],&ids[DMB_CONTAINER])){r->status=DMB_UNSUPPORTED;return;}
+-  hr=((LoadFile)method(o->p,14))(o->p,&cls_container,&ids[DMB_CONTAINER],L"Intro.con",(void**)&p);type=DMB_CONTAINER;
+-  if(SUCCEEDED(hr)&&st_enabled&&!st_bound){swprintf(folder,600,L"%s\\Music\\Intro.con",sandbox);st_load(folder);st_bind(o->p);}
++  /* Any plain container file name (levels load their own music: M08A1 is the first after Intro.con). The loader's
++   * search folder is the sandbox Music folder (DMB_SEARCH), so a name without separators or ".." stays inside it. */
++  {const WCHAR*nm=(WCHAR*)q->text;size_t n=wcsnlen(nm,64);
++   if(n<5||n>63||wcspbrk(nm,L"\\/:")||wcsstr(nm,L"..")||_wcsicmp(nm+n-4,L".con")||
++      !IsEqualGUID((GUID*)q->guid[0],&cls_container)||!IsEqualGUID((GUID*)q->guid[1],&ids[DMB_CONTAINER])){r->status=DMB_UNSUPPORTED;return;}
++   REQUIRE(DMB_LOADER);
++   hr=((LoadFile)method(o->p,14))(o->p,&cls_container,&ids[DMB_CONTAINER],nm,(void**)&p);type=DMB_CONTAINER;
++   fprintf(stderr,"helper container %ls -> %08lx\n",nm,hr);
++   if(SUCCEEDED(hr)&&st_enabled&&!st_bound&&!_wcsicmp(nm,L"Intro.con")){swprintf(folder,600,L"%s\\Music\\Intro.con",sandbox);st_load(folder);st_bind(o->p);}}
+   break;
+  case DMB_SCRIPT:{BYTE expected[848]={0};
+   REQUIRE(DMB_LOADER);*(DWORD*)expected=848;*(DWORD*)(expected+4)=0x206;memcpy(expected+24,&cls_script,16);memcpy(expected+56,L"Script1",16);
