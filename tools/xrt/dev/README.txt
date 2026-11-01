@@ -159,6 +159,36 @@ evidence): the viewport window already has WS_OVERLAPPEDWINDOW (style 14CF0000).
 pointer), which the GUI layer's message admission refuses (fatal 76); IDirect3DDevice8::Reset (slot 14) is a fatal
 unsupported slot, and a client that differs from the back buffer makes DXVK present through GDI.
 
+4K floor batch (2026-10-31 late, 10 launches, 2887 s; commits a532a34, ebe91b6 + this note). Goal: p95 <= 8.33 ms in each
+window. Clean measurement: bench_tuta.ps1 -NoCapture (dev.py --capture shots: no periodic/cue/startup readbacks; shots
+only at 15, 19.5, 60, 215, 246 s script time) -SampleHz 0 -Profile quiet -Res 3840x2160 -Delay 50. Script time = ms
+after Init return (frames.csv) minus the delay; TutA loads at 93.8-95.4 s, its cutscene runs to ~210 s ("158-177 s"
+is script time). Windows: CS_Intro 30-60 s after Init, cutscene 96-210 / 150-210 / slow 158-177, spawn 220-230,
+movement 230-245.5. Every run: 3840x2160 Vulkan swapchain, no GDI fallback.
+Hitch: the 87-108 ms frames were the scripted shots' 4K readback + BMP write (they sit exactly on shot times); without
+captures no frame above 23.3 ms remains in any timed window (loads at 20.6 and 93.8-95.4 s are outside them).
+Staging (resource_storage.inc): strict = fresh guest block per Lock, decommitted at Unlock (stale pointers fault);
+it cost 13.2% of all game-thread time in the cutscene, 15.9% in 158-177 s (commit/decommit 7.0%, staging
+re-validation 2.8%). dev.py --staging reuse keeps released buffer blocks committed for the next buffer Lock of the same
+size class (xrt_staging_take/put); checks, confinement and copies unchanged, stale pointers no longer fault and may
+alias another buffer's later Lock (test: experiments/xrt/tests/staging_reuse). A per-buffer variant exhausted the
+224 MB guest VirtualAlloc pool (run 20261031-200351, fatal 76). Also: WM_DEVICECHANGE arrival/removal marshalling
+(a host device removal killed run 20261031-195041). Translation: xlift x87/x87v/icall also for 2000-4000-instruction
+functions with <= 150 spill points (f_30b6e10 141 -> 99 KB). Rejected: recorder fast paths (run 20261031-203446,
+slow subsection not better), per-buffer staging. Final build (save point floor-cap-20261031), FPS (p95 ms):
+  run              mode    intro30-60    cut 96-210    cut 150-210   slow 158-177  spawn         movement
+  20261031-195815  strict  149.7 (10.65) 125.3 (13.30) 96.6 (14.25)  78.7 (15.68)  130.6 (9.86)  180.6 (8.58)  x87v build
+  20261031-204816  strict  155.3 (9.77)  125.8 (13.21) 97.1 (14.10)  78.0 (15.57)  130.1 (9.50)  175.6 (8.72)
+  20261031-210000  strict  153.4 (10.17) 122.7 (13.45) 95.5 (14.38)  76.7 (15.84)  127.6 (9.77)  171.9 (8.82)
+  20261031-202714  reuse   171.0 (9.01)  139.2 (11.55) 111.3 (12.20) 93.8 (13.41)  143.9 (8.96)  196.2 (7.90)
+  20261031-205407  reuse   168.2 (9.19)  135.7 (11.98) 107.1 (12.55) 91.3 (13.37)  141.0 (8.62)  187.8 (8.07)
+  20261031-204115  reuse   167.5 (9.19)  127.9 (13.27) 99.3 (14.29)  79.8 (15.81)  141.4 (8.96)  190.9 (8.19)  probe
+The probe run was uniformly 10-15% slower from 108 to 186 s with identical work per frame (host-side; HWiNFO64,
+syncthing (E:\Launchbox), browsers were running): single-run cutscene comparisons carry about +-10%. The cap change's
+own effect is within that noise. Target NOT met: slow subsection p95 13.4 ms (reuse) / 15.6-15.8 (strict).
+Timing: probe shots (running distance 250.1 s, collision 258.5 s) match the 98 FPS run 20261031-163246 at ~190 FPS;
+the cutscene's per-second pattern lines up at the same script times in every run; jump still not visible (unverified).
+
 The third developer run (20261030-221937-21570264) reached successful window
 creation and continued file-backed loading. Its last completed ReadFile returned
 TRUE, its last SetFilePointer returned 0x6c560, and _vsnwprintf returned 12.
