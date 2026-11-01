@@ -1,5 +1,5 @@
 {
- "opt": "flags,pc",
+ "opt": "flags,pc,base,regs,x87,x87v,icall",
  "vectors_per_function": 2000,
  "functions": 13,
  "cases": 26000,
@@ -9,11 +9,24 @@
  "plain_vs_opt_mismatches": 0,
  "optimizations": {
   "enabled": [
+   "base",
    "flags",
-   "pc"
+   "icall",
+   "pc",
+   "regs",
+   "x87",
+   "x87v"
   ],
+  "accesses_rebased": 406,
   "flag_updates_reduced": 276,
-  "pc_stores_omitted": 748
+  "icall_inline_functions": 25,
+  "pc_stores_omitted": 748,
+  "register_spill_points": 43,
+  "x87_functions": 8,
+  "x87_helper_brackets": 5,
+  "x87_statements_local": 256,
+  "x87_values_functions": 8,
+  "x87_values_statements": 235
  },
  "per_function": {
   "t_asm_flags": {
