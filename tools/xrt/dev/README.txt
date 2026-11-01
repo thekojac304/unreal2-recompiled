@@ -306,6 +306,24 @@ FPS A/B (baseline runs 024147 + 035425 vs native 034834 + 040015) is within nois
 spawn +1.1%, movement +2.2%, while two baseline runs differ by up to 4%. Not retained (no measurable benefit; the
 translated C is as portable). Save points fps-cap-20261101 (default, translated), native-glm-20261101 (native).
 
+Gameplay batch (2026-11-01 afternoon, 20 owner-authorized launches, see the final report in the session; all runs in background
+mode at 3840x2160, --fps-cap 90, --staging reuse, quiet profile, behind the owner's desktop):
+  - TutA controls confirmed from frames + camera log: mouse look, walk/strafe/turn, jump (camera rise), crouch, collision,
+    F4 objectives, dialogue choice by number key (1 Tutorial / 2 Return to ship), Escape pause menu and resume.
+  - Save/load: F5 quicksave writes Save\Save0.usa (7.4 MB) with the game's own backup rotation (Save1); F8 "REALLY LOAD?" Ok
+    restores it in a fresh sandbox (world state and objectives). Fixed for it: kernel32 CreateDirectoryW, CopyFileW (sandboxed).
+  - Navigation: map actors read with UELib (third_party/Unreal-Library); "DEV camera" lines (view transform, read-only) give the
+    player's world position/yaw; 4.22 mouse units per degree. TutA route to the lift worked out and walked; the lift ride
+    (console, ~18 s descent) loads TutB (run 20261101-133834).
+  - TutB load first hit "VirtualAlloc: bounded client pool exhausted": blocks were re-used only at their exact size, warm
+    staging blocks never; xrt_mem.c now reclaims under pressure (release warm, merge adjacent free, best fit);
+    experiments/xrt/tests/staging_reuse covers it (21 checks).
+  - Desktop robustness: zero-argument registered broadcasts (ShellFileOpened), WM_SETTINGCHANGE string, scalar theme/colour/
+    font/time/power broadcasts, WM_SIZING/WM_MOVING RECTs no longer fatal. Window resize (size:W:H) works through the game's
+    own device re-creation (genuine 2560x1440 back buffer); IDirect3DDevice8::Reset implemented but not exercised by the game.
+  - Diagnostic: dev.py build --diag-move + run --diag-move logs what ULevel::MoveActor reports as blocking the player.
+  - Performance at the 90 FPS cap: every explored TutA area median 11.1 ms, p95 12.5-13.2 ms, 35-52% limiter wait.
+
 Background developer mode (2026-11-01, gameplay batch): dev.py run --background (bench_tuta.ps1 -Background), only with
 input isolation. The owner keeps using the desktop; the game window never takes focus and only the --input script reaches it.
   - GUI (hle_gui.c, xrt_dev_background): visible top-level windows are created hidden and shown SW_SHOWNOACTIVATE at

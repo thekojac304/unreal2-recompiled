@@ -18,7 +18,14 @@ XRT_NORETURN void xrt_fatal(CPU* c, int code, const char* fmt, ...) {
     va_list a; (void)c; va_start(a, fmt); fprintf(stderr, "xrt_fatal %d: ", code); vfprintf(stderr, fmt, a); va_end(a);
     fputc('\n', stderr); exit(2);
 }
-int xrt_lifted_overlap(uint32_t a, uint32_t size, uint32_t* end) { (void)a; (void)size; (void)end; return 0; }
+/* A lifted module image inside the pool range, as UI.dll at 0x19100000 in the game (run 20261101-134219). */
+#define FAKE_IMAGE_LO 0x19100000u
+#define FAKE_IMAGE_HI 0x19200000u
+int xrt_lifted_overlap(uint32_t a, uint32_t size, uint32_t* end) {
+    if (a < FAKE_IMAGE_HI && FAKE_IMAGE_LO < (uint64_t)a + size) { *end = FAKE_IMAGE_HI; return 1; }
+    return 0;
+}
+void xrt_log(const char* fmt, ...) { va_list a; va_start(a, fmt); printf("     log: "); vprintf(fmt, a); printf("\n"); va_end(a); }
 
 static int failures;
 #define CHECK(cond, what) do { if (!(cond)) { printf("FAIL %s\n", what); failures++; } else printf("ok   %s\n", what); } while (0)
@@ -57,6 +64,26 @@ int main(void) {
     CHECK(!xrt_staging_put(NULL, f), "a second put of the same block is refused");
     CHECK(!xrt_staging_put(NULL, 0x12345000u), "put of an unknown address is refused");
     CHECK(xrt_virtual_free(NULL, c), "ordinary free still works");
+    {   /* pressure: the bump region runs out while most of the pool is free (blocks of other sizes) - the level-transition
+         * case of run 20261101-133834. Reclaim releases warm staging blocks, merges adjacent free blocks and best-fits. */
+        static uint32_t blocks[128]; unsigned n = 0, i, overlap = 0; uint32_t big, warm, lo, hi;
+        while (n < 128) { blocks[n] = xrt_virtual_alloc(NULL, 3u << 20); if (blocks[n] + (3u << 20) > 0x1F000000u) { n++; break; } n++; }
+        printf("     filled the pool with %u blocks of 3 MiB (last at %08x)\n", n, blocks[n - 1]);
+        for (i = 0, overlap = 0; i < n; i++) if (blocks[i] < FAKE_IMAGE_HI && FAKE_IMAGE_LO < blocks[i] + (3u << 20)) overlap++;
+        CHECK(!overlap && blocks[n - 1] > FAKE_IMAGE_HI, "lifted image: the bump region steps over a module image inside the pool");
+        overlap = 0;
+        memset(G2H(blocks[10]), 0x33, 4096);
+        for (i = 10; i < 18; i++) xrt_virtual_free(NULL, blocks[i]);     /* a contiguous free run of 24 MiB */
+        warm = xrt_staging_take(NULL, 1u << 20); xrt_staging_put(NULL, warm);  /* a warm staging block */
+        lo = blocks[10]; hi = blocks[17] + (3u << 20);
+        big = xrt_virtual_alloc(NULL, 20u << 20);                        /* no block of this size exists; bump space is gone */
+        for (i = 0; i < n; i++) if ((i < 10 || i >= 18) && big < blocks[i] + (3u << 20) && blocks[i] < big + (20u << 20)) overlap++;
+        CHECK(big >= lo && big + (20u << 20) <= hi && committed(big + (20u << 20) - 1), "pressure: a new 20 MiB size is served from the merged free run");
+        CHECK(((unsigned char*)G2H(big))[0] == 0 && ((unsigned char*)G2H(big))[(20u << 20) - 1] == 0, "pressure: the reused block is zero-filled");
+        CHECK(!overlap, "pressure: the block overlaps no live block");
+        CHECK(!committed(warm) || warm < lo || warm >= hi, "pressure: the warm staging block was released (decommitted) by the reclaim");
+        CHECK(xrt_virtual_free(NULL, big) && !committed(big), "pressure: the merged block frees and decommits as one");
+    }
     printf(failures ? "FAIL (%d)\n" : "PASS\n", failures);
     return failures != 0;
 }

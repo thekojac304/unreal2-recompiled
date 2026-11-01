@@ -17,6 +17,9 @@ HERE = Path(__file__).resolve().parent
 WS = HERE.parents[2]
 BASE = WS / 'out/recovery/practical-init-20261031-01'
 DEV_OBSERVED_UNITS = {'Engine_026.c'}
+# build --diag-move: ULevel::MoveActor (Engine_020) and AActor::moveSmooth (Engine_025) also observed, so the runtime can log
+# what blocks the player (xrt_events.c, XRT_DEV_MOVE_DIAG). Observed units run slower: diagnostic builds only.
+DIAG_MOVE_UNITS = {'Engine_020.c', 'Engine_025.c'}
 GEN_OPT = '/O2'
 # Units compiled without forcing the xrt.h helpers inline (GlmLib_020 used to be here: forced inline it exceeds
 # the default 600 s command limit, so it has its own limit below instead).
@@ -167,7 +170,7 @@ def compile_one(src, obj, env, includes=(), flags=(), timeout=600):
     command(['cl', '/nologo', '/c', '/Z7', '/fp:strict', '/W3', '/D_CRT_SECURE_NO_WARNINGS',
              '/DXRT_WITH_UNREAL2', *flags, *[f'/I{x}' for x in includes], f'/Fo{obj}', src], env, obj.stem, timeout)
 
-def build(full=False, fixtures_only=False, native=False):
+def build(full=False, fixtures_only=False, native=False, diag_move=False):
     independent(DEV)
     BUILD.mkdir(parents=True, exist_ok=True)
     env = compiler_environment()
@@ -207,13 +210,15 @@ def build(full=False, fixtures_only=False, native=False):
             src = DEV / 'generated' / src.name
         # Scene-node Render functions (FLevel/FCamera/FPlayerSceneNode) live here; the
         # inherited object lacks the existing world observer, so the dev build adds it.
-        observed = src.name in DEV_OBSERVED_UNITS
+        observed = src.name in DEV_OBSERVED_UNITS or (diag_move and src.name in DIAG_MOVE_UNITS)
         marker = obj.with_suffix('.observer')
         # Generated code is compiled /O2 like the runtime: under /O1 (no /Oi) MSVC emitted an
         # out-of-line memcpy call for every 4-byte guest load/store. /fp:strict is unchanged.
         opt = obj.with_suffix('.opt')
         renames = [f'/D{fn}={fn}_translated' for fn, _ in NATIVE.get(src.name, [])] if native else []
         opt_text = GEN_OPT + (' /DXRT_NO_FORCE_INLINE' if src.name in GEN_NO_FORCE_INLINE else '') + ''.join(' ' + r for r in renames)
+        if observed and src.name in DIAG_MOVE_UNITS:
+            opt_text += ' /FIworld_observer.h'   # recompiles the unit again when a later build drops --diag-move
         # The object must come from this source: switching a unit between its developer copy and the shared
         # source cannot be judged by modification times alone (the copy is newer than the shared file).
         origin = obj.with_suffix('.src')
@@ -476,6 +481,16 @@ def run(args):
     import asset_boundary as assets
     import graphics_backend as graphics
     assets.verify()
+    # --seed-save: only .usa files written by an earlier developer run - in its sandbox (sandbox_cmp, overflow folder)
+    # or preserved from one under out/dev-init/saves. Checked before anything is copied.
+    seeds = []
+    for spec in args.seed_save:
+        src = independent(Path(spec))
+        from_sandbox = any(src.is_relative_to(a) for a in (WS / 'sandbox_cmp', Path(os.environ.get('USERPROFILE', '')) / 'Unreal2-dev-sandbox-overflow')) \
+            and any(part.startswith('dev-init-') for part in src.parts)
+        if src.suffix.lower() != '.usa' or not src.is_file() or not (from_sandbox or src.is_relative_to(DEV / 'saves')):
+            raise RuntimeError(f'No launch: --seed-save is not a .usa written by an earlier developer run: {src}')
+        seeds.append(src)
     out = fresh_run()
     sandbox = WS / 'sandbox_cmp' / ('dev-init-' + out.name)
     assets.check_writable(sandbox)
@@ -504,18 +519,13 @@ def run(args):
                     target.parent.mkdir(exist_ok=True)
                     shutil.copy2(f, target); added += 1
         print(f'dev: campaign assets: {added} install files added to the sandbox', flush=True)
-    if args.seed_save:
-        # Opt-in: save files the translated game itself wrote in an EARLIER developer run's sandbox (sandbox_cmp or the
-        # overflow folder), copied into this run's own Save folder so the game's Load menu can restore them. Never the
-        # install's Save (a junction to personal saves) and never an externally generated state.
-        allowed = [WS / 'sandbox_cmp', Path(os.environ.get('USERPROFILE', '')) / 'Unreal2-dev-sandbox-overflow']
+    if seeds:
+        # Opt-in: save files the translated game itself wrote in an EARLIER developer run (validated above), copied into
+        # this run's own Save folder so the game's QuickLoad/Load menu can restore them. Never the install's Save (a
+        # junction to personal saves) and never an externally generated state.
         target = sandbox / 'Save'
         target.mkdir(exist_ok=True)
-        for spec in args.seed_save:
-            src = independent(Path(spec))
-            if src.suffix.lower() != '.usa' or not src.is_file() or not any(src.is_relative_to(a) for a in allowed) or \
-               not any(part.startswith('dev-init-') for part in src.parts):
-                raise RuntimeError(f'--seed-save: not a .usa written by an earlier developer run: {src}')
+        for src in seeds:
             shutil.copy2(src, target / src.name)
             print(f'dev: seeded save {src} ({src.stat().st_size} bytes, sha256 {hashlib.sha256(src.read_bytes()).hexdigest()[:16]})', flush=True)
     # Developer helper copy (out/dev-init/dmusic_helper, named CallRoutine admitted); else the shared build.
@@ -558,6 +568,8 @@ def run(args):
             if args.allow_input:
                 raise RuntimeError('No launch: --input needs input isolation (drop --allow-input)')
             env['XRT_DEV_INPUT'] = args.input
+        if args.diag_move:
+            env['XRT_DEV_MOVE_DIAG'] = '1'   # needs a build --diag-move executable (xrt_events.c move_diag_return)
         if args.music_script_track:
             # Developer workaround: helper dispatches DirectMusic script-track events
             # (experiments/xrt/DMUSIC_SCRIPT_TRACK_DESIGN.md); native tracks are disabled.
@@ -612,6 +624,7 @@ def main():
     sub = parser.add_subparsers(dest='action', required=True)
     sub.add_parser('setup')
     b = sub.add_parser('build'); b.add_argument('--full', action='store_true')
+    b.add_argument('--diag-move', action='store_true', help='also observe ULevel::MoveActor/AActor::moveSmooth (blocking-hit log; slower)')
     b.add_argument('--native', action='store_true', help='link the native C replacements in NATIVE instead of their translations')
     lp = sub.add_parser('lift', help='re-lift shared generated modules into developer copies (then build)')
     lp.add_argument('--opt', default='', help='xlift --opt list (flags,pc); empty = plain lift')
@@ -640,6 +653,8 @@ def main():
                    help='D3D8 buffer Lock staging: strict (default; decommitted at Unlock, stale pointers fault) or reuse (per-buffer block, stale pointers into it not trapped)')
     r.add_argument('--capture', choices=('periodic', 'shots'), default='periodic',
                    help='first-scene back-buffer captures: periodic (default; powers of two, every 256th world frame, cues) or shots (scripted shots only)')
+    r.add_argument('--diag-move', action='store_true',
+                   help='log what blocks the player (needs a build --diag-move executable)')
     r.add_argument('--seed-save', action='append', default=[], metavar='FILE.usa',
                    help='copy a save written by an earlier developer run (its sandbox Save folder) into this run\'s Save')
     r.add_argument('--background', action='store_true',
@@ -673,7 +688,7 @@ def main():
     args = parser.parse_args()
     independent(DEV)
     if args.action == 'setup': setup()
-    elif args.action == 'build': build(args.full, native=args.native)
+    elif args.action == 'build': build(args.full, native=args.native, diag_move=args.diag_move)
     elif args.action == 'lift': lift(args.modules, {x for x in args.opt.split(',') if x})
     elif args.action == 'selftest': selftest()
     elif args.action == 'observe': observe()

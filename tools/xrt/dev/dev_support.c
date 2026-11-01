@@ -480,6 +480,7 @@ static void key_post(unsigned vk, int down) {
     LPARAM lp = 1 | (LPARAM)sc << 16 | (down ? 0 : (LPARAM)0xC0000000u);
     input_allow(down ? WM_KEYDOWN : WM_KEYUP, vk, lp, 0);
 }
+static void view_log(const char *why);
 /* Called from the guest's message pump before each host PeekMessage. */
 void xrt_dev_input_tick(void) {
     ULONGLONG now; unsigned i; int ours;
@@ -513,6 +514,7 @@ void xrt_dev_input_tick(void) {
         if (!ours && last) in_paused += now - last;
         last = now;
     }
+    { static ULONGLONG camera_next; if (now >= camera_next) { camera_next = now + 500; view_log("tick"); } }
     cursor_init();
     for (i = 0; i < 8; i++) if (in_keys[i].up && now >= in_keys[i].up) { key_post(in_keys[i].vk, 0); in_keys[i].up = 0; }
     if (in_button && now >= in_button_up) {
@@ -561,7 +563,25 @@ void xrt_dev_input_tick(void) {
             POINT p = in_cursor; ScreenToClient(in_window, &p);
             xrt_log("DEV input cursor client %ld,%ld", p.x, p.y);
         }
+        view_log("step");
     }
+}
+/* Level camera from the view transform the renderer sets while a level scene node renders (semantic_renderer.inc),
+ * kept as the last matrix only. Logged as world position and yaw/pitch with every input step and twice a second, so
+ * scripted navigation can be planned from where the player actually is. Read-only: no engine state is touched. */
+static float view_m[16];
+static int view_valid;
+void xrt_dev_view(const unsigned int bits[16]) { memcpy(view_m, bits, sizeof view_m); view_valid = 1; }
+static void view_log(const char *why) {
+    /* D3D row-vector view matrix M = [R 0; t 1]: camera c = -t R^T, forward = third column of R. */
+    double c[3], f[3]; int j;
+    if (!view_valid) return;
+    for (j = 0; j < 3; j++) {
+        c[j] = -(view_m[12] * view_m[j * 4 + 0] + view_m[13] * view_m[j * 4 + 1] + view_m[14] * view_m[j * 4 + 2]);
+        f[j] = view_m[j * 4 + 2];
+    }
+    xrt_log("DEV camera %s at +%llu ms: X=%.0f Y=%.0f Z=%.0f yaw=%.1f pitch=%.1f", why, GetTickCount64() - init_ms, c[0], c[1], c[2],
+            atan2(f[1], f[0]) * 57.29578, atan2(f[2], sqrt(f[0] * f[0] + f[1] * f[1])) * 57.29578);
 }
 /* Pending "size" step: called by the guest's PeekMessage inside its callback region (message_pump.inc). */
 void xrt_dev_input_window_actions(void) {

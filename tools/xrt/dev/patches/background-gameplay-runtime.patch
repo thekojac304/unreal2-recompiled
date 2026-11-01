@@ -1,0 +1,3288 @@
+diff --git a/out/dev-init-savepoints/x87v-20261031/runtime/d3d8_device_abi.h b/out/dev-init/runtime/d3d8_device_abi.h
+index 58f0115..f3dfbab 100644
+--- a/out/dev-init-savepoints/x87v-20261031/runtime/d3d8_device_abi.h
++++ b/out/dev-init/runtime/d3d8_device_abi.h
+@@ -22,7 +22,8 @@ typedef struct D8DeviceVtable {
+     HRESULT (WINAPI *GetDeviceCaps)(D8Device*,D8Caps*);
+     HRESULT (WINAPI *GetDisplayMode)(D8Device*,D8Mode*);
+     HRESULT (WINAPI *GetCreationParameters)(D8Device*,D8Creation*);
+-    void* unsupported10_14[5];
++    void* unsupported10_13[4];
++    HRESULT (WINAPI *Reset)(D8Device*,D8Present*);
+     HRESULT (WINAPI *Present)(D8Device*,const RECT*,const RECT*,HWND,const RGNDATA*);
+     HRESULT(WINAPI*GetBackBuffer)(D8Device*,UINT,DWORD,D8Surface**);
+     void* unsupported17;
+diff --git a/out/dev-init-savepoints/x87v-20261031/runtime/d3d8_device_slots.inc b/out/dev-init/runtime/d3d8_device_slots.inc
+index a5c3a86..b8f333e 100644
+--- a/out/dev-init-savepoints/x87v-20261031/runtime/d3d8_device_slots.inc
++++ b/out/dev-init/runtime/d3d8_device_slots.inc
+@@ -7,7 +7,6 @@ static void d8_device_SetCursorProperties(CPU*c) { d8_api_entry(c,10,1);d8_devic
+ static void d8_device_SetCursorPosition(CPU*c) { d8_api_entry(c,11,1);d8_device_object(c,ARG(0));xrt_fatal(c,76,"IDirect3DDevice8 unsupported slot 11 SetCursorPosition"); }
+ static void d8_device_ShowCursor(CPU*c) { d8_api_entry(c,12,1);d8_device_object(c,ARG(0));xrt_fatal(c,76,"IDirect3DDevice8 unsupported slot 12 ShowCursor"); }
+ static void d8_device_CreateAdditionalSwapChain(CPU*c) { d8_api_entry(c,13,1);d8_device_object(c,ARG(0));xrt_fatal(c,76,"IDirect3DDevice8 unsupported slot 13 CreateAdditionalSwapChain"); }
+-static void d8_device_Reset(CPU*c) { d8_api_entry(c,14,1);d8_device_object(c,ARG(0));xrt_fatal(c,76,"IDirect3DDevice8 unsupported slot 14 Reset"); }
+ static void d8_device_GetRasterStatus(CPU*c) { d8_api_entry(c,17,1);d8_device_object(c,ARG(0));xrt_fatal(c,76,"IDirect3DDevice8 unsupported slot 17 GetRasterStatus"); }
+ static void d8_device_GetGammaRamp(CPU*c) { d8_api_entry(c,19,1);d8_device_object(c,ARG(0));xrt_fatal(c,76,"IDirect3DDevice8 unsupported slot 19 GetGammaRamp"); }
+ static void d8_device_CreateVolumeTexture(CPU*c) { d8_api_entry(c,21,1);d8_device_object(c,ARG(0));xrt_fatal(c,76,"IDirect3DDevice8 unsupported slot 21 CreateVolumeTexture"); }
+diff --git a/out/dev-init-savepoints/x87v-20261031/runtime/dinput_lifecycle.inc b/out/dev-init/runtime/dinput_lifecycle.inc
+index 8cde2a2..35d537c 100644
+--- a/out/dev-init-savepoints/x87v-20261031/runtime/dinput_lifecycle.inc
++++ b/out/dev-init/runtime/dinput_lifecycle.inc
+@@ -53,7 +53,16 @@ static void did_SetCooperativeLevel(CPU*c) {
+         xrt_gui_window_pin(c,token);
+     }
+     previous=xrt_gui_callback_enter(c);did_lifecycle_active=1;SetLastError(xrt_get_last_error(c));
+-    hr=XM_SetCooperativeLevel(c,o->input,window,flags);error=GetLastError();
++    if(xrt_dev_background() && ((flags&3)==1||(flags&3)==2) && ((flags&12)==4||(flags&12)==8)) { /* valid combinations only */
++        /* Developer background mode: the host device is acquired non-exclusive/background so it works without the
++         * foreground (and never captures the owner's mouse); its physical data is still dropped by isolation and only
++         * scripted records reach the guest (hle_dinput.inc). The guest's own flags stay recorded. */
++        DWORD host=(flags&~(DWORD)(DISCL_EXCLUSIVE|DISCL_FOREGROUND|DISCL_NOWINKEY))|DISCL_NONEXCLUSIVE|DISCL_BACKGROUND;
++        xrt_log("DEV background: DirectInput cooperative level %x -> host %lx",flags,host);
++        hr=XM_SetCooperativeLevel(c,o->input,window,host);
++    } else
++    hr=XM_SetCooperativeLevel(c,o->input,window,flags);
++    error=GetLastError();
+     if(SUCCEEDED(hr)){o->window=token;o->cooperative_flags=flags;if(old)xrt_gui_window_unpin(old);}
+     else if(token)xrt_gui_window_unpin(token);
+     did_lifecycle_return(c,o,previous,13,3,hr,error);
+diff --git a/out/dev-init-savepoints/x87v-20261031/runtime/hle_d3d8_device.inc b/out/dev-init/runtime/hle_d3d8_device.inc
+index 46b2c51..ed9192a 100644
+--- a/out/dev-init-savepoints/x87v-20261031/runtime/hle_d3d8_device.inc
++++ b/out/dev-init/runtime/hle_d3d8_device.inc
+@@ -221,6 +221,34 @@ static void d8_dev_draw_log(HRESULT hr,unsigned primitives) {
+ #include "resource_draw.inc"
+ #include "surface_transfer.inc"
+ #include "fixed_function.inc"
++/* Windowed IDirect3DDevice8::Reset (window resize: the renderer resets its device to the new back buffer size).
++ * The 52-byte presentation tuple is mapped as in CreateDevice; it must stay windowed on the device's own window.
++ * Native D3D8 (DXVK) itself refuses the call while D3DPOOL_DEFAULT resources, extra render targets or depth surfaces
++ * are still referenced, so live resource records stay valid. A successful reset leaves the device in default state
++ * with no stream/index/texture bindings: the runtime's binding records go as the native device dropped them. */
++static void d8_device_Reset(CPU*c) {
++    LONG id=d8_api_entry(c,14,2);D8DeviceObject*o=d8_semantic_frame(c);uint32_t pp=ARG(1),window;D8Present n;CPU*prev;HRESULT hr;DWORD error;
++    if(d8_locks)xrt_fatal(c,76,"IDirect3DDevice8::Reset with mapped resources (native call refused)");
++    d8_device_memory(c,pp,52,1);
++    window=rd32(pp+24);memset(&n,0,sizeof n);
++    n.width=rd32(pp);n.height=rd32(pp+4);n.format=rd32(pp+8);n.count=rd32(pp+12);n.multisample=rd32(pp+16);n.swap=rd32(pp+20);
++    n.windowed=rd32(pp+28);n.depth=rd32(pp+32);n.depthformat=rd32(pp+36);n.flags=rd32(pp+40);n.refresh=rd32(pp+44);n.interval=rd32(pp+48);
++    if(!n.windowed)xrt_fatal(c,76,"IDirect3DDevice8::Reset: fullscreen presentation is outside the windowed scope (native call refused)");
++    if(window && window!=o->window && window!=o->focus)
++        xrt_fatal(c,76,"IDirect3DDevice8::Reset: presentation window change %08x -> %08x unsupported",o->window,window);
++    n.window=window?xrt_gui_device_window(c,window):NULL;
++    xrt_log("D3D8 Reset: %ux%u format %u count %u swap %u depth %u/%u flags %x interval %x (device was %ux%u)",
++            n.width,n.height,n.format,n.count,n.swap,n.depth,n.depthformat,n.flags,n.interval,o->width,o->height);
++    prev=d8_native_enter(c,14,&n,sizeof n);hr=XM_Reset(c,o->host,&n);error=GetLastError();
++    if(SUCCEEDED(hr)){o->width=n.width;o->height=n.height;o->depth=n.depth;o->depthformat=n.depthformat;d8_resource_device_dead();}
++    d8_device_memory(c,pp,52,1);
++    wr32(pp,n.width);wr32(pp+4,n.height);wr32(pp+8,n.format);wr32(pp+12,n.count);wr32(pp+16,n.multisample);wr32(pp+20,n.swap);
++    wr32(pp+24,xrt_gui_window_identity(c,n.window));wr32(pp+28,n.windowed);wr32(pp+32,n.depth);wr32(pp+36,n.depthformat);
++    wr32(pp+40,n.flags);wr32(pp+44,n.refresh);wr32(pp+48,n.interval);
++    xrt_log("D3D8 Reset result %08lx: back buffer %ux%u",(unsigned long)hr,n.width,n.height);
++    xrt_event("d3d8_device_reset","\"this\":%u,\"width\":%u,\"height\":%u,\"result\":%u",o->guest,n.width,n.height,(unsigned)hr);
++    d8_semantic_return(c,prev,id,2,hr,error);
++}
+ #include "d3d8_device_slots.inc"
+ static void d8_CreateDevice(CPU*c) {
+     d8_api_entry(c,100,7);
+diff --git a/out/dev-init-savepoints/x87v-20261031/runtime/hle_gui.c b/out/dev-init/runtime/hle_gui.c
+index 18d9f3d..56184dc 100644
+--- a/out/dev-init-savepoints/x87v-20261031/runtime/hle_gui.c
++++ b/out/dev-init/runtime/hle_gui.c
+@@ -1,1258 +1,1437 @@
+-/* Real USER32/GDI objects behind guest tokens; host pointers never escape. */
+-#define WIN32_LEAN_AND_MEAN
+-#include <windows.h>
+-#include <imm.h>
+-#pragma comment(lib,"imm32.lib")
+-#include <stdlib.h>
+-#include "xrt_internal.h"
+-#include "monitor_windows.inc"
+-typedef struct GuiDC
+-{
+-    HDC host;
+-    HWND window;
+-    DWORD thread;
+-    int acquired;
+-} GuiDC;
+-static BOOL delete_class_object(uint32_t token, int* handled);
+-static HINSTANCE class_module(CPU* c,uint32_t guest);
+-static uint32_t class_owner(CPU* c,HINSTANCE host);
+-static uint32_t copy_class_string(const void* p,int wide);
+-static uint32_t known_font_token(HFONT host);
+-static uint32_t borrowed_icon_token(CPU* c,HICON host);
+-static HICON guest_icon(CPU* c,uint32_t token);
+-static void forget_window_properties(HWND host);
+-static HWND window_host(uint32_t h);
+-static int registered_getobject_proc(HWND h, uint32_t proc);
+-static void begin(CPU *c)
+-{
+-    SetLastError(xrt_get_last_error(c));
+-}
+-static void end(CPU *c)
+-{
+-    xrt_set_last_error(c, GetLastError());
+-}
+-/* RECT is four guest signed 32-bit fields. Validate every page for both input
+- * and output before touching it; committed alone does not imply writable. */
+-static int writable_guest_rect(uint32_t p)
+-{
+-    uint64_t at=p,limit=(uint64_t)p+16;
+-    if(!p || limit>0x100000000ull)return 0;
+-    while(at<limit) {
+-        MEMORY_BASIC_INFORMATION mbi;DWORD access;uint64_t next;
+-        if(!VirtualQuery(xrt_g+at,&mbi,sizeof mbi) || mbi.State!=MEM_COMMIT ||
+-            (mbi.Protect&(PAGE_GUARD|PAGE_NOACCESS)))return 0;
+-        access=mbi.Protect&0xffu;
+-        if(access!=PAGE_READWRITE && access!=PAGE_WRITECOPY &&
+-            access!=PAGE_EXECUTE_READWRITE && access!=PAGE_EXECUTE_WRITECOPY)return 0;
+-        next=(uint64_t)((uint8_t*)mbi.BaseAddress-xrt_g)+mbi.RegionSize;
+-        if(next<=at)return 0;
+-        at=next;
+-    }
+-    return 1;
+-}
+-static void hle_AdjustWindowRect(CPU* c)
+-{
+-    uint32_t p=ARG(0),style=ARG(1),menu=ARG(2),esp=c->r[ESP],caller=rd32(esp);
+-    RECT rect;BOOL result;
+-    xrt_event("gui_adjust_window_rect_call","\"rect\":%u,\"style\":%u,\"menu\":%u,\"esp\":%u,\"return\":%u,\"last_error\":%u",
+-        p,style,menu,esp,caller,xrt_get_last_error(c));
+-    if(!writable_guest_rect(p))
+-        xrt_fatal(c,XRT_EXIT_UNSUPPORTED,"AdjustWindowRect: invalid read/write guest RECT %08x (16 bytes); guest pointer faults unsupported",p);
+-    rect.left=(LONG)(int32_t)rd32(p);rect.top=(LONG)(int32_t)rd32(p+4);
+-    rect.right=(LONG)(int32_t)rd32(p+8);rect.bottom=(LONG)(int32_t)rd32(p+12);
+-    xrt_event("gui_adjust_window_rect_input","\"rect\":%u,\"left\":%ld,\"top\":%ld,\"right\":%ld,\"bottom\":%ld",p,rect.left,rect.top,rect.right,rect.bottom);
+-    begin(c);result=xm_win_AdjustWindowRect(&rect,style,(BOOL)menu);end(c);
+-    wr32(p,(uint32_t)rect.left);wr32(p+4,(uint32_t)rect.top);
+-    wr32(p+8,(uint32_t)rect.right);wr32(p+12,(uint32_t)rect.bottom);
+-    RET_STD(3,result);
+-    xrt_event("gui_adjust_window_rect_return","\"rect\":%u,\"left\":%ld,\"top\":%ld,\"right\":%ld,\"bottom\":%ld,\"result\":%u,\"last_error\":%u,\"esp_before\":%u,\"esp_after\":%u,\"return\":%u,\"actual_return\":%u",
+-        p,rect.left,rect.top,rect.right,rect.bottom,(unsigned)result,xrt_get_last_error(c),esp,c->r[ESP],caller,c->rv);
+-}
+-/* Measured by the same x86 fixture natively and lifted, across all byte virtual
+- * keys with per-thread keyboard state. Preserve the signed SHORT and last-error. */
+-static void hle_GetKeyState(CPU*c) {
+-    uint32_t key=ARG(0);SHORT result;
+-    if(key>255)xrt_fatal(c,XRT_EXIT_UNSUPPORTED,"GetKeyState(%u): unmeasured virtual key",key);
+-    begin(c);result=xm_win_GetKeyState((int)key);end(c);
+-    if((result&0x8000)&&xrt_dev_input_blocked("GetKeyState down state"))result&=1; /* developer input isolation */
+-    if(xrt_dev_input_blocked(NULL)&&xrt_dev_key_held(key))result=(SHORT)(0xff80|(result&1)); /* scripted key down */
+-    RET_STD(1,(uint32_t)(int32_t)result);
+-}
+-static void hle_SetKeyboardState(CPU*c) {
+-    uint32_t p=ARG(0);BOOL result;
+-    if(p && !xrt_is_committed(p,256))
+-        xrt_fatal(c,XRT_EXIT_UNSUPPORTED,"SetKeyboardState: unreadable 256-byte guest buffer %08x",p);
+-    begin(c);result=xm_win_SetKeyboardState(p?(BYTE*)G2H(p):NULL);end(c);
+-    xrt_event("gui_set_keyboard_state","\"buffer\":%u,\"result\":%u,\"last_error\":%u",p,(unsigned)result,xrt_get_last_error(c));
+-    RET_STD(1,result);
+-}
+-static void hle_GetDC(CPU *c)
+-{
+-    HDC dc;
+-    GuiDC *g;
+-    uint32_t result = 0;
+-    HWND window=window_host(ARG(0));
+-    if(ARG(0) && !window) xrt_fatal(c,XRT_EXIT_UNSUPPORTED,"GetDC: unknown guest window %08x",ARG(0));
+-    begin(c);
+-    dc = xm_win_GetDC(window);
+-    end(c);
+-    if (dc)
+-    {
+-        g = (GuiDC *)calloc(1, sizeof *g);
+-        if (!g)
+-        {
+-            xm_win_ReleaseDC(window, dc);
+-            xrt_fatal(c, XRT_EXIT_SETUP, "GetDC allocation");
+-        }
+-        g->host = dc;
+-        g->window=window;
+-        g->acquired=1;
+-        g->thread = xm_win_GetCurrentThreadId();
+-        result = xrt_handle_new(XH_DC, g);
+-    }
+-    xrt_event("gui_get_dc", "\"handle\": %u", result);
+-    RET_STD(1, result);
+-}
+-static void hle_ReleaseDC(CPU *c)
+-{
+-    uint32_t token = ARG(1);
+-    GuiDC *g = (GuiDC *)xrt_handle_get(token, XH_DC);
+-    int ok = 0;
+-    HWND window=window_host(ARG(0));
+-    if(ARG(0) && !window) xrt_fatal(c,XRT_EXIT_UNSUPPORTED,"ReleaseDC: unknown guest window %08x",ARG(0));
+-    begin(c);
+-    if (g && g->acquired && g->window == window && g->thread == xm_win_GetCurrentThreadId())
+-        ok = xm_win_ReleaseDC(window, g->host);
+-    end(c);
+-    if (ok)
+-    {
+-        free(g);
+-        xrt_handle_free(token);
+-    }
+-    xrt_event("gui_release_dc", "\"handle\": %u, \"result\": %d", token, ok);
+-    RET_STD(2, ok);
+-}
+-static void hle_GetDeviceCaps(CPU*c) {
+-    GuiDC*g=(GuiDC*)xrt_handle_get(ARG(0),XH_DC);
+-    int result;
+-    if(!g || ARG(1)!=BITSPIXEL)
+-        xrt_fatal(c,XRT_EXIT_UNSUPPORTED,"GetDeviceCaps: unmeasured DC/index %08x/%u",ARG(0),ARG(1));
+-    begin(c); result=xm_win_GetDeviceCaps(g->host,BITSPIXEL); end(c);
+-    xrt_event("gui_device_caps","\"index\": %u, \"result\": %d",BITSPIXEL,result);
+-    RET_STD(2,result);
+-}
+-static void hle_CreateDIBitmap(CPU *c)
+-{
+-    GuiDC *dc = (GuiDC *)xrt_handle_get(ARG(0), XH_DC);
+-    HBITMAP bitmap;
+-    uint32_t result = 0;
+-    if (ARG(0) && !dc)
+-        xrt_fatal(c, XRT_EXIT_UNSUPPORTED, "CreateDIBitmap: invalid guest DC");
+-    /* BITMAPINFOHEADER/RGBQUAD contain no pointer fields. */
+-    begin(c);
+-    bitmap = xm_win_CreateDIBitmap(dc ? dc->host : NULL, ARG(1) ? (BITMAPINFOHEADER *)G2H(ARG(1)) : NULL, ARG(2),
+-                            ARG(3) ? G2H(ARG(3)) : NULL, ARG(4) ? (BITMAPINFO *)G2H(ARG(4)) : NULL, ARG(5));
+-    end(c);
+-    if (bitmap)
+-        result = xrt_handle_new(XH_BITMAP, bitmap);
+-    xrt_event("gui_create_dibitmap", "\"handle\": %u", result);
+-    RET_STD(6, result);
+-}
+-static void hle_CreateBitmap(CPU* c)
+-{
+-    HBITMAP bitmap; uint32_t token=0;
+-    begin(c);
+-    bitmap=xm_win_CreateBitmap((int)ARG(0),(int)ARG(1),ARG(2),ARG(3),ARG(4)?G2H(ARG(4)):NULL);
+-    end(c);
+-    if(bitmap) token=xrt_handle_new(XH_BITMAP,bitmap);
+-    xrt_event("gui_create_bitmap","\"width\": %d, \"height\": %d, \"handle\": %u",(int)ARG(0),(int)ARG(1),token);
+-    RET_STD(5,token);
+-}
+-static void hle_DeleteObject(CPU *c)
+-{
+-    uint32_t token = ARG(0);
+-    HGDIOBJ obj = (HGDIOBJ)xrt_handle_get(token, XH_BITMAP);
+-    BOOL ok;
+-    int handled=0;
+-    begin(c);
+-    ok=delete_class_object(token,&handled);
+-    if(!handled) ok=xm_win_DeleteObject(obj);
+-    end(c);
+-    if (ok && handled!=2)
+-        xrt_handle_free(token);
+-    xrt_event("gui_delete_object", "\"handle\": %u, \"result\": %d", token, ok);
+-    RET_STD(1, ok);
+-}
+-static void hle_GetDIBits(CPU *c)
+-{
+-    GuiDC *dc = (GuiDC *)xrt_handle_get(ARG(0), XH_DC);
+-    HBITMAP bitmap = (HBITMAP)xrt_handle_get(ARG(1), XH_BITMAP);
+-    int result;
+-    if (ARG(0) && !dc)
+-        xrt_fatal(c, XRT_EXIT_UNSUPPORTED, "GetDIBits: invalid guest DC");
+-    begin(c);
+-    result = xm_win_GetDIBits(dc ? dc->host : NULL, bitmap, ARG(2), ARG(3), ARG(4) ? G2H(ARG(4)) : NULL,
+-                       ARG(5) ? (BITMAPINFO *)G2H(ARG(5)) : NULL, ARG(6));
+-    end(c);
+-    RET_STD(7, result);
+-}
+-/* Dialog resource and callback bridge. The x86 image is mapped ONLY as resources,
+- * never executed by the 64-bit host loader. Host->guest callbacks preserve the suspended CPU. */
+-typedef struct GuiWindow
+-{
+-    HWND host;
+-    uint32_t token, proc, font;
+-    int font_local;
+-    HFONT host_font;
+-    DWORD thread;
+-} GuiWindow;
+-/* D3D8 pins are separate from guest ownership of the HWND itself. */
+-static unsigned device_window_pins[1024];
+-static GuiWindow windows[1024];
+-static __declspec(thread) CPU *callback_cpu;
+-CPU* xrt_gui_callback_enter(CPU* c) { CPU* previous=callback_cpu;callback_cpu=c;return previous; }
+-void xrt_gui_callback_leave(CPU* previous) { callback_cpu=previous; }
+-/* Borrowed IMM32 contexts belong to a thread, not to an individual window.
+- * No guest ImmCreate/Destroy/GetContext API is provided. Only returned contexts
+- * can be reassociated on their living guest/host thread. Keep tokens after
+- * window destruction: the shared default context survives. XrtThread records
+- * are never reused, so OS TID reuse cannot revive an expired context. Windows
+- * owns context destruction; the bridge never destroys a borrowed HIMC. */
+-typedef struct GuiIMC {
+-    HIMC host;
+-    XrtThread* owner;
+-    DWORD thread;
+-    uint32_t token;
+-} GuiIMC;
+-static GuiIMC input_contexts[128];
+-static uint32_t input_context_token(CPU* c,HIMC h) {
+-    unsigned i;
+-    if(!h)return 0;
+-    for(i=0;i<128;i++)if(input_contexts[i].host==h && input_contexts[i].owner==c->thread)
+-        return input_contexts[i].token;
+-    for(i=0;i<128;i++)if(!input_contexts[i].host) {
+-        GuiIMC* p=&input_contexts[i];p->host=h;p->owner=c->thread;p->thread=xm_win_GetCurrentThreadId();
+-        p->token=xrt_handle_new(XH_IMC,p);return p->token;
+-    }
+-    xrt_fatal(c,XRT_EXIT_SETUP,"ImmAssociateContext: borrowed context table full");
+-}
+-static void hle_ImmAssociateContext(CPU* c) {
+-    uint32_t w=ARG(0),ctx=ARG(1),esp=c->r[ESP],caller=rd32(esp),result;
+-    HWND hwnd=window_host(w);HIMC previous,h=NULL;GuiIMC* p;
+-    CPU* suspended=callback_cpu;
+-    DWORD owner=hwnd?xm_win_GetWindowThreadProcessId(hwnd,NULL):0;
+-    xrt_event("gui_imm_associate_context_call","\"hwnd\":%u,\"context\":%u,\"esp\":%u,\"return\":%u,\"last_error\":%u",w,ctx,esp,caller,xrt_get_last_error(c));
+-    if(w && xrt_handle_type(w)!=XH_FREE && xrt_handle_type(w)!=XH_WINDOW)
+-        xrt_fatal(c,XRT_EXIT_UNSUPPORTED,"ImmAssociateContext: wrong HWND token type %08x",w);
+-    if(owner && owner!=xm_win_GetCurrentThreadId())
+-        xrt_fatal(c,XRT_EXIT_UNSUPPORTED,"ImmAssociateContext: cross-thread window unsupported");
+-    if(ctx) {
+-        p=(GuiIMC*)xrt_handle_get(ctx,XH_IMC);
+-        if(!p)xrt_fatal(c,XRT_EXIT_UNSUPPORTED,"ImmAssociateContext: unknown or wrong-type HIMC token %08x",ctx);
+-        if(p->owner!=c->thread || p->owner->state!=1 || p->thread!=xm_win_GetCurrentThreadId())
+-            xrt_fatal(c,XRT_EXIT_UNSUPPORTED,"ImmAssociateContext: foreign or expired thread context unsupported");
+-        h=p->host;
+-    }
+-    /* NULL HWND preserves last-error. Nonzero invalid/destroyed HWNDs instead
+-     * fail with ERROR_INVALID_WINDOW_HANDLE. Use the measured invalid -1 host
+-     * sentinel so IMM32 supplies the outcome; never cast guest bits to HWND. */
+-    if(w && !owner) {
+-        hwnd=(HWND)(INT_PTR)-1;
+-        if(xm_win_IsWindow(hwnd))xrt_fatal(c,XRT_EXIT_SETUP,"ImmAssociateContext: invalid HWND sentinel became live");
+-    }
+-    begin(c);callback_cpu=c;previous=xm_win_ImmAssociateContext(hwnd,h);end(c);callback_cpu=suspended;
+-    if(previous && !owner)xrt_fatal(c,XRT_EXIT_UNSUPPORTED,"ImmAssociateContext: unexpected context from invalid HWND");
+-    result=input_context_token(c,previous);
+-    RET_STD(2,result);
+-    xrt_event("gui_imm_associate_context_return","\"hwnd\":%u,\"context\":%u,\"result\":%u,\"last_error\":%u,\"esp_before\":%u,\"esp_after\":%u,\"return\":%u,\"actual_return\":%u",w,ctx,result,xrt_get_last_error(c),esp,c->r[ESP],caller,c->rv);
+-}
+-static __declspec(thread) uint32_t creating_proc;
+-typedef struct GuiCallbackFrame {
+-    struct GuiCallbackFrame* previous;
+-    HWND window; UINT message; WPARAM host_wp; LPARAM host_lp;
+-    uint32_t guest_wp,guest_lp;
+-    const uint32_t* create_words;
+-} GuiCallbackFrame;
+-static __declspec(thread) GuiCallbackFrame* callback_frame;
+-static HWND window_host(uint32_t h)
+-{
+-    return (HWND)xrt_handle_get(h, XH_WINDOW);
+-}
+-static uint32_t window_token(HWND h)
+-{
+-    unsigned i;
+-    if (!h)
+-        return 0;
+-    for (i = 0; i < 1024; i++)
+-        if (windows[i].host == h)
+-            return windows[i].token;
+-    for (i = 0; i < 1024; i++)
+-        if (!windows[i].host)
+-        {
+-            windows[i].host = h;
+-            windows[i].thread = xm_win_GetCurrentThreadId();
+-            windows[i].token = xrt_handle_new(XH_WINDOW, h);
+-            return windows[i].token;
+-        }
+-    xrt_fatal(callback_cpu, XRT_EXIT_SETUP, "GUI window table full");
+-}
+-static void forget_dead_windows(void)
+-{
+-    unsigned i;
+-    for (i = 0; i < 1024; i++)
+-        if (windows[i].host && !xm_win_IsWindow(windows[i].host))
+-        {
+-            forget_window_properties(windows[i].host);
+-            if (windows[i].font && windows[i].font_local)
+-                xrt_handle_free(windows[i].font);
+-            xrt_handle_free(windows[i].token);
+-            memset(&windows[i], 0, sizeof windows[i]);
+-        }
+-}
+-void* xrt_gui_device_window(CPU* c,uint32_t token) {
+-    HWND h;DWORD pid=0,tid;unsigned i;
+-    if(!token)return NULL;
+-    h=window_host(token);
+-    if(!h || xrt_handle_type(token)!=XH_WINDOW)
+-        xrt_fatal(c,76,"D3D8: stale, unknown or wrong-type HWND token %08x",token);
+-    tid=xm_win_GetWindowThreadProcessId(h,&pid);
+-    if(!xm_win_IsWindow(h) || pid!=xm_win_GetCurrentProcessId() || tid!=xm_win_GetCurrentThreadId() || !c->thread || c->thread->host_tid!=tid)
+-        xrt_fatal(c,76,"D3D8: foreign, dead or cross-thread HWND token %08x",token);
+-    for(i=0;i<1024;i++)if(windows[i].host==h && windows[i].token==token && windows[i].thread==tid)return h;
+-    xrt_fatal(c,76,"D3D8: HWND token lacks GUI registry identity %08x",token);
+-}
+-uint32_t xrt_gui_window_identity(CPU* c,void* host) {
+-    unsigned i;if(!host)return 0;
+-    for(i=0;i<1024;i++)if(windows[i].host==host && window_host(windows[i].token)==host) {
+-        xrt_gui_device_window(c,windows[i].token);return windows[i].token;
+-    }
+-    xrt_fatal(c,76,"D3D8: unregistered native HWND result (no pointer narrowing)");
+-}
+-void xrt_gui_window_pin(CPU* c,uint32_t token) {
+-    unsigned i;if(!token)return;xrt_gui_device_window(c,token);
+-    for(i=0;i<1024;i++)if(windows[i].token==token && windows[i].host) {device_window_pins[i]++;return;}
+-}
+-void xrt_gui_window_unpin(uint32_t token) {
+-    unsigned i;if(!token)return;
+-    for(i=0;i<1024;i++)if(windows[i].token==token && windows[i].host && device_window_pins[i]) {device_window_pins[i]--;return;}
+-    xrt_fatal(NULL,77,"D3D8: window pin accounting mismatch %08x",token);
+-}
+-/* USER32 queries this calling thread's actual input queue. Never substitute the
+- * active/foreground window or cache focus. Existing GUI tokens also represent
+- * a live focused HWND first encountered here (e.g. a native stock control). */
+-/* Only the observed self-thread boundary is characterized. The real USER32
+- * call supplies BOOL and last-error, including its failure on self attachment.
+- * Cross-thread queue sharing remains guarded; no guest scalar becomes a pointer. */
+-static void hle_AttachThreadInput(CPU* c) {
+-    uint32_t from=ARG(0),to=ARG(1),attach=ARG(2),esp=c->r[ESP],caller=rd32(esp);
+-    DWORD tid=xm_win_GetCurrentThreadId();BOOL result;
+-    xrt_event("gui_attach_thread_input_call","\"from\":%u,\"to\":%u,\"attach\":%u,\"esp\":%u,\"return\":%u,\"last_error\":%u",
+-        from,to,attach,esp,caller,xrt_get_last_error(c));
+-    if(!c->thread || c->thread->state!=1 || c->thread->host_tid!=tid ||
+-       c->thread->guest_tid!=tid || from!=tid || to!=tid)
+-        xrt_fatal(c,XRT_EXIT_UNSUPPORTED,"AttachThreadInput: only the living current guest/host self-thread pair is measured (%u,%u)",from,to);
+-    begin(c);result=xm_win_AttachThreadInput(from,to,(BOOL)attach);end(c);
+-    RET_STD(3,result);
+-    xrt_event("gui_attach_thread_input_return","\"from\":%u,\"to\":%u,\"attach\":%u,\"result\":%u,\"last_error\":%u,\"esp_before\":%u,\"esp_after\":%u,\"return\":%u,\"actual_return\":%u",
+-        from,to,attach,(unsigned)result,xrt_get_last_error(c),esp,c->r[ESP],caller,c->rv);
+-}
+-
+-static void hle_GetFocus(CPU* c)
+-{
+-    HWND h;uint32_t result,esp=c->r[ESP],caller=rd32(esp);
+-    xrt_event("gui_get_focus_call","\"esp\":%u,\"return\":%u",esp,caller);
+-    begin(c);h=xm_win_GetFocus();end(c);
+-    result=window_token(h);
+-    RET_STD(0,result);
+-    xrt_event("gui_get_focus_return","\"esp_before\":%u,\"esp_after\":%u,\"return\":%u,\"actual_return\":%u,\"result\":%u,\"last_error\":%u",
+-        esp,c->r[ESP],caller,c->rv,result,xrt_get_last_error(c));
+-}
+-/* Borrow the actual foreground HWND, which may belong to another process.
+- * This query neither acquires ownership nor transfers focus/callback execution. */
+-static void hle_GetForegroundWindow(CPU* c)
+-{
+-    HWND h;uint32_t result,esp=c->r[ESP],caller=rd32(esp);
+-    xrt_event("gui_foreground_call","\"esp\":%u,\"return\":%u,\"last_error\":%u",esp,caller,xrt_get_last_error(c));
+-    begin(c);h=xm_win_GetForegroundWindow();end(c);
+-    result=window_token(h);
+-    xrt_event("gui_foreground_identity","\"host\":\"%llx\",\"token\":%u,\"roundtrip\":%u",
+-        (unsigned long long)(uintptr_t)h,result,window_host(result)==h);
+-    RET_STD(0,result);
+-    xrt_event("gui_foreground_return","\"result\":%u,\"last_error\":%u,\"esp_before\":%u,\"esp_after\":%u,\"return\":%u,\"actual_return\":%u",result,xrt_get_last_error(c),esp,c->r[ESP],caller,c->rv);
+-}
+-/* Measured owned-window foreground request. USER32 decides success and may
+- * synchronously reenter the existing activation/focus callback bridge. */
+-static void hle_SetForegroundWindow(CPU* c)
+-{
+-    uint32_t w=ARG(0),esp=c->r[ESP],caller=rd32(esp);BOOL result;
+-    HWND hwnd=window_host(w);CPU* suspended=callback_cpu;
+-    xrt_event("gui_set_foreground_call","\"hwnd\":%u,\"esp\":%u,\"return\":%u,\"last_error\":%u",w,esp,caller,xrt_get_last_error(c));
+-    if(w && xrt_handle_type(w)!=XH_FREE && xrt_handle_type(w)!=XH_WINDOW)
+-        xrt_fatal(c,XRT_EXIT_UNSUPPORTED,"SetForegroundWindow: wrong HWND token type %08x",w);
+-    if(w && !hwnd)xrt_fatal(c,XRT_EXIT_UNSUPPORTED,"SetForegroundWindow: unknown HWND token %08x",w);
+-    if(hwnd && xm_win_GetWindowThreadProcessId(hwnd,NULL)!=xm_win_GetCurrentThreadId())
+-        xrt_fatal(c,XRT_EXIT_UNSUPPORTED,"SetForegroundWindow: cross-thread window unmeasured");
+-    callback_cpu=c;begin(c);result=xm_win_SetForegroundWindow(hwnd);end(c);callback_cpu=suspended;
+-    RET_STD(1,result);
+-    xrt_event("gui_set_foreground_return","\"hwnd\":%u,\"result\":%u,\"last_error\":%u,\"esp_before\":%u,\"esp_after\":%u,\"return\":%u,\"actual_return\":%u",w,(unsigned)result,xrt_get_last_error(c),esp,c->r[ESP],caller,c->rv);
+-}
+-/* Return USER32's actual previous active HWND through the shared typed map. */
+-static void hle_SetActiveWindow(CPU* c)
+-{
+-    uint32_t w=ARG(0),esp=c->r[ESP],caller=rd32(esp),result;
+-    HWND hwnd=window_host(w),previous;CPU* suspended=callback_cpu;
+-    xrt_event("gui_set_active_call","\"hwnd\":%u,\"esp\":%u,\"return\":%u,\"last_error\":%u",w,esp,caller,xrt_get_last_error(c));
+-    if(w && xrt_handle_type(w)!=XH_FREE && xrt_handle_type(w)!=XH_WINDOW)
+-        xrt_fatal(c,XRT_EXIT_UNSUPPORTED,"SetActiveWindow: wrong HWND token type %08x",w);
+-    if(w && !hwnd)xrt_fatal(c,XRT_EXIT_UNSUPPORTED,"SetActiveWindow: unknown HWND token %08x",w);
+-    if(hwnd && xm_win_GetWindowThreadProcessId(hwnd,NULL)!=xm_win_GetCurrentThreadId())
+-        xrt_fatal(c,XRT_EXIT_UNSUPPORTED,"SetActiveWindow: cross-thread window unmeasured");
+-    callback_cpu=c;begin(c);previous=xm_win_SetActiveWindow(hwnd);end(c);callback_cpu=suspended;
+-    result=window_token(previous);RET_STD(1,result);
+-    xrt_event("gui_set_active_return","\"hwnd\":%u,\"result\":%u,\"last_error\":%u,\"esp_before\":%u,\"esp_after\":%u,\"return\":%u,\"actual_return\":%u",w,result,xrt_get_last_error(c),esp,c->r[ESP],caller,c->rv);
+-}
+-/* SetFocus returns USER32's previous HWND, including native reentrant activation
+- * behavior. Never derive it from the requested HWND or a cached focus value. */
+-static void hle_SetFocus(CPU* c)
+-{
+-    uint32_t w=ARG(0),esp=c->r[ESP],caller=rd32(esp),result;
+-    HWND hwnd=window_host(w),previous;CPU* suspended=callback_cpu;
+-    DWORD owner=hwnd?xm_win_GetWindowThreadProcessId(hwnd,NULL):0;
+-    xrt_event("gui_set_focus_call","\"hwnd\":%u,\"esp\":%u,\"return\":%u,\"last_error\":%u",
+-        w,esp,caller,xrt_get_last_error(c));
+-    if(w && xrt_handle_type(w)!=XH_FREE && xrt_handle_type(w)!=XH_WINDOW)
+-        xrt_fatal(c,XRT_EXIT_UNSUPPORTED,"SetFocus: wrong HWND token type %08x",w);
+-    /* Attached input queues and cross-thread callback/baton transfer are outside
+-     * this boundary. Native unattached attempts return NULL / error 5. */
+-    if(owner && owner!=xm_win_GetCurrentThreadId())
+-        xrt_fatal(c,XRT_EXIT_UNSUPPORTED,"SetFocus: cross-thread window unsupported");
+-    if(w && !hwnd) {
+-        hwnd=(HWND)(intptr_t)-1;
+-        if(xm_win_IsWindow(hwnd))xrt_fatal(c,XRT_EXIT_SETUP,"SetFocus: invalid HWND sentinel unexpectedly valid");
+-    }
+-    callback_cpu=c;begin(c);previous=xm_win_SetFocus(hwnd);end(c);callback_cpu=suspended;
+-    result=window_token(previous);
+-    RET_STD(1,result);
+-    xrt_event("gui_set_focus_return","\"hwnd\":%u,\"result\":%u,\"last_error\":%u,\"esp_before\":%u,\"esp_after\":%u,\"return\":%u,\"actual_return\":%u",
+-        w,result,xrt_get_last_error(c),esp,c->r[ESP],caller,c->rv);
+-}
+-/* Measured SetCapture, including NULL and reentrant capture-change callbacks.
+- * USER32 owns capture state and supplies the previous HWND; guest memory sees
+- * only typed tokens. ReleaseCapture is not substituted for the NULL call. */
+-static void hle_SetCapture(CPU* c)
+-{
+-    uint32_t w=ARG(0),esp=c->r[ESP],caller=rd32(esp),result;
+-    HWND hwnd=window_host(w),previous;CPU* suspended=callback_cpu;
+-    DWORD owner=hwnd?xm_win_GetWindowThreadProcessId(hwnd,NULL):0;
+-    xrt_event("gui_set_capture_call","\"hwnd\":%u,\"esp\":%u,\"return\":%u,\"last_error\":%u",
+-        w,esp,caller,xrt_get_last_error(c));
+-    if(w && xrt_handle_type(w)!=XH_FREE && xrt_handle_type(w)!=XH_WINDOW)
+-        xrt_fatal(c,XRT_EXIT_UNSUPPORTED,"SetCapture: wrong HWND token type %08x",w);
+-    /* Native unattached foreign-window attempts leave both queues unchanged.
+-     * Attached queues and cross-thread callback transfer remain unmeasured. */
+-    if(owner && owner!=xm_win_GetCurrentThreadId())
+-        xrt_fatal(c,XRT_EXIT_UNSUPPORTED,"SetCapture: cross-thread window unsupported");
+-    if(w && !hwnd) {
+-        hwnd=(HWND)(intptr_t)-1;
+-        if(xm_win_IsWindow(hwnd))xrt_fatal(c,XRT_EXIT_SETUP,"SetCapture: invalid HWND sentinel unexpectedly valid");
+-    }
+-    callback_cpu=c;begin(c);previous=xm_win_SetCapture(hwnd);end(c);callback_cpu=suspended;
+-    result=window_token(previous);
+-    RET_STD(1,result);
+-    xrt_event("gui_set_capture_return","\"hwnd\":%u,\"result\":%u,\"last_error\":%u,\"esp_before\":%u,\"esp_after\":%u,\"return\":%u,\"actual_return\":%u",
+-        w,result,xrt_get_last_error(c),esp,c->r[ESP],caller,c->rv);
+-}
+-/* Only the encountered NULL RECT path is measured. USER32 releases the real
+- * cursor constraint; no guest RECT or synthetic clip state is introduced. */
+-static void hle_ClipCursor(CPU* c)
+-{
+-    uint32_t p=ARG(0),esp=c->r[ESP],caller=rd32(esp);BOOL result;
+-    xrt_event("gui_clip_cursor_call","\"rect\":%u,\"esp\":%u,\"return\":%u,\"last_error\":%u",p,esp,caller,xrt_get_last_error(c));
+-    if(p) {
+-        /* WinDrv SetMouseCapture: four guest LONGs, copied; the launcher restores the clip. */
+-        RECT r;
+-        if(!writable_guest_rect(p))xrt_fatal(c,XRT_EXIT_UNSUPPORTED,"ClipCursor: RECT outside writable guest memory");
+-        r.left=(LONG)rd32(p);r.top=(LONG)rd32(p+4);r.right=(LONG)rd32(p+8);r.bottom=(LONG)rd32(p+12);
+-        if(xrt_dev_input_blocked(NULL)){xrt_dev_cursor(2,NULL,NULL,&r);result=1;} /* developer isolation: virtual cursor only */
+-        else{begin(c);result=xm_win_ClipCursor(&r);end(c);}
+-    } else if(xrt_dev_input_blocked(NULL)) {
+-        xrt_dev_cursor(2,NULL,NULL,NULL);result=1;
+-    } else {
+-        begin(c);result=xm_win_ClipCursor(NULL);end(c);
+-    }
+-    RET_STD(1,result);
+-    xrt_event("gui_clip_cursor_return","\"rect\":%u,\"result\":%u,\"last_error\":%u,\"esp_before\":%u,\"esp_after\":%u,\"return\":%u,\"actual_return\":%u",p,(unsigned)result,xrt_get_last_error(c),esp,c->r[ESP],caller,c->rv);
+-}
+-/* Optional output is exactly one DWORD, including unaligned/page-edge writes.
+- * A failed HWND query never probes or modifies that output, as measured natively. */
+-static int writable_guest_id(uint32_t p) {
+-    uint64_t at=p,limit=(uint64_t)p+4;
+-    if(!p || limit>0x100000000ull)return 0;
+-    while(at<limit) {
+-        MEMORY_BASIC_INFORMATION mbi;DWORD access;uint64_t next;
+-        if(!VirtualQuery(xrt_g+at,&mbi,sizeof mbi) || mbi.State!=MEM_COMMIT || (mbi.Protect&(PAGE_GUARD|PAGE_NOACCESS)))return 0;
+-        access=mbi.Protect&0xffu;
+-        if(access!=PAGE_READWRITE && access!=PAGE_WRITECOPY && access!=PAGE_EXECUTE_READWRITE && access!=PAGE_EXECUTE_WRITECOPY)return 0;
+-        next=(uint64_t)((uint8_t*)mbi.BaseAddress-xrt_g)+mbi.RegionSize;if(next<=at)return 0;at=next;
+-    }
+-    return 1;
+-}
+-static void hle_GetWindowThreadProcessId(CPU* c) {
+-    uint32_t w=ARG(0),p=ARG(1),esp=c->r[ESP],caller=rd32(esp);DWORD pid=0,tid;HWND h=window_host(w);
+-    xrt_event("gui_window_ids_call","\"hwnd\":%u,\"output\":%u,\"esp\":%u,\"return\":%u,\"last_error\":%u",w,p,esp,caller,xrt_get_last_error(c));
+-    if(w && xrt_handle_type(w)!=XH_FREE && xrt_handle_type(w)!=XH_WINDOW)
+-        xrt_fatal(c,XRT_EXIT_UNSUPPORTED,"GetWindowThreadProcessId: wrong HWND token type %08x",w);
+-    if(w && !h) {h=(HWND)(intptr_t)-1;if(xm_win_IsWindow(h))xrt_fatal(c,XRT_EXIT_SETUP,"GetWindowThreadProcessId invalid HWND sentinel unexpectedly valid");}
+-    begin(c);tid=xm_win_GetWindowThreadProcessId(h,p?&pid:NULL);end(c);
+-    if(tid && p) {
+-        if(!writable_guest_id(p))xrt_fatal(c,XRT_EXIT_UNSUPPORTED,"GetWindowThreadProcessId: invalid four-byte output %08x; native output pointer fault path unsupported",p);
+-        wr32(p,pid);
+-    }
+-    RET_STD(2,tid);
+-    xrt_event("gui_window_ids_return","\"hwnd\":%u,\"output\":%u,\"result\":%u,\"pid\":%u,\"written\":%u,\"last_error\":%u,\"esp_before\":%u,\"esp_after\":%u,\"return\":%u,\"actual_return\":%u",w,p,tid,pid,tid&&p?1:0,xrt_get_last_error(c),esp,c->r[ESP],caller,c->rv);
+-}
+-static HWND map_points_window(CPU* c,uint32_t w) {
+-    HWND h=window_host(w);
+-    if(w && xrt_handle_type(w)!=XH_FREE && xrt_handle_type(w)!=XH_WINDOW)
+-        xrt_fatal(c,XRT_EXIT_UNSUPPORTED,"MapWindowPoints: wrong HWND token type %08x",w);
+-    if(w && !h) {h=(HWND)(intptr_t)-1;if(xm_win_IsWindow(h))xrt_fatal(c,XRT_EXIT_SETUP,"MapWindowPoints invalid HWND sentinel unexpectedly valid");}
+-    return h;
+-}
+-static void hle_MapWindowPoints(CPU* c) {
+-    uint32_t a=ARG(0),b=ARG(1),p=ARG(2),n=ARG(3),esp=c->r[ESP],caller=rd32(esp),i;
+-    POINT points[4];HWND from,to;int result;
+-    xrt_event("gui_map_points_call","\"from\":%u,\"to\":%u,\"points\":%u,\"count\":%u,\"esp\":%u,\"return\":%u,\"last_error\":%u",a,b,p,n,esp,caller,xrt_get_last_error(c));
+-    if(n<1 || n>4)xrt_fatal(c,XRT_EXIT_UNSUPPORTED,"MapWindowPoints: unmeasured point count %u",n);
+-    from=map_points_window(c,a);to=map_points_window(c,b);
+-    if(!p || (uint64_t)p+8*n>0x100000000ull)xrt_fatal(c,XRT_EXIT_UNSUPPORTED,"MapWindowPoints: invalid guest point array %08x",p);
+-    for(i=0;i<2*n;i++)if(!writable_guest_id(p+4*i))xrt_fatal(c,XRT_EXIT_UNSUPPORTED,"MapWindowPoints: invalid guest point array %08x",p);
+-    memcpy(points,G2H(p),8*n);
+-    for(i=0;i<n;i++)xrt_event("gui_map_points_input","\"index\":%u,\"x\":%ld,\"y\":%ld",i,points[i].x,points[i].y);
+-    begin(c);result=xm_win_MapWindowPoints(from,to,points,n);end(c);
+-    memcpy(G2H(p),points,8*n);
+-    for(i=0;i<n;i++)xrt_event("gui_map_points_output","\"index\":%u,\"x\":%ld,\"y\":%ld",i,points[i].x,points[i].y);
+-    RET_STD(4,(uint32_t)result);
+-    xrt_event("gui_map_points_return","\"from\":%u,\"to\":%u,\"points\":%u,\"count\":%u,\"result\":%u,\"last_error\":%u,\"esp_before\":%u,\"esp_after\":%u,\"return\":%u,\"actual_return\":%u",a,b,p,n,(uint32_t)result,xrt_get_last_error(c),esp,c->r[ESP],caller,c->rv);
+-}
+-static void pack_windowpos(uint32_t p, const WINDOWPOS *w)
+-{
+-    wr32(p, window_token(w->hwnd));
+-    wr32(p + 4, (intptr_t)w->hwndInsertAfter >= -2 && (intptr_t)w->hwndInsertAfter <= 1
+-                    ? (uint32_t)(intptr_t)w->hwndInsertAfter
+-                    : window_token(w->hwndInsertAfter));
+-    wr32(p + 8, w->x);
+-    wr32(p + 12, w->y);
+-    wr32(p + 16, w->cx);
+-    wr32(p + 20, w->cy);
+-    wr32(p + 24, w->flags);
+-}
+-static HWND insert_host(uint32_t v)
+-{
+-    HWND host;
+-    if (v >= 0xfffffffeu || v <= 1)
+-        return (HWND)(intptr_t)(int32_t)v;
+-    host = window_host(v);
+-    if (!host)
+-        xrt_fatal(callback_cpu, XRT_EXIT_UNSUPPORTED, "window insertion handle %08x unknown", v);
+-    return host;
+-}
+-static void unpack_windowpos(WINDOWPOS *w, uint32_t p)
+-{
+-    w->hwnd = window_host(rd32(p));
+-    w->hwndInsertAfter = insert_host(rd32(p + 4));
+-    w->x = (int)rd32(p + 8);
+-    w->y = (int)rd32(p + 12);
+-    w->cx = (int)rd32(p + 16);
+-    w->cy = (int)rd32(p + 20);
+-    w->flags = rd32(p + 24);
+-}
+-/* Developer benchmarking only (dev.py --windowed-res): XRT_DEV_MAX_TRACK=WxH raises the maximum tracking size the
+- * guest's WM_GETMINMAXINFO result reports, so a requested window larger than the desktop is not clamped by the system
+- * default (virtual screen + frame). Otherwise the client is clamped while D3DDrv keeps the requested back buffer, the
+- * sizes differ and DXVK presents through GDI. The window then extends beyond the display: a larger-than-display render
+- * surface, not native-display output. Unset (normal runs): the guest's result is returned unchanged. */
+-static void dev_max_track(MINMAXINFO *m)
+-{
+-    static int w = -1, h = 0;
+-    if (w < 0)
+-    {
+-        char v[32];
+-        DWORD n = GetEnvironmentVariableA("XRT_DEV_MAX_TRACK", v, sizeof v);
+-        const char *x = n && n < sizeof v ? strchr(v, 'x') : NULL;
+-        w = x ? atoi(v) : 0;
+-        h = x ? atoi(x + 1) : 0;
+-        if (w > 0 && h > 0)
+-            xrt_log("DEV window maximum tracking size raised to at least %dx%d (larger-than-display benchmarking)", w, h);
+-    }
+-    if (w > 0 && h > 0)
+-    {
+-        if (m->ptMaxTrackSize.x < w) m->ptMaxTrackSize.x = w;
+-        if (m->ptMaxTrackSize.y < h) m->ptMaxTrackSize.y = h;
+-    }
+-}
+-#include "hle_gui_diag.inc"
+-#include "window_transitions.inc"
+-#include "message_pump.inc"
+-static INT_PTR invoke_gui_proc(HWND h, UINT msg, WPARAM wp, LPARAM lp, uint32_t explicit_proc)
+-{
+-    xm_scope(callback_cpu,XM_BEGIN,XM_CALLBACK,"USER32.invoke_gui_proc",msg);
+-    CPU nested;
+-    uint32_t args[4], proc = explicit_proc, scratch = 0;
+-    unsigned i;
+-    INT_PTR result;
+-    GuiWindow *window = NULL;
+-    DWORD error = GetLastError();
+-    GuiCallbackFrame frame;
+-    uint32_t create_words[12];
+-    gui_diagnostic_ingress(h,msg,wp,lp,explicit_proc);
+-    if (!callback_cpu)
+-        xrt_fatal(NULL, XRT_EXIT_UNSUPPORTED, "GUI callback outside an active guest host call");
+-    args[0] = window_token(h);
+-    args[1] = msg;
+-    args[2] = (uint32_t)wp;
+-    args[3] = (uint32_t)lp;
+-    for (i = 0; i < 1024; i++)
+-        if (windows[i].host == h)
+-        {
+-            window = &windows[i];
+-            if (!window->proc && !explicit_proc)
+-                window->proc = creating_proc;
+-            if (!explicit_proc) proc = window->proc;
+-            break;
+-        }
+-    if (!proc)
+-        { INT_PTR xm_ret=(FALSE);xm_scope(callback_cpu,XM_END,XM_CALLBACK,"USER32.invoke_gui_proc",(uint64_t)xm_ret);return xm_ret;}
+-    nested = *callback_cpu;
+-    xrt_set_last_error(&nested, error);
+-    /* Temporary structures use the guest stack below the suspended import frame. */
+-    scratch = (nested.r[ESP] - 128u) & ~15u;
+-    nested.r[ESP] = scratch;
+-    switch (msg)
+-    {
+-    case WM_GETOBJECT:
+-    {
+-        /* Separate native x86/x64 dialog and registered-window oracles. The
+-         * registered WNDPROC executes and may delegate through its validated
+-         * callback frame to real DefWindowProcW. No accessibility cookie is
+-         * manufactured. Other IDs/arguments and unregistered procs stay guarded. */
+-        int registered = explicit_proc && registered_getobject_proc(h, explicit_proc);
+-        int client = wp == (WPARAM)0xffffffffu && (DWORD)lp == (DWORD)OBJID_CLIENT &&
+-            (lp == (LPARAM)(ULONG_PTR)(DWORD)OBJID_CLIENT || lp == (LPARAM)(LONG)OBJID_CLIENT);
+-        /* Measured separately on a real registered Unicode WNDPROC: scalar
+-         * class-name-index query, wParam=0, zero/sign-extended -12. Windows
+-         * DefWindowProcW supplies the result through the active callback frame.
+-         * This does not admit the tuple to the unmeasured dialog protocol. */
+-        int query_class = registered && wp == 0 && (DWORD)lp == (DWORD)-12 &&
+-            (lp == (LPARAM)(ULONG_PTR)(DWORD)-12 || lp == (LPARAM)(LONG)-12);
+-        if ((explicit_proc && !registered) || !xm_win_IsWindowUnicode(h) || (!client && !query_class))
+-            xrt_fatal(&nested, XRT_EXIT_UNSUPPORTED,
+-                      "WM_GETOBJECT: unmeasured dialog/arguments (wp=%llx lp=%llx)",
+-                      (unsigned long long)wp, (unsigned long long)lp);
+-        break;
+-    }
+-    case WM_GETICON:
+-        if(wp>ICON_SMALL2 || ((uint64_t)(uintptr_t)lp>0xffffffffull && lp!=(LPARAM)(int32_t)(uint32_t)lp))
+-            xrt_fatal(&nested,XRT_EXIT_UNSUPPORTED,"WM_GETICON: invalid selector or unrepresentable DPI %llu/%lld",(unsigned long long)wp,(long long)lp);
+-        break;
+-    case WM_SETTEXT:
+-        args[3]=copy_class_string((void*)lp,xm_win_IsWindowUnicode(h));
+-        break;
+-    case WM_CREATE:
+-    case WM_NCCREATE:
+-        {
+-            CREATESTRUCTW* s=(CREATESTRUCTW*)lp;
+-            if((uintptr_t)s->lpCreateParams>0xffffffffu)
+-                xrt_fatal(&nested,XRT_EXIT_UNSUPPORTED,"CREATESTRUCT contains a non-guest creation parameter");
+-            if(s->hMenu && !(s->style&WS_CHILD))
+-                xrt_fatal(&nested,XRT_EXIT_UNSUPPORTED,"CREATESTRUCT menu requires typed mapping");
+-            wr32(scratch,(uint32_t)(uintptr_t)s->lpCreateParams);
+-            wr32(scratch+4,class_owner(&nested,s->hInstance));
+-            wr32(scratch+8,(uint32_t)(uintptr_t)s->hMenu);
+-            wr32(scratch+12,window_token(s->hwndParent));
+-            wr32(scratch+16,s->cy);wr32(scratch+20,s->cx);wr32(scratch+24,s->y);wr32(scratch+28,s->x);
+-            wr32(scratch+32,s->style);
+-            wr32(scratch+36,copy_class_string(s->lpszName,xm_win_IsWindowUnicode(h)));
+-            wr32(scratch+40,copy_class_string(s->lpszClass,xm_win_IsWindowUnicode(h)));
+-            wr32(scratch+44,s->dwExStyle);
+-            args[3]=scratch;
+-            memcpy(create_words,G2H(scratch),48);
+-        }
+-        break;
+-    case WM_USER + 77: /* Class oracle's explicitly scalar nested callback. */
+-        if (h || wp > 100 || lp > 100)
+-            xrt_fatal(&nested, XRT_EXIT_UNSUPPORTED, "class oracle scalar message outside measured range");
+-        break;
+-    case 0xae: /* Observed (8,0)/(9,0) scalar notifications, measured with real default processing. */
+-        if((wp!=8 && wp!=9) || lp)
+-            xrt_fatal(&nested,XRT_EXIT_UNSUPPORTED,"window callback 0xae: unmeasured arguments (wp=%llx lp=%llx)",(unsigned long long)wp,(unsigned long long)lp);
+-        break;
+-    case 0x90: /* Observed Windows theme destruction notification: both arguments zero. */
+-        if (wp || lp)
+-            xrt_fatal(&nested, XRT_EXIT_UNSUPPORTED, "theme destruction notification has nonzero arguments");
+-        break;
+-    case WM_DEVICECHANGE: /* Host broadcast; only the scalar DBT_DEVNODES_CHANGED (7,0) form crosses. */
+-        if (wp != 7 || lp)
+-            xrt_fatal(&nested, XRT_EXIT_UNSUPPORTED, "WM_DEVICECHANGE event %llx with data %llx requires marshalling",
+-                      (unsigned long long)wp, (unsigned long long)lp);
+-        break;
+-    case WM_GETDLGCODE:
+-        if (lp)
+-            xrt_fatal(&nested, XRT_EXIT_UNSUPPORTED, "WM_GETDLGCODE MSG pointer requires marshalling");
+-        break;
+-    case WM_NCPAINT:
+-        /* wParam 1 = whole frame, else an update-region HRGN. A 32-bit process sees the
+-         * handle's 32-bit value (GDI handles are 32-bit significant); forward_message
+-         * restores the host value when the guest passes it on to the default procedure. */
+-        if (wp != 1 && (WPARAM)(LONG_PTR)(int32_t)(uint32_t)wp != wp)
+-            xrt_fatal(&nested, XRT_EXIT_UNSUPPORTED, "WM_NCPAINT region handle is not 32-bit representable");
+-        { static unsigned ncpaints; if (ncpaints++ < 8) xrt_log("WM_NCPAINT %s wParam %llx", wp == 1 ? "whole frame" : "region", (unsigned long long)wp); }
+-        break;
+-    case WM_STYLECHANGING: case WM_STYLECHANGED:
+-        if(!lp || ((int32_t)wp!=GWL_STYLE && (int32_t)wp!=GWL_EXSTYLE))
+-            xrt_fatal(&nested,76,"style callback: unsupported field or NULL structure");
+-        gui_transition_memory(&nested,scratch,8,1);memcpy(G2H(scratch),(void*)lp,8);args[3]=scratch;
+-        break;
+-    case WM_WINDOWPOSCHANGING:
+-    case WM_WINDOWPOSCHANGED:
+-        pack_windowpos(scratch, (WINDOWPOS *)lp);
+-        args[3] = scratch;
+-        break;
+-    case WM_GETMINMAXINFO:
+-        memcpy(G2H(scratch), (void *)lp, 40);
+-        args[3] = scratch;
+-        break;
+-    case WM_NCCALCSIZE:
+-        if (wp)
+-        {
+-            NCCALCSIZE_PARAMS *n = (NCCALCSIZE_PARAMS *)lp;
+-            memcpy(G2H(scratch), n->rgrc, 48);
+-            wr32(scratch + 48, scratch + 52);
+-            pack_windowpos(scratch + 52, n->lppos);
+-        }
+-        else
+-            memcpy(G2H(scratch), (void *)lp, 16);
+-        args[3] = scratch;
+-        break;
+-    case WM_SETFONT:
+-        if (window->host_font != (HFONT)wp)
+-        {
+-            if (window->font && window->font_local)
+-                xrt_handle_free(window->font);
+-            window->host_font = (HFONT)wp;
+-            window->font = known_font_token((HFONT)wp);
+-            window->font_local=wp && !window->font;
+-            if(window->font_local) window->font=xrt_handle_new(XH_FONT,(void*)wp);
+-        }
+-        args[2] = window->font;
+-        break;
+-    case WM_ERASEBKGND:
+-    case WM_CTLCOLORSTATIC:
+-    case WM_CTLCOLORDLG:
+-    case WM_CTLCOLOREDIT:
+-    case WM_CTLCOLORBTN:
+-        /* Borrowed DC valid only for this callback; no acquired ownership. */
+-        {
+-            GuiDC *dc = (GuiDC *)calloc(1, sizeof *dc);
+-            if (!dc)
+-                xrt_fatal(&nested, XRT_EXIT_SETUP, "callback DC allocation");
+-            dc->host = (HDC)wp;
+-            dc->window = h;
+-            args[2] = xrt_handle_new(XH_DC, dc);
+-            if (msg != WM_ERASEBKGND)
+-                args[3] = window_token((HWND)lp);
+-        }
+-        break;
+-    case WM_INITDIALOG: /* lp is the ORIGINAL guest initialization value supplied to CreateDialogParam. */
+-        args[2] = window_token((HWND)wp);
+-        break;
+-    case WM_ACTIVATE:
+-    case WM_SETFOCUS:
+-    case WM_KILLFOCUS:
+-        if (msg == WM_ACTIVATE)
+-            args[3] = window_token((HWND)lp);
+-        else
+-            args[2] = window_token((HWND)wp);
+-        break;
+-    case WM_CAPTURECHANGED:
+-        if(wp)xrt_fatal(&nested,XRT_EXIT_UNSUPPORTED,"WM_CAPTURECHANGED nonzero wParam unsupported");
+-        args[3] = window_token((HWND)lp);
+-        break;
+-    case WM_COMMAND:
+-        args[3] = window_token((HWND)lp);
+-        break;
+-    case WM_PARENTNOTIFY:
+-        if(LOWORD(wp)!=WM_CREATE && LOWORD(wp)!=WM_DESTROY)
+-            xrt_fatal(&nested,XRT_EXIT_UNSUPPORTED,"WM_PARENTNOTIFY event %u unsupported",LOWORD(wp));
+-        args[3]=window_token((HWND)lp);
+-        break;
+-    case WM_PALETTECHANGED:
+-        args[2] = window_token((HWND)wp);
+-        break;
+-    case WM_SETCURSOR:
+-    case WM_MOUSEACTIVATE: /* wParam is a window; lParam packs scalar hit-test/message words. */
+-        args[2] = window_token((HWND)wp);
+-        break;
+-    case WM_TIMER:
+-        if (lp)
+-            xrt_fatal(&nested, XRT_EXIT_UNSUPPORTED, "WM_TIMER callback procedure requires marshalling");
+-        break;
+-    case WM_NOTIFY:
+-    case WM_DRAWITEM:
+-    case WM_MEASUREITEM:
+-    case WM_COMPAREITEM:
+-    case WM_DELETEITEM:
+-    case WM_SETTINGCHANGE:
+-    case WM_GETTEXT:
+-        xrt_fatal(&nested, XRT_EXIT_UNSUPPORTED, "dialog callback pointer message 0x%x requires marshalling", msg);
+-    default:
+-        /* Exact measured registered notification; preserve error while resolving its session identity. */
+-        if (msg >= 0xc000u && msg <= 0xffffu && wp <= 0xffffffffu && !lp) {
+-            WCHAR name[40];
+-            DWORD lookup_error = GetLastError();
+-            int length = xm_win_GetClipboardFormatNameW(msg, name, 40);
+-            int taskbar_created = !wp && length == 20 && xm_win_lstrcmpW(name, L"TaskbarButtonCreated") == 0;
+-            /* dinput8 posts its registered device notification with a scalar wParam. */
+-            int dinput_notify = length == 34 && xm_win_lstrcmpW(name, L"DIRECTINPUT_NOTIFICATION_MSGSTRING") == 0;
+-            SetLastError(lookup_error);
+-            if (taskbar_created || dinput_notify) break;
+-        }
+-        /* Only measured scalar messages may cross unmodified. */
+-        if (!((msg <= WM_ENABLE && msg != WM_GETTEXT) || msg == WM_PAINT || msg == WM_ERASEBKGND ||
+-              msg == WM_SHOWWINDOW || msg == WM_NCPAINT || msg == WM_NCACTIVATE || msg == WM_DESTROY ||
+-              msg == WM_NCDESTROY || msg == WM_CANCELMODE || msg == WM_GETDLGCODE || msg == WM_GETFONT ||
+-              msg == WM_CHANGEUISTATE || msg == WM_UPDATEUISTATE || msg == WM_QUERYUISTATE ||
+-              msg == WM_QUERYNEWPALETTE || msg == WM_PALETTECHANGED || msg == WM_DWMNCRENDERINGCHANGED ||
+-              msg == WM_ACTIVATEAPP || msg == WM_IME_SETCONTEXT || msg == WM_IME_NOTIFY || msg==WM_GETTEXTLENGTH ||
+-              /* Main-loop input/notifications: wParam/lParam are packed scalars. */
+-              (msg >= WM_KEYFIRST && msg <= WM_KEYLAST) || (msg >= WM_MOUSEFIRST && msg <= WM_MOUSELAST) ||
+-              (msg >= WM_NCMOUSEMOVE && msg <= WM_NCXBUTTONDBLCLK) || msg == WM_NCHITTEST ||
+-              msg == WM_MOUSEHOVER || msg == WM_MOUSELEAVE || msg == WM_NCMOUSEHOVER || msg == WM_NCMOUSELEAVE ||
+-              msg == WM_SYSCOMMAND || msg == WM_ENTERSIZEMOVE || msg == WM_EXITSIZEMOVE || msg == WM_CHILDACTIVATE ||
+-              msg == WM_DISPLAYCHANGE))
+-            xrt_fatal(&nested, XRT_EXIT_UNSUPPORTED, "dialog callback message 0x%x unsupported (wp=%llx lp=%llx)",
+-                      msg, (unsigned long long)wp, (unsigned long long)lp);
+-    }
+-    xrt_event("gui_callback", "\"message\": %u, \"proc\": %u", msg, proc);
+-    frame.previous=callback_frame; frame.window=h; frame.message=msg;
+-    frame.host_wp=wp; frame.host_lp=lp; frame.guest_wp=args[2];frame.guest_lp=args[3];
+-    frame.create_words=(msg==WM_CREATE || msg==WM_NCCREATE)?create_words:NULL;
+-    callback_frame=&frame;
+-    result = (INT_PTR)(int32_t)xrt_call_guest(&nested, proc, 4, args, 1);
+-    callback_frame=frame.previous;
+-    if (msg == WM_GETOBJECT) {
+-        /* No guest accessibility object/cookie marshaller has been measured.
+-         * Return the actual guest result; do not replace dispatch with FALSE. */
+-        if (result)
+-            xrt_fatal(&nested, XRT_EXIT_UNSUPPORTED, explicit_proc ?
+-                      "WM_GETOBJECT: nonzero registered WNDPROC result requires measured accessibility marshalling" :
+-                      "WM_GETOBJECT: nonzero guest dialog result requires measured accessibility marshalling");
+-        xrt_event("gui_get_object_callback_return",
+-                  "\"hwnd\":%u,\"proc\":%u,\"wparam\":%u,\"object_id\":%u,\"result\":%d,\"last_error\":%u",
+-                  args[0],proc,args[2],args[3],(int)result,xrt_get_last_error(&nested));
+-    }
+-    if(frame.create_words && memcmp(create_words,G2H(scratch),48))
+-        xrt_fatal(&nested,XRT_EXIT_UNSUPPORTED,"CREATESTRUCT field mutation requires marshalling");
+-    if (msg == WM_WINDOWPOSCHANGING || msg == WM_WINDOWPOSCHANGED)
+-        unpack_windowpos((WINDOWPOS *)lp, scratch);
+-    if(msg==WM_STYLECHANGING || msg==WM_STYLECHANGED)gui_style_sync(&nested,msg,scratch,lp);
+-    if (msg == WM_GETMINMAXINFO)
+-    {
+-        memcpy((void *)lp, G2H(scratch), 40);
+-        dev_max_track((MINMAXINFO *)lp);
+-    }
+-    if (msg == WM_NCCALCSIZE)
+-    {
+-        if (wp)
+-        {
+-            NCCALCSIZE_PARAMS *n = (NCCALCSIZE_PARAMS *)lp;
+-            memcpy(n->rgrc, G2H(scratch), 48);
+-            unpack_windowpos(n->lppos, scratch + 52);
+-        }
+-        else
+-            memcpy((void *)lp, G2H(scratch), 16);
+-    }
+-    if (msg == WM_GETFONT && result)
+-    {
+-        HFONT font = (HFONT)xrt_handle_get((uint32_t)result, XH_FONT);
+-        if (!font)
+-            xrt_fatal(&nested, XRT_EXIT_UNSUPPORTED, "WM_GETFONT returned unknown guest font");
+-        result = (INT_PTR)font;
+-    }
+-    if(msg==WM_GETICON) {
+-        uint32_t token=(uint32_t)result;
+-        result=(INT_PTR)guest_icon(&nested,token);
+-        xrt_event("gui_get_icon_callback_return","\"hwnd\":%u,\"selector\":%u,\"dpi\":%u,\"icon\":%u,\"last_error\":%u",
+-            args[0],args[2],args[3],token,xrt_get_last_error(&nested));
+-    }
+-    if(msg==0xae)
+-        xrt_event("gui_ae_callback_return","\"hwnd\":%u,\"wparam\":%u,\"lparam\":%u,\"result\":%d,\"last_error\":%u",args[0],args[2],args[3],(int)result,xrt_get_last_error(&nested));
+-    if (msg == WM_ERASEBKGND || msg == WM_CTLCOLORSTATIC || msg == WM_CTLCOLORDLG || msg == WM_CTLCOLOREDIT ||
+-        msg == WM_CTLCOLORBTN)
+-    {
+-        free(xrt_handle_get(args[2], XH_DC));
+-        xrt_handle_free(args[2]);
+-        if (result && msg != WM_ERASEBKGND)
+-            xrt_fatal(&nested, XRT_EXIT_UNSUPPORTED, "dialog callback brush result requires handle translation");
+-    }
+-    SetLastError(xrt_get_last_error(&nested));
+-    { INT_PTR xm_ret=(result);xm_scope(callback_cpu,XM_END,XM_CALLBACK,"USER32.invoke_gui_proc",(uint64_t)xm_ret);return xm_ret;}
+-}
+-static INT_PTR CALLBACK dialog_bridge(HWND h, UINT msg, WPARAM wp, LPARAM lp)
+-{
+-    return invoke_gui_proc(h, msg, wp, lp, 0);
+-}
+-static HMODULE resource_module(CPU *c, uint32_t module)
+-{
+-    int i;
+-    for (i = 0; i < xrt_module_count(); i++)
+-    {
+-        XrtModule *m = xrt_module_get(i);
+-        if (m->base == module)
+-        {
+-            WCHAR path[1024];
+-            HMODULE host;
+-            if (!xm_win_MultiByteToWideChar(CP_ACP, 0, m->path, -1, path, 1024))
+-            {
+-                xrt_set_last_error(c, GetLastError());
+-                return NULL;
+-            }
+-            host = xm_win_LoadLibraryExW(path, NULL, LOAD_LIBRARY_AS_DATAFILE | LOAD_LIBRARY_AS_IMAGE_RESOURCE);
+-            if (!host)
+-                xrt_set_last_error(c, GetLastError());
+-            return host;
+-        }
+-    }
+-    xrt_fatal(c, XRT_EXIT_UNSUPPORTED, "dialog resource module %08x unknown", module);
+-}
+-static void create_dialog(CPU *c, int wide)
+-{
+-    HMODULE resources;
+-    HWND h, parent = window_host(ARG(2));
+-    uint32_t result = 0;
+-    CPU *previous = callback_cpu;
+-    uint32_t oldproc = creating_proc;
+-    if (ARG(2) && !parent)
+-    {
+-        xrt_set_last_error(c, ERROR_INVALID_WINDOW_HANDLE);
+-        RET_STD(5, 0);
+-        return;
+-    }
+-    begin(c);
+-    resources = resource_module(c, ARG(0));
+-    if (!resources)
+-    {
+-        RET_STD(5, 0);
+-        return;
+-    }
+-    callback_cpu = c;
+-    creating_proc = ARG(3);
+-    if (wide)
+-        h = xm_win_CreateDialogParamW(resources, ARG(1) < 0x10000u ? MAKEINTRESOURCEW(ARG(1)) : (LPCWSTR)G2H(ARG(1)),
+-                               parent, dialog_bridge, (LPARAM)(int32_t)ARG(4));
+-    else
+-        h = xm_win_CreateDialogParamA(resources, ARG(1) < 0x10000u ? MAKEINTRESOURCEA(ARG(1)) : (LPCSTR)G2H(ARG(1)),
+-                               parent, dialog_bridge, (LPARAM)(int32_t)ARG(4));
+-    end(c);
+-    if (h)
+-        result = window_token(h);
+-    callback_cpu = previous;
+-    creating_proc = oldproc;
+-    xm_win_FreeLibrary(resources);
+-    forget_dead_windows();
+-    xrt_event("gui_create_dialog", "\"handle\": %u", result);
+-    RET_STD(5, result);
+-}
+-static void hle_CreateDialogParamW(CPU *c)
+-{
+-    create_dialog(c, 1);
+-}
+-static void hle_CreateDialogParamA(CPU *c)
+-{
+-    create_dialog(c, 0);
+-}
+-static void hle_GetDlgItem(CPU *c)
+-{
+-    HWND h;
+-    uint32_t result;
+-    begin(c);
+-    h = xm_win_GetDlgItem(window_host(ARG(0)), (int)ARG(1));
+-    end(c);
+-    result = window_token(h);
+-    RET_STD(2, result);
+-}
+-static void hle_GetSystemMetrics(CPU *c)
+-{
+-    int result;
+-    begin(c);
+-    result = xm_win_GetSystemMetrics((int)ARG(0));
+-    end(c);
+-    RET_STD(1, result);
+-}
+-static void hle_GetWindowRect(CPU *c)
+-{
+-    RECT rect;
+-    BOOL ok;
+-    begin(c);
+-    ok = xm_win_GetWindowRect(window_host(ARG(0)), ARG(1) ? &rect : NULL);
+-    end(c);
+-    if (ok)
+-        memcpy(G2H(ARG(1)), &rect, 16);
+-    RET_STD(2, ok);
+-}
+-static void hle_GetDesktopWindow(CPU* c)
+-{
+-    HWND h; begin(c); h=xm_win_GetDesktopWindow(); end(c);
+-    RET_STD(0,window_token(h));
+-}
+-static void hle_GetClientRect(CPU* c)
+-{
+-    RECT rect; BOOL ok;
+-    begin(c); ok=xm_win_GetClientRect(window_host(ARG(0)),ARG(1)?&rect:NULL); end(c);
+-    if(ok) memcpy(G2H(ARG(1)),&rect,16);
+-    RET_STD(2,ok);
+-}
+-static void hle_IsWindow(CPU* c)
+-{
+-    BOOL ok;begin(c);ok=xm_win_IsWindow(window_host(ARG(0)));end(c);RET_STD(1,ok);
+-}
+-static void hle_ShowWindow(CPU* c)
+-{
+-    BOOL previous_visible;CPU* previous=callback_cpu;
+-    callback_cpu=c;begin(c);previous_visible=xm_win_ShowWindow(window_host(ARG(0)),(int)ARG(1));end(c);callback_cpu=previous;
+-    RET_STD(2,previous_visible);
+-}
+-/* MoveWindow accepts signed geometry and BOOL repaint. Ownership/thread
+- * checks and typed callback marshalling remain in xrt_gui_device_window. */
+-static void hle_MoveWindow(CPU*c) {
+-    HWND h;BOOL ok;CPU*previous;DWORD error;
+-    { DWORD saved_error=GetLastError(),saved_mxcsr=_mm_getcsr();
+-      __declspec(align(16)) CONTEXT context;LONG id=InterlockedIncrement(&gui_diagnostic_serial);
+-      RtlCaptureContext(&context);gui_diagnostic_bytes(id,"move_host_context",&context,sizeof context);
+-      gui_diagnostic_bytes(id,"move_guest_cpu",c,sizeof *c);_mm_setcsr(saved_mxcsr);SetLastError(saved_error); }
+-    if((uint64_t)c->r[ESP]+28>0x100000000ull || !xrt_is_committed(c->r[ESP],28) ||
+-       !gui_diagnostic_readable(G2H(c->r[ESP]),28))
+-        xrt_fatal(c,76,"SAFETY: MoveWindow unreadable argument frame");
+-    xrt_event("gui_move_window_call","\"hwnd\":%u,\"x\":%u,\"y\":%u,\"width\":%u,\"height\":%u,\"repaint\":%u,\"site\":%u",
+-        ARG(0),ARG(1),ARG(2),ARG(3),ARG(4),ARG(5),c->pc);
+-    h=xrt_gui_device_window(c,ARG(0));previous=xrt_gui_callback_enter(c);begin(c);
+-    ok=xm_win_MoveWindow(h,(int)ARG(1),(int)ARG(2),(int)ARG(3),(int)ARG(4),(BOOL)ARG(5));
+-    error=GetLastError();xrt_gui_callback_leave(previous);xrt_set_last_error(c,error);RET_STD(6,ok);
+-    xrt_event("gui_move_window_return","\"result\":%u,\"last_error\":%lu,\"esp\":%u,\"return\":%u",(unsigned)ok,error,c->r[ESP],c->rv);
+-}
+-static void hle_SetWindowPos(CPU *c)
+-{
+-    BOOL ok;
+-    CPU *prev = callback_cpu;
+-    callback_cpu = c;
+-    begin(c);
+-    ok = xm_win_SetWindowPos(window_host(ARG(0)), insert_host(ARG(1)), (int)ARG(2), (int)ARG(3), (int)ARG(4), (int)ARG(5),
+-                      ARG(6));
+-    end(c);
+-    callback_cpu = prev;
+-    RET_STD(7, ok);
+-}
+-static void send_message(CPU *c, int wide)
+-{
+-    LRESULT result;
+-    UINT msg = ARG(1);
+-    LPARAM lp;
+-    WPARAM wp = ARG(2);
+-    CPU *prev = callback_cpu;
+-    if(msg==WM_GETICON) {
+-        uint32_t token;
+-        if(wp>ICON_SMALL2)
+-            xrt_fatal(c,XRT_EXIT_UNSUPPORTED,"WM_GETICON: invalid selector or unrepresentable DPI %u/%u",(unsigned)wp,ARG(3));
+-        callback_cpu=c;begin(c);
+-        result=wide?xm_win_SendMessageW(window_host(ARG(0)),msg,wp,(LPARAM)(int32_t)ARG(3)):xm_win_SendMessageA(window_host(ARG(0)),msg,wp,(LPARAM)(int32_t)ARG(3));
+-        end(c);callback_cpu=prev;token=borrowed_icon_token(c,(HICON)result);
+-        RET_STD(4,token);return;
+-    }
+-    if(msg==WM_NCACTIVATE) {
+-        /* WWindow::WndProc forwards activation to its owner: wParam BOOL, lParam 0, -1 or an update
+-         * region whose 32-bit value is the full GDI handle (sign-extended, as for WM_NCPAINT). */
+-        static unsigned logged;
+-        if(logged++<8)xrt_log("SendMessage WM_NCACTIVATE wParam %u lParam %08x",(unsigned)wp,ARG(3));
+-        callback_cpu=c;begin(c);
+-        result=wide?xm_win_SendMessageW(window_host(ARG(0)),msg,wp,(LPARAM)(int32_t)ARG(3)):xm_win_SendMessageA(window_host(ARG(0)),msg,wp,(LPARAM)(int32_t)ARG(3));
+-        end(c);callback_cpu=prev;RET_STD(4,(uint32_t)result);return;
+-    }
+-    if(msg==WM_SETTEXT || msg==WM_GETTEXTLENGTH) {
+-        if(msg==WM_SETTEXT && ARG(3) && ARG(3)<0x10000)
+-            xrt_fatal(c,XRT_EXIT_UNSUPPORTED,"WM_SETTEXT invalid guest string");
+-        lp=msg==WM_SETTEXT && ARG(3) ? (LPARAM)G2H(ARG(3)) : (LPARAM)(int32_t)ARG(3);
+-        callback_cpu=c;begin(c);
+-        result=wide?xm_win_SendMessageW(window_host(ARG(0)),msg,wp,lp):xm_win_SendMessageA(window_host(ARG(0)),msg,wp,lp);
+-        end(c);callback_cpu=prev;RET_STD(4,(uint32_t)result);return;
+-    }
+-    if(msg==WM_SETFONT || msg==WM_GETFONT) {
+-        if(msg==WM_SETFONT) {
+-            wp=(WPARAM)xrt_handle_get(ARG(2),XH_FONT);
+-            if(ARG(2) && !wp) xrt_fatal(c,XRT_EXIT_UNSUPPORTED,"WM_SETFONT unknown guest font");
+-        }
+-        callback_cpu=c;begin(c);
+-        result=wide?xm_win_SendMessageW(window_host(ARG(0)),msg,wp,(LPARAM)(int32_t)ARG(3)):xm_win_SendMessageA(window_host(ARG(0)),msg,wp,(LPARAM)(int32_t)ARG(3));
+-        end(c);callback_cpu=prev;
+-        if(msg==WM_GETFONT && result) {
+-            uint32_t font=known_font_token((HFONT)result);
+-            if(!font) xrt_fatal(c,XRT_EXIT_UNSUPPORTED,"WM_GETFONT returned a font without guest ownership");
+-            RET_STD(4,font);return;
+-        }
+-        RET_STD(4,(uint32_t)result);return;
+-    }
+-    if (msg != STM_SETIMAGE)
+-        xrt_fatal(c, XRT_EXIT_UNSUPPORTED, "SendMessage 0x%x requires message marshalling", msg);
+-    if (wp != IMAGE_BITMAP)
+-        xrt_fatal(c, XRT_EXIT_UNSUPPORTED, "STM_SETIMAGE type %u unsupported", (unsigned)wp);
+-    lp = (LPARAM)xrt_handle_get(ARG(3), XH_BITMAP);
+-    if (ARG(3) && !lp)
+-        xrt_fatal(c, XRT_EXIT_UNSUPPORTED, "STM_SETIMAGE bitmap handle %08x unknown", ARG(3));
+-    callback_cpu = c;
+-    begin(c);
+-    result =
+-        wide ? xm_win_SendMessageW(window_host(ARG(0)), msg, wp, lp) : xm_win_SendMessageA(window_host(ARG(0)), msg, wp, lp);
+-    end(c);
+-    callback_cpu = prev;
+-    if (result)
+-        xrt_fatal(c, XRT_EXIT_UNSUPPORTED, "STM_SETIMAGE previous bitmap requires ownership tracking");
+-    RET_STD(4, 0);
+-}
+-static void hle_SendMessageW(CPU *c)
+-{
+-    send_message(c, 1);
+-}
+-static void hle_SendMessageA(CPU *c)
+-{
+-    send_message(c, 0);
+-}
+-static void hle_UpdateWindow(CPU *c)
+-{
+-    BOOL ok;
+-    CPU *prev = callback_cpu;
+-    callback_cpu = c;
+-    begin(c);
+-    ok = xm_win_UpdateWindow(window_host(ARG(0)));
+-    end(c);
+-    callback_cpu = prev;
+-    RET_STD(1, ok);
+-}
+-static void hle_DestroyWindow(CPU *c)
+-{
+-    BOOL ok;
+-    unsigned i;
+-    CPU *prev = callback_cpu;
+-    for(i=0;i<1024;i++)if(windows[i].token==ARG(0) && device_window_pins[i])
+-        xrt_fatal(c,76,"DestroyWindow: live D3D8 device retains HWND token %08x",ARG(0));
+-    callback_cpu = c;
+-    begin(c);
+-    ok = xm_win_DestroyWindow(window_host(ARG(0)));
+-    end(c);
+-    callback_cpu = prev;
+-    forget_dead_windows();
+-    RET_STD(1, ok);
+-}
+-/* Ordinal identity verified against the host export as well as the documented name. */
+-static void hle_InitCommonControls(CPU *c)
+-{
+-    static HMODULE module;
+-    FARPROC ordinal, named;
+-    typedef void(WINAPI * Init)(void);
+-    begin(c);
+-    if (!module)
+-        module = xm_win_LoadLibraryExW(L"comctl32.dll", NULL, LOAD_LIBRARY_SEARCH_SYSTEM32);
+-    ordinal = module ? xm_win_GetProcAddress(module, MAKEINTRESOURCEA(17)) : NULL;
+-    named = module ? xm_win_GetProcAddress(module, "InitCommonControls") : NULL;
+-    if (!ordinal || ordinal != named)
+-        xrt_fatal(c, XRT_EXIT_SETUP, "COMCTL32 ordinal 17 differs from InitCommonControls");
+-    ((Init)ordinal)();
+-    end(c);
+-    /* Keep the host module loaded: it owns the registered common control classes. */
+-    xrt_event("gui_init_common_controls", NULL);
+-    c->rv = pop32(c); /* void function: preserve guest EAX */
+-}
+-#include "hle_gui_classes.inc"
+-const XrtHle xrt_hle_gui[] = {{"comctl32.dll", "#17", hle_InitCommonControls},
+-                              {"imm32.dll", "ImmAssociateContext", hle_ImmAssociateContext},
+-                              {"user32.dll", "AdjustWindowRect", hle_AdjustWindowRect},
+-                              {"user32.dll", "GetKeyState", hle_GetKeyState},
+-                              {"user32.dll", "SetKeyboardState", hle_SetKeyboardState},
+-                              {"user32.dll", "AttachThreadInput", hle_AttachThreadInput},
+-                              {"user32.dll", "GetFocus", hle_GetFocus},
+-                              {"user32.dll", "SetFocus", hle_SetFocus},
+-                              {"user32.dll", "SetCapture", hle_SetCapture},
+-                              {"user32.dll", "ClipCursor", hle_ClipCursor},
+-                              {"user32.dll", "GetForegroundWindow", hle_GetForegroundWindow},
+-                              {"user32.dll", "SetForegroundWindow", hle_SetForegroundWindow},
+-                              {"user32.dll", "SetActiveWindow", hle_SetActiveWindow},
+-                              {"user32.dll", "GetWindowThreadProcessId", hle_GetWindowThreadProcessId},
+-                              {"user32.dll", "MapWindowPoints", hle_MapWindowPoints},
+-                              {"user32.dll", "GetClassInfoExW", hle_GetClassInfoExW},
+-                              {"user32.dll", "GetClassInfoExA", hle_GetClassInfoExA},
+-                              {"user32.dll", "RegisterClassExW", hle_RegisterClassExW},
+-                              {"user32.dll", "RegisterClassExA", hle_RegisterClassExA},
+-                              {"user32.dll", "UnregisterClassW", hle_UnregisterClassW},
+-                              {"user32.dll", "UnregisterClassA", hle_UnregisterClassA},
+-                              {"user32.dll", "CallWindowProcW", hle_CallWindowProcW},
+-                              {"user32.dll", "CallWindowProcA", hle_CallWindowProcA},
+-                              {"user32.dll", "LoadIconW", hle_LoadIconW},
+-                              {"user32.dll", "LoadIconA", hle_LoadIconA},
+-                              {"user32.dll", "LoadCursorW", hle_LoadCursorW},
+-                              {"user32.dll", "LoadCursorA", hle_LoadCursorA},
+-                              {"user32.dll", "SetCursor", hle_SetCursor},
+-                              {"gdi32.dll", "CreateSolidBrush", hle_CreateSolidBrush},
+-                              {"gdi32.dll", "CreateBitmap", hle_CreateBitmap},
+-                              {"gdi32.dll", "CreatePatternBrush", hle_CreatePatternBrush},
+-                              {"gdi32.dll", "GetStockObject", hle_GetStockObject},
+-                              {"user32.dll", "GetDesktopWindow", hle_GetDesktopWindow},
+-                              {"user32.dll", "GetClientRect", hle_GetClientRect},
+-                              {"user32.dll", "CreateWindowExW", hle_CreateWindowExW},
+-                              {"user32.dll", "CreateWindowExA", hle_CreateWindowExA},
+-                              {"user32.dll", "DefWindowProcW", hle_DefWindowProcW},
+-                              {"user32.dll", "DefWindowProcA", hle_DefWindowProcA},
+-                              {"user32.dll", "GetWindowLongW", hle_GetWindowLongW},
+-                              {"user32.dll", "SetWindowLongA", hle_SetWindowLongA},
+-                              {"user32.dll", "SetWindowLongW", hle_SetWindowLongW},
+-                              {"user32.dll", "SetMenu", hle_SetMenu},
+-                              {"user32.dll", "PostMessageA", hle_PostMessageA},
+-                              {"user32.dll", "PostMessageW", hle_PostMessageW},
+-                              {"user32.dll", "PeekMessageW", hle_PeekMessageW},
+-                              {"user32.dll", "PeekMessageA", hle_PeekMessageA},
+-                              {"user32.dll", "TranslateMessage", hle_TranslateMessage},
+-                              {"user32.dll", "DispatchMessageW", hle_DispatchMessageW},
+-                              {"user32.dll", "DispatchMessageA", hle_DispatchMessageA},
+-                              {"user32.dll", "GetCursorPos", hle_GetCursorPos},
+-                              {"user32.dll", "ClientToScreen", hle_ClientToScreen},
+-                              {"user32.dll", "ScreenToClient", hle_ScreenToClient},
+-                              {"user32.dll", "SetCursorPos", hle_SetCursorPos},
+-                              {"user32.dll", "ShowCursor", hle_ShowCursor},
+-                              {"user32.dll", "ValidateRect", hle_ValidateRect},
+-                              {"user32.dll", "GetMessageTime", hle_GetMessageTime},
+-                              {"user32.dll", "GetParent", hle_GetParent},
+-
+-                              {"user32.dll", "GetWindowLongA", hle_GetWindowLongA},
+-                              {"user32.dll", "IsWindow", hle_IsWindow},
+-                              {"user32.dll", "ShowWindow", hle_ShowWindow},
+-                              {"user32.dll", "SetPropW", hle_SetPropW},
+-                              {"user32.dll", "SetPropA", hle_SetPropA},
+-                              {"user32.dll", "GetPropW", hle_GetPropW},
+-                              {"user32.dll", "GetPropA", hle_GetPropA},
+-                              {"user32.dll", "RemovePropW", hle_RemovePropW},
+-                              {"user32.dll", "RemovePropA", hle_RemovePropA},
+-                              {"comctl32.dll", "InitCommonControls", hle_InitCommonControls},
+-                              {"user32.dll", "GetDC", hle_GetDC},
+-                              {"user32.dll", "ReleaseDC", hle_ReleaseDC},
+-                              {"user32.dll", "CreateDialogParamW", hle_CreateDialogParamW},
+-                              {"user32.dll", "CreateDialogParamA", hle_CreateDialogParamA},
+-                              {"user32.dll", "GetDlgItem", hle_GetDlgItem},
+-                              {"user32.dll", "GetSystemMetrics", hle_GetSystemMetrics},
+-                              {"user32.dll", "GetWindowRect", hle_GetWindowRect},
+-                              {"gdi32.dll", "GetDIBits", hle_GetDIBits},
+-                              {"gdi32.dll", "GetDeviceCaps", hle_GetDeviceCaps},
+-                              {"user32.dll", "SetWindowPos", hle_SetWindowPos},
+-                              {"user32.dll", "MoveWindow", hle_MoveWindow},
+-                              {"user32.dll", "SendMessageW", hle_SendMessageW},
+-                              {"user32.dll", "SendMessageA", hle_SendMessageA},
+-                              {"user32.dll", "UpdateWindow", hle_UpdateWindow},
+-                              {"user32.dll", "DestroyWindow", hle_DestroyWindow},
+-                              {"gdi32.dll", "CreateDIBitmap", hle_CreateDIBitmap},
+-                              {"gdi32.dll", "DeleteObject", hle_DeleteObject},
+-                              {0}};
++/* Real USER32/GDI objects behind guest tokens; host pointers never escape. */
++#define WIN32_LEAN_AND_MEAN
++#include <windows.h>
++#include <imm.h>
++#pragma comment(lib,"imm32.lib")
++#include <stdlib.h>
++#include "xrt_internal.h"
++#include "monitor_windows.inc"
++typedef struct GuiDC
++{
++    HDC host;
++    HWND window;
++    DWORD thread;
++    int acquired;
++} GuiDC;
++static BOOL delete_class_object(uint32_t token, int* handled);
++static HINSTANCE class_module(CPU* c,uint32_t guest);
++static uint32_t class_owner(CPU* c,HINSTANCE host);
++static uint32_t copy_class_string(const void* p,int wide);
++static uint32_t known_font_token(HFONT host);
++static uint32_t borrowed_icon_token(CPU* c,HICON host);
++static HICON guest_icon(CPU* c,uint32_t token);
++static void forget_window_properties(HWND host);
++static HWND window_host(uint32_t h);
++static int registered_getobject_proc(HWND h, uint32_t proc);
++static void begin(CPU *c)
++{
++    SetLastError(xrt_get_last_error(c));
++}
++static void end(CPU *c)
++{
++    xrt_set_last_error(c, GetLastError());
++}
++/* RECT is four guest signed 32-bit fields. Validate every page for both input
++ * and output before touching it; committed alone does not imply writable. */
++static int writable_guest_rect(uint32_t p)
++{
++    uint64_t at=p,limit=(uint64_t)p+16;
++    if(!p || limit>0x100000000ull)return 0;
++    while(at<limit) {
++        MEMORY_BASIC_INFORMATION mbi;DWORD access;uint64_t next;
++        if(!VirtualQuery(xrt_g+at,&mbi,sizeof mbi) || mbi.State!=MEM_COMMIT ||
++            (mbi.Protect&(PAGE_GUARD|PAGE_NOACCESS)))return 0;
++        access=mbi.Protect&0xffu;
++        if(access!=PAGE_READWRITE && access!=PAGE_WRITECOPY &&
++            access!=PAGE_EXECUTE_READWRITE && access!=PAGE_EXECUTE_WRITECOPY)return 0;
++        next=(uint64_t)((uint8_t*)mbi.BaseAddress-xrt_g)+mbi.RegionSize;
++        if(next<=at)return 0;
++        at=next;
++    }
++    return 1;
++}
++static void hle_AdjustWindowRect(CPU* c)
++{
++    uint32_t p=ARG(0),style=ARG(1),menu=ARG(2),esp=c->r[ESP],caller=rd32(esp);
++    RECT rect;BOOL result;
++    xrt_event("gui_adjust_window_rect_call","\"rect\":%u,\"style\":%u,\"menu\":%u,\"esp\":%u,\"return\":%u,\"last_error\":%u",
++        p,style,menu,esp,caller,xrt_get_last_error(c));
++    if(!writable_guest_rect(p))
++        xrt_fatal(c,XRT_EXIT_UNSUPPORTED,"AdjustWindowRect: invalid read/write guest RECT %08x (16 bytes); guest pointer faults unsupported",p);
++    rect.left=(LONG)(int32_t)rd32(p);rect.top=(LONG)(int32_t)rd32(p+4);
++    rect.right=(LONG)(int32_t)rd32(p+8);rect.bottom=(LONG)(int32_t)rd32(p+12);
++    xrt_event("gui_adjust_window_rect_input","\"rect\":%u,\"left\":%ld,\"top\":%ld,\"right\":%ld,\"bottom\":%ld",p,rect.left,rect.top,rect.right,rect.bottom);
++    begin(c);result=xm_win_AdjustWindowRect(&rect,style,(BOOL)menu);end(c);
++    wr32(p,(uint32_t)rect.left);wr32(p+4,(uint32_t)rect.top);
++    wr32(p+8,(uint32_t)rect.right);wr32(p+12,(uint32_t)rect.bottom);
++    RET_STD(3,result);
++    xrt_event("gui_adjust_window_rect_return","\"rect\":%u,\"left\":%ld,\"top\":%ld,\"right\":%ld,\"bottom\":%ld,\"result\":%u,\"last_error\":%u,\"esp_before\":%u,\"esp_after\":%u,\"return\":%u,\"actual_return\":%u",
++        p,rect.left,rect.top,rect.right,rect.bottom,(unsigned)result,xrt_get_last_error(c),esp,c->r[ESP],caller,c->rv);
++}
++/* Measured by the same x86 fixture natively and lifted, across all byte virtual
++ * keys with per-thread keyboard state. Preserve the signed SHORT and last-error. */
++static void hle_GetKeyState(CPU*c) {
++    uint32_t key=ARG(0);SHORT result;
++    if(key>255)xrt_fatal(c,XRT_EXIT_UNSUPPORTED,"GetKeyState(%u): unmeasured virtual key",key);
++    begin(c);result=xm_win_GetKeyState((int)key);end(c);
++    if((result&0x8000)&&xrt_dev_input_blocked("GetKeyState down state"))result&=1; /* developer input isolation */
++    if(xrt_dev_input_blocked(NULL)&&xrt_dev_key_held(key))result=(SHORT)(0xff80|(result&1)); /* scripted key down */
++    RET_STD(1,(uint32_t)(int32_t)result);
++}
++static void hle_SetKeyboardState(CPU*c) {
++    uint32_t p=ARG(0);BOOL result;
++    if(p && !xrt_is_committed(p,256))
++        xrt_fatal(c,XRT_EXIT_UNSUPPORTED,"SetKeyboardState: unreadable 256-byte guest buffer %08x",p);
++    begin(c);result=xm_win_SetKeyboardState(p?(BYTE*)G2H(p):NULL);end(c);
++    xrt_event("gui_set_keyboard_state","\"buffer\":%u,\"result\":%u,\"last_error\":%u",p,(unsigned)result,xrt_get_last_error(c));
++    RET_STD(1,result);
++}
++static void hle_GetDC(CPU *c)
++{
++    HDC dc;
++    GuiDC *g;
++    uint32_t result = 0;
++    HWND window=window_host(ARG(0));
++    if(ARG(0) && !window) xrt_fatal(c,XRT_EXIT_UNSUPPORTED,"GetDC: unknown guest window %08x",ARG(0));
++    begin(c);
++    dc = xm_win_GetDC(window);
++    end(c);
++    if (dc)
++    {
++        g = (GuiDC *)calloc(1, sizeof *g);
++        if (!g)
++        {
++            xm_win_ReleaseDC(window, dc);
++            xrt_fatal(c, XRT_EXIT_SETUP, "GetDC allocation");
++        }
++        g->host = dc;
++        g->window=window;
++        g->acquired=1;
++        g->thread = xm_win_GetCurrentThreadId();
++        result = xrt_handle_new(XH_DC, g);
++    }
++    xrt_event("gui_get_dc", "\"handle\": %u", result);
++    RET_STD(1, result);
++}
++static void hle_ReleaseDC(CPU *c)
++{
++    uint32_t token = ARG(1);
++    GuiDC *g = (GuiDC *)xrt_handle_get(token, XH_DC);
++    int ok = 0;
++    HWND window=window_host(ARG(0));
++    if(ARG(0) && !window) xrt_fatal(c,XRT_EXIT_UNSUPPORTED,"ReleaseDC: unknown guest window %08x",ARG(0));
++    begin(c);
++    if (g && g->acquired && g->window == window && g->thread == xm_win_GetCurrentThreadId())
++        ok = xm_win_ReleaseDC(window, g->host);
++    end(c);
++    if (ok)
++    {
++        free(g);
++        xrt_handle_free(token);
++    }
++    xrt_event("gui_release_dc", "\"handle\": %u, \"result\": %d", token, ok);
++    RET_STD(2, ok);
++}
++static void hle_GetDeviceCaps(CPU*c) {
++    GuiDC*g=(GuiDC*)xrt_handle_get(ARG(0),XH_DC);
++    int result;
++    if(!g || ARG(1)!=BITSPIXEL)
++        xrt_fatal(c,XRT_EXIT_UNSUPPORTED,"GetDeviceCaps: unmeasured DC/index %08x/%u",ARG(0),ARG(1));
++    begin(c); result=xm_win_GetDeviceCaps(g->host,BITSPIXEL); end(c);
++    xrt_event("gui_device_caps","\"index\": %u, \"result\": %d",BITSPIXEL,result);
++    RET_STD(2,result);
++}
++static void hle_CreateDIBitmap(CPU *c)
++{
++    GuiDC *dc = (GuiDC *)xrt_handle_get(ARG(0), XH_DC);
++    HBITMAP bitmap;
++    uint32_t result = 0;
++    if (ARG(0) && !dc)
++        xrt_fatal(c, XRT_EXIT_UNSUPPORTED, "CreateDIBitmap: invalid guest DC");
++    /* BITMAPINFOHEADER/RGBQUAD contain no pointer fields. */
++    begin(c);
++    bitmap = xm_win_CreateDIBitmap(dc ? dc->host : NULL, ARG(1) ? (BITMAPINFOHEADER *)G2H(ARG(1)) : NULL, ARG(2),
++                            ARG(3) ? G2H(ARG(3)) : NULL, ARG(4) ? (BITMAPINFO *)G2H(ARG(4)) : NULL, ARG(5));
++    end(c);
++    if (bitmap)
++        result = xrt_handle_new(XH_BITMAP, bitmap);
++    xrt_event("gui_create_dibitmap", "\"handle\": %u", result);
++    RET_STD(6, result);
++}
++static void hle_CreateBitmap(CPU* c)
++{
++    HBITMAP bitmap; uint32_t token=0;
++    begin(c);
++    bitmap=xm_win_CreateBitmap((int)ARG(0),(int)ARG(1),ARG(2),ARG(3),ARG(4)?G2H(ARG(4)):NULL);
++    end(c);
++    if(bitmap) token=xrt_handle_new(XH_BITMAP,bitmap);
++    xrt_event("gui_create_bitmap","\"width\": %d, \"height\": %d, \"handle\": %u",(int)ARG(0),(int)ARG(1),token);
++    RET_STD(5,token);
++}
++static void hle_DeleteObject(CPU *c)
++{
++    uint32_t token = ARG(0);
++    HGDIOBJ obj = (HGDIOBJ)xrt_handle_get(token, XH_BITMAP);
++    BOOL ok;
++    int handled=0;
++    begin(c);
++    ok=delete_class_object(token,&handled);
++    if(!handled) ok=xm_win_DeleteObject(obj);
++    end(c);
++    if (ok && handled!=2)
++        xrt_handle_free(token);
++    xrt_event("gui_delete_object", "\"handle\": %u, \"result\": %d", token, ok);
++    RET_STD(1, ok);
++}
++static void hle_GetDIBits(CPU *c)
++{
++    GuiDC *dc = (GuiDC *)xrt_handle_get(ARG(0), XH_DC);
++    HBITMAP bitmap = (HBITMAP)xrt_handle_get(ARG(1), XH_BITMAP);
++    int result;
++    if (ARG(0) && !dc)
++        xrt_fatal(c, XRT_EXIT_UNSUPPORTED, "GetDIBits: invalid guest DC");
++    begin(c);
++    result = xm_win_GetDIBits(dc ? dc->host : NULL, bitmap, ARG(2), ARG(3), ARG(4) ? G2H(ARG(4)) : NULL,
++                       ARG(5) ? (BITMAPINFO *)G2H(ARG(5)) : NULL, ARG(6));
++    end(c);
++    RET_STD(7, result);
++}
++/* Dialog resource and callback bridge. The x86 image is mapped ONLY as resources,
++ * never executed by the 64-bit host loader. Host->guest callbacks preserve the suspended CPU. */
++typedef struct GuiWindow
++{
++    HWND host;
++    uint32_t token, proc, font;
++    int font_local;
++    HFONT host_font;
++    DWORD thread;
++} GuiWindow;
++/* D3D8 pins are separate from guest ownership of the HWND itself. */
++static unsigned device_window_pins[1024];
++static GuiWindow windows[1024];
++static __declspec(thread) CPU *callback_cpu;
++CPU* xrt_gui_callback_enter(CPU* c) { CPU* previous=callback_cpu;callback_cpu=c;return previous; }
++void xrt_gui_callback_leave(CPU* previous) { callback_cpu=previous; }
++/* Borrowed IMM32 contexts belong to a thread, not to an individual window.
++ * No guest ImmCreate/Destroy/GetContext API is provided. Only returned contexts
++ * can be reassociated on their living guest/host thread. Keep tokens after
++ * window destruction: the shared default context survives. XrtThread records
++ * are never reused, so OS TID reuse cannot revive an expired context. Windows
++ * owns context destruction; the bridge never destroys a borrowed HIMC. */
++typedef struct GuiIMC {
++    HIMC host;
++    XrtThread* owner;
++    DWORD thread;
++    uint32_t token;
++} GuiIMC;
++static GuiIMC input_contexts[128];
++static uint32_t input_context_token(CPU* c,HIMC h) {
++    unsigned i;
++    if(!h)return 0;
++    for(i=0;i<128;i++)if(input_contexts[i].host==h && input_contexts[i].owner==c->thread)
++        return input_contexts[i].token;
++    for(i=0;i<128;i++)if(!input_contexts[i].host) {
++        GuiIMC* p=&input_contexts[i];p->host=h;p->owner=c->thread;p->thread=xm_win_GetCurrentThreadId();
++        p->token=xrt_handle_new(XH_IMC,p);return p->token;
++    }
++    xrt_fatal(c,XRT_EXIT_SETUP,"ImmAssociateContext: borrowed context table full");
++}
++static void hle_ImmAssociateContext(CPU* c) {
++    uint32_t w=ARG(0),ctx=ARG(1),esp=c->r[ESP],caller=rd32(esp),result;
++    HWND hwnd=window_host(w);HIMC previous,h=NULL;GuiIMC* p;
++    CPU* suspended=callback_cpu;
++    DWORD owner=hwnd?xm_win_GetWindowThreadProcessId(hwnd,NULL):0;
++    xrt_event("gui_imm_associate_context_call","\"hwnd\":%u,\"context\":%u,\"esp\":%u,\"return\":%u,\"last_error\":%u",w,ctx,esp,caller,xrt_get_last_error(c));
++    if(w && xrt_handle_type(w)!=XH_FREE && xrt_handle_type(w)!=XH_WINDOW)
++        xrt_fatal(c,XRT_EXIT_UNSUPPORTED,"ImmAssociateContext: wrong HWND token type %08x",w);
++    if(owner && owner!=xm_win_GetCurrentThreadId())
++        xrt_fatal(c,XRT_EXIT_UNSUPPORTED,"ImmAssociateContext: cross-thread window unsupported");
++    if(ctx) {
++        p=(GuiIMC*)xrt_handle_get(ctx,XH_IMC);
++        if(!p)xrt_fatal(c,XRT_EXIT_UNSUPPORTED,"ImmAssociateContext: unknown or wrong-type HIMC token %08x",ctx);
++        if(p->owner!=c->thread || p->owner->state!=1 || p->thread!=xm_win_GetCurrentThreadId())
++            xrt_fatal(c,XRT_EXIT_UNSUPPORTED,"ImmAssociateContext: foreign or expired thread context unsupported");
++        h=p->host;
++    }
++    /* NULL HWND preserves last-error. Nonzero invalid/destroyed HWNDs instead
++     * fail with ERROR_INVALID_WINDOW_HANDLE. Use the measured invalid -1 host
++     * sentinel so IMM32 supplies the outcome; never cast guest bits to HWND. */
++    if(w && !owner) {
++        hwnd=(HWND)(INT_PTR)-1;
++        if(xm_win_IsWindow(hwnd))xrt_fatal(c,XRT_EXIT_SETUP,"ImmAssociateContext: invalid HWND sentinel became live");
++    }
++    begin(c);callback_cpu=c;previous=xm_win_ImmAssociateContext(hwnd,h);end(c);callback_cpu=suspended;
++    if(previous && !owner)xrt_fatal(c,XRT_EXIT_UNSUPPORTED,"ImmAssociateContext: unexpected context from invalid HWND");
++    result=input_context_token(c,previous);
++    RET_STD(2,result);
++    xrt_event("gui_imm_associate_context_return","\"hwnd\":%u,\"context\":%u,\"result\":%u,\"last_error\":%u,\"esp_before\":%u,\"esp_after\":%u,\"return\":%u,\"actual_return\":%u",w,ctx,result,xrt_get_last_error(c),esp,c->r[ESP],caller,c->rv);
++}
++static __declspec(thread) uint32_t creating_proc;
++typedef struct GuiCallbackFrame {
++    struct GuiCallbackFrame* previous;
++    HWND window; UINT message; WPARAM host_wp; LPARAM host_lp;
++    uint32_t guest_wp,guest_lp;
++    const uint32_t* create_words;
++} GuiCallbackFrame;
++static __declspec(thread) GuiCallbackFrame* callback_frame;
++static HWND window_host(uint32_t h)
++{
++    return (HWND)xrt_handle_get(h, XH_WINDOW);
++}
++static uint32_t window_token(HWND h)
++{
++    unsigned i;
++    if (!h)
++        return 0;
++    for (i = 0; i < 1024; i++)
++        if (windows[i].host == h)
++            return windows[i].token;
++    for (i = 0; i < 1024; i++)
++        if (!windows[i].host)
++        {
++            windows[i].host = h;
++            windows[i].thread = xm_win_GetCurrentThreadId();
++            windows[i].token = xrt_handle_new(XH_WINDOW, h);
++            return windows[i].token;
++        }
++    xrt_fatal(callback_cpu, XRT_EXIT_SETUP, "GUI window table full");
++}
++static void forget_dead_windows(void)
++{
++    unsigned i;
++    for (i = 0; i < 1024; i++)
++        if (windows[i].host && !xm_win_IsWindow(windows[i].host))
++        {
++            forget_window_properties(windows[i].host);
++            if (windows[i].font && windows[i].font_local)
++                xrt_handle_free(windows[i].font);
++            xrt_handle_free(windows[i].token);
++            memset(&windows[i], 0, sizeof windows[i]);
++        }
++}
++void* xrt_gui_device_window(CPU* c,uint32_t token) {
++    HWND h;DWORD pid=0,tid;unsigned i;
++    if(!token)return NULL;
++    h=window_host(token);
++    if(!h || xrt_handle_type(token)!=XH_WINDOW)
++        xrt_fatal(c,76,"D3D8: stale, unknown or wrong-type HWND token %08x",token);
++    tid=xm_win_GetWindowThreadProcessId(h,&pid);
++    if(!xm_win_IsWindow(h) || pid!=xm_win_GetCurrentProcessId() || tid!=xm_win_GetCurrentThreadId() || !c->thread || c->thread->host_tid!=tid)
++        xrt_fatal(c,76,"D3D8: foreign, dead or cross-thread HWND token %08x",token);
++    for(i=0;i<1024;i++)if(windows[i].host==h && windows[i].token==token && windows[i].thread==tid)return h;
++    xrt_fatal(c,76,"D3D8: HWND token lacks GUI registry identity %08x",token);
++}
++uint32_t xrt_gui_window_identity(CPU* c,void* host) {
++    unsigned i;if(!host)return 0;
++    for(i=0;i<1024;i++)if(windows[i].host==host && window_host(windows[i].token)==host) {
++        xrt_gui_device_window(c,windows[i].token);return windows[i].token;
++    }
++    xrt_fatal(c,76,"D3D8: unregistered native HWND result (no pointer narrowing)");
++}
++void xrt_gui_window_pin(CPU* c,uint32_t token) {
++    unsigned i;if(!token)return;xrt_gui_device_window(c,token);
++    for(i=0;i<1024;i++)if(windows[i].token==token && windows[i].host) {device_window_pins[i]++;return;}
++}
++void xrt_gui_window_unpin(uint32_t token) {
++    unsigned i;if(!token)return;
++    for(i=0;i<1024;i++)if(windows[i].token==token && windows[i].host && device_window_pins[i]) {device_window_pins[i]--;return;}
++    xrt_fatal(NULL,77,"D3D8: window pin accounting mismatch %08x",token);
++}
++/* USER32 queries this calling thread's actual input queue. Never substitute the
++ * active/foreground window or cache focus. Existing GUI tokens also represent
++ * a live focused HWND first encountered here (e.g. a native stock control). */
++/* Only the observed self-thread boundary is characterized. The real USER32
++ * call supplies BOOL and last-error, including its failure on self attachment.
++ * Cross-thread queue sharing remains guarded; no guest scalar becomes a pointer. */
++static void hle_AttachThreadInput(CPU* c) {
++    uint32_t from=ARG(0),to=ARG(1),attach=ARG(2),esp=c->r[ESP],caller=rd32(esp);
++    DWORD tid=xm_win_GetCurrentThreadId();BOOL result;
++    xrt_event("gui_attach_thread_input_call","\"from\":%u,\"to\":%u,\"attach\":%u,\"esp\":%u,\"return\":%u,\"last_error\":%u",
++        from,to,attach,esp,caller,xrt_get_last_error(c));
++    if(!c->thread || c->thread->state!=1 || c->thread->host_tid!=tid ||
++       c->thread->guest_tid!=tid || from!=tid || to!=tid)
++        xrt_fatal(c,XRT_EXIT_UNSUPPORTED,"AttachThreadInput: only the living current guest/host self-thread pair is measured (%u,%u)",from,to);
++    begin(c);result=xm_win_AttachThreadInput(from,to,(BOOL)attach);end(c);
++    RET_STD(3,result);
++    xrt_event("gui_attach_thread_input_return","\"from\":%u,\"to\":%u,\"attach\":%u,\"result\":%u,\"last_error\":%u,\"esp_before\":%u,\"esp_after\":%u,\"return\":%u,\"actual_return\":%u",
++        from,to,attach,(unsigned)result,xrt_get_last_error(c),esp,c->r[ESP],caller,c->rv);
++}
++
++static HWND dev_background_active,dev_background_focus; /* developer background mode: virtual activation (below) */
++static void hle_GetFocus(CPU* c)
++{
++    HWND h;uint32_t result,esp=c->r[ESP],caller=rd32(esp);
++    xrt_event("gui_get_focus_call","\"esp\":%u,\"return\":%u",esp,caller);
++    begin(c);h=xm_win_GetFocus();
++    if(!h&&xrt_dev_background()&&dev_background_focus&&IsWindow(dev_background_focus))h=dev_background_focus; /* virtual focus */
++    end(c);
++    result=window_token(h);
++    RET_STD(0,result);
++    xrt_event("gui_get_focus_return","\"esp_before\":%u,\"esp_after\":%u,\"return\":%u,\"actual_return\":%u,\"result\":%u,\"last_error\":%u",
++        esp,c->r[ESP],caller,c->rv,result,xrt_get_last_error(c));
++}
++/* Developer background mode (xrt_dev_background): while another process owns the real foreground, the guest
++ * sees its own thread's active window (else its first visible unowned top-level window) as the foreground.
++ * WinDrv's capture sequence (GetForegroundWindow, AttachThreadInput to that window's thread,
++ * SetForegroundWindow, SetActiveWindow) then stays on its own thread and never takes the owner's focus. */
++static BOOL CALLBACK dev_background_top(HWND h,LPARAM p) {
++    if(IsWindowVisible(h)&&!GetWindow(h,GW_OWNER)){*(HWND*)p=h;return FALSE;}
++    return TRUE;
++}
++/* Activation stays virtual while another process owns the foreground: with the foreground lock timeout expired
++ * (an idle owner) or an inherited foreground right, a real SetActiveWindow/SetFocus of the game's window takes the
++ * owner's focus (measured: experiments/xrt/tests/bg_input BG_PROBE=a). The guest's GetFocus/GetForegroundWindow then
++ * report the window it last focused/activated; no activation messages are synthesized. */
++static int dev_background_foreign(void) {
++    DWORD pid=0;HWND fg=GetForegroundWindow();
++    if(fg)GetWindowThreadProcessId(fg,&pid);
++    return pid!=GetCurrentProcessId();
++}
++static HWND dev_background_foreground(HWND h) {
++    static unsigned logged;DWORD pid=0;HWND own;
++    if(h)GetWindowThreadProcessId(h,&pid);
++    if(pid==GetCurrentProcessId())return h;
++    own=GetActiveWindow();
++    if(!own&&dev_background_active&&IsWindow(dev_background_active))own=dev_background_active;
++    if(!own)EnumThreadWindows(GetCurrentThreadId(),dev_background_top,(LPARAM)&own);
++    if(logged++<8)xrt_log("DEV background: GetForegroundWindow host %p (pid %lu) reported to the guest as own window %p",h,pid,own);
++    return own?own:h;
++}
++/* Developer background mode: activating show commands become their non-activating forms and a shown
++ * top-level window goes to the bottom of the z-order (rendering continues; the owner's windows stay on top). */
++static int dev_background_show(int cmd) {
++    switch(cmd){case SW_SHOWNORMAL:case SW_RESTORE:case SW_SHOWDEFAULT:return SW_SHOWNOACTIVATE;
++                case SW_SHOW:return SW_SHOWNA;case SW_SHOWMINIMIZED:case SW_MINIMIZE:return SW_SHOWMINNOACTIVE;default:return cmd;}
++}
++static void dev_background_bottom(HWND h) {
++    if(h&&!(GetWindowLongW(h,GWL_STYLE)&WS_CHILD)&&IsWindowVisible(h))
++        SetWindowPos(h,HWND_BOTTOM,0,0,0,0,SWP_NOMOVE|SWP_NOSIZE|SWP_NOACTIVATE|SWP_NOOWNERZORDER);
++}
++/* Borrow the actual foreground HWND, which may belong to another process.
++ * This query neither acquires ownership nor transfers focus/callback execution. */
++static void hle_GetForegroundWindow(CPU* c)
++{
++    HWND h;uint32_t result,esp=c->r[ESP],caller=rd32(esp);
++    xrt_event("gui_foreground_call","\"esp\":%u,\"return\":%u,\"last_error\":%u",esp,caller,xrt_get_last_error(c));
++    begin(c);h=xm_win_GetForegroundWindow();if(xrt_dev_background())h=dev_background_foreground(h);end(c);
++    result=window_token(h);
++    xrt_event("gui_foreground_identity","\"host\":\"%llx\",\"token\":%u,\"roundtrip\":%u",
++        (unsigned long long)(uintptr_t)h,result,window_host(result)==h);
++    RET_STD(0,result);
++    xrt_event("gui_foreground_return","\"result\":%u,\"last_error\":%u,\"esp_before\":%u,\"esp_after\":%u,\"return\":%u,\"actual_return\":%u",result,xrt_get_last_error(c),esp,c->r[ESP],caller,c->rv);
++}
++/* Measured owned-window foreground request. USER32 decides success and may
++ * synchronously reenter the existing activation/focus callback bridge. */
++static void hle_SetForegroundWindow(CPU* c)
++{
++    uint32_t w=ARG(0),esp=c->r[ESP],caller=rd32(esp);BOOL result;
++    HWND hwnd=window_host(w);CPU* suspended=callback_cpu;
++    xrt_event("gui_set_foreground_call","\"hwnd\":%u,\"esp\":%u,\"return\":%u,\"last_error\":%u",w,esp,caller,xrt_get_last_error(c));
++    if(w && xrt_handle_type(w)!=XH_FREE && xrt_handle_type(w)!=XH_WINDOW)
++        xrt_fatal(c,XRT_EXIT_UNSUPPORTED,"SetForegroundWindow: wrong HWND token type %08x",w);
++    if(w && !hwnd)xrt_fatal(c,XRT_EXIT_UNSUPPORTED,"SetForegroundWindow: unknown HWND token %08x",w);
++    if(hwnd && xm_win_GetWindowThreadProcessId(hwnd,NULL)!=xm_win_GetCurrentThreadId())
++        xrt_fatal(c,XRT_EXIT_UNSUPPORTED,"SetForegroundWindow: cross-thread window unmeasured");
++    if(xrt_dev_background()) { /* developer background mode: never passed on; the guest's own window is its foreground */
++        static unsigned logged;
++        begin(c);result=hwnd&&IsWindow(hwnd);end(c);
++        if(logged++<8)xrt_log("DEV background: SetForegroundWindow(%p) not passed on (result %d)",hwnd,(int)result);
++    } else {
++    callback_cpu=c;begin(c);result=xm_win_SetForegroundWindow(hwnd);end(c);callback_cpu=suspended;
++    }
++    RET_STD(1,result);
++    xrt_event("gui_set_foreground_return","\"hwnd\":%u,\"result\":%u,\"last_error\":%u,\"esp_before\":%u,\"esp_after\":%u,\"return\":%u,\"actual_return\":%u",w,(unsigned)result,xrt_get_last_error(c),esp,c->r[ESP],caller,c->rv);
++}
++/* Return USER32's actual previous active HWND through the shared typed map. */
++static void hle_SetActiveWindow(CPU* c)
++{
++    uint32_t w=ARG(0),esp=c->r[ESP],caller=rd32(esp),result;
++    HWND hwnd=window_host(w),previous;CPU* suspended=callback_cpu;
++    xrt_event("gui_set_active_call","\"hwnd\":%u,\"esp\":%u,\"return\":%u,\"last_error\":%u",w,esp,caller,xrt_get_last_error(c));
++    if(w && xrt_handle_type(w)!=XH_FREE && xrt_handle_type(w)!=XH_WINDOW)
++        xrt_fatal(c,XRT_EXIT_UNSUPPORTED,"SetActiveWindow: wrong HWND token type %08x",w);
++    if(w && !hwnd)xrt_fatal(c,XRT_EXIT_UNSUPPORTED,"SetActiveWindow: unknown HWND token %08x",w);
++    if(hwnd && xm_win_GetWindowThreadProcessId(hwnd,NULL)!=xm_win_GetCurrentThreadId())
++        xrt_fatal(c,XRT_EXIT_UNSUPPORTED,"SetActiveWindow: cross-thread window unmeasured");
++    if(xrt_dev_background()&&hwnd&&dev_background_foreign()) { /* developer background mode: virtual activation */
++        static unsigned logged;
++        begin(c);previous=GetActiveWindow();if(!previous&&dev_background_active&&IsWindow(dev_background_active))previous=dev_background_active;
++        dev_background_active=hwnd;end(c);
++        if(logged++<8)xrt_log("DEV background: SetActiveWindow(%p) kept virtual (previous %p)",hwnd,previous);
++    } else {
++    callback_cpu=c;begin(c);previous=xm_win_SetActiveWindow(hwnd);end(c);callback_cpu=suspended;
++    }
++    result=window_token(previous);RET_STD(1,result);
++    xrt_event("gui_set_active_return","\"hwnd\":%u,\"result\":%u,\"last_error\":%u,\"esp_before\":%u,\"esp_after\":%u,\"return\":%u,\"actual_return\":%u",w,result,xrt_get_last_error(c),esp,c->r[ESP],caller,c->rv);
++}
++/* SetFocus returns USER32's previous HWND, including native reentrant activation
++ * behavior. Never derive it from the requested HWND or a cached focus value. */
++static void hle_SetFocus(CPU* c)
++{
++    uint32_t w=ARG(0),esp=c->r[ESP],caller=rd32(esp),result;
++    HWND hwnd=window_host(w),previous;CPU* suspended=callback_cpu;
++    DWORD owner=hwnd?xm_win_GetWindowThreadProcessId(hwnd,NULL):0;
++    xrt_event("gui_set_focus_call","\"hwnd\":%u,\"esp\":%u,\"return\":%u,\"last_error\":%u",
++        w,esp,caller,xrt_get_last_error(c));
++    if(w && xrt_handle_type(w)!=XH_FREE && xrt_handle_type(w)!=XH_WINDOW)
++        xrt_fatal(c,XRT_EXIT_UNSUPPORTED,"SetFocus: wrong HWND token type %08x",w);
++    /* Attached input queues and cross-thread callback/baton transfer are outside
++     * this boundary. Native unattached attempts return NULL / error 5. */
++    if(owner && owner!=xm_win_GetCurrentThreadId())
++        xrt_fatal(c,XRT_EXIT_UNSUPPORTED,"SetFocus: cross-thread window unsupported");
++    if(w && !hwnd) {
++        hwnd=(HWND)(intptr_t)-1;
++        if(xm_win_IsWindow(hwnd))xrt_fatal(c,XRT_EXIT_SETUP,"SetFocus: invalid HWND sentinel unexpectedly valid");
++    }
++    if(xrt_dev_background()&&w&&hwnd!=(HWND)(intptr_t)-1&&dev_background_foreign()&&GetActiveWindow()!=GetAncestor(hwnd,GA_ROOT)) {
++        /* developer background mode: focusing a window outside the thread's (real) active window would activate it */
++        static unsigned logged;
++        begin(c);previous=GetFocus();if(!previous&&dev_background_focus&&IsWindow(dev_background_focus))previous=dev_background_focus;
++        dev_background_focus=hwnd;end(c);
++        if(logged++<8)xrt_log("DEV background: SetFocus(%p) kept virtual (previous %p)",hwnd,previous);
++    } else {
++    if(!w)dev_background_focus=NULL;
++    callback_cpu=c;begin(c);previous=xm_win_SetFocus(hwnd);end(c);callback_cpu=suspended;
++    }
++    result=window_token(previous);
++    RET_STD(1,result);
++    xrt_event("gui_set_focus_return","\"hwnd\":%u,\"result\":%u,\"last_error\":%u,\"esp_before\":%u,\"esp_after\":%u,\"return\":%u,\"actual_return\":%u",
++        w,result,xrt_get_last_error(c),esp,c->r[ESP],caller,c->rv);
++}
++/* Measured SetCapture, including NULL and reentrant capture-change callbacks.
++ * USER32 owns capture state and supplies the previous HWND; guest memory sees
++ * only typed tokens. ReleaseCapture is not substituted for the NULL call. */
++static void hle_SetCapture(CPU* c)
++{
++    uint32_t w=ARG(0),esp=c->r[ESP],caller=rd32(esp),result;
++    HWND hwnd=window_host(w),previous;CPU* suspended=callback_cpu;
++    DWORD owner=hwnd?xm_win_GetWindowThreadProcessId(hwnd,NULL):0;
++    xrt_event("gui_set_capture_call","\"hwnd\":%u,\"esp\":%u,\"return\":%u,\"last_error\":%u",
++        w,esp,caller,xrt_get_last_error(c));
++    if(w && xrt_handle_type(w)!=XH_FREE && xrt_handle_type(w)!=XH_WINDOW)
++        xrt_fatal(c,XRT_EXIT_UNSUPPORTED,"SetCapture: wrong HWND token type %08x",w);
++    /* Native unattached foreign-window attempts leave both queues unchanged.
++     * Attached queues and cross-thread callback transfer remain unmeasured. */
++    if(owner && owner!=xm_win_GetCurrentThreadId())
++        xrt_fatal(c,XRT_EXIT_UNSUPPORTED,"SetCapture: cross-thread window unsupported");
++    if(w && !hwnd) {
++        hwnd=(HWND)(intptr_t)-1;
++        if(xm_win_IsWindow(hwnd))xrt_fatal(c,XRT_EXIT_SETUP,"SetCapture: invalid HWND sentinel unexpectedly valid");
++    }
++    callback_cpu=c;begin(c);previous=xm_win_SetCapture(hwnd);end(c);callback_cpu=suspended;
++    result=window_token(previous);
++    RET_STD(1,result);
++    xrt_event("gui_set_capture_return","\"hwnd\":%u,\"result\":%u,\"last_error\":%u,\"esp_before\":%u,\"esp_after\":%u,\"return\":%u,\"actual_return\":%u",
++        w,result,xrt_get_last_error(c),esp,c->r[ESP],caller,c->rv);
++}
++/* Only the encountered NULL RECT path is measured. USER32 releases the real
++ * cursor constraint; no guest RECT or synthetic clip state is introduced. */
++static void hle_ClipCursor(CPU* c)
++{
++    uint32_t p=ARG(0),esp=c->r[ESP],caller=rd32(esp);BOOL result;
++    xrt_event("gui_clip_cursor_call","\"rect\":%u,\"esp\":%u,\"return\":%u,\"last_error\":%u",p,esp,caller,xrt_get_last_error(c));
++    if(p) {
++        /* WinDrv SetMouseCapture: four guest LONGs, copied; the launcher restores the clip. */
++        RECT r;
++        if(!writable_guest_rect(p))xrt_fatal(c,XRT_EXIT_UNSUPPORTED,"ClipCursor: RECT outside writable guest memory");
++        r.left=(LONG)rd32(p);r.top=(LONG)rd32(p+4);r.right=(LONG)rd32(p+8);r.bottom=(LONG)rd32(p+12);
++        if(xrt_dev_input_blocked(NULL)){xrt_dev_cursor(2,NULL,NULL,&r);result=1;} /* developer isolation: virtual cursor only */
++        else{begin(c);result=xm_win_ClipCursor(&r);end(c);}
++    } else if(xrt_dev_input_blocked(NULL)) {
++        xrt_dev_cursor(2,NULL,NULL,NULL);result=1;
++    } else {
++        begin(c);result=xm_win_ClipCursor(NULL);end(c);
++    }
++    RET_STD(1,result);
++    xrt_event("gui_clip_cursor_return","\"rect\":%u,\"result\":%u,\"last_error\":%u,\"esp_before\":%u,\"esp_after\":%u,\"return\":%u,\"actual_return\":%u",p,(unsigned)result,xrt_get_last_error(c),esp,c->r[ESP],caller,c->rv);
++}
++/* Optional output is exactly one DWORD, including unaligned/page-edge writes.
++ * A failed HWND query never probes or modifies that output, as measured natively. */
++static int writable_guest_id(uint32_t p) {
++    uint64_t at=p,limit=(uint64_t)p+4;
++    if(!p || limit>0x100000000ull)return 0;
++    while(at<limit) {
++        MEMORY_BASIC_INFORMATION mbi;DWORD access;uint64_t next;
++        if(!VirtualQuery(xrt_g+at,&mbi,sizeof mbi) || mbi.State!=MEM_COMMIT || (mbi.Protect&(PAGE_GUARD|PAGE_NOACCESS)))return 0;
++        access=mbi.Protect&0xffu;
++        if(access!=PAGE_READWRITE && access!=PAGE_WRITECOPY && access!=PAGE_EXECUTE_READWRITE && access!=PAGE_EXECUTE_WRITECOPY)return 0;
++        next=(uint64_t)((uint8_t*)mbi.BaseAddress-xrt_g)+mbi.RegionSize;if(next<=at)return 0;at=next;
++    }
++    return 1;
++}
++static void hle_GetWindowThreadProcessId(CPU* c) {
++    uint32_t w=ARG(0),p=ARG(1),esp=c->r[ESP],caller=rd32(esp);DWORD pid=0,tid;HWND h=window_host(w);
++    xrt_event("gui_window_ids_call","\"hwnd\":%u,\"output\":%u,\"esp\":%u,\"return\":%u,\"last_error\":%u",w,p,esp,caller,xrt_get_last_error(c));
++    if(w && xrt_handle_type(w)!=XH_FREE && xrt_handle_type(w)!=XH_WINDOW)
++        xrt_fatal(c,XRT_EXIT_UNSUPPORTED,"GetWindowThreadProcessId: wrong HWND token type %08x",w);
++    if(w && !h) {h=(HWND)(intptr_t)-1;if(xm_win_IsWindow(h))xrt_fatal(c,XRT_EXIT_SETUP,"GetWindowThreadProcessId invalid HWND sentinel unexpectedly valid");}
++    begin(c);tid=xm_win_GetWindowThreadProcessId(h,p?&pid:NULL);end(c);
++    if(tid && p) {
++        if(!writable_guest_id(p))xrt_fatal(c,XRT_EXIT_UNSUPPORTED,"GetWindowThreadProcessId: invalid four-byte output %08x; native output pointer fault path unsupported",p);
++        wr32(p,pid);
++    }
++    RET_STD(2,tid);
++    xrt_event("gui_window_ids_return","\"hwnd\":%u,\"output\":%u,\"result\":%u,\"pid\":%u,\"written\":%u,\"last_error\":%u,\"esp_before\":%u,\"esp_after\":%u,\"return\":%u,\"actual_return\":%u",w,p,tid,pid,tid&&p?1:0,xrt_get_last_error(c),esp,c->r[ESP],caller,c->rv);
++}
++static HWND map_points_window(CPU* c,uint32_t w) {
++    HWND h=window_host(w);
++    if(w && xrt_handle_type(w)!=XH_FREE && xrt_handle_type(w)!=XH_WINDOW)
++        xrt_fatal(c,XRT_EXIT_UNSUPPORTED,"MapWindowPoints: wrong HWND token type %08x",w);
++    if(w && !h) {h=(HWND)(intptr_t)-1;if(xm_win_IsWindow(h))xrt_fatal(c,XRT_EXIT_SETUP,"MapWindowPoints invalid HWND sentinel unexpectedly valid");}
++    return h;
++}
++static void hle_MapWindowPoints(CPU* c) {
++    uint32_t a=ARG(0),b=ARG(1),p=ARG(2),n=ARG(3),esp=c->r[ESP],caller=rd32(esp),i;
++    POINT points[4];HWND from,to;int result;
++    xrt_event("gui_map_points_call","\"from\":%u,\"to\":%u,\"points\":%u,\"count\":%u,\"esp\":%u,\"return\":%u,\"last_error\":%u",a,b,p,n,esp,caller,xrt_get_last_error(c));
++    if(n<1 || n>4)xrt_fatal(c,XRT_EXIT_UNSUPPORTED,"MapWindowPoints: unmeasured point count %u",n);
++    from=map_points_window(c,a);to=map_points_window(c,b);
++    if(!p || (uint64_t)p+8*n>0x100000000ull)xrt_fatal(c,XRT_EXIT_UNSUPPORTED,"MapWindowPoints: invalid guest point array %08x",p);
++    for(i=0;i<2*n;i++)if(!writable_guest_id(p+4*i))xrt_fatal(c,XRT_EXIT_UNSUPPORTED,"MapWindowPoints: invalid guest point array %08x",p);
++    memcpy(points,G2H(p),8*n);
++    for(i=0;i<n;i++)xrt_event("gui_map_points_input","\"index\":%u,\"x\":%ld,\"y\":%ld",i,points[i].x,points[i].y);
++    begin(c);result=xm_win_MapWindowPoints(from,to,points,n);end(c);
++    memcpy(G2H(p),points,8*n);
++    for(i=0;i<n;i++)xrt_event("gui_map_points_output","\"index\":%u,\"x\":%ld,\"y\":%ld",i,points[i].x,points[i].y);
++    RET_STD(4,(uint32_t)result);
++    xrt_event("gui_map_points_return","\"from\":%u,\"to\":%u,\"points\":%u,\"count\":%u,\"result\":%u,\"last_error\":%u,\"esp_before\":%u,\"esp_after\":%u,\"return\":%u,\"actual_return\":%u",a,b,p,n,(uint32_t)result,xrt_get_last_error(c),esp,c->r[ESP],caller,c->rv);
++}
++static void pack_windowpos(uint32_t p, const WINDOWPOS *w)
++{
++    wr32(p, window_token(w->hwnd));
++    wr32(p + 4, (intptr_t)w->hwndInsertAfter >= -2 && (intptr_t)w->hwndInsertAfter <= 1
++                    ? (uint32_t)(intptr_t)w->hwndInsertAfter
++                    : window_token(w->hwndInsertAfter));
++    wr32(p + 8, w->x);
++    wr32(p + 12, w->y);
++    wr32(p + 16, w->cx);
++    wr32(p + 20, w->cy);
++    wr32(p + 24, w->flags);
++}
++static HWND insert_host(uint32_t v)
++{
++    HWND host;
++    if (v >= 0xfffffffeu || v <= 1)
++        return (HWND)(intptr_t)(int32_t)v;
++    host = window_host(v);
++    if (!host)
++        xrt_fatal(callback_cpu, XRT_EXIT_UNSUPPORTED, "window insertion handle %08x unknown", v);
++    return host;
++}
++static void unpack_windowpos(WINDOWPOS *w, uint32_t p)
++{
++    w->hwnd = window_host(rd32(p));
++    w->hwndInsertAfter = insert_host(rd32(p + 4));
++    w->x = (int)rd32(p + 8);
++    w->y = (int)rd32(p + 12);
++    w->cx = (int)rd32(p + 16);
++    w->cy = (int)rd32(p + 20);
++    w->flags = rd32(p + 24);
++}
++/* Developer benchmarking only (dev.py --windowed-res): XRT_DEV_MAX_TRACK=WxH raises the maximum tracking size the
++ * guest's WM_GETMINMAXINFO result reports, so a requested window larger than the desktop is not clamped by the system
++ * default (virtual screen + frame). Otherwise the client is clamped while D3DDrv keeps the requested back buffer, the
++ * sizes differ and DXVK presents through GDI. The window then extends beyond the display: a larger-than-display render
++ * surface, not native-display output. Unset (normal runs): the guest's result is returned unchanged. */
++static void dev_max_track(MINMAXINFO *m)
++{
++    static int w = -1, h = 0;
++    if (w < 0)
++    {
++        char v[32];
++        DWORD n = GetEnvironmentVariableA("XRT_DEV_MAX_TRACK", v, sizeof v);
++        const char *x = n && n < sizeof v ? strchr(v, 'x') : NULL;
++        w = x ? atoi(v) : 0;
++        h = x ? atoi(x + 1) : 0;
++        if (w > 0 && h > 0)
++            xrt_log("DEV window maximum tracking size raised to at least %dx%d (larger-than-display benchmarking)", w, h);
++    }
++    if (w > 0 && h > 0)
++    {
++        if (m->ptMaxTrackSize.x < w) m->ptMaxTrackSize.x = w;
++        if (m->ptMaxTrackSize.y < h) m->ptMaxTrackSize.y = h;
++    }
++}
++#include "hle_gui_diag.inc"
++#include "window_transitions.inc"
++#include "message_pump.inc"
++static INT_PTR invoke_gui_proc(HWND h, UINT msg, WPARAM wp, LPARAM lp, uint32_t explicit_proc)
++{
++    xm_scope(callback_cpu,XM_BEGIN,XM_CALLBACK,"USER32.invoke_gui_proc",msg);
++    CPU nested;
++    uint32_t args[4], proc = explicit_proc, scratch = 0;
++    unsigned i;
++    INT_PTR result;
++    GuiWindow *window = NULL;
++    DWORD error = GetLastError();
++    GuiCallbackFrame frame;
++    uint32_t create_words[12];
++    gui_diagnostic_ingress(h,msg,wp,lp,explicit_proc);
++    if (!callback_cpu)
++        xrt_fatal(NULL, XRT_EXIT_UNSUPPORTED, "GUI callback outside an active guest host call");
++    args[0] = window_token(h);
++    args[1] = msg;
++    args[2] = (uint32_t)wp;
++    args[3] = (uint32_t)lp;
++    for (i = 0; i < 1024; i++)
++        if (windows[i].host == h)
++        {
++            window = &windows[i];
++            if (!window->proc && !explicit_proc)
++                window->proc = creating_proc;
++            if (!explicit_proc) proc = window->proc;
++            break;
++        }
++    if (!proc)
++        { INT_PTR xm_ret=(FALSE);xm_scope(callback_cpu,XM_END,XM_CALLBACK,"USER32.invoke_gui_proc",(uint64_t)xm_ret);return xm_ret;}
++    nested = *callback_cpu;
++    xrt_set_last_error(&nested, error);
++    /* Temporary structures use the guest stack below the suspended import frame. */
++    scratch = (nested.r[ESP] - 128u) & ~15u;
++    nested.r[ESP] = scratch;
++    switch (msg)
++    {
++    case WM_GETOBJECT:
++    {
++        /* Separate native x86/x64 dialog and registered-window oracles. The
++         * registered WNDPROC executes and may delegate through its validated
++         * callback frame to real DefWindowProcW. No accessibility cookie is
++         * manufactured. Other IDs/arguments and unregistered procs stay guarded. */
++        int registered = explicit_proc && registered_getobject_proc(h, explicit_proc);
++        int client = wp == (WPARAM)0xffffffffu && (DWORD)lp == (DWORD)OBJID_CLIENT &&
++            (lp == (LPARAM)(ULONG_PTR)(DWORD)OBJID_CLIENT || lp == (LPARAM)(LONG)OBJID_CLIENT);
++        /* Measured separately on a real registered Unicode WNDPROC: scalar
++         * class-name-index query, wParam=0, zero/sign-extended -12. Windows
++         * DefWindowProcW supplies the result through the active callback frame.
++         * This does not admit the tuple to the unmeasured dialog protocol. */
++        int query_class = registered && wp == 0 && (DWORD)lp == (DWORD)-12 &&
++            (lp == (LPARAM)(ULONG_PTR)(DWORD)-12 || lp == (LPARAM)(LONG)-12);
++        if ((explicit_proc && !registered) || !xm_win_IsWindowUnicode(h) || (!client && !query_class))
++            xrt_fatal(&nested, XRT_EXIT_UNSUPPORTED,
++                      "WM_GETOBJECT: unmeasured dialog/arguments (wp=%llx lp=%llx)",
++                      (unsigned long long)wp, (unsigned long long)lp);
++        break;
++    }
++    case WM_GETICON:
++        if(wp>ICON_SMALL2 || ((uint64_t)(uintptr_t)lp>0xffffffffull && lp!=(LPARAM)(int32_t)(uint32_t)lp))
++            xrt_fatal(&nested,XRT_EXIT_UNSUPPORTED,"WM_GETICON: invalid selector or unrepresentable DPI %llu/%lld",(unsigned long long)wp,(long long)lp);
++        break;
++    case WM_SETTEXT:
++        args[3]=copy_class_string((void*)lp,xm_win_IsWindowUnicode(h));
++        break;
++    case WM_CREATE:
++    case WM_NCCREATE:
++        {
++            CREATESTRUCTW* s=(CREATESTRUCTW*)lp;
++            if((uintptr_t)s->lpCreateParams>0xffffffffu)
++                xrt_fatal(&nested,XRT_EXIT_UNSUPPORTED,"CREATESTRUCT contains a non-guest creation parameter");
++            if(s->hMenu && !(s->style&WS_CHILD))
++                xrt_fatal(&nested,XRT_EXIT_UNSUPPORTED,"CREATESTRUCT menu requires typed mapping");
++            wr32(scratch,(uint32_t)(uintptr_t)s->lpCreateParams);
++            wr32(scratch+4,class_owner(&nested,s->hInstance));
++            wr32(scratch+8,(uint32_t)(uintptr_t)s->hMenu);
++            wr32(scratch+12,window_token(s->hwndParent));
++            wr32(scratch+16,s->cy);wr32(scratch+20,s->cx);wr32(scratch+24,s->y);wr32(scratch+28,s->x);
++            wr32(scratch+32,s->style);
++            wr32(scratch+36,copy_class_string(s->lpszName,xm_win_IsWindowUnicode(h)));
++            wr32(scratch+40,copy_class_string(s->lpszClass,xm_win_IsWindowUnicode(h)));
++            wr32(scratch+44,s->dwExStyle);
++            args[3]=scratch;
++            memcpy(create_words,G2H(scratch),48);
++        }
++        break;
++    case WM_USER + 77: /* Class oracle's explicitly scalar nested callback. */
++        if (h || wp > 100 || lp > 100)
++            xrt_fatal(&nested, XRT_EXIT_UNSUPPORTED, "class oracle scalar message outside measured range");
++        break;
++    case 0xae: /* Observed (8,0)/(9,0) scalar notifications, measured with real default processing. */
++        if((wp!=8 && wp!=9) || lp)
++            xrt_fatal(&nested,XRT_EXIT_UNSUPPORTED,"window callback 0xae: unmeasured arguments (wp=%llx lp=%llx)",(unsigned long long)wp,(unsigned long long)lp);
++        break;
++    case 0x90: /* Observed Windows theme destruction notification: both arguments zero. */
++        if (wp || lp)
++            xrt_fatal(&nested, XRT_EXIT_UNSUPPORTED, "theme destruction notification has nonzero arguments");
++        break;
++    case WM_DEVICECHANGE: /* Host broadcast: the scalar DBT_DEVNODES_CHANGED (7,0) form crosses as is. */
++        if (wp == 7 && !lp)
++            break;
++        /* DBT_DEVICEARRIVAL / DBT_DEVICEREMOVECOMPLETE carry a read-only DEV_BROADCAST_* structure of dbch_size
++         * bytes (observed 0x8004 when a host device went away during a run). It is copied onto the guest stack below
++         * the callback scratch and the guest stack pointer moves below it; DefWindowProc/CallWindowProc get the host
++         * structure back through the callback frame (forward_message). Nothing is copied back: no output fields. */
++        if ((wp == 0x8000 || wp == 0x8004) && lp)
++        {
++            DWORD size;
++            uint32_t data;
++            memcpy(&size, (const void *)lp, 4);
++            if (size < 12 || size > 1024)
++                xrt_fatal(&nested, XRT_EXIT_UNSUPPORTED, "WM_DEVICECHANGE %llx: DEV_BROADCAST size %lu outside 12..1024",
++                          (unsigned long long)wp, (unsigned long)size);
++            data = (scratch - ((size + 15u) & ~15u)) & ~15u;
++            gui_transition_memory(&nested, data, size, 1);
++            memcpy(G2H(data), (const void *)lp, size);
++            nested.r[ESP] = data;
++            args[3] = data;
++            break;
++        }
++        xrt_fatal(&nested, XRT_EXIT_UNSUPPORTED, "WM_DEVICECHANGE event %llx with data %llx requires marshalling",
++                  (unsigned long long)wp, (unsigned long long)lp);
++        break;
++    case WM_GETDLGCODE:
++        if (lp)
++            xrt_fatal(&nested, XRT_EXIT_UNSUPPORTED, "WM_GETDLGCODE MSG pointer requires marshalling");
++        break;
++    case WM_NCPAINT:
++        /* wParam 1 = whole frame, else an update-region HRGN. A 32-bit process sees the
++         * handle's 32-bit value (GDI handles are 32-bit significant); forward_message
++         * restores the host value when the guest passes it on to the default procedure. */
++        if (wp != 1 && (WPARAM)(LONG_PTR)(int32_t)(uint32_t)wp != wp)
++            xrt_fatal(&nested, XRT_EXIT_UNSUPPORTED, "WM_NCPAINT region handle is not 32-bit representable");
++        { static unsigned ncpaints; if (ncpaints++ < 8) xrt_log("WM_NCPAINT %s wParam %llx", wp == 1 ? "whole frame" : "region", (unsigned long long)wp); }
++        break;
++    case WM_STYLECHANGING: case WM_STYLECHANGED:
++        if(!lp || ((int32_t)wp!=GWL_STYLE && (int32_t)wp!=GWL_EXSTYLE))
++            xrt_fatal(&nested,76,"style callback: unsupported field or NULL structure");
++        gui_transition_memory(&nested,scratch,8,1);memcpy(G2H(scratch),(void*)lp,8);args[3]=scratch;
++        break;
++    case WM_WINDOWPOSCHANGING:
++    case WM_WINDOWPOSCHANGED:
++        pack_windowpos(scratch, (WINDOWPOS *)lp);
++        args[3] = scratch;
++        break;
++    case WM_GETMINMAXINFO:
++        memcpy(G2H(scratch), (void *)lp, 40);
++        args[3] = scratch;
++        break;
++    case WM_SIZING:
++    case WM_MOVING:
++        /* User drag of the window border/caption: wParam is the edge (scalar), lParam an in/out screen RECT the
++         * procedure may adjust; copied to the scratch and back after the callback (and around DefWindowProc). */
++        memcpy(G2H(scratch), (void *)lp, 16);
++        args[3] = scratch;
++        break;
++    case WM_NCCALCSIZE:
++        if (wp)
++        {
++            NCCALCSIZE_PARAMS *n = (NCCALCSIZE_PARAMS *)lp;
++            memcpy(G2H(scratch), n->rgrc, 48);
++            wr32(scratch + 48, scratch + 52);
++            pack_windowpos(scratch + 52, n->lppos);
++        }
++        else
++            memcpy(G2H(scratch), (void *)lp, 16);
++        args[3] = scratch;
++        break;
++    case WM_SETFONT:
++        if (window->host_font != (HFONT)wp)
++        {
++            if (window->font && window->font_local)
++                xrt_handle_free(window->font);
++            window->host_font = (HFONT)wp;
++            window->font = known_font_token((HFONT)wp);
++            window->font_local=wp && !window->font;
++            if(window->font_local) window->font=xrt_handle_new(XH_FONT,(void*)wp);
++        }
++        args[2] = window->font;
++        break;
++    case WM_ERASEBKGND:
++    case WM_CTLCOLORSTATIC:
++    case WM_CTLCOLORDLG:
++    case WM_CTLCOLOREDIT:
++    case WM_CTLCOLORBTN:
++        /* Borrowed DC valid only for this callback; no acquired ownership. */
++        {
++            GuiDC *dc = (GuiDC *)calloc(1, sizeof *dc);
++            if (!dc)
++                xrt_fatal(&nested, XRT_EXIT_SETUP, "callback DC allocation");
++            dc->host = (HDC)wp;
++            dc->window = h;
++            args[2] = xrt_handle_new(XH_DC, dc);
++            if (msg != WM_ERASEBKGND)
++                args[3] = window_token((HWND)lp);
++        }
++        break;
++    case WM_INITDIALOG: /* lp is the ORIGINAL guest initialization value supplied to CreateDialogParam. */
++        args[2] = window_token((HWND)wp);
++        break;
++    case WM_ACTIVATE:
++    case WM_SETFOCUS:
++    case WM_KILLFOCUS:
++        if (msg == WM_ACTIVATE)
++            args[3] = window_token((HWND)lp);
++        else
++            args[2] = window_token((HWND)wp);
++        break;
++    case WM_CAPTURECHANGED:
++        if(wp)xrt_fatal(&nested,XRT_EXIT_UNSUPPORTED,"WM_CAPTURECHANGED nonzero wParam unsupported");
++        args[3] = window_token((HWND)lp);
++        break;
++    case WM_COMMAND:
++        args[3] = window_token((HWND)lp);
++        break;
++    case WM_PARENTNOTIFY:
++        if(LOWORD(wp)!=WM_CREATE && LOWORD(wp)!=WM_DESTROY)
++            xrt_fatal(&nested,XRT_EXIT_UNSUPPORTED,"WM_PARENTNOTIFY event %u unsupported",LOWORD(wp));
++        args[3]=window_token((HWND)lp);
++        break;
++    case WM_PALETTECHANGED:
++        args[2] = window_token((HWND)wp);
++        break;
++    case WM_SETCURSOR:
++    case WM_MOUSEACTIVATE: /* wParam is a window; lParam packs scalar hit-test/message words. */
++        args[2] = window_token((HWND)wp);
++        break;
++    case WM_TIMER:
++        if (lp)
++            xrt_fatal(&nested, XRT_EXIT_UNSUPPORTED, "WM_TIMER callback procedure requires marshalling");
++        break;
++    case WM_SETTINGCHANGE:
++        /* Broadcast to every top-level window when the desktop's owner changes a system setting (the background mode
++         * keeps the desktop in use). wParam is a scalar; lParam NULL or a read-only section/policy name, copied below
++         * the callback scratch like WM_DEVICECHANGE data; DefWindowProc gets the host string back (forward_message). */
++        if (lp)
++        {
++            int wide_text = xm_win_IsWindowUnicode(h);
++            size_t chars = wide_text ? wcsnlen((const wchar_t *)lp, 512) : strnlen((const char *)lp, 512);
++            uint32_t size = (uint32_t)((chars + 1) * (wide_text ? 2 : 1)), data;
++            if (chars == 512)
++                xrt_fatal(&nested, XRT_EXIT_UNSUPPORTED, "WM_SETTINGCHANGE string longer than 511 characters");
++            data = (scratch - ((size + 15u) & ~15u)) & ~15u;
++            gui_transition_memory(&nested, data, size, 1);
++            memcpy(G2H(data), (const void *)lp, size);
++            nested.r[ESP] = data;
++            args[3] = data;
++            { static unsigned logged; if (logged++ < 8) xrt_log("WM_SETTINGCHANGE wParam %llx lParam string (%u bytes)", (unsigned long long)wp, size); }
++        }
++        break;
++    case WM_NOTIFY:
++    case WM_DRAWITEM:
++    case WM_MEASUREITEM:
++    case WM_COMPAREITEM:
++    case WM_DELETEITEM:
++    case WM_GETTEXT:
++        xrt_fatal(&nested, XRT_EXIT_UNSUPPORTED, "dialog callback pointer message 0x%x requires marshalling", msg);
++    default:
++        /* Exact measured registered notification; preserve error while resolving its session identity. */
++        if (msg >= 0xc000u && msg <= 0xffffu && wp <= 0xffffffffu && !lp) {
++            WCHAR name[40];
++            DWORD lookup_error = GetLastError();
++            int length = xm_win_GetClipboardFormatNameW(msg, name, 40);
++            int taskbar_created = !wp && length == 20 && xm_win_lstrcmpW(name, L"TaskbarButtonCreated") == 0;
++            /* dinput8 posts its registered device notification with a scalar wParam. */
++            int dinput_notify = length == 34 && xm_win_lstrcmpW(name, L"DIRECTINPUT_NOTIFICATION_MSGSTRING") == 0;
++            SetLastError(lookup_error);
++            if (taskbar_created || dinput_notify) break;
++            /* Any other registered message with both arguments zero carries no pointer or handle: the desktop's shell
++             * broadcasts them while the owner works (0xc250 "ShellFileOpened" when a file was opened, launch
++             * 20261101-123706). It crosses as is; the guest's procedure decides (normally DefWindowProc). */
++            if (!wp) {
++                static unsigned logged;
++                if (logged++ < 16) xrt_log("registered message %x \"%ls\" (zero arguments) delivered", msg, length > 0 ? name : L"?");
++                break;
++            }
++        }
++        /* Only measured scalar messages may cross unmodified. */
++        if (!((msg <= WM_ENABLE && msg != WM_GETTEXT) || msg == WM_PAINT || msg == WM_ERASEBKGND ||
++              msg == WM_SHOWWINDOW || msg == WM_NCPAINT || msg == WM_NCACTIVATE || msg == WM_DESTROY ||
++              msg == WM_NCDESTROY || msg == WM_CANCELMODE || msg == WM_GETDLGCODE || msg == WM_GETFONT ||
++              msg == WM_CHANGEUISTATE || msg == WM_UPDATEUISTATE || msg == WM_QUERYUISTATE ||
++              msg == WM_QUERYNEWPALETTE || msg == WM_PALETTECHANGED || msg == WM_DWMNCRENDERINGCHANGED ||
++              msg == WM_ACTIVATEAPP || msg == WM_IME_SETCONTEXT || msg == WM_IME_NOTIFY || msg==WM_GETTEXTLENGTH ||
++              /* Main-loop input/notifications: wParam/lParam are packed scalars. */
++              (msg >= WM_KEYFIRST && msg <= WM_KEYLAST) || (msg >= WM_MOUSEFIRST && msg <= WM_MOUSELAST) ||
++              (msg >= WM_NCMOUSEMOVE && msg <= WM_NCXBUTTONDBLCLK) || msg == WM_NCHITTEST ||
++              msg == WM_MOUSEHOVER || msg == WM_MOUSELEAVE || msg == WM_NCMOUSEHOVER || msg == WM_NCMOUSELEAVE ||
++              msg == WM_SYSCOMMAND || msg == WM_ENTERSIZEMOVE || msg == WM_EXITSIZEMOVE || msg == WM_CHILDACTIVATE ||
++              msg == WM_DISPLAYCHANGE ||
++              /* Desktop broadcasts while the owner works (background mode); scalar or zero arguments only. */
++              msg == WM_SYSCOLORCHANGE || msg == WM_FONTCHANGE || msg == WM_TIMECHANGE || msg == WM_THEMECHANGED ||
++              msg == WM_DWMCOMPOSITIONCHANGED || msg == WM_DWMCOLORIZATIONCOLORCHANGED ||
++              (msg == WM_POWERBROADCAST && !lp)))
++            xrt_fatal(&nested, XRT_EXIT_UNSUPPORTED, "dialog callback message 0x%x unsupported (wp=%llx lp=%llx)",
++                      msg, (unsigned long long)wp, (unsigned long long)lp);
++    }
++    xrt_event("gui_callback", "\"message\": %u, \"proc\": %u", msg, proc);
++    frame.previous=callback_frame; frame.window=h; frame.message=msg;
++    frame.host_wp=wp; frame.host_lp=lp; frame.guest_wp=args[2];frame.guest_lp=args[3];
++    frame.create_words=(msg==WM_CREATE || msg==WM_NCCREATE)?create_words:NULL;
++    callback_frame=&frame;
++    result = (INT_PTR)(int32_t)xrt_call_guest(&nested, proc, 4, args, 1);
++    callback_frame=frame.previous;
++    if (msg == WM_GETOBJECT) {
++        /* No guest accessibility object/cookie marshaller has been measured.
++         * Return the actual guest result; do not replace dispatch with FALSE. */
++        if (result)
++            xrt_fatal(&nested, XRT_EXIT_UNSUPPORTED, explicit_proc ?
++                      "WM_GETOBJECT: nonzero registered WNDPROC result requires measured accessibility marshalling" :
++                      "WM_GETOBJECT: nonzero guest dialog result requires measured accessibility marshalling");
++        xrt_event("gui_get_object_callback_return",
++                  "\"hwnd\":%u,\"proc\":%u,\"wparam\":%u,\"object_id\":%u,\"result\":%d,\"last_error\":%u",
++                  args[0],proc,args[2],args[3],(int)result,xrt_get_last_error(&nested));
++    }
++    if(frame.create_words && memcmp(create_words,G2H(scratch),48))
++        xrt_fatal(&nested,XRT_EXIT_UNSUPPORTED,"CREATESTRUCT field mutation requires marshalling");
++    if (msg == WM_WINDOWPOSCHANGING || msg == WM_WINDOWPOSCHANGED)
++        unpack_windowpos((WINDOWPOS *)lp, scratch);
++    if(msg==WM_STYLECHANGING || msg==WM_STYLECHANGED)gui_style_sync(&nested,msg,scratch,lp);
++    if (msg == WM_GETMINMAXINFO)
++    {
++        memcpy((void *)lp, G2H(scratch), 40);
++        dev_max_track((MINMAXINFO *)lp);
++    }
++    if (msg == WM_SIZING || msg == WM_MOVING)
++        memcpy((void *)lp, G2H(scratch), 16);
++    if (msg == WM_NCCALCSIZE)
++    {
++        if (wp)
++        {
++            NCCALCSIZE_PARAMS *n = (NCCALCSIZE_PARAMS *)lp;
++            memcpy(n->rgrc, G2H(scratch), 48);
++            unpack_windowpos(n->lppos, scratch + 52);
++        }
++        else
++            memcpy((void *)lp, G2H(scratch), 16);
++    }
++    if (msg == WM_GETFONT && result)
++    {
++        HFONT font = (HFONT)xrt_handle_get((uint32_t)result, XH_FONT);
++        if (!font)
++            xrt_fatal(&nested, XRT_EXIT_UNSUPPORTED, "WM_GETFONT returned unknown guest font");
++        result = (INT_PTR)font;
++    }
++    if(msg==WM_GETICON) {
++        uint32_t token=(uint32_t)result;
++        result=(INT_PTR)guest_icon(&nested,token);
++        xrt_event("gui_get_icon_callback_return","\"hwnd\":%u,\"selector\":%u,\"dpi\":%u,\"icon\":%u,\"last_error\":%u",
++            args[0],args[2],args[3],token,xrt_get_last_error(&nested));
++    }
++    if(msg==0xae)
++        xrt_event("gui_ae_callback_return","\"hwnd\":%u,\"wparam\":%u,\"lparam\":%u,\"result\":%d,\"last_error\":%u",args[0],args[2],args[3],(int)result,xrt_get_last_error(&nested));
++    if (msg == WM_ERASEBKGND || msg == WM_CTLCOLORSTATIC || msg == WM_CTLCOLORDLG || msg == WM_CTLCOLOREDIT ||
++        msg == WM_CTLCOLORBTN)
++    {
++        free(xrt_handle_get(args[2], XH_DC));
++        xrt_handle_free(args[2]);
++        if (result && msg != WM_ERASEBKGND)
++            xrt_fatal(&nested, XRT_EXIT_UNSUPPORTED, "dialog callback brush result requires handle translation");
++    }
++    SetLastError(xrt_get_last_error(&nested));
++    { INT_PTR xm_ret=(result);xm_scope(callback_cpu,XM_END,XM_CALLBACK,"USER32.invoke_gui_proc",(uint64_t)xm_ret);return xm_ret;}
++}
++static INT_PTR CALLBACK dialog_bridge(HWND h, UINT msg, WPARAM wp, LPARAM lp)
++{
++    return invoke_gui_proc(h, msg, wp, lp, 0);
++}
++/* Developer background mode (create_dialog): the dialog manager's default focus assignment after a nonzero
++ * WM_INITDIALOG activates even a hidden dialog (measured: experiments/xrt/tests/bg_input "dialog"). It gets FALSE;
++ * the control it would have focused becomes the guest's virtual focus (hle_GetFocus). Other messages unchanged. */
++static INT_PTR CALLBACK dev_background_dialog_bridge(HWND h, UINT msg, WPARAM wp, LPARAM lp)
++{
++    INT_PTR result = invoke_gui_proc(h, msg, wp, lp, 0);
++    if (msg == WM_INITDIALOG && result)
++    {
++        dev_background_focus = GetNextDlgTabItem(h, NULL, FALSE);
++        if (!dev_background_focus) dev_background_focus = h;
++        xrt_log("DEV background: WM_INITDIALOG default focus %p kept virtual", dev_background_focus);
++        return FALSE;
++    }
++    return result;
++}
++static HMODULE resource_module(CPU *c, uint32_t module)
++{
++    int i;
++    for (i = 0; i < xrt_module_count(); i++)
++    {
++        XrtModule *m = xrt_module_get(i);
++        if (m->base == module)
++        {
++            WCHAR path[1024];
++            HMODULE host;
++            if (!xm_win_MultiByteToWideChar(CP_ACP, 0, m->path, -1, path, 1024))
++            {
++                xrt_set_last_error(c, GetLastError());
++                return NULL;
++            }
++            host = xm_win_LoadLibraryExW(path, NULL, LOAD_LIBRARY_AS_DATAFILE | LOAD_LIBRARY_AS_IMAGE_RESOURCE);
++            if (!host)
++                xrt_set_last_error(c, GetLastError());
++            return host;
++        }
++    }
++    xrt_fatal(c, XRT_EXIT_UNSUPPORTED, "dialog resource module %08x unknown", module);
++}
++static void create_dialog(CPU *c, int wide)
++{
++    HMODULE resources;
++    HWND h, parent = window_host(ARG(2));
++    uint32_t result = 0;
++    CPU *previous = callback_cpu;
++    uint32_t oldproc = creating_proc;
++    if (ARG(2) && !parent)
++    {
++        xrt_set_last_error(c, ERROR_INVALID_WINDOW_HANDLE);
++        RET_STD(5, 0);
++        return;
++    }
++    begin(c);
++    resources = resource_module(c, ARG(0));
++    if (!resources)
++    {
++        RET_STD(5, 0);
++        return;
++    }
++    callback_cpu = c;
++    creating_proc = ARG(3);
++    if (xrt_dev_background() && !parent)
++    {
++        /* Developer background mode: a top-level dialog (the startup splash) activates itself while it is created,
++         * visible or not: the dialog manager's default focus after WM_INITDIALOG (WM_ACTIVATEAPP before the first
++         * CreateWindowEx, runs 20261101-121336 and -132447 with an idle owner). Every top-level dialog is created from a
++         * private copy of its template through dev_background_dialog_bridge; a WS_VISIBLE one is shown afterwards
++         * without activation at the bottom. */
++        HRSRC found = wide ? FindResourceW(resources, ARG(1) < 0x10000u ? MAKEINTRESOURCEW(ARG(1)) : (LPCWSTR)G2H(ARG(1)), (LPCWSTR)RT_DIALOG)
++                           : FindResourceA(resources, ARG(1) < 0x10000u ? MAKEINTRESOURCEA(ARG(1)) : (LPCSTR)G2H(ARG(1)), (LPCSTR)RT_DIALOG);
++        DWORD size = found ? SizeofResource(resources, found) : 0;
++        const BYTE *bytes = found ? (const BYTE *)LockResource(LoadResource(resources, found)) : NULL;
++        BYTE *copy = bytes && size >= 18 ? (BYTE *)HeapAlloc(GetProcessHeap(), 0, size) : NULL;
++        if (copy)
++        {
++            DWORD *style;
++            memcpy(copy, bytes, size);
++            style = (DWORD *)(copy + (((WORD *)copy)[1] == 0xffffu ? 12 : 0)); /* DLGTEMPLATEEX: signature 0xffff, style at 12 */
++            {
++                int visible = (*style & WS_VISIBLE) != 0;
++                *style &= ~WS_VISIBLE;
++                xrt_log("DEV background: top-level dialog (template style %08lx) created without activation", (unsigned long)(*style | (visible ? WS_VISIBLE : 0)));
++                h = wide ? CreateDialogIndirectParamW(resources, (LPCDLGTEMPLATEW)copy, parent, dev_background_dialog_bridge, (LPARAM)(int32_t)ARG(4))
++                         : CreateDialogIndirectParamA(resources, (LPCDLGTEMPLATEA)copy, parent, dev_background_dialog_bridge, (LPARAM)(int32_t)ARG(4));
++                HeapFree(GetProcessHeap(), 0, copy);
++                if (h && visible && IsWindow(h))
++                {
++                    ShowWindow(h, SW_SHOWNOACTIVATE);
++                    dev_background_bottom(h);
++                }
++                goto created;
++            }
++        }
++    }
++    if (wide)
++        h = xm_win_CreateDialogParamW(resources, ARG(1) < 0x10000u ? MAKEINTRESOURCEW(ARG(1)) : (LPCWSTR)G2H(ARG(1)),
++                               parent, dialog_bridge, (LPARAM)(int32_t)ARG(4));
++    else
++        h = xm_win_CreateDialogParamA(resources, ARG(1) < 0x10000u ? MAKEINTRESOURCEA(ARG(1)) : (LPCSTR)G2H(ARG(1)),
++                               parent, dialog_bridge, (LPARAM)(int32_t)ARG(4));
++created:
++    end(c);
++    if (h)
++        result = window_token(h);
++    callback_cpu = previous;
++    creating_proc = oldproc;
++    xm_win_FreeLibrary(resources);
++    forget_dead_windows();
++    xrt_event("gui_create_dialog", "\"handle\": %u", result);
++    RET_STD(5, result);
++}
++static void hle_CreateDialogParamW(CPU *c)
++{
++    create_dialog(c, 1);
++}
++static void hle_CreateDialogParamA(CPU *c)
++{
++    create_dialog(c, 0);
++}
++static void hle_GetDlgItem(CPU *c)
++{
++    HWND h;
++    uint32_t result;
++    begin(c);
++    h = xm_win_GetDlgItem(window_host(ARG(0)), (int)ARG(1));
++    end(c);
++    result = window_token(h);
++    RET_STD(2, result);
++}
++static void hle_GetSystemMetrics(CPU *c)
++{
++    int result;
++    begin(c);
++    result = xm_win_GetSystemMetrics((int)ARG(0));
++    end(c);
++    RET_STD(1, result);
++}
++static void hle_GetWindowRect(CPU *c)
++{
++    RECT rect;
++    BOOL ok;
++    begin(c);
++    ok = xm_win_GetWindowRect(window_host(ARG(0)), ARG(1) ? &rect : NULL);
++    end(c);
++    if (ok)
++        memcpy(G2H(ARG(1)), &rect, 16);
++    RET_STD(2, ok);
++}
++static void hle_GetDesktopWindow(CPU* c)
++{
++    HWND h; begin(c); h=xm_win_GetDesktopWindow(); end(c);
++    RET_STD(0,window_token(h));
++}
++static void hle_GetClientRect(CPU* c)
++{
++    RECT rect; BOOL ok;
++    begin(c); ok=xm_win_GetClientRect(window_host(ARG(0)),ARG(1)?&rect:NULL); end(c);
++    if(ok) memcpy(G2H(ARG(1)),&rect,16);
++    RET_STD(2,ok);
++}
++static void hle_IsWindow(CPU* c)
++{
++    BOOL ok;begin(c);ok=xm_win_IsWindow(window_host(ARG(0)));end(c);RET_STD(1,ok);
++}
++static void hle_ShowWindow(CPU* c)
++{
++    BOOL previous_visible;CPU* previous=callback_cpu;int cmd=(int)ARG(1);
++    if(xrt_dev_background()&&dev_background_show(cmd)!=cmd){xrt_log("DEV background: ShowWindow %d -> %d",cmd,dev_background_show(cmd));cmd=dev_background_show(cmd);}
++    callback_cpu=c;begin(c);previous_visible=xm_win_ShowWindow(window_host(ARG(0)),cmd);
++    if(xrt_dev_background())dev_background_bottom(window_host(ARG(0)));
++    end(c);callback_cpu=previous;
++    RET_STD(2,previous_visible);
++}
++/* MoveWindow accepts signed geometry and BOOL repaint. Ownership/thread
++ * checks and typed callback marshalling remain in xrt_gui_device_window. */
++static void hle_MoveWindow(CPU*c) {
++    HWND h;BOOL ok;CPU*previous;DWORD error;
++    { DWORD saved_error=GetLastError(),saved_mxcsr=_mm_getcsr();
++      __declspec(align(16)) CONTEXT context;LONG id=InterlockedIncrement(&gui_diagnostic_serial);
++      RtlCaptureContext(&context);gui_diagnostic_bytes(id,"move_host_context",&context,sizeof context);
++      gui_diagnostic_bytes(id,"move_guest_cpu",c,sizeof *c);_mm_setcsr(saved_mxcsr);SetLastError(saved_error); }
++    if((uint64_t)c->r[ESP]+28>0x100000000ull || !xrt_is_committed(c->r[ESP],28) ||
++       !gui_diagnostic_readable(G2H(c->r[ESP]),28))
++        xrt_fatal(c,76,"SAFETY: MoveWindow unreadable argument frame");
++    xrt_event("gui_move_window_call","\"hwnd\":%u,\"x\":%u,\"y\":%u,\"width\":%u,\"height\":%u,\"repaint\":%u,\"site\":%u",
++        ARG(0),ARG(1),ARG(2),ARG(3),ARG(4),ARG(5),c->pc);
++    h=xrt_gui_device_window(c,ARG(0));previous=xrt_gui_callback_enter(c);begin(c);
++    ok=xm_win_MoveWindow(h,(int)ARG(1),(int)ARG(2),(int)ARG(3),(int)ARG(4),(BOOL)ARG(5));
++    error=GetLastError();xrt_gui_callback_leave(previous);xrt_set_last_error(c,error);RET_STD(6,ok);
++    xrt_event("gui_move_window_return","\"result\":%u,\"last_error\":%lu,\"esp\":%u,\"return\":%u",(unsigned)ok,error,c->r[ESP],c->rv);
++}
++static void hle_SetWindowPos(CPU *c)
++{
++    BOOL ok;
++    CPU *prev = callback_cpu;
++    UINT flags = ARG(6);
++    if (xrt_dev_background() && insert_host(ARG(1)) != HWND_BOTTOM) {
++        /* developer background mode: no activation, no raise (HWND_TOP/TOPMOST included) */
++        xrt_log("DEV background: SetWindowPos insert %08x flags %x -> %x", ARG(1), flags, flags | SWP_NOACTIVATE | SWP_NOZORDER);
++        flags |= SWP_NOACTIVATE | SWP_NOZORDER;
++    }
++    callback_cpu = c;
++    begin(c);
++    ok = xm_win_SetWindowPos(window_host(ARG(0)), insert_host(ARG(1)), (int)ARG(2), (int)ARG(3), (int)ARG(4), (int)ARG(5),
++                      flags);
++    end(c);
++    callback_cpu = prev;
++    RET_STD(7, ok);
++}
++static void send_message(CPU *c, int wide)
++{
++    LRESULT result;
++    UINT msg = ARG(1);
++    LPARAM lp;
++    WPARAM wp = ARG(2);
++    CPU *prev = callback_cpu;
++    if(msg==WM_GETICON) {
++        uint32_t token;
++        if(wp>ICON_SMALL2)
++            xrt_fatal(c,XRT_EXIT_UNSUPPORTED,"WM_GETICON: invalid selector or unrepresentable DPI %u/%u",(unsigned)wp,ARG(3));
++        callback_cpu=c;begin(c);
++        result=wide?xm_win_SendMessageW(window_host(ARG(0)),msg,wp,(LPARAM)(int32_t)ARG(3)):xm_win_SendMessageA(window_host(ARG(0)),msg,wp,(LPARAM)(int32_t)ARG(3));
++        end(c);callback_cpu=prev;token=borrowed_icon_token(c,(HICON)result);
++        RET_STD(4,token);return;
++    }
++    if(msg==WM_NCACTIVATE) {
++        /* WWindow::WndProc forwards activation to its owner: wParam BOOL, lParam 0, -1 or an update
++         * region whose 32-bit value is the full GDI handle (sign-extended, as for WM_NCPAINT). */
++        static unsigned logged;
++        if(logged++<8)xrt_log("SendMessage WM_NCACTIVATE wParam %u lParam %08x",(unsigned)wp,ARG(3));
++        callback_cpu=c;begin(c);
++        result=wide?xm_win_SendMessageW(window_host(ARG(0)),msg,wp,(LPARAM)(int32_t)ARG(3)):xm_win_SendMessageA(window_host(ARG(0)),msg,wp,(LPARAM)(int32_t)ARG(3));
++        end(c);callback_cpu=prev;RET_STD(4,(uint32_t)result);return;
++    }
++    if(msg==WM_SETTEXT || msg==WM_GETTEXTLENGTH) {
++        if(msg==WM_SETTEXT && ARG(3) && ARG(3)<0x10000)
++            xrt_fatal(c,XRT_EXIT_UNSUPPORTED,"WM_SETTEXT invalid guest string");
++        lp=msg==WM_SETTEXT && ARG(3) ? (LPARAM)G2H(ARG(3)) : (LPARAM)(int32_t)ARG(3);
++        callback_cpu=c;begin(c);
++        result=wide?xm_win_SendMessageW(window_host(ARG(0)),msg,wp,lp):xm_win_SendMessageA(window_host(ARG(0)),msg,wp,lp);
++        end(c);callback_cpu=prev;RET_STD(4,(uint32_t)result);return;
++    }
++    if(msg==WM_SETFONT || msg==WM_GETFONT) {
++        if(msg==WM_SETFONT) {
++            wp=(WPARAM)xrt_handle_get(ARG(2),XH_FONT);
++            if(ARG(2) && !wp) xrt_fatal(c,XRT_EXIT_UNSUPPORTED,"WM_SETFONT unknown guest font");
++        }
++        callback_cpu=c;begin(c);
++        result=wide?xm_win_SendMessageW(window_host(ARG(0)),msg,wp,(LPARAM)(int32_t)ARG(3)):xm_win_SendMessageA(window_host(ARG(0)),msg,wp,(LPARAM)(int32_t)ARG(3));
++        end(c);callback_cpu=prev;
++        if(msg==WM_GETFONT && result) {
++            uint32_t font=known_font_token((HFONT)result);
++            if(!font) xrt_fatal(c,XRT_EXIT_UNSUPPORTED,"WM_GETFONT returned a font without guest ownership");
++            RET_STD(4,font);return;
++        }
++        RET_STD(4,(uint32_t)result);return;
++    }
++    if (msg != STM_SETIMAGE)
++        xrt_fatal(c, XRT_EXIT_UNSUPPORTED, "SendMessage 0x%x requires message marshalling", msg);
++    if (wp != IMAGE_BITMAP)
++        xrt_fatal(c, XRT_EXIT_UNSUPPORTED, "STM_SETIMAGE type %u unsupported", (unsigned)wp);
++    lp = (LPARAM)xrt_handle_get(ARG(3), XH_BITMAP);
++    if (ARG(3) && !lp)
++        xrt_fatal(c, XRT_EXIT_UNSUPPORTED, "STM_SETIMAGE bitmap handle %08x unknown", ARG(3));
++    callback_cpu = c;
++    begin(c);
++    result =
++        wide ? xm_win_SendMessageW(window_host(ARG(0)), msg, wp, lp) : xm_win_SendMessageA(window_host(ARG(0)), msg, wp, lp);
++    end(c);
++    callback_cpu = prev;
++    if (result)
++        xrt_fatal(c, XRT_EXIT_UNSUPPORTED, "STM_SETIMAGE previous bitmap requires ownership tracking");
++    RET_STD(4, 0);
++}
++static void hle_SendMessageW(CPU *c)
++{
++    send_message(c, 1);
++}
++static void hle_SendMessageA(CPU *c)
++{
++    send_message(c, 0);
++}
++static void hle_UpdateWindow(CPU *c)
++{
++    BOOL ok;
++    CPU *prev = callback_cpu;
++    callback_cpu = c;
++    begin(c);
++    ok = xm_win_UpdateWindow(window_host(ARG(0)));
++    end(c);
++    callback_cpu = prev;
++    RET_STD(1, ok);
++}
++static void hle_DestroyWindow(CPU *c)
++{
++    BOOL ok;
++    unsigned i;
++    CPU *prev = callback_cpu;
++    for(i=0;i<1024;i++)if(windows[i].token==ARG(0) && device_window_pins[i])
++        xrt_fatal(c,76,"DestroyWindow: live D3D8 device retains HWND token %08x",ARG(0));
++    callback_cpu = c;
++    begin(c);
++    ok = xm_win_DestroyWindow(window_host(ARG(0)));
++    end(c);
++    callback_cpu = prev;
++    forget_dead_windows();
++    RET_STD(1, ok);
++}
++/* Ordinal identity verified against the host export as well as the documented name. */
++static void hle_InitCommonControls(CPU *c)
++{
++    static HMODULE module;
++    FARPROC ordinal, named;
++    typedef void(WINAPI * Init)(void);
++    begin(c);
++    if (!module)
++        module = xm_win_LoadLibraryExW(L"comctl32.dll", NULL, LOAD_LIBRARY_SEARCH_SYSTEM32);
++    ordinal = module ? xm_win_GetProcAddress(module, MAKEINTRESOURCEA(17)) : NULL;
++    named = module ? xm_win_GetProcAddress(module, "InitCommonControls") : NULL;
++    if (!ordinal || ordinal != named)
++        xrt_fatal(c, XRT_EXIT_SETUP, "COMCTL32 ordinal 17 differs from InitCommonControls");
++    ((Init)ordinal)();
++    end(c);
++    /* Keep the host module loaded: it owns the registered common control classes. */
++    xrt_event("gui_init_common_controls", NULL);
++    c->rv = pop32(c); /* void function: preserve guest EAX */
++}
++#include "hle_gui_classes.inc"
++const XrtHle xrt_hle_gui[] = {{"comctl32.dll", "#17", hle_InitCommonControls},
++                              {"imm32.dll", "ImmAssociateContext", hle_ImmAssociateContext},
++                              {"user32.dll", "AdjustWindowRect", hle_AdjustWindowRect},
++                              {"user32.dll", "GetKeyState", hle_GetKeyState},
++                              {"user32.dll", "SetKeyboardState", hle_SetKeyboardState},
++                              {"user32.dll", "AttachThreadInput", hle_AttachThreadInput},
++                              {"user32.dll", "GetFocus", hle_GetFocus},
++                              {"user32.dll", "SetFocus", hle_SetFocus},
++                              {"user32.dll", "SetCapture", hle_SetCapture},
++                              {"user32.dll", "ClipCursor", hle_ClipCursor},
++                              {"user32.dll", "GetForegroundWindow", hle_GetForegroundWindow},
++                              {"user32.dll", "SetForegroundWindow", hle_SetForegroundWindow},
++                              {"user32.dll", "SetActiveWindow", hle_SetActiveWindow},
++                              {"user32.dll", "GetWindowThreadProcessId", hle_GetWindowThreadProcessId},
++                              {"user32.dll", "MapWindowPoints", hle_MapWindowPoints},
++                              {"user32.dll", "GetClassInfoExW", hle_GetClassInfoExW},
++                              {"user32.dll", "GetClassInfoExA", hle_GetClassInfoExA},
++                              {"user32.dll", "RegisterClassExW", hle_RegisterClassExW},
++                              {"user32.dll", "RegisterClassExA", hle_RegisterClassExA},
++                              {"user32.dll", "UnregisterClassW", hle_UnregisterClassW},
++                              {"user32.dll", "UnregisterClassA", hle_UnregisterClassA},
++                              {"user32.dll", "CallWindowProcW", hle_CallWindowProcW},
++                              {"user32.dll", "CallWindowProcA", hle_CallWindowProcA},
++                              {"user32.dll", "LoadIconW", hle_LoadIconW},
++                              {"user32.dll", "LoadIconA", hle_LoadIconA},
++                              {"user32.dll", "LoadCursorW", hle_LoadCursorW},
++                              {"user32.dll", "LoadCursorA", hle_LoadCursorA},
++                              {"user32.dll", "SetCursor", hle_SetCursor},
++                              {"gdi32.dll", "CreateSolidBrush", hle_CreateSolidBrush},
++                              {"gdi32.dll", "CreateBitmap", hle_CreateBitmap},
++                              {"gdi32.dll", "CreatePatternBrush", hle_CreatePatternBrush},
++                              {"gdi32.dll", "GetStockObject", hle_GetStockObject},
++                              {"user32.dll", "GetDesktopWindow", hle_GetDesktopWindow},
++                              {"user32.dll", "GetClientRect", hle_GetClientRect},
++                              {"user32.dll", "CreateWindowExW", hle_CreateWindowExW},
++                              {"user32.dll", "CreateWindowExA", hle_CreateWindowExA},
++                              {"user32.dll", "DefWindowProcW", hle_DefWindowProcW},
++                              {"user32.dll", "DefWindowProcA", hle_DefWindowProcA},
++                              {"user32.dll", "GetWindowLongW", hle_GetWindowLongW},
++                              {"user32.dll", "SetWindowLongA", hle_SetWindowLongA},
++                              {"user32.dll", "SetWindowLongW", hle_SetWindowLongW},
++                              {"user32.dll", "SetMenu", hle_SetMenu},
++                              {"user32.dll", "PostMessageA", hle_PostMessageA},
++                              {"user32.dll", "PostMessageW", hle_PostMessageW},
++                              {"user32.dll", "PeekMessageW", hle_PeekMessageW},
++                              {"user32.dll", "PeekMessageA", hle_PeekMessageA},
++                              {"user32.dll", "TranslateMessage", hle_TranslateMessage},
++                              {"user32.dll", "DispatchMessageW", hle_DispatchMessageW},
++                              {"user32.dll", "DispatchMessageA", hle_DispatchMessageA},
++                              {"user32.dll", "GetCursorPos", hle_GetCursorPos},
++                              {"user32.dll", "ClientToScreen", hle_ClientToScreen},
++                              {"user32.dll", "ScreenToClient", hle_ScreenToClient},
++                              {"user32.dll", "SetCursorPos", hle_SetCursorPos},
++                              {"user32.dll", "ShowCursor", hle_ShowCursor},
++                              {"user32.dll", "ValidateRect", hle_ValidateRect},
++                              {"user32.dll", "GetMessageTime", hle_GetMessageTime},
++                              {"user32.dll", "GetParent", hle_GetParent},
++
++                              {"user32.dll", "GetWindowLongA", hle_GetWindowLongA},
++                              {"user32.dll", "IsWindow", hle_IsWindow},
++                              {"user32.dll", "ShowWindow", hle_ShowWindow},
++                              {"user32.dll", "SetPropW", hle_SetPropW},
++                              {"user32.dll", "SetPropA", hle_SetPropA},
++                              {"user32.dll", "GetPropW", hle_GetPropW},
++                              {"user32.dll", "GetPropA", hle_GetPropA},
++                              {"user32.dll", "RemovePropW", hle_RemovePropW},
++                              {"user32.dll", "RemovePropA", hle_RemovePropA},
++                              {"comctl32.dll", "InitCommonControls", hle_InitCommonControls},
++                              {"user32.dll", "GetDC", hle_GetDC},
++                              {"user32.dll", "ReleaseDC", hle_ReleaseDC},
++                              {"user32.dll", "CreateDialogParamW", hle_CreateDialogParamW},
++                              {"user32.dll", "CreateDialogParamA", hle_CreateDialogParamA},
++                              {"user32.dll", "GetDlgItem", hle_GetDlgItem},
++                              {"user32.dll", "GetSystemMetrics", hle_GetSystemMetrics},
++                              {"user32.dll", "GetWindowRect", hle_GetWindowRect},
++                              {"gdi32.dll", "GetDIBits", hle_GetDIBits},
++                              {"gdi32.dll", "GetDeviceCaps", hle_GetDeviceCaps},
++                              {"user32.dll", "SetWindowPos", hle_SetWindowPos},
++                              {"user32.dll", "MoveWindow", hle_MoveWindow},
++                              {"user32.dll", "SendMessageW", hle_SendMessageW},
++                              {"user32.dll", "SendMessageA", hle_SendMessageA},
++                              {"user32.dll", "UpdateWindow", hle_UpdateWindow},
++                              {"user32.dll", "DestroyWindow", hle_DestroyWindow},
++                              {"gdi32.dll", "CreateDIBitmap", hle_CreateDIBitmap},
++                              {"gdi32.dll", "DeleteObject", hle_DeleteObject},
++                              {0}};
+diff --git a/out/dev-init-savepoints/x87v-20261031/runtime/hle_gui_classes.inc b/out/dev-init/runtime/hle_gui_classes.inc
+index 00dfee1..40ad812 100644
+--- a/out/dev-init-savepoints/x87v-20261031/runtime/hle_gui_classes.inc
++++ b/out/dev-init/runtime/hle_gui_classes.inc
+@@ -351,6 +351,7 @@ static LPARAM forward_message(CPU* c,HWND h,UINT msg,uint32_t wp,uint32_t lp,WPA
+             unpack_windowpos((WINDOWPOS*)f->host_lp,lp);break;
+         case WM_STYLECHANGING: case WM_STYLECHANGED: gui_style_sync(c,msg,lp,f->host_lp);break;
+         case WM_GETMINMAXINFO: memcpy((void*)f->host_lp,G2H(lp),40);break;
++        case WM_SIZING: case WM_MOVING: memcpy((void*)f->host_lp,G2H(lp),16);break;
+         case WM_NCCALCSIZE:
+             if(wp) {
+                 NCCALCSIZE_PARAMS* n=(NCCALCSIZE_PARAMS*)f->host_lp;
+@@ -373,6 +374,7 @@ static void refresh_forwarded_message(UINT msg,uint32_t wp,uint32_t lp,LPARAM ho
+     case WM_WINDOWPOSCHANGING: case WM_WINDOWPOSCHANGED: pack_windowpos(lp,(WINDOWPOS*)host_lp);break;
+     case WM_STYLECHANGING: case WM_STYLECHANGED: gui_transition_memory(callback_cpu,lp,8,1);memcpy(G2H(lp),(void*)host_lp,8);break;
+     case WM_GETMINMAXINFO: memcpy(G2H(lp),(void*)host_lp,40);break;
++    case WM_SIZING: case WM_MOVING: memcpy(G2H(lp),(void*)host_lp,16);break;
+     case WM_NCCALCSIZE:
+         if(wp) { NCCALCSIZE_PARAMS* n=(NCCALCSIZE_PARAMS*)host_lp;memcpy(G2H(lp),n->rgrc,48);pack_windowpos(lp+52,n->lppos); }
+         else memcpy(G2H(lp),(void*)host_lp,16);
+@@ -392,14 +394,19 @@ static void def_window_proc(CPU* c,int wide) {
+ }
+ static void create_window(CPU* c,int wide) {
+     HINSTANCE instance=class_module(c,ARG(10)); HWND parent=window_host(ARG(8)),h;
+-    CPU* previous=callback_cpu; uint32_t token=0;
++    CPU* previous=callback_cpu; uint32_t token=0,style=ARG(3);
+     uint32_t esp=c->r[ESP],caller=rd32(esp);
++    /* Developer background mode: a visible top-level window is created hidden, then shown without activation
++     * at the bottom of the z-order (hle_gui.c dev_background_show/bottom). */
++    int background_show=xrt_dev_background() && !(style&WS_CHILD) && (style&WS_VISIBLE);
+     if(ARG(8) && !parent) {xrt_set_last_error(c,ERROR_INVALID_WINDOW_HANDLE);RET_STD(12,0);return;}
+     if(ARG(9) && !(ARG(3)&WS_CHILD)) xrt_fatal(c,XRT_EXIT_UNSUPPORTED,"CreateWindowEx menu requires typed mapping");
+     xrt_event("gui_create_window_call","\"wide\":%d,\"style\":%u,\"esp\":%u,\"return\":%u",wide,ARG(3),esp,caller);
++    if(background_show){style&=~WS_VISIBLE;xrt_log("DEV background: CreateWindowEx style %08x shown without activation",ARG(3));}
+     begin(c);callback_cpu=c;
+-    h=wide?xm_win_CreateWindowExW(ARG(0),class_string(ARG(1)),class_string(ARG(2)),ARG(3),(int)ARG(4),(int)ARG(5),(int)ARG(6),(int)ARG(7),parent,(HMENU)(uintptr_t)ARG(9),instance,(void*)(uintptr_t)ARG(11)):
+-        xm_win_CreateWindowExA(ARG(0),class_string(ARG(1)),class_string(ARG(2)),ARG(3),(int)ARG(4),(int)ARG(5),(int)ARG(6),(int)ARG(7),parent,(HMENU)(uintptr_t)ARG(9),instance,(void*)(uintptr_t)ARG(11));
++    h=wide?xm_win_CreateWindowExW(ARG(0),class_string(ARG(1)),class_string(ARG(2)),style,(int)ARG(4),(int)ARG(5),(int)ARG(6),(int)ARG(7),parent,(HMENU)(uintptr_t)ARG(9),instance,(void*)(uintptr_t)ARG(11)):
++        xm_win_CreateWindowExA(ARG(0),class_string(ARG(1)),class_string(ARG(2)),style,(int)ARG(4),(int)ARG(5),(int)ARG(6),(int)ARG(7),parent,(HMENU)(uintptr_t)ARG(9),instance,(void*)(uintptr_t)ARG(11));
++    if(h && background_show){xm_win_ShowWindow(h,SW_SHOWNOACTIVATE);dev_background_bottom(h);}
+     end(c); if(h) token=window_token(h);callback_cpu=previous;forget_dead_windows();
+     xrt_event("gui_create_window","\"handle\": %u, \"wide\": %d, \"error\": %u",token,wide,xrt_get_last_error(c));
+     RET_STD(12,token);
+diff --git a/out/dev-init-savepoints/x87v-20261031/runtime/hle_kernel32.c b/out/dev-init/runtime/hle_kernel32.c
+index b637834..df3bbb1 100644
+--- a/out/dev-init-savepoints/x87v-20261031/runtime/hle_kernel32.c
++++ b/out/dev-init/runtime/hle_kernel32.c
+@@ -262,6 +262,39 @@ static const char* sandbox_rel(char* out, size_t n, const uint16_t* p) {
+         snprintf(out, n, "%s", full);
+     return out;
+ }
++/* CreateDirectoryW (UGameEngine::SaveGame creates ..\Save before writing a save): the directory must be inside the
++ * sandbox; only the NULL security-attributes form is modelled. Logged relative to the sandbox. */
++static void hle_CreateDirectoryW(CPU* c) {
++    const uint16_t* p = (const uint16_t*)G2H(ARG(0));
++    char a[620];
++    BOOL ok;
++    if (ARG(1))
++        xrt_fatal(c, XRT_EXIT_UNSUPPORTED, "CreateDirectoryW: SECURITY_ATTRIBUTES %08x unmodelled", ARG(1));
++    require_sandbox(c, p, "CreateDirectory");
++    ok = CreateDirectoryW((LPCWSTR)p, NULL);
++    if (!ok)
++        set_err_from_host(c);
++    else
++        xrt_set_last_error(c, NO_ERROR);
++    xrt_log("CreateDirectoryW(\"%s\") -> %d (error %u)", sandbox_rel(a, sizeof a, p), ok, ok ? 0u : xrt_get_last_error(c));
++    RET_STD(2, ok);
++}
++/* CopyFileW (UGameEngine::SaveGame copies the written save): both names inside the sandbox; bFailIfExists scalar. */
++static void hle_CopyFileW(CPU* c) {
++    const uint16_t *from = (const uint16_t*)G2H(ARG(0)), *to = (const uint16_t*)G2H(ARG(1));
++    char a[620], b[620];
++    BOOL ok;
++    require_sandbox(c, from, "CopyFile (source)");
++    require_sandbox(c, to, "CopyFile (destination)");
++    ok = CopyFileW((LPCWSTR)from, (LPCWSTR)to, ARG(2) != 0);
++    if (!ok)
++        set_err_from_host(c);
++    else
++        xrt_set_last_error(c, NO_ERROR);
++    xrt_log("CopyFileW(\"%s\", \"%s\", %u) -> %d (error %u)", sandbox_rel(a, sizeof a, from), sandbox_rel(b, sizeof b, to), ARG(2),
++            ok, ok ? 0u : xrt_get_last_error(c));
++    RET_STD(3, ok);
++}
+ static void hle_MoveFileW(CPU* c) {
+     const uint16_t *from = (const uint16_t*)G2H(ARG(0)), *to = (const uint16_t*)G2H(ARG(1));
+     char a[620], b[620], j1[700], j2[700];
+@@ -1490,6 +1523,8 @@ const XrtHle xrt_hle_kernel32[] = {
+     {"kernel32.dll", "SetFileAttributesW", hle_SetFileAttributesW},
+     {"kernel32.dll", "DeleteFileW", hle_DeleteFileW},
+     {"kernel32.dll", "MoveFileW", hle_MoveFileW},
++    {"kernel32.dll", "CreateDirectoryW", hle_CreateDirectoryW},
++    {"kernel32.dll", "CopyFileW", hle_CopyFileW},
+     {"kernel32.dll", "SetCurrentDirectoryW", hle_SetCurrentDirectoryW},
+     {"kernel32.dll", "GetCurrentDirectoryW", hle_GetCurrentDirectoryW},
+     {"kernel32.dll", "FindFirstFileW", hle_FindFirstFileW},
+diff --git a/out/dev-init-savepoints/x87v-20261031/runtime/message_pump.inc b/out/dev-init/runtime/message_pump.inc
+index 8a2953b..f49f534 100644
+--- a/out/dev-init-savepoints/x87v-20261031/runtime/message_pump.inc
++++ b/out/dev-init/runtime/message_pump.inc
+@@ -26,6 +26,7 @@ static void peek_message(CPU*c,int wide) {
+     if(filter==0xffffffffu)h=(HWND)(LONG_PTR)-1;else if(filter)h=xrt_gui_device_window(c,filter);
+     xrt_dev_input_tick(); /* developer input script: posts its scripted messages before this peek */
+     prev=xrt_gui_callback_enter(c);begin(c);
++    xrt_dev_input_window_actions(); /* developer input script: window resize, inside the callback region */
+     pump_probe(&q,XM_BEGIN,wide?"WIN.PeekMessageW":"WIN.PeekMessageA",(uint64_t)(uintptr_t)h,flags,0);
+     r=wide?PeekMessageW(&m,h,ARG(2),ARG(3),flags):PeekMessageA(&m,h,ARG(2),ARG(3),flags);
+     pump_probe(&q,XM_END,q.name,(uint64_t)(uintptr_t)h,flags,(uint64_t)r);
+diff --git a/out/dev-init-savepoints/x87v-20261031/runtime/monitor_com.inc b/out/dev-init/runtime/monitor_com.inc
+index 33e0f97..b90bf83 100644
+--- a/out/dev-init-savepoints/x87v-20261031/runtime/monitor_com.inc
++++ b/out/dev-init/runtime/monitor_com.inc
+@@ -455,6 +455,23 @@ static HRESULT xm_D8Device_Present(CPU*c,D8Device* a0, const RECT* a1, const REC
+  xm_probe(c,&q);
+  return ret;
+ }
++typedef char xm_slot_D8Device_Reset[offsetof(D8DeviceVtable,Reset)==14*sizeof(void*)?1:-1];
++static HRESULT xm_D8Device_Reset(CPU*c,D8Device* a0, D8Present* a1) {
++ XmRequest q={0}; HRESULT ret;
++ q.event=XM_BEGIN;q.domain=XM_NATIVE;q.name="D8Device.Reset";q.slot=14;q.interface_id=2;q.host=(uint64_t)(uintptr_t)a0;q.count=2;
++ q.values[0].type=XM_OPAQUE;q.values[0].bytes=sizeof(a0);
++ q.values[0].value=(uint64_t)(uintptr_t)a0;
++ q.values[1].type=XM_OPAQUE;q.values[1].bytes=sizeof(a1);
++ q.values[1].value=(uint64_t)(uintptr_t)a1;
++ xm_probe(c,&q);
++ if(a1)xm_span(c,"D8Device.Reset.input1",a1,sizeof(*a1));
++ ret=a0->vt->Reset(a0,a1);
++ q.event=XM_END;q.result=(uint64_t)ret;
++ if(a1)xm_span(c,"D8Device.Reset.output1",a1,sizeof(*a1));
++ xm_probe(c,&q);
++ return ret;
++}
++#define XM_Reset(cpu,self,...) xm_D8Device_Reset((cpu),(self),##__VA_ARGS__)
+ typedef char xm_slot_D8Device_GetBackBuffer[offsetof(D8DeviceVtable,GetBackBuffer)==16*sizeof(void*)?1:-1];
+ static HRESULT xm_D8Device_GetBackBuffer(CPU*c,D8Device* a0, UINT a1, DWORD a2, D8Surface** a3) {
+  XmRequest q={0}; HRESULT ret;
+diff --git a/out/dev-init-savepoints/x87v-20261031/runtime/resource_storage.inc b/out/dev-init/runtime/resource_storage.inc
+index 55310c2..435d16c 100644
+--- a/out/dev-init-savepoints/x87v-20261031/runtime/resource_storage.inc
++++ b/out/dev-init/runtime/resource_storage.inc
+@@ -119,6 +119,24 @@ static void d8_resource_LockRect(CPU*c) {
+  } else {if(lock.bits&&(uintptr_t)lock.bits!=1){d8_native_failed=1;xrt_fatal(c,76,"LockRect: failed call returned map");}d8_device_memory(c,out,8,1);wr32(out,(unsigned)lock.pitch);if(!lock.bits)wr32(out+4,0);}
+  d8_semantic_return(c,prev,id,n,hr,error);
+ }
++/* Buffer map staging. Strict (default): a fresh guest block per Lock, decommitted at Unlock, so a guest pointer kept
++ * past Unlock faults at once (bug detection beyond the D3D contract). XRT_DEV_STAGING=reuse (developer runs only,
++ * dev.py --staging reuse): Unlock leaves the block committed ("warm", xrt_mem.c xrt_staging_put) and the next buffer
++ * Lock of the same size class takes it (xrt_staging_take): no commit, decommit or re-validation per map, and the pool
++ * holds no more blocks than in strict mode. Unchanged: staging is guest memory (guest code cannot reach host memory
++ * through it), handle/type/ownership lookups, offset/size checks against the native descriptor, the checked
++ * guest-range snapshot and exact-length copies at Unlock, and the data the guest sees at Lock (the host shadow).
++ * Relaxed (diagnostics only): a guest pointer kept past Unlock no longer faults. It reads/writes a committed staging
++ * block that the next Lock of ANY vertex/index buffer of the same size class may receive, so a stale write can change
++ * the bytes another buffer's Lock handed out (and is then uploaded into that buffer), and a stale read can see another
++ * buffer's data - corruption confined to guest memory and guest-supplied buffer contents. Bytes of a block past the
++ * locked range keep earlier contents instead of zero. Textures/surfaces (LockRect) stay strict. */
++static int d8_staging_reuse(void) {
++ static int mode=-1;
++ if(mode<0){char v[16];DWORD n=GetEnvironmentVariableA("XRT_DEV_STAGING",v,sizeof v);mode=n&&n<sizeof v&&!strcmp(v,"reuse");
++  if(mode)xrt_log("DEV D3D8 buffer staging: reuse (per-buffer block; stale pointers until the next Lock are not trapped)");}
++ return mode;
++}
+ static void d8_resource_Lock(CPU*c) {
+  LONG id=d8_api_entry(c,311,5);D8Resource*r=d8_resource(c,ARG(0),0);D8BufferDesc desc={0};unsigned offset=ARG(1),size=ARG(2),out=ARG(3),flags=ARG(4);BYTE*data=(BYTE*)(uintptr_t)1;CPU*prev;HRESULT hr;DWORD error,saved=GetLastError();
+  if(r->kind!=D8_VERTEX&&r->kind!=D8_INDEX)xrt_fatal(c,76,"Lock: wrong resource type");
+@@ -139,7 +157,8 @@ static void d8_resource_Lock(CPU*c) {
+  if(SUCCEEDED(hr)) {
+   d8_locks++;r->locked=data;r->flags=flags;r->offset=offset;r->bytes=size;r->rows=1;r->rowbytes=size;r->pitch=size;
+   if(!data){d8_native_failed=1;xrt_fatal(c,76,"Lock: NULL native map");}
+-  r->staging=xrt_virtual_alloc(c,size);if(!r->staging)xrt_fatal(c,76,"Lock: staging allocation failed");d8_device_memory(c,r->staging,size,1);
++  r->staging=d8_staging_reuse()?xrt_staging_take(c,size):xrt_virtual_alloc(c,size);
++  if(!r->staging)xrt_fatal(c,76,"Lock: staging allocation failed");d8_device_memory(c,r->staging,size,1);
+   /* Reads from the native map hit GPU-visible (uncached) memory and dominated Lock.
+    * Only our Unlock writes these buffers natively (ProcessVertices is refused), so
+    * valid shadow bytes equal the native ones and every other byte is undefined by
+@@ -168,7 +187,7 @@ static void d8_unlock(CPU*c,int rectangle) {
+  }
+  prev=d8_native_enter(c,rectangle?317:312,NULL,0);
+  hr=!rectangle?XM_Unlock(c,(D8Buffer*)r->host):r->kind==D8_SURFACE?XM_UnlockRect(c,(D8Surface*)r->host):r->kind==D8_CUBE?((D8CubeUnlockFn)d8_cube_row(r,17))((D8Texture*)r->host,r->face,r->level):XM_UnlockRect(c,(D8Texture*)r->host,r->level);error=GetLastError();
+- if(SUCCEEDED(hr)){if(!xrt_virtual_free(c,r->staging))xrt_fatal(c,76,"Unlock: staging invalidation failed");r->staging=0;r->locked=NULL;d8_locks--;xm_d8_resource(c,r,"unlocked");}
++ if(SUCCEEDED(hr)){if(!(!rectangle&&d8_staging_reuse()?xrt_staging_put(c,r->staging):xrt_virtual_free(c,r->staging)))xrt_fatal(c,76,"Unlock: staging invalidation failed");r->staging=0;r->locked=NULL;d8_locks--;xm_d8_resource(c,r,"unlocked");}
+  else {d8_native_failed=1; /* Preserve failure HRESULT; retain mapping until process teardown. */}
+  d8_semantic_return(c,prev,id,n,hr,error);
+ }
+diff --git a/out/dev-init-savepoints/x87v-20261031/runtime/semantic_renderer.inc b/out/dev-init/runtime/semantic_renderer.inc
+index 0453d0d..89e48ca 100644
+--- a/out/dev-init-savepoints/x87v-20261031/runtime/semantic_renderer.inc
++++ b/out/dev-init/runtime/semantic_renderer.inc
+@@ -71,6 +71,7 @@ static void d8_device_SetTransform(CPU*c) {
+     d8_domain(c,d8_transform_domain(ARG(1))?D8_VALID:D8_INVALID,"SetTransform identifier");
+     for(i=0;i<16;i++)d8_domain(c,d8_finite(local.bits[i])?D8_VALID:D8_UNIMPLEMENTED,"SetTransform nonfinite input");
+     previous=d8_native_enter(c,37,&local,sizeof local);hr=XM_SetTransform(c,o->host,ARG(1),&local);error=GetLastError();
++    if(ARG(1)==2 && xrt_scene_level_depth>0 && SUCCEEDED(hr))xrt_dev_view(local.bits); /* developer: level camera (read-only) */
+     d8_semantic_return(c,previous,id,3,hr,error);
+ }
+ 
+diff --git a/out/dev-init-savepoints/x87v-20261031/runtime/xrt.h b/out/dev-init/runtime/xrt.h
+index 42cbf11..ce0a126 100644
+--- a/out/dev-init-savepoints/x87v-20261031/runtime/xrt.h
++++ b/out/dev-init/runtime/xrt.h
+@@ -84,6 +84,18 @@ XRT_INLINE float rdf32b(const uint8_t* g, uint32_t a) { float f; memcpy(&f, g +
+ XRT_INLINE double rdf64b(const uint8_t* g, uint32_t a) { double d; memcpy(&d, g + a, 8); return d; }
+ XRT_INLINE void wrf32b(uint8_t* g, uint32_t a, float f) { memcpy(g + a, &f, 4); }
+ XRT_INLINE void wrf64b(uint8_t* g, uint32_t a, double d) { memcpy(g + a, &d, 8); }
++/* xlift --opt sse: the same float/double guest stores as single SSE stores. Through memcpy, MSVC stores a float or double
++ * via a stack temporary (movss/movsd to the stack, integer reload, integer store), a store-forwarding round trip per
++ * fst/fstp that often sits on a dependency chain (fstp to a stack slot, fld of it a few instructions later). The stored
++ * bytes are the value's bits either way (no conversion happens in the store). */
++#if defined(_MSC_VER) && (defined(_M_X64) || defined(_M_AMD64))
++#include <emmintrin.h>
++XRT_INLINE void wrf32s(uint8_t* g, uint32_t a, float f) { _mm_store_ss((float*)(g + a), _mm_set_ss(f)); }
++XRT_INLINE void wrf64s(uint8_t* g, uint32_t a, double d) { _mm_storel_pd((double*)(g + a), _mm_set_sd(d)); }
++#else
++XRT_INLINE void wrf32s(uint8_t* g, uint32_t a, float f) { wrf32b(g, a, f); }
++XRT_INLINE void wrf64s(uint8_t* g, uint32_t a, double d) { wrf64b(g, a, d); }
++#endif
+ XRT_INLINE void push32b(uint8_t* g, CPU* c, uint32_t v) { c->r[ESP] -= 4; wr32b(g, c->r[ESP], v); }
+ XRT_INLINE uint32_t pop32b(const uint8_t* g, CPU* c) { uint32_t v = rd32b(g, c->r[ESP]); c->r[ESP] += 4; return v; }
+ 
+@@ -123,6 +135,15 @@ XRT_INLINE void fcompare(CPU* c, double a, double b) { /* C0 (bit 8), C2 (bit 10
+     else if (a < b) c->fsw |= 0x0100;
+     else if (a == b) c->fsw |= 0x4000;
+ }
++/* xlift --opt sse: the same result without isnan(), which /fp:strict compiles to an out-of-line _dclass call (two per
++ * compare, clobbering xmm0-5 in the middle of x87 code). With a NaN operand none of <, == and > holds, so the third
++ * test is exactly the unordered case; otherwise exactly one of the three holds. */
++XRT_INLINE void fcompareo(CPU* c, double a, double b) {
++    c->fsw &= (uint16_t)~0x4500;
++    if (a < b) c->fsw |= 0x0100;
++    else if (a == b) c->fsw |= 0x4000;
++    else if (!(a > b)) c->fsw |= 0x4500;
++}
+ XRT_INLINE uint16_t fstatus(CPU* c) { return (uint16_t)((c->fsw & ~0x3800) | ((c->top & 7) << 11)); }
+ /* The same operations with TOP and the status word in the translated function's locals ft_ and fsw_ (xlift --opt x87).
+  * Without them every fpush/fpop/ST was a read-modify-write of c->top through memory that guest stores may alias, a
+@@ -135,6 +156,9 @@ XRT_INLINE uint16_t fstatus(CPU* c) { return (uint16_t)((c->fsw & ~0x3800) | ((c
+ #define XFCOMPARE(a, b) do { double a__ = (a), b__ = (b); fsw_ &= (uint16_t)~0x4500; \
+         if (isnan(a__) || isnan(b__)) fsw_ |= 0x4500; else if (a__ < b__) fsw_ |= 0x0100; \
+         else if (a__ == b__) fsw_ |= 0x4000; } while (0)
++#define XFCOMPAREO(a, b) do { double a__ = (a), b__ = (b); fsw_ &= (uint16_t)~0x4500; \
++        if (a__ < b__) fsw_ |= 0x0100; else if (a__ == b__) fsw_ |= 0x4000; \
++        else if (!(a__ > b__)) fsw_ |= 0x4500; } while (0)
+ void xrt_fsin(CPU* c);
+ void xrt_fcos(CPU* c);
+ void xrt_fptan(CPU* c);
+diff --git a/out/dev-init-savepoints/x87v-20261031/runtime/xrt_events.c b/out/dev-init/runtime/xrt_events.c
+index 4a72a0c..e9d1629 100644
+--- a/out/dev-init-savepoints/x87v-20261031/runtime/xrt_events.c
++++ b/out/dev-init/runtime/xrt_events.c
+@@ -31,8 +31,46 @@ static HANDLE event_stream=INVALID_HANDLE_VALUE;
+ typedef struct {
+     const char* kind;
+     const char* stage;
+-    uint32_t self,world,esp,ret,popped;
++    uint32_t self,world,esp,ret,popped,arg0,arg1;
+ } WorldCall;
++/* Developer movement diagnostic (dev.py build --diag-move + XRT_DEV_MOVE_DIAG=1): after ULevel::MoveActor returns for
++ * the player's pawn with a blocking hit, log the moving actor, the hit actor and primitive (class and object names
++ * read from the guest's FName table: UObject Name at +0x20, Class at +0x24, FName::Names data at 0x10275e18, entry
++ * text at +0xc, as the translated UObject::GetName reads them) and FCheckResult Location/Normal/Time (Actor +4,
++ * Location +8, Normal +0x14, Primitive +0x20, Time +0x24). Read-only; bounded. */
++static int move_diag(void) { static int v=-1; if(v<0){const char*e=getenv("XRT_DEV_MOVE_DIAG");v=e&&*e=='1';} return v; }
++static void guest_name(uint32_t obj,char*out,size_t n) {
++    uint32_t idx,data,entry;size_t i;
++    snprintf(out,n,"None");
++    if(!obj||!xrt_is_committed(obj+0x20,8))return;
++    idx=rd32(obj+0x20);
++    if(!xrt_is_committed(0x10275e18u,4))return;
++    data=rd32(0x10275e18u);
++    if(idx>0x100000u||!xrt_is_committed(data+idx*4,4))return;
++    entry=rd32(data+idx*4);
++    if(!entry||!xrt_is_committed(entry+0xc,128))return;
++    for(i=0;i+1<n&&i<63;i++){uint16_t ch=*(uint16_t*)G2H(entry+0xc+(uint32_t)i*2);if(!ch)break;out[i]=ch<128?(char)ch:'?';}
++    out[i]=0;
++}
++static void guest_class_name(uint32_t obj,char*out,size_t n){snprintf(out,n,"None");if(obj&&xrt_is_committed(obj+0x24,4))guest_name(rd32(obj+0x24),out,n);}
++static void move_diag_return(WorldCall*p) {
++    static unsigned logged,repeats;static uint32_t last_hit;char mover[64],mcls[64],hit[64],hcls[64],prim[64];
++    uint32_t h=p->arg1,actor=p->arg0,hit_actor,primitive;float loc[3],nrm[3],t;
++    if(!h||!xrt_is_committed(h,0x28))return;
++    memcpy(&t,G2H(h+0x24),4);hit_actor=rd32(h+4);primitive=rd32(h+0x20);
++    if(!(t<1.0f)||!hit_actor)return;
++    guest_class_name(actor,mcls,sizeof mcls);
++    if(!strstr(mcls,"Player")&&!strstr(mcls,"player")) {
++        static unsigned others;   /* the first hits of other classes, so the pawn's class is discoverable */
++        if(others++>=40)return;
++    }
++    if(hit_actor==last_hit&&(++repeats%64))return;
++    last_hit=hit_actor;if(logged++>=400)return;
++    guest_name(actor,mover,sizeof mover);guest_name(hit_actor,hit,sizeof hit);guest_class_name(hit_actor,hcls,sizeof hcls);
++    guest_class_name(primitive,prim,sizeof prim);memcpy(loc,G2H(h+8),12);memcpy(nrm,G2H(h+0x14),12);
++    xrt_log("DEV move hit: %s (%s) blocked by %s (%s) primitive %s at %.0f,%.0f,%.0f normal %.2f,%.2f,%.2f time %.3f",
++            mover,mcls,hit,hcls,prim,loc[0],loc[1],loc[2],nrm[0],nrm[1],nrm[2],t);
++}
+ static __declspec(thread) WorldCall world_calls[128];
+ /* Pending entries on this thread: returns skip the 128-slot scan when none is pending,
+  * and scan only below world_top (one past the highest occupied slot) otherwise. */
+@@ -55,8 +93,29 @@ void xrt_world_enter(CPU*c,uint32_t target) {
+     case 0xfc4b0:kind="level_render";popped=8;xrt_scene_level_depth++;break; /* FLevelSceneNode::Render(FRenderInterface*) */
+     case 0xfcc80:kind="camera_render";popped=8;xrt_scene_camera_depth++;break; /* FCameraSceneNode::Render */
+     case 0xfd280:kind="player_render";popped=8;break;   /* FPlayerSceneNode::Render */
++    /* ULevel::MoveActor(AActor*,FVector,FRotator,FCheckResult&,int,int,int,int), thiscall, RET 30: diagnostic only. */
++    case 0xaf160:if(!move_diag())return;kind="move_actor";popped=52;break;
+     default:return;
+     }
++    if(!strcmp(kind,"move_actor")) {   /* no per-call event: called every tick for every moving actor */
++        unsigned moves=0;
++        /* A missed return must never fill the table the scene observers need: drop entries whose frame has been
++         * unwound (their esp is below the current one) and keep at most 16 pending diagnostic calls. */
++        for(i=0;i<world_top;i++)if(world_calls[i].kind&&!strcmp(world_calls[i].kind,"move_actor")) {
++            if(world_calls[i].esp<c->r[ESP]){world_calls[i].kind=NULL;world_pending--;} else moves++;
++        }
++        if(moves>=16)return;
++        for(i=0;i<128;i++)if(!world_calls[i].kind) {
++            WorldCall*p=&world_calls[i];
++            p->kind=kind;p->stage=stage;p->self=self;p->world=0;p->esp=c->r[ESP];p->ret=rd32(p->esp);p->popped=popped;
++            p->arg0=rd32(p->esp+4);p->arg1=rd32(p->esp+0x20);world_pending++;
++            if(i>=world_top)world_top=i+1;
++            if(c->thread&&(!c->thread->world_floor||(uint64_t)p->esp+p->popped<c->thread->world_floor))
++                c->thread->world_floor=(uint64_t)p->esp+p->popped;
++            return;
++        }
++        return;   /* table full: skip this call (diagnostic only) */
++    }
+     /* Native GetLevel is MOV EAX,[ECX+d4]; RET. Never infer world from call context. */
+     if(*stage && xrt_is_committed(self+0xd4,4))world=rd32(self+0xd4);
+     for(i=0;i<128;i++)if(!world_calls[i].kind) {
+@@ -79,6 +138,7 @@ void xrt_world_return(CPU*c) {
+     for(i=0;i<world_top;i++) {
+         WorldCall*p=&world_calls[i];char event[64];
+         if(!p->kind || c->rv!=p->ret || c->r[ESP]!=p->esp+p->popped)continue;
++        if(!strcmp(p->kind,"move_actor")){move_diag_return(p);p->kind=NULL;world_pending--;continue;}
+         snprintf(event,sizeof event,"%s_return",p->kind);
+         xrt_event(event,"\"stage\":\"%s\",\"this\":%u,\"world\":%u,\"esp_before\":%u,\"esp_after\":%u,\"return\":%u,\"actual_return\":%u",p->stage,p->self,p->world,p->esp,c->r[ESP],p->ret,c->rv);
+         if(!strcmp(p->kind,"engine_init"))xm_scope(c,XM_END,XM_ADAPTER,"UGameEngine.Init",c->r[EAX]);
+diff --git a/out/dev-init-savepoints/x87v-20261031/runtime/xrt_internal.h b/out/dev-init/runtime/xrt_internal.h
+index 7b8109f..6be0b0b 100644
+--- a/out/dev-init-savepoints/x87v-20261031/runtime/xrt_internal.h
++++ b/out/dev-init/runtime/xrt_internal.h
+@@ -47,6 +47,8 @@ void xrt_commit(uint32_t a, uint32_t size);
+ int xrt_is_committed(uint32_t a, uint32_t size);
+ int xrt_range_is_free(uint32_t a, uint32_t size);           /* no page of the range committed */
+ void xrt_decommit(uint32_t a, uint32_t size);
++uint32_t xrt_staging_take(CPU* c, uint32_t size);   /* developer D3D8 staging reuse: a warm block of this size class */
++int xrt_staging_put(CPU* c, uint32_t base);         /* keeps the block committed for the next staging take */
+ uint32_t xrt_rt_alloc(uint32_t size, uint32_t align);       /* runtime region, zeroed, never freed */
+ uint32_t xrt_heap_alloc(uint32_t size);                      /* 0 on exhaustion */
+ void xrt_heap_free(CPU* c, uint32_t p);
+@@ -104,7 +106,7 @@ void xrt_com_thread_cleanup(CPU* c); /* owning thread only; Loader8 references b
+ extern volatile long xrt_exiting;          /* set when ExitProcess starts: no more baton hand-overs */
+ void xrt_baton_acquire(void);
+ void xrt_baton_release(void);
+-void xrt_baton_stats_log(void);           /* hand-over statistics to the log (diagnostic) */
++void xrt_baton_stats_log(FILE* also);     /* hand-over statistics to the log, and to also when not NULL (diagnostic) */
+ void xrt_thread_service(CPU* c, const char* name, void (*body)(CPU*, void*), void* arg); /* runtime-owned guest thread */
+ XrtThread* xrt_thread_main(uint32_t stack_reserve);
+ uint32_t xrt_thread_create(CPU* c, uint32_t stack_size, uint32_t start, uint32_t param, uint32_t* tid);
+@@ -154,7 +156,10 @@ void xrt_dev_map_open(CPU*c,const char*path);
+ int xrt_dev_draw_dump(void);
+ void xrt_dev_music_cue(const unsigned short*text);
+ int xrt_dev_input_blocked(const char*what);
++int xrt_dev_background(void);
+ void xrt_dev_input_tick(void);
++void xrt_dev_input_window_actions(void);
++void xrt_dev_view(const unsigned int bits[16]);
+ void xrt_dev_input_window(void*hwnd);
+ int xrt_dev_input_allowed(void*hwnd,unsigned msg,unsigned long long wp,long long lp);
+ int xrt_dev_input_mouse(unsigned*ofs,unsigned*data);
+diff --git a/out/dev-init-savepoints/x87v-20261031/runtime/xrt_mem.c b/out/dev-init/runtime/xrt_mem.c
+index 4f38f41..1ac7ec1 100644
+--- a/out/dev-init-savepoints/x87v-20261031/runtime/xrt_mem.c
++++ b/out/dev-init/runtime/xrt_mem.c
+@@ -138,11 +138,32 @@ uint32_t xrt_guest_strlen16(uint32_t p) {
+  * reserve/commit/release bookkeeping, 64 KiB allocation alignment, page rounding and zero-on-recommit.
+  * This bounded pool sits between the platform DLLs and CRT heap; exhaustion is explicitly unsupported.
+  * Only NULL-address, read/write reserve+commit and whole-block release are currently exposed by the HLE. */
+-typedef struct { uint32_t base, reserved, committed; int live; } VirtualBlock;
++typedef struct { uint32_t base, reserved, committed; int live, warm; } VirtualBlock;
+ static VirtualBlock virtual_blocks[4096];
+ static uint32_t virtual_next = 0x12000000u;
+ static int nvirtual;
+ static SRWLOCK virtual_lock = SRWLOCK_INIT;
++/* Pool pressure (the bump region is used up): blocks were only ever re-used at their exact reserve size, so a level
++ * transition with many new sizes ran the 224 MB pool out while most of it was free (TutA -> TutB, run
++ * 20261101-133834). Reclaim, still under virtual_lock: decommit warm staging blocks, merge address-adjacent free
++ * blocks (bump order = address order), then the caller takes the smallest free block that fits. Decommitted pages
++ * come back zero-filled when committed again, as before. */
++static void virtual_reclaim(void) {
++    int i, j, warm = 0, merged = 0;
++    for (i = 0; i < nvirtual; i++)
++        if (virtual_blocks[i].warm) { xrt_decommit(virtual_blocks[i].base, virtual_blocks[i].committed); virtual_blocks[i].warm = 0; warm++; }
++    for (i = 0, j = 0; i < nvirtual; i++) {
++        VirtualBlock* b = &virtual_blocks[i];
++        if (j && !b->live && !virtual_blocks[j - 1].live && !virtual_blocks[j - 1].warm &&
++            virtual_blocks[j - 1].base + virtual_blocks[j - 1].reserved == b->base) {
++            virtual_blocks[j - 1].reserved += b->reserved; merged++;
++            continue;
++        }
++        virtual_blocks[j++] = *b;
++    }
++    nvirtual = j;
++    xrt_log("VirtualAlloc pool reclaim: %d warm staging blocks released, %d free blocks merged, %d blocks", warm, merged, nvirtual);
++}
+ uint32_t xrt_virtual_alloc(CPU* c, uint32_t size) {
+     uint64_t reserve = ((uint64_t)size + 0xFFFFu) & ~0xFFFFull;
+     uint32_t commit = (size + 0xFFFu) & ~0xFFFu;
+@@ -150,7 +171,23 @@ uint32_t xrt_virtual_alloc(CPU* c, uint32_t size) {
+     VirtualBlock* b = NULL;
+     AcquireSRWLockExclusive(&virtual_lock);
+     for (i = 0; i < nvirtual; i++)
+-        if (!virtual_blocks[i].live && virtual_blocks[i].reserved == reserve) { b = &virtual_blocks[i]; break; }
++        if (!virtual_blocks[i].live && !virtual_blocks[i].warm && virtual_blocks[i].reserved == reserve) { b = &virtual_blocks[i]; break; }
++    /* A lifted module image inside the pool range (UI.dll at 0x19100000) ends the bump region before XRT_HEAP_BASE: step
++     * over the image instead of failing (TutB load, run 20261101-134219), then reclaim if the pool is still exhausted. */
++    if (!b && size && reserve <= 0x0E000000u) {
++        uint32_t end;
++        while (virtual_next + reserve <= XRT_HEAP_BASE && xrt_lifted_overlap(virtual_next, (uint32_t)reserve, &end) &&
++               end > virtual_next) {
++            xrt_log("VirtualAlloc pool: bump region %08x skips the lifted image ending at %08x", virtual_next, end);
++            virtual_next = (end + 0xFFFFu) & ~0xFFFFu;
++        }
++    }
++    if (!b && size && reserve <= 0x0E000000u && (nvirtual == 4096 || virtual_next + reserve > XRT_HEAP_BASE)) {
++        virtual_reclaim();
++        for (i = 0; i < nvirtual; i++)
++            if (!virtual_blocks[i].live && virtual_blocks[i].reserved >= reserve && (!b || virtual_blocks[i].reserved < b->reserved))
++                b = &virtual_blocks[i];
++    }
+     if (!b) {
+         uint32_t end;
+         if (!size || reserve > 0x0E000000u || nvirtual == 4096 || virtual_next + reserve > XRT_HEAP_BASE ||
+@@ -182,6 +219,39 @@ int xrt_virtual_free(CPU* c, uint32_t base) {
+     return 0;
+ }
+ 
++/* Developer D3D8 buffer staging reuse (resource_storage.inc, XRT_DEV_STAGING=reuse): a released staging block stays
++ * committed ("warm") instead of being decommitted, and only the next staging Lock of the same reserve size takes it,
++ * committing more pages if it needs them. Ordinary VirtualAlloc never takes a warm block (its callers expect
++ * zero-filled memory), so the pool holds the same blocks as with decommit. */
++uint32_t xrt_staging_take(CPU* c, uint32_t size) {
++    uint64_t reserve = ((uint64_t)size + 0xFFFFu) & ~0xFFFFull;
++    uint32_t commit = (size + 0xFFFu) & ~0xFFFu;
++    int i;
++    AcquireSRWLockExclusive(&virtual_lock);
++    for (i = 0; i < nvirtual; i++)
++        if (virtual_blocks[i].warm && virtual_blocks[i].reserved == reserve) {
++            VirtualBlock* b = &virtual_blocks[i];
++            if (b->committed < commit) { xrt_commit(b->base + b->committed, commit - b->committed); b->committed = commit; }
++            b->warm = 0; b->live = 1;
++            ReleaseSRWLockExclusive(&virtual_lock);
++            return b->base;
++        }
++    ReleaseSRWLockExclusive(&virtual_lock);
++    return size ? xrt_virtual_alloc(c, size) : 0;
++}
++int xrt_staging_put(CPU* c, uint32_t base) {
++    int i;
++    (void)c;
++    AcquireSRWLockExclusive(&virtual_lock);
++    for (i = 0; i < nvirtual; i++) if (virtual_blocks[i].live && virtual_blocks[i].base == base) {
++        virtual_blocks[i].live = 0; virtual_blocks[i].warm = 1;
++        ReleaseSRWLockExclusive(&virtual_lock);
++        return 1;
++    }
++    ReleaseSRWLockExclusive(&virtual_lock);
++    return 0;
++}
++
+ /* ---------------------------------------------------------------- guest heap
+  * Block = 16-byte header {size, cap, magic, 0} + payload (16-byte aligned).
+  * Small payloads (cap <= 4096, multiples of 16) use per-class free lists; larger ones are page-rounded
+diff --git a/out/dev-init-savepoints/x87v-20261031/runtime/xrt_thread.c b/out/dev-init/runtime/xrt_thread.c
+index 992b14d..ee5d0da 100644
+--- a/out/dev-init-savepoints/x87v-20261031/runtime/xrt_thread.c
++++ b/out/dev-init/runtime/xrt_thread.c
+@@ -86,16 +86,23 @@ static unsigned baton_sleepers;
+  * xrt_baton_stats_log: diagnostic only, updated under the baton lock or by the holder. */
+ static struct { uint64_t acquires, waits, wait_ticks, wait_max, cv_sleeps, hold_ticks, hold_max, requests; LONGLONG held_at; } baton_stats[64];
+ static unsigned baton_slot(void) { return xrt_cur && xrt_cur->index >= 0 && xrt_cur->index < 63 ? (unsigned)xrt_cur->index : 63; }
+-void xrt_baton_stats_log(void) {
++void xrt_baton_stats_log(FILE* also) {
+     unsigned i;
+     double ms = baton_qpf.QuadPart ? 1000.0 / (double)baton_qpf.QuadPart : 0;
+     xrt_log("baton stats: ticker requests %u", baton_ticker_requests);
++    if (also) fprintf(also, "# baton ticker_requests=%u\n", baton_ticker_requests);
+     for (i = 0; i < 64; i++)
+-        if (baton_stats[i].acquires)
++        if (baton_stats[i].acquires) {
+             xrt_log("baton stats thread %u: acquires %llu, waited %llu (%.1f ms total, max %.3f ms, %llu condition-variable sleeps), "
+                     "held %.1f ms total (max %.3f ms), preemption requests raised while waiting %llu", i,
+                     baton_stats[i].acquires, baton_stats[i].waits, baton_stats[i].wait_ticks * ms, baton_stats[i].wait_max * ms,
+                     baton_stats[i].cv_sleeps, baton_stats[i].hold_ticks * ms, baton_stats[i].hold_max * ms, baton_stats[i].requests);
++            if (also)
++                fprintf(also, "# baton thread=%u acquires=%llu waits=%llu wait_ms=%.1f wait_max_ms=%.3f cv_sleeps=%llu held_ms=%.1f "
++                        "held_max_ms=%.3f requests=%llu\n", i, baton_stats[i].acquires, baton_stats[i].waits,
++                        baton_stats[i].wait_ticks * ms, baton_stats[i].wait_max * ms, baton_stats[i].cv_sleeps,
++                        baton_stats[i].hold_ticks * ms, baton_stats[i].hold_max * ms, baton_stats[i].requests);
++        }
+ }
+ void xrt_baton_acquire(void) {
+     uint64_t mine;
