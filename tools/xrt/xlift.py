@@ -115,10 +115,15 @@ REGS_MAX_INSNS = 6000
 X87_REF = re.compile(r"\b(ST|fpush|fpop|fcompare|fstatus)\(c\b|c->(fsw|top)\b")
 X87_STATE_CALLS = re.compile(r"\b(xrt_fround|xrt_fist16|xrt_fist32|xrt_fist64|xrt_fsin|xrt_fcos|xrt_fptan|xrt_fpatan|"
                              r"xrt_fyl2x|xrt_f2xm1|xrt_fscale|xrt_fsqrt|xrt_fldcw)\(")
-# --opt x87/icall change only functions up to this size: a few large ones (2400-3400 instructions) that MSVC still
-# optimizes fully as lifted crossed its optimization budget with the extra locals or the inline call expansion and
-# were compiled 3-6x larger and slower (GlmLib f_30b6e10 160 KB -> 525 KB), like the largest functions already are.
+# --opt x87/x87v/icall change functions of at most LOCAL_MAX_INSNS instructions, and larger ones (up to
+# LOCAL_LARGE_INSNS) only with at most LOCAL_LARGE_SPILLS register spill points (calls, returns, helpers). Large
+# call-heavy functions crossed MSVC's optimization budget with the x87 store/reload at every spill point and the inline
+# call expansion: they compiled 3-6x larger (Editor f_2e68420 2860 instructions / 396 spill points 112 -> 650 KB, GlmLib
+# f_304d480 3112 / 478: 110 -> 575 KB), while x87-heavy ones with few calls got smaller (GlmLib f_30b6e10 3373 / 91:
+# 141 -> 99 KB, f_30b0f80 2403 / 97: 108 -> 78 KB).
 LOCAL_MAX_INSNS = 2000
+LOCAL_LARGE_INSNS = 4000
+LOCAL_LARGE_SPILLS = 150
 X87_SPILL = "c->top = ft_; c->fsw = fsw_;"
 X87_RELOAD = "ft_ = c->top; fsw_ = c->fsw;"
 # --opt x87v: calls that cannot change c->st or TOP (a statement calling anything else ends the cached values)
@@ -1170,7 +1175,8 @@ class Lifter:
                        if s not in (SPILL, RELOAD) for m in REG_WRITE.finditer(s)}
             spill = " ".join(f"c->r[{i}] = r{i}_;" for i in sorted(written)) or "/* no register written */"
             reload = RELOAD
-            small = len(fn.insns) <= LOCAL_MAX_INSNS
+            spills = sum(s == SPILL for _, stmts in body for s in stmts)
+            small = len(fn.insns) <= LOCAL_MAX_INSNS or (len(fn.insns) <= LOCAL_LARGE_INSNS and spills <= LOCAL_LARGE_SPILLS)
             if "icall" in self.opt and small:
                 # indirect calls expand the call-target cache hit path at the call site (xrt.h ICALLI)
                 body = [(va, [x.replace("ICALL(", "ICALLI(") for x in stmts]) for va, stmts in body]
