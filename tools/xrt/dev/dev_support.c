@@ -84,17 +84,28 @@ static int scene_mode(void) {
  * wall-clock stop so long runs end with a report before the outer deadline. */
 static int scene_capture_frame(unsigned n) { return (n & (n - 1)) == 0 || !(n % 256) || n == scene_limit; }
 /* Performance evidence (first-scene mode): the QPC time of every post-Init present goes
- * to frames.csv at the stop; thread CPU times are logged at each scripted "shot".
+ * to frames.csv at the stop; thread CPU times are logged at each scripted "shot" or "cpu"
+ * step and written to threads.csv (the xrt.log budget drops late lines).
  * XRT_DEV_SAMPLE_HZ=N samples the game thread: suspend, copy the top of its stack and
  * context, resume, then unwind the copy (no lock is taken while it is suspended).
  * Samples (host stack + guest pc) go to samples.bin, loaded modules to modules.txt. */
-typedef struct { ULONGLONG qpc; unsigned draws, prims, world; } FrameRow;
+typedef struct { ULONGLONG qpc; unsigned draws, prims, world, wait_us; } FrameRow;
 #define FRAME_ROWS 131072
 #define SAMPLE_DEPTH 24
 #define SAMPLE_STACK 65536
 typedef struct { ULONGLONG qpc; unsigned guest_pc, depth; ULONGLONG rip[SAMPLE_DEPTH]; } Sample;
 static FrameRow *frame_rows; static unsigned frame_count;
 static LARGE_INTEGER qpc_freq, qpc_init;
+static FILE *thread_csv;
+/* XRT_DEV_FPS_CAP=N (dev.py --fps-cap): development frame limiter. After each post-Init Present returns,
+ * the game thread waits for the next 1/N s deadline on a high-resolution waitable timer (no spinning),
+ * with the execution baton released as the Sleep import does, so other guest threads run meanwhile.
+ * This is where the engine's own EnforceTickRate sleep would be (end of the frame, before the next
+ * message pump/input poll), and like it the wait happens once per UGameEngine::Tick (loading-screen
+ * presents are not paced); game time follows the wall clock, so simulation speed is unchanged. A late
+ * frame is not waited for and keeps the phase; a deadline more than one period behind is re-anchored to
+ * now (no burst of catch-up frames). */
+static LONGLONG cap_period, cap_next; static HANDLE cap_timer; static unsigned cap_fps;
 static Sample *samples; static volatile LONG sample_count, sampler_stop; static unsigned sample_max;
 static HANDLE sampled, sampler; static CPU *sampled_cpu; static ULONG_PTR stack_lo, stack_hi;
 static unsigned char *stack_copy;
@@ -142,10 +153,27 @@ static DWORD WINAPI sampler_main(void *arg) {
 }
 static double qpc_ms(ULONGLONG t) { return (double)(LONGLONG)(t - (ULONGLONG)qpc_init.QuadPart) * 1000.0 / (double)qpc_freq.QuadPart; }
 static void perf_start(CPU *c) {
-    const char *v = getenv("XRT_DEV_SAMPLE_HZ");
+    const char *v = getenv("XRT_DEV_SAMPLE_HZ"), *root = getenv("XRT_DEV_OUTPUT");
     unsigned hz = v && *v ? (unsigned)strtoul(v, NULL, 10) : 0;
-    QueryPerformanceFrequency(&qpc_freq); QueryPerformanceCounter(&qpc_init);
+    FILETIME ft; char path[1024];
+    QueryPerformanceFrequency(&qpc_freq); QueryPerformanceCounter(&qpc_init); GetSystemTimePreciseAsFileTime(&ft);
     frame_rows = calloc(FRAME_ROWS, sizeof *frame_rows);
+    if (root) {
+        /* ms is QPC time after Init return, as in frames.csv; init_filetime (UTC, 100 ns) aligns external monitors. */
+        snprintf(path, sizeof path, "%s\\threads.csv", root);
+        if ((thread_csv = fopen(path, "w")))
+            fprintf(thread_csv, "# init_filetime=%llu\nwhy,ms,tid,role,user_ms,kernel_ms,sleeps,preemptions\n",
+                    ((ULONGLONG)ft.dwHighDateTime << 32) | ft.dwLowDateTime);
+    }
+    v = getenv("XRT_DEV_FPS_CAP");
+    cap_fps = v && *v ? (unsigned)strtoul(v, NULL, 10) : 0;
+    if (cap_fps > 1000) cap_fps = 0;
+    if (cap_fps) {
+        cap_period = qpc_freq.QuadPart / cap_fps;
+        cap_timer = CreateWaitableTimerExW(NULL, NULL, CREATE_WAITABLE_TIMER_HIGH_RESOLUTION, TIMER_ALL_ACCESS);
+        xrt_log("DEV frame cap %u FPS: %s waitable timer, baton released while waiting", cap_fps,
+                cap_timer ? "high-resolution" : "NO high-resolution (Sleep fallback)");
+    }
     if (!hz || hz > 1000) return;
     sample_max = hz * 400;
     samples = calloc(sample_max, sizeof *samples); stack_copy = malloc(SAMPLE_STACK);
@@ -163,36 +191,89 @@ static void perf_frame(unsigned draws, unsigned prims, int world) {
         QueryPerformanceCounter((LARGE_INTEGER *)&r->qpc); r->draws = draws; r->prims = prims; r->world = (unsigned)world;
     }
 }
-/* One line per thread of this process: user/kernel CPU ms since thread creation. */
+static double ft_ms(FILETIME t) { return (double)(((ULONGLONG)t.dwHighDateTime << 32) | t.dwLowDateTime) / 1e4; }
+/* Host thread label for threads.csv: its description (DXVK names its threads) or start module+offset. */
+static void thread_label(HANDLE h, char *out, size_t n) {
+    typedef LONG (WINAPI *QueryThread)(HANDLE, int, PVOID, ULONG, PULONG);
+    static QueryThread query;
+    PWSTR d = NULL; void *start = NULL; HMODULE m; wchar_t path[MAX_PATH]; const wchar_t *base; char *p;
+    if (SUCCEEDED(GetThreadDescription(h, &d)) && d && *d) snprintf(out, n, "%ls", d);
+    else {
+        if (!query) query = (QueryThread)GetProcAddress(GetModuleHandleW(L"ntdll.dll"), "NtQueryInformationThread");
+        if (query && !query(h, 9 /* ThreadQuerySetWin32StartAddress */, &start, sizeof start, NULL) && start &&
+            GetModuleHandleExW(GET_MODULE_HANDLE_EX_FLAG_FROM_ADDRESS | GET_MODULE_HANDLE_EX_FLAG_UNCHANGED_REFCOUNT, start, &m) &&
+            GetModuleFileNameW(m, path, MAX_PATH)) {
+            base = wcsrchr(path, L'\\');
+            snprintf(out, n, "%ls+%llx", base ? base + 1 : path, (unsigned long long)((char *)start - (char *)m));
+        } else snprintf(out, n, "?");
+    }
+    if (d) LocalFree(d);
+    for (p = out; *p; p++) if (*p == ',' || *p == '\n') *p = ';';
+}
+/* One line per thread of this process: user/kernel CPU ms since thread creation. threads.csv also gets the
+ * whole process (tid 0) and, for guest threads, the role guestN with their Sleep and preemption counts. */
 static void perf_threads(const char *why) {
     HANDLE snap = CreateToolhelp32Snapshot(TH32CS_SNAPTHREAD, 0); THREADENTRY32 te; LARGE_INTEGER now;
+    FILETIME cr, ex, k, u; double ms;
     if (snap == INVALID_HANDLE_VALUE) return;
     QueryPerformanceCounter(&now);
+    ms = qpc_ms((ULONGLONG)now.QuadPart);
+    if (thread_csv && GetProcessTimes(GetCurrentProcess(), &cr, &ex, &k, &u))
+        fprintf(thread_csv, "%s,%.1f,0,process,%.1f,%.1f,0,0\n", why, ms, ft_ms(u), ft_ms(k));
     te.dwSize = sizeof te;
     if (Thread32First(snap, &te)) do {
-        HANDLE h; FILETIME cr, ex, k, u;
+        HANDLE h; XrtThread *g = NULL; int i; char role[96];
         if (te.th32OwnerProcessID != GetCurrentProcessId()) continue;
-        if (!(h = OpenThread(THREAD_QUERY_LIMITED_INFORMATION, FALSE, te.th32ThreadID))) continue;
-        if (GetThreadTimes(h, &cr, &ex, &k, &u))
-            xrt_log("DEV threads %s at %.1f ms: tid %lu%s user %.1f kernel %.1f", why, qpc_ms((ULONGLONG)now.QuadPart), te.th32ThreadID,
-                    te.th32ThreadID == GetCurrentThreadId() ? " (game)" : "",
-                    (double)(((ULONGLONG)u.dwHighDateTime << 32) | u.dwLowDateTime) / 1e4,
-                    (double)(((ULONGLONG)k.dwHighDateTime << 32) | k.dwLowDateTime) / 1e4);
+        if (!(h = OpenThread(THREAD_QUERY_LIMITED_INFORMATION | THREAD_QUERY_INFORMATION, FALSE, te.th32ThreadID)) &&
+            !(h = OpenThread(THREAD_QUERY_LIMITED_INFORMATION, FALSE, te.th32ThreadID))) continue;
+        for (i = 0; i < xrt_thread_count(); i++)
+            if (xrt_thread_get(i) && xrt_thread_get(i)->host_tid == te.th32ThreadID) g = xrt_thread_get(i);
+        if (GetThreadTimes(h, &cr, &ex, &k, &u)) {
+            xrt_log("DEV threads %s at %.1f ms: tid %lu%s user %.1f kernel %.1f", why, ms, te.th32ThreadID,
+                    te.th32ThreadID == GetCurrentThreadId() ? " (game)" : "", ft_ms(u), ft_ms(k));
+            if (g) snprintf(role, sizeof role, "guest%d", g->index);
+            else { strcpy(role, "host:"); thread_label(h, role + 5, sizeof role - 5); }
+            if (thread_csv)
+                fprintf(thread_csv, "%s,%.1f,%lu,%s,%.1f,%.1f,%llu,%llu\n", why, ms, te.th32ThreadID, role, ft_ms(u), ft_ms(k),
+                        g ? (unsigned long long)g->sleeps : 0ull, g ? (unsigned long long)g->preemptions : 0ull);
+        }
         CloseHandle(h);
     } while (Thread32Next(snap, &te));
     CloseHandle(snap);
+}
+/* The frame limiter wait (see cap_period); returns the waited time in microseconds. */
+static unsigned perf_cap_wait(void) {
+    LARGE_INTEGER now, after, due; LONGLONG target, left;
+    if (!cap_period) return 0;
+    QueryPerformanceCounter(&now);
+    target = cap_next + cap_period;
+    if (!cap_next || now.QuadPart - target > cap_period) { cap_next = now.QuadPart; return 0; }
+    cap_next = target;
+    left = target - now.QuadPart;
+    if (left <= 0) return 0;
+    due.QuadPart = -(left * 10000000 / qpc_freq.QuadPart);   /* relative, 100 ns units */
+    if (!due.QuadPart) return 0;
+    if (!xrt_exiting) xrt_baton_release();
+    if (!cap_timer || !SetWaitableTimerEx(cap_timer, &due, 0, NULL, NULL, NULL, 0) ||
+        WaitForSingleObject(cap_timer, INFINITE) != WAIT_OBJECT_0)
+        Sleep((DWORD)(left * 1000 / qpc_freq.QuadPart));
+    if (!xrt_exiting) xrt_baton_acquire();
+    QueryPerformanceCounter(&after);
+    return (unsigned)((after.QuadPart - now.QuadPart) * 1000000 / qpc_freq.QuadPart);
 }
 static void perf_write(void) {
     char path[1024]; const char *root = getenv("XRT_DEV_OUTPUT"); FILE *f; unsigned i;
     if (!root || !frame_rows) return;
     if (sampler) { sampler_stop = 1; WaitForSingleObject(sampler, 2000); }
     perf_threads("stop");
-    xrt_baton_stats_log();
+    xrt_baton_stats_log(thread_csv);
+    if (thread_csv) { fclose(thread_csv); thread_csv = NULL; }
     snprintf(path, sizeof path, "%s\\frames.csv", root);
     if ((f = fopen(path, "w"))) {
-        fprintf(f, "present,ms,world,draws,prims\n");
+        fprintf(f, "present,ms,world,draws,prims,cap_wait_us\n");
         for (i = 0; i < frame_count; i++)
-            fprintf(f, "%u,%.3f,%u,%u,%u\n", i + 1, qpc_ms(frame_rows[i].qpc), frame_rows[i].world, frame_rows[i].draws, frame_rows[i].prims);
+            fprintf(f, "%u,%.3f,%u,%u,%u,%u\n", i + 1, qpc_ms(frame_rows[i].qpc), frame_rows[i].world, frame_rows[i].draws,
+                    frame_rows[i].prims, frame_rows[i].wait_us);
         fclose(f);
     }
     if (!samples) return;
@@ -269,6 +350,7 @@ int xrt_dev_input_blocked(const char *what) {
  *                    and WM_MOUSEMOVE, as one physical mouse produces them together
  *   click[:HOLD]     left button: DirectInput button 0 and WM_LBUTTONDOWN/UP
  *   shot             capture the next present
+ *   cpu              thread CPU snapshot only (threads.csv), no capture
  * Only the exact scripted messages pass the isolation filter; physical input stays dropped.
  * Under isolation GetCursorPos/SetCursorPos/ClipCursor use a virtual cursor, never the desktop's. */
 typedef struct { unsigned t; char verb; int a, b, c; } InputStep;
@@ -298,6 +380,7 @@ static void input_parse(void) {
         while (*v && *v != ':' && *v != ';' && n < 15) verb[n++] = *v++;
         if (!strcmp(verb, "key")) s.verb = 'k'; else if (!strcmp(verb, "move")) s.verb = 'm';
         else if (!strcmp(verb, "click")) s.verb = 'c'; else if (!strcmp(verb, "shot")) s.verb = 's';
+        else if (!strcmp(verb, "cpu")) s.verb = 'u';
         else { xrt_log("DEV input script: unknown verb '%s'; script ignored from here", verb); break; }
         if (*v == ':') s.a = (int)strtol(v + 1, (char **)&v, 0);
         if (*v == ':') s.b = (int)strtol(v + 1, (char **)&v, 0);
@@ -442,6 +525,7 @@ void xrt_dev_input_tick(void) {
             in_button = 1; in_button_up = now + (s->a > 0 ? (unsigned)s->a : 100);
             di_push(12, 0x80); input_allow(WM_LBUTTONDOWN, MK_LBUTTON, client_point(), 0);
         } else if (s->verb == 's') { in_shot = 1; perf_threads("shot"); }
+        else if (s->verb == 'u') perf_threads("cpu");
         {
             POINT p = in_cursor; ScreenToClient(in_window, &p);
             xrt_log("DEV input cursor client %ld,%ld", p.x, p.y);
@@ -556,6 +640,14 @@ void xrt_dev_scene_present(CPU *c, long hr, unsigned draws, unsigned prims, unsi
                 scene_prims, level_draws, engine, level, world ? world_frames : 0);
     if (world && world_frames == scene_limit) scene_stop(c, "frame limit");
     if (hr >= 0 && scene_ms && GetTickCount64() - init_ms >= scene_ms) scene_stop(c, "time limit");
+    /* Pace main-loop iterations, as EnforceTickRate does: a present without a UGameEngine::Tick since the previous one
+     * is a loading-screen update inside one tick (a map load presents ~500 of them) and is never waited for. */
+    if (cap_period) {
+        unsigned waited = 0;
+        if (engine) waited = perf_cap_wait();
+        else cap_next = 0;   /* re-anchor after the load */
+        if (frame_rows && frame_count && frame_count < FRAME_ROWS) frame_rows[frame_count - 1].wait_us = waited;
+    }
 }
 __declspec(noinline) void xrt_dev_init_return(CPU *c) {
     xrt_log("DEV Init returned: caller=1090ed59 return=%08x esp=%08x", c->rv, c->r[ESP]);

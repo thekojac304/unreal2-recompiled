@@ -1,0 +1,43 @@
+diff --git a/out/dev-init-savepoints/floor-staging-20261031/runtime/xrt_internal.h b/out/dev-init/runtime/xrt_internal.h
+index 289b186..314f966 100644
+--- a/out/dev-init-savepoints/floor-staging-20261031/runtime/xrt_internal.h
++++ b/out/dev-init/runtime/xrt_internal.h
+@@ -106,7 +106,7 @@ void xrt_com_thread_cleanup(CPU* c); /* owning thread only; Loader8 references b
+ extern volatile long xrt_exiting;          /* set when ExitProcess starts: no more baton hand-overs */
+ void xrt_baton_acquire(void);
+ void xrt_baton_release(void);
+-void xrt_baton_stats_log(void);           /* hand-over statistics to the log (diagnostic) */
++void xrt_baton_stats_log(FILE* also);     /* hand-over statistics to the log, and to also when not NULL (diagnostic) */
+ void xrt_thread_service(CPU* c, const char* name, void (*body)(CPU*, void*), void* arg); /* runtime-owned guest thread */
+ XrtThread* xrt_thread_main(uint32_t stack_reserve);
+ uint32_t xrt_thread_create(CPU* c, uint32_t stack_size, uint32_t start, uint32_t param, uint32_t* tid);
+diff --git a/out/dev-init-savepoints/floor-staging-20261031/runtime/xrt_thread.c b/out/dev-init/runtime/xrt_thread.c
+index 992b14d..ee5d0da 100644
+--- a/out/dev-init-savepoints/floor-staging-20261031/runtime/xrt_thread.c
++++ b/out/dev-init/runtime/xrt_thread.c
+@@ -86,16 +86,23 @@ static unsigned baton_sleepers;
+  * xrt_baton_stats_log: diagnostic only, updated under the baton lock or by the holder. */
+ static struct { uint64_t acquires, waits, wait_ticks, wait_max, cv_sleeps, hold_ticks, hold_max, requests; LONGLONG held_at; } baton_stats[64];
+ static unsigned baton_slot(void) { return xrt_cur && xrt_cur->index >= 0 && xrt_cur->index < 63 ? (unsigned)xrt_cur->index : 63; }
+-void xrt_baton_stats_log(void) {
++void xrt_baton_stats_log(FILE* also) {
+     unsigned i;
+     double ms = baton_qpf.QuadPart ? 1000.0 / (double)baton_qpf.QuadPart : 0;
+     xrt_log("baton stats: ticker requests %u", baton_ticker_requests);
++    if (also) fprintf(also, "# baton ticker_requests=%u\n", baton_ticker_requests);
+     for (i = 0; i < 64; i++)
+-        if (baton_stats[i].acquires)
++        if (baton_stats[i].acquires) {
+             xrt_log("baton stats thread %u: acquires %llu, waited %llu (%.1f ms total, max %.3f ms, %llu condition-variable sleeps), "
+                     "held %.1f ms total (max %.3f ms), preemption requests raised while waiting %llu", i,
+                     baton_stats[i].acquires, baton_stats[i].waits, baton_stats[i].wait_ticks * ms, baton_stats[i].wait_max * ms,
+                     baton_stats[i].cv_sleeps, baton_stats[i].hold_ticks * ms, baton_stats[i].hold_max * ms, baton_stats[i].requests);
++            if (also)
++                fprintf(also, "# baton thread=%u acquires=%llu waits=%llu wait_ms=%.1f wait_max_ms=%.3f cv_sleeps=%llu held_ms=%.1f "
++                        "held_max_ms=%.3f requests=%llu\n", i, baton_stats[i].acquires, baton_stats[i].waits,
++                        baton_stats[i].wait_ticks * ms, baton_stats[i].wait_max * ms, baton_stats[i].cv_sleeps,
++                        baton_stats[i].hold_ticks * ms, baton_stats[i].hold_max * ms, baton_stats[i].requests);
++        }
+ }
+ void xrt_baton_acquire(void) {
+     uint64_t mine;

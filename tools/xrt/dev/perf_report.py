@@ -10,6 +10,7 @@ run's PDB through dbghelp).
 import argparse
 import bisect
 import ctypes
+import json
 import re
 import struct
 import sys
@@ -22,7 +23,7 @@ def frames(run):
     rows = []
     for line in (run / 'frames.csv').read_text().splitlines()[1:]:
         p = line.split(',')
-        rows.append((float(p[1]), int(p[2]), int(p[3]), int(p[4])))
+        rows.append((float(p[1]), int(p[2]), int(p[3]), int(p[4]), int(p[5]) if len(p) > 5 else 0))
     return rows
 
 
@@ -39,7 +40,8 @@ def frame_stats(rows, lo, hi):
     span = sel[-1][0] - sel[0][0]
     return {'presents': len(sel), 'world': sum(r[1] for r in sel), 'fps': (len(sel) - 1) * 1000 / span,
             'median_ms': pct(dt, 0.5), 'p95_ms': pct(dt, 0.95), 'p99_ms': pct(dt, 0.99), 'max_ms': max(dt),
-            'draws': sum(r[2] for r in sel) / len(sel), 'prims': sum(r[3] for r in sel) / len(sel)}
+            'draws': sum(r[2] for r in sel) / len(sel), 'prims': sum(r[3] for r in sel) / len(sel),
+            'cap_wait_share': sum(r[4] for r in sel[:-1]) / 1000 / span}
 
 
 def thread_times(run):
@@ -123,6 +125,68 @@ class Symbols:
         return n
 
 
+def thread_csv(run):
+    """threads.csv: ({ms: {tid: (role, user, kernel, sleeps, preemptions)}}, init_filetime, ['# baton ...' lines])."""
+    snaps, init, notes = {}, None, []
+    for line in (run / 'threads.csv').read_text().splitlines():
+        if line.startswith('# init_filetime='):
+            init = int(line.split('=')[1])
+        elif line.startswith('#'):
+            notes.append(line[2:])
+        elif not line.startswith('why,'):
+            why, ms, tid, role, u, k, sl, pr = line.split(',')
+            snaps.setdefault(float(ms), {})[int(tid)] = (role, float(u), float(k), int(sl), int(pr))
+    return snaps, init, notes
+
+
+def window_cpu(snaps, lo, hi):
+    """CPU of each thread between the snapshots bounding [lo, hi]: (wall ms, [(share of one core, kernel share, tid,
+    role, Sleep calls/s, preemptions/s)]) - tid 0 is the whole process."""
+    keys = sorted(snaps)
+    a = [k for k in keys if k <= lo + 50]
+    b = [k for k in keys if k >= hi - 50]
+    if not a or not b or a[-1] >= b[0]:
+        return None
+    s0, s1, wall = snaps[a[-1]], snaps[b[0]], b[0] - a[-1]
+    out = []
+    for tid, (role, u, k, sl, pr) in s1.items():
+        _, u0, k0, sl0, pr0 = s0.get(tid, (role, 0, 0, 0, 0))
+        out.append(((u - u0 + k - k0) / wall, (k - k0) / wall, tid, role, (sl - sl0) * 1000 / wall, (pr - pr0) * 1000 / wall))
+    return wall, sorted(out, reverse=True)
+
+
+def monitor(run, init_filetime, lo, hi):
+    """Mean of the -Monitor CSVs (power.csv: typeperf, gpu.csv: nvidia-smi; local wall-clock rows) over [lo, hi] ms
+    after Init."""
+    import csv
+    from datetime import datetime, timedelta, timezone
+    if init_filetime is None:
+        return {}
+    t0 = (datetime(1601, 1, 1, tzinfo=timezone.utc) + timedelta(microseconds=init_filetime / 10)).astimezone().replace(tzinfo=None)
+    a, b = t0 + timedelta(milliseconds=lo), t0 + timedelta(milliseconds=hi)
+    out = {}
+    for name, fmt in (('power.csv', '%m/%d/%Y %H:%M:%S.%f'), ('gpu.csv', '%Y/%m/%d %H:%M:%S.%f')):
+        p = run / name
+        if not p.exists():
+            continue
+        rows = list(csv.reader(p.read_text(errors='replace').splitlines()))
+        head, cols = rows[0], {}
+        for r in rows[1:]:
+            try:
+                t = datetime.strptime(r[0].strip(), fmt)
+            except ValueError:
+                continue
+            if a <= t <= b:
+                for h, v in zip(head[1:], r[1:]):
+                    try:
+                        cols.setdefault(h.strip(), []).append(float(v.strip().split()[0]))
+                    except (ValueError, IndexError):
+                        pass
+        for h, v in cols.items():
+            out[h] = (sum(v) / len(v), len(v))
+    return out
+
+
 def samples(run):
     data = (run / 'samples.bin').read_bytes()
     out, at = [], 0
@@ -141,6 +205,7 @@ def main():
     ap.add_argument('--window', action='append', default=[])
     ap.add_argument('--top', type=int, default=30)
     ap.add_argument('--timeline', type=int, default=10000, help='per-interval FPS table step (ms); 0 disables')
+    ap.add_argument('--json', type=Path, help='also write the per-window frame/CPU/monitor figures to this file')
     a = ap.parse_args()
     sys.stdout.reconfigure(encoding='utf-8')
     rows = frames(a.run)
@@ -154,16 +219,35 @@ def main():
                 print(f'{t:>9.0f}  {s["presents"]:>6}  {s["fps"]:6.1f}  {s["world"]:>6}')
             t += a.timeline
     snaps = thread_times(a.run)
+    tsnaps, init_ft, notes = thread_csv(a.run) if (a.run / 'threads.csv').exists() else ({}, None, [])
     sm = samples(a.run) if (a.run / 'samples.bin').exists() else []
     sym = Symbols(a.run) if sm else None
+    summary = {'run': a.run.name, 'baton': notes, 'windows': {}}
     for w in a.window:
         lo, hi = map(float, w.split(':'))
         s = frame_stats(rows, lo, hi)
         print(f'\n== window {lo:.0f}..{hi:.0f} ms ==')
+        entry = summary['windows'][w] = {'frames': s}
         if s:
-            print('presents {presents} world {world} | avg {fps:.1f} fps | frame ms median {median_ms:.1f} '
-                  'p95 {p95_ms:.1f} p99 {p99_ms:.1f} max {max_ms:.1f} | draws/frame {draws:.0f} prims/frame {prims:.0f}'.format(**s))
-        c = cpu_share(snaps, lo, hi)
+            print('presents {presents} world {world} | avg {fps:.1f} fps | frame ms median {median_ms:.2f} '
+                  'p95 {p95_ms:.2f} p99 {p99_ms:.2f} max {max_ms:.1f} | draws/frame {draws:.0f} prims/frame {prims:.0f} '
+                  '| limiter wait {cap_wait_share:.1%}'.format(**s))
+        c = window_cpu(tsnaps, lo, hi) if tsnaps else None
+        if c:
+            wall, threads = c
+            entry['cpu_wall_ms'] = wall
+            entry['threads'] = [dict(tid=t, role=r, core=sh, kernel=k, sleeps_per_s=sl, preempt_per_s=pr)
+                                for sh, k, t, r, sl, pr in threads if sh > 0.001 or r == 'guest1']
+            print(f'CPU over {wall:.0f} ms (threads.csv snapshots bounding the window; % of one core):')
+            for sh, k, t, r, sl, pr in threads:
+                if sh > 0.005 or r in ('process', 'guest0', 'guest1'):
+                    extra = (f', {sl:.0f} Sleep/s' if sl else '') + (f', {pr:.0f} preemptions/s' if pr else '')
+                    print(f'  {r:8} tid {t:>6}: {100 * sh:6.1f}% ({100 * k:.1f}% kernel{extra})')
+        m = monitor(a.run, init_ft, lo, hi)
+        if m:
+            entry['monitor'] = m
+            print('monitor means:', '; '.join(f'{h.split(chr(92))[-1]} {v:.1f} (n={n})' for h, (v, n) in m.items()))
+        c = cpu_share(snaps, lo, hi) if not tsnaps else None
         if c:
             wall, threads = c
             print(f'thread CPU over {wall:.0f} ms (shots bounding the window):')
@@ -193,6 +277,8 @@ def main():
         print('innermost translated guest function:')
         for nm, cnt in guest.most_common(a.top):
             print(f'  {100 * cnt / n:5.1f}%  {nm}')
+    if a.json:
+        a.json.write_text(json.dumps(summary, indent=1) + '\n')
 
 
 if __name__ == '__main__':

@@ -23,6 +23,10 @@ GEN_OPT = '/O2'
 GEN_NO_FORCE_INLINE = set()
 # Per-unit compile limits (s) above the default 600: GlmLib_020 forced inline took ~11 min under a parallel build.
 GEN_SLOW_UNITS = {'GlmLib_020.c': 1800}
+# Native C replacements (build --native): generated unit -> [(guest function, native source)]. The unit is compiled
+# with the translated function renamed to <name>_translated, so the native definition is what the function table and
+# every call reach. Differential test: experiments/xrt/tests/native_glm_xform.
+NATIVE = {'GlmLib_008.c': [('f_2fd7d20', HERE / 'native/glm_xform.c')]}
 DEV = WS / 'out/dev-init'
 RT = DEV / 'runtime'
 BUILD = DEV / 'build'
@@ -163,7 +167,7 @@ def compile_one(src, obj, env, includes=(), flags=(), timeout=600):
     command(['cl', '/nologo', '/c', '/Z7', '/fp:strict', '/W3', '/D_CRT_SECURE_NO_WARNINGS',
              '/DXRT_WITH_UNREAL2', *flags, *[f'/I{x}' for x in includes], f'/Fo{obj}', src], env, obj.stem, timeout)
 
-def build(full=False, fixtures_only=False):
+def build(full=False, fixtures_only=False, native=False):
     independent(DEV)
     BUILD.mkdir(parents=True, exist_ok=True)
     env = compiler_environment()
@@ -208,7 +212,8 @@ def build(full=False, fixtures_only=False):
         # Generated code is compiled /O2 like the runtime: under /O1 (no /Oi) MSVC emitted an
         # out-of-line memcpy call for every 4-byte guest load/store. /fp:strict is unchanged.
         opt = obj.with_suffix('.opt')
-        opt_text = GEN_OPT + (' /DXRT_NO_FORCE_INLINE' if src.name in GEN_NO_FORCE_INLINE else '')
+        renames = [f'/D{fn}={fn}_translated' for fn, _ in NATIVE.get(src.name, [])] if native else []
+        opt_text = GEN_OPT + (' /DXRT_NO_FORCE_INLINE' if src.name in GEN_NO_FORCE_INLINE else '') + ''.join(' ' + r for r in renames)
         # The object must come from this source: switching a unit between its developer copy and the shared
         # source cannot be judged by modification times alone (the copy is newer than the shared file).
         origin = obj.with_suffix('.src')
@@ -220,6 +225,7 @@ def build(full=False, fixtures_only=False):
             flags = [GEN_OPT, '/wd4102', '/wd4146']
             if src.name in GEN_NO_FORCE_INLINE:
                 flags.append('/DXRT_NO_FORCE_INLINE')
+            flags += renames
             if observed or '/FIworld_observer.h' in row.get('command', []):
                 flags.append('/FIworld_observer.h')
             # Shared generated sources must be the ones the baseline objects came from.
@@ -252,6 +258,13 @@ def build(full=False, fixtures_only=False):
             # Same optimisation as the production client runtime (build_client.cmd: /O2 /fp:strict); /Z7 keeps symbols.
             compile_one(src, obj, env, [RT, HERE], ['/O2', '/std:c11'])
         objects.append(obj)
+    natives = [src for units in NATIVE.values() for _, src in units] if native else []
+    for src in natives:
+        obj = BUILD / 'obj/native' / (src.stem + '.obj')
+        if full or not obj.exists() or obj.stat().st_mtime < max(src.stat().st_mtime, (RT / 'xrt.h').stat().st_mtime):
+            print('Compiling native', src.name, flush=True)
+            compile_one(src, obj, env, [RT], ['/O2', '/std:c11'])
+        objects.append(obj)
     asm = BUILD / 'obj/rt/monitor_asm.obj'
     if full or not asm.exists() or asm.stat().st_mtime < (RT / 'monitor.asm').stat().st_mtime:
         command(['ml64', '/nologo', '/c', '/Zi', f'/Fo{asm}', RT / 'monitor.asm'], env, 'monitor-asm')
@@ -265,7 +278,8 @@ def build(full=False, fixtures_only=False):
     stamp.write_bytes(abi)
     write(BUILD / 'build-state.json', {'ok': True, 'executable': str(BUILD / 'unreal2-dev.exe'),
                                       'generated_optimization': GEN_OPT, 'generated_units': len(lineage) - sum(
-                                          1 for rel in lineage if rel.startswith('obj/rt/'))})
+                                          1 for rel in lineage if rel.startswith('obj/rt/')),
+                                      'native': [fn for units in NATIVE.values() for fn, _ in units] if native else []})
     print('Built (not executed):', BUILD / 'unreal2-dev.exe')
 
 def fresh_run():
@@ -452,7 +466,8 @@ def run(args):
         raise RuntimeError('Build the developer executable first')
     if not read(BUILD / 'build-state.json')['ok']:
         raise RuntimeError('Last build failed; rebuild before running')
-    sources = [*RT.iterdir(), *HERE.glob('*.c'), *HERE.glob('*.h'), *HERE.glob('*.inc'), *HERE.glob('*.py'), * (DEV / 'generated').iterdir()]
+    sources = [*RT.iterdir(), *HERE.glob('*.c'), *HERE.glob('*.h'), *HERE.glob('*.inc'), *HERE.glob('*.py'), * (DEV / 'generated').iterdir(),
+               *HERE.glob('native/*.c')]
     if any(p.is_file() and p.stat().st_mtime > exe.stat().st_mtime for p in sources):
         raise RuntimeError('Development sources changed: build before run')
     independent(exe)
@@ -537,6 +552,10 @@ def run(args):
             env['XRT_DEV_STAGING'] = 'reuse'   # buffer staging kept per buffer (runtime resource_storage.inc)
         if args.capture == 'shots':
             env['XRT_DEV_CAPTURE'] = 'shots'   # no periodic/cue/startup readbacks (dev_support.c)
+        if args.fps_cap:
+            env['XRT_DEV_FPS_CAP'] = str(args.fps_cap)   # development frame limiter (dev_support.c perf_cap_wait)
+        if args.native_verify:
+            env['XRT_NATIVE_VERIFY'] = str(args.native_verify)   # tools/xrt/dev/native: compare every Nth call
     graphics.environment(env, out)
     write(out / 'trace-profile.json', {'profile': args.trace_profile, 'full': args.trace_full,
                                      'addresses': [hex(a) for a in args.trace_address],
@@ -546,7 +565,8 @@ def run(args):
                                      'input_script': args.input, 'allowed_maps': args.allow_map,
                                      'campaign_assets': args.campaign_assets, 'sample_hz': args.sample_hz,
                                      'windowed_res': args.windowed_res, 'capture': args.capture,
-                                     'staging': args.staging})
+                                     'staging': args.staging, 'fps_cap': args.fps_cap, 'native_verify': args.native_verify,
+                                     'native': read(BUILD / 'build-state.json').get('native', [])})
     if args.attach:
         env['XRT_DEV_ATTACH'] = '1'
     command_args = ['--guest', sandbox / 'System/Unreal2.exe', '--log', out / 'xrt.log',
@@ -574,6 +594,7 @@ def main():
     sub = parser.add_subparsers(dest='action', required=True)
     sub.add_parser('setup')
     b = sub.add_parser('build'); b.add_argument('--full', action='store_true')
+    b.add_argument('--native', action='store_true', help='link the native C replacements in NATIVE instead of their translations')
     lp = sub.add_parser('lift', help='re-lift shared generated modules into developer copies (then build)')
     lp.add_argument('--opt', default='', help='xlift --opt list (flags,pc); empty = plain lift')
     lp.add_argument('modules', nargs='+', help='gen/ directory names, e.g. fire engine core')
@@ -595,12 +616,16 @@ def main():
     r.add_argument('--allow-map', action='append', default=[], metavar='FILE.un2',
                    help='first-scene: continue (instead of stopping) when this map file is opened post-Init')
     r.add_argument('--input', default='', metavar='SCRIPT',
-                   help='first-scene: short explicit input script "T:verb[:args];..." (key/move/click/shot), '
+                   help='first-scene: short explicit input script "T:verb[:args];..." (key/move/click/shot/cpu), '
                         'T in ms after Init; delivered to the game window only, isolation stays on')
     r.add_argument('--staging', choices=('strict', 'reuse'), default='strict',
                    help='D3D8 buffer Lock staging: strict (default; decommitted at Unlock, stale pointers fault) or reuse (per-buffer block, stale pointers into it not trapped)')
     r.add_argument('--capture', choices=('periodic', 'shots'), default='periodic',
                    help='first-scene back-buffer captures: periodic (default; powers of two, every 256th world frame, cues) or shots (scripted shots only)')
+    r.add_argument('--fps-cap', type=int, choices=range(0, 1001), default=0, metavar='0..1000',
+                   help='first-scene: development frame limiter after each post-Init Present (waitable timer, baton released; 0 = uncapped)')
+    r.add_argument('--native-verify', type=int, default=0, metavar='N',
+                   help='with a build --native executable: compare every Nth native call against its translation (xrt.log)')
     r.add_argument('--windowed-res', type=lambda v: tuple(int(x) for x in v.lower().split('x')), metavar='WxH',
                    help='windowed viewport the game requests (WindowedViewportX/Y in the run sandbox Unreal2.ini)')
     r.add_argument('--campaign-assets', action='store_true',
@@ -625,7 +650,7 @@ def main():
     args = parser.parse_args()
     independent(DEV)
     if args.action == 'setup': setup()
-    elif args.action == 'build': build(args.full)
+    elif args.action == 'build': build(args.full, native=args.native)
     elif args.action == 'lift': lift(args.modules, {x for x in args.opt.split(',') if x})
     elif args.action == 'selftest': selftest()
     elif args.action == 'observe': observe()
