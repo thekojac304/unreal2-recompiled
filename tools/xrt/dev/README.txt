@@ -323,6 +323,13 @@ mode at 3840x2160, --fps-cap 90, --staging reuse, quiet profile, behind the owne
     own device re-creation (genuine 2560x1440 back buffer); IDirect3DDevice8::Reset implemented but not exercised by the game.
   - Diagnostic: dev.py build --diag-move + run --diag-move logs what ULevel::MoveActor reports as blocking the player.
   - Performance at the 90 FPS cap: every explored TutA area median 11.1 ms, p95 12.5-13.2 ms, 35-52% limiter wait.
+  - Lifted-image gap: the pool's bump region also ended at a lifted module image inside the pool range (UI.dll at
+    0x19100000; fatal on the second TutB attempt); xrt_mem.c now steps over such images.
+Follow-up batch (owner-authorized, 5 launches): the default build enters the TutA lift exactly like the --diag-move build
+(launch 13's block was its approach angle), TutB loads with both pool fixes (run 20261101-134656: two lifted images skipped,
+no reclaim needed), TutB arrival/lift/quicksave and loading TutB saves in fresh sandboxes work, ~88 FPS at the cap.
+TutB route: the arrival corridor (x~1515) leads to an east-west passage at y~-1300; RaffDoor (1010,-1221) at its west end
+is under a staircase; checkpoints in out/dev-init/saves/20261101-13*-checkpoint-tutb-*.
 
 Background developer mode (2026-11-01, gameplay batch): dev.py run --background (bench_tuta.ps1 -Background), only with
 input isolation. The owner keeps using the desktop; the game window never takes focus and only the --input script reaches it.
