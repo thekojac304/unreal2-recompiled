@@ -55,7 +55,7 @@ def lift(dst, opt, mutate=None):
 def build_lifted(dst):
     srcs = " ".join(f'"{os.path.join(OUT, dst, n)}"' for n in sorted(os.listdir(os.path.join(OUT, dst))) if n.endswith(".c"))
     sh("x64", f'cl /nologo /O2 /fp:strict /W3 /wd4102 /wd4146 /wd4100 /D_CRT_SECURE_NO_WARNINGS /I"{RT}" /I"{HERE}" '
-              f'/Fo"{os.path.join(OUT, dst)}\\\\" /Fe"{os.path.join(OUT, dst + ".exe")}" {srcs} "{os.path.join(HERE, "lifted.c")}"')
+              f'/FIsse_mutants.h /Fo"{os.path.join(OUT, dst)}\\\\" /Fe"{os.path.join(OUT, dst + ".exe")}" {srcs} "{os.path.join(HERE, "lifted.c")}"')
 
 
 def records(path):
@@ -230,6 +230,62 @@ X87V_MUTATIONS = {"x87v-label-keeps-values": mut_x87v_label_keeps_values,
                   "x87v-call-keeps-values": mut_x87v_call_keeps_values}
 
 
+def mut_x87w_exit_not_stored(x):
+    x.Lifter.x87w_exits = staticmethod(lambda s: False)
+
+
+X87W_STORE = r"^c->st\[\(ft_ \+ (\d)u\) & 7u\] = fc(\d)_;$"
+
+
+def x87w_rewritten(edit):
+    """Mutation (--opt x87w): the deferred stores x87_values emitted (standalone statements) edited after the pass."""
+    def patch(x):
+        import re
+        orig = x.Lifter.x87_values
+
+        def values(self, body, labels):
+            out, used = orig(self, body, labels)
+            return edit(re, out, labels), used
+        x.Lifter.x87_values = values
+    return patch
+
+
+def label_not_stored(re, out, labels):
+    res = []
+    for i, (va, st) in enumerate(out):
+        if i + 1 < len(out) and out[i + 1][0] in labels:
+            while st and re.match(X87W_STORE, st[-1]):
+                st = st[:-1]
+        res.append((va, st))
+    return res
+
+
+def wrong_slot(re, out, labels):
+    return [(va, [re.sub(X87W_STORE, lambda m: f"c->st[(ft_ + {int(m.group(1)) + 1}u) & 7u] = fc{m.group(2)}_;", s)
+                  for s in st]) for va, st in out]
+
+
+# --opt x87w only
+X87W_MUTATIONS = {"x87w-exit-not-stored": mut_x87w_exit_not_stored,
+                  "x87w-label-not-stored": x87w_rewritten(label_not_stored),
+                  "x87w-wrong-slot": x87w_rewritten(wrong_slot)}
+
+def sse_renamed(renames):
+    """Mutation (--opt sse): some final forms replaced by the broken variants of sse_mutants.h."""
+    def patch(x):
+        x.SSE_FORMS = tuple((old, renames.get(new, new)) for old, new in x.SSE_FORMS)
+    return patch
+
+
+# --opt sse only
+SSE_MUTATIONS = {"sse-float-store-wide": sse_renamed({"wrf32s(": "wrf32s_mut_wide("}),
+                 "sse-double-store-narrow": sse_renamed({"wrf64s(": "wrf64s_mut_narrow("}),
+                 "sse-compare-no-unordered": sse_renamed({"XFCOMPAREO(": "XFCOMPAREO_mut_nan(",
+                                                          "fcompareo(c, ": "fcompareo_mut_nan(c, "}),
+                 "sse-compare-equal-as-less": sse_renamed({"XFCOMPAREO(": "XFCOMPAREO_mut_le(",
+                                                           "fcompareo(c, ": "fcompareo_mut_le(c, "})}
+
+
 def main():
     global OPT
     args = sys.argv[1:]
@@ -292,6 +348,10 @@ def main():
             MUTATIONS.update(X87_MUTATIONS)
         if "x87v" in OPT.split(","):
             MUTATIONS.update(X87V_MUTATIONS)
+        if "sse" in OPT.split(","):
+            MUTATIONS.update(SSE_MUTATIONS)
+        if "x87w" in OPT.split(","):
+            MUTATIONS.update(X87W_MUTATIONS)
         if "iflags" in OPT.split(","):
             # iflags replaces the local "every call/return reads all flags" rule these two break; its own mutations
             # break the call-side summary, the return side, tail jumps, address-taken detection and indirect calls

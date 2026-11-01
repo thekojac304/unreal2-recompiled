@@ -46,3 +46,19 @@ guest-memory base, guest registers in locals) on whole functions, where the per-
 .venv\Scripts\python.exe -I experiments\xrt\tests\opt_diff\run.py --opt flags,pc,base,regs,x87,icall --mutations --vectors 3000
 .venv\Scripts\python.exe -I experiments\xrt\tests\opt_diff\run.py --opt flags,pc,base,regs,x87,x87v,icall,iflags --mutations --vectors 3000
 ```
+8. Direct SSE forms (`--opt sse`): `t_asm_sse` compares arbitrary float/double bit patterns from `in` (NaN payloads,
+   signed zeros, infinities, denormals) in register, memory and `ftst` forms and stores them with `fst`/`fstp`
+   dword/qword at unaligned, overlapping and adjacent `out` addresses whose neighbouring bytes stay observable.
+   Mutations (broken twins in `sse_mutants.h`, forced into every lifted build): float store 8 bytes wide, double store
+   4 bytes wide, compare without the unordered case, equal reported as less. `forms_equiv.py --mutations` checks the
+   twins themselves against the helpers they replace (`/O2 /fp:strict`, 6 million cases: random and NaN-pattern
+   stores at unaligned offsets, compares over all pairs of special values) with the same four mutations.
+9. Deferred x87 write-back (`--opt x87w`): `t_asm_x87w` leaves written x87 values unstored across a conditional
+   forward branch, a block falling through into a label, a backward loop edge, an early exit and after `fxch`/pops.
+   Mutations: no store before a branch/return, no store at the end of a block before a label, store to the wrong slot.
+
+```bat
+.venv\Scripts\python.exe -I experiments\xrt\tests\opt_diff\run.py --opt flags,pc,base,regs,x87,x87v,x87w,icall,iflags,sse --mutations --vectors 3000
+.venv\Scripts\python.exe -I experiments\xrt\tests\opt_diff\run.py --opt flags,pc,base,sse --mutations
+.venv\Scripts\python.exe -I experiments\xrt\tests\opt_diff\forms_equiv.py --mutations
+```

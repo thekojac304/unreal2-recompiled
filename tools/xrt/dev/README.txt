@@ -218,6 +218,47 @@ at the same running position and collision as run 20261031-163246 (98 FPS); jump
 (menu identical, scenes < 4% pixels apart; end-of-walk heading varies as between two baseline runs).
 Remaining gap: slow subsection p95 13.58 ms vs 8.33 (needs 39% less frame time), 0/19 seconds at >= 120 FPS.
 
+Guest-memory batch (2026-11-01, 10 launches, 3063 s; this commit). Line-level split of the iflags slow-subsection profile
+(run 20261031-224507, 158-177 s): the "guest memory" share was mostly x87 lines with guest operands, and the x64 of the
+hottest functions showed two MSVC artifacts that survive /O2 /fp:strict: (1) every fst/fstp to guest memory
+(wrf32b/wrf64b, memcpy of a float) went movss/movsd to a stack temporary, integer reload, integer store - a
+store-forwarding round trip, often on the fstp -> fld chain (those lines: 7.0% of all samples); (2) isnan() in
+XFCOMPARE/fcompare compiled to two out-of-line _dclass calls per x87 compare (1.1% leaf, clobbering xmm0-5 mid x87
+block; 118 calls in f_30b6e10 alone). Third: x87v wrote every x87 result through to c->st[(ft_+k)&7] (index math +
+store per op). Implemented (opt-in, default lift unchanged; re-lift with the old options reproduces all 247 iflags
+chunks byte for byte):
+  xlift --opt sse   final rename (after every analysis) to xrt.h twins wrf32s/wrf64s (_mm_store_ss/_mm_storel_pd)
+                    and XFCOMPAREO/fcompareo (a < b, a == b, !(a > b): exactly the unordered case without isnan)
+  xlift --opt x87w  x87v write-back: a written slot is marked dirty and stored once, before a cache end, a goto/
+                    return/RET/switch and at the end of a block before a label (never more stores than write-through)
+Static: f_30995e0 5456 -> 3899 x64 instructions, f_30b6e10 22212 -> 17372, f_2fd7d20 1361 -> 1038; exe 81.8 -> 80.3 MB;
+GlmLib x87 write-through stores 47154 -> 8387; GlmLib_020 (forced inline) compiles in < 2 min instead of ~11, a full
+build ~2 min. Tests: opt_diff t_asm_sse, t_asm_x87w; mutations sse x4, x87w x3 (final option set 48000 cases, 25/25;
+--opt flags,pc,base,sse 9/9; previous option set 18/18); forms_equiv.py twins 6 M cases, 4/4 mutations.
+Rejected: --opt pf (PF from a 256-entry table; flag-heavy functions -10% instructions) measured 105.3 / 101.4 FPS in
+the slow subsection vs 102.7 median: within noise, not kept (save point pf-20261101 has it and its tests).
+4K, --staging reuse, -NoCapture, unsampled; medians FPS (median / p95 / p99 ms, % frames > 8.33 ms):
+  window          iflags (7 runs)               sse (233753)   sse+x87w FINAL (4 runs)       sse+x87w+pf (2)
+  CS_Intro 30-60  172.9 (5.42/9.00/11.74, 7.7%)  180.6 (8.33)  183.3 (5.09/8.22/10.89, 4.6%)   176.5 (8.64)
+  cutscene full   140.4 (7.91/11.58/13.58, 44%)  145.5 (11.01) 154.2 (7.27/10.42/12.17, 32%)   153.2 (10.42)
+  cut 150-210     110.9 (12.26)                  116.2 (11.59) 122.7 (10.88)                   123.3 (10.90)
+  slow 158-177    91.9 (10.60/13.55/15.24, 100%) 96.1 (12.64)  102.7 (9.50/12.01/13.70, 96%)   103.3 (11.97)
+  spawn           146.0 (6.65/8.75/9.98, 6.8%)   151.6 (8.05)  158.6 (6.08/7.94/9.14, 3.0%)    158.4 (7.96)
+  movement        199.4 (4.53/7.83/9.53, 3.3%)   201.5 (7.61)  212.5 (4.24/7.14/8.60, 1.4%)    211.7 (7.20)
+Baseline = iflags runs 220829 222050 223248 225710 230314 + interleaved 20261031-234345 / 20261101-000455 (93.3 FPS,
+p95 13.08 in the slow subsection). Final runs 20261031-235819, 20261101-001020, -003928, -005436 (-TimingProbe).
+Spawn, movement and CS_Intro 30-60 now have p95 <= 8.33 ms; the cutscene does not: slow subsection p95 12.01 ms
+(needs 31% less frame time), 0/19 seconds at >= 120 FPS. Sampled run 20261101-001903 (158-177 s, not a headline):
+translated code 68% - call machinery ~22% (ICALLI 7.2%, CALL 2.6%, XRT_ENTER 2.1%, RET 1.7%, prologue/epilogue/
+spills ~8%), flags ~14% (full helpers 7.8%, reduced stores 4.3%, flag branches 2.1%), c->pc store lines 6.7%, guest
+loads/stores/push/pop/rep ~11%, x87 ~12% (now mostly the FP arithmetic itself); runtime 32% (memset 2.2%, draw
+validation memchr 1.6%, dispatch 1.5%, staging copies 1.5%, setjmp 1.3%, d8_semantic_checkpoint 1.3%, recorder ~2.3%,
+xrt_world_return 1.0%, xrt_rdtsc 0.9%, xrt_icall_after 0.8%). Timing: probe shots of 20261101-005436 (~182 FPS) match
+probe run 20261031-225710 (iflags): same running distance (250.1 s) and collision with the console (258.5 s); menus
+identical; scene shots < 2.5% pixels apart; end-of-walk heading varies as between two baseline runs (both 29-34%).
+Scripted Space still shows no jump: jump timing unverified. Save points sse-20261031, x87w-20261031 (final), pf-20261101;
+generated sources C:\Users\lawma\Unreal2-dev-sandbox-overflow\{sse,x87w}-20261031-generated.
+
 The third developer run (20261030-221937-21570264) reached successful window
 creation and continued file-backed loading. Its last completed ReadFile returned
 TRUE, its last SetFilePointer returned 0x6c560, and _vsnwprintf returned 12.

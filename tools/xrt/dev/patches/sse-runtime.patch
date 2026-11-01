@@ -1,0 +1,49 @@
+diff --git a/out/dev-init-savepoints/floor-staging-20261031/runtime/xrt.h b/out/dev-init/runtime/xrt.h
+index 42cbf11..ce0a126 100644
+--- a/out/dev-init-savepoints/floor-staging-20261031/runtime/xrt.h
++++ b/out/dev-init/runtime/xrt.h
+@@ -84,6 +84,18 @@ XRT_INLINE float rdf32b(const uint8_t* g, uint32_t a) { float f; memcpy(&f, g +
+ XRT_INLINE double rdf64b(const uint8_t* g, uint32_t a) { double d; memcpy(&d, g + a, 8); return d; }
+ XRT_INLINE void wrf32b(uint8_t* g, uint32_t a, float f) { memcpy(g + a, &f, 4); }
+ XRT_INLINE void wrf64b(uint8_t* g, uint32_t a, double d) { memcpy(g + a, &d, 8); }
++/* xlift --opt sse: the same float/double guest stores as single SSE stores. Through memcpy, MSVC stores a float or double
++ * via a stack temporary (movss/movsd to the stack, integer reload, integer store), a store-forwarding round trip per
++ * fst/fstp that often sits on a dependency chain (fstp to a stack slot, fld of it a few instructions later). The stored
++ * bytes are the value's bits either way (no conversion happens in the store). */
++#if defined(_MSC_VER) && (defined(_M_X64) || defined(_M_AMD64))
++#include <emmintrin.h>
++XRT_INLINE void wrf32s(uint8_t* g, uint32_t a, float f) { _mm_store_ss((float*)(g + a), _mm_set_ss(f)); }
++XRT_INLINE void wrf64s(uint8_t* g, uint32_t a, double d) { _mm_storel_pd((double*)(g + a), _mm_set_sd(d)); }
++#else
++XRT_INLINE void wrf32s(uint8_t* g, uint32_t a, float f) { wrf32b(g, a, f); }
++XRT_INLINE void wrf64s(uint8_t* g, uint32_t a, double d) { wrf64b(g, a, d); }
++#endif
+ XRT_INLINE void push32b(uint8_t* g, CPU* c, uint32_t v) { c->r[ESP] -= 4; wr32b(g, c->r[ESP], v); }
+ XRT_INLINE uint32_t pop32b(const uint8_t* g, CPU* c) { uint32_t v = rd32b(g, c->r[ESP]); c->r[ESP] += 4; return v; }
+ 
+@@ -123,6 +135,15 @@ XRT_INLINE void fcompare(CPU* c, double a, double b) { /* C0 (bit 8), C2 (bit 10
+     else if (a < b) c->fsw |= 0x0100;
+     else if (a == b) c->fsw |= 0x4000;
+ }
++/* xlift --opt sse: the same result without isnan(), which /fp:strict compiles to an out-of-line _dclass call (two per
++ * compare, clobbering xmm0-5 in the middle of x87 code). With a NaN operand none of <, == and > holds, so the third
++ * test is exactly the unordered case; otherwise exactly one of the three holds. */
++XRT_INLINE void fcompareo(CPU* c, double a, double b) {
++    c->fsw &= (uint16_t)~0x4500;
++    if (a < b) c->fsw |= 0x0100;
++    else if (a == b) c->fsw |= 0x4000;
++    else if (!(a > b)) c->fsw |= 0x4500;
++}
+ XRT_INLINE uint16_t fstatus(CPU* c) { return (uint16_t)((c->fsw & ~0x3800) | ((c->top & 7) << 11)); }
+ /* The same operations with TOP and the status word in the translated function's locals ft_ and fsw_ (xlift --opt x87).
+  * Without them every fpush/fpop/ST was a read-modify-write of c->top through memory that guest stores may alias, a
+@@ -135,6 +156,9 @@ XRT_INLINE uint16_t fstatus(CPU* c) { return (uint16_t)((c->fsw & ~0x3800) | ((c
+ #define XFCOMPARE(a, b) do { double a__ = (a), b__ = (b); fsw_ &= (uint16_t)~0x4500; \
+         if (isnan(a__) || isnan(b__)) fsw_ |= 0x4500; else if (a__ < b__) fsw_ |= 0x0100; \
+         else if (a__ == b__) fsw_ |= 0x4000; } while (0)
++#define XFCOMPAREO(a, b) do { double a__ = (a), b__ = (b); fsw_ &= (uint16_t)~0x4500; \
++        if (a__ < b__) fsw_ |= 0x0100; else if (a__ == b__) fsw_ |= 0x4000; \
++        else if (!(a__ > b__)) fsw_ |= 0x4500; } while (0)
+ void xrt_fsin(CPU* c);
+ void xrt_fcos(CPU* c);
+ void xrt_fptan(CPU* c);

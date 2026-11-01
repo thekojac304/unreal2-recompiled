@@ -509,3 +509,141 @@ EXPORT __declspec(naked) uint64_t __cdecl t_asm_loops(const uint8_t* in, uint8_t
         ret
     }
 }
+
+/* --opt sse: x87 compares of arbitrary float/double bit patterns (NaN payloads, signed zeros, infinities, denormals) in
+ * register, memory and ftst forms, and fst/fstp dword/qword to unaligned, overlapping and adjacent out addresses whose
+ * neighbouring bytes stay observable: a wrong store width or a wrong unordered/equal rule changes the result. A double
+ * NaN from `in` is replaced by the float at the same address before it is stored as a double (x87 fld quiets a
+ * signalling NaN, the double model keeps its bits: an existing, unrelated model difference the test avoids). */
+EXPORT __declspec(naked) uint64_t __cdecl t_asm_sse(const uint8_t* in, uint8_t* out, uint32_t n, uint32_t seed) {
+    __asm {
+        push esi
+        push edi
+        push ebx
+        mov esi, [esp + 16]
+        mov edi, [esp + 20]
+        mov ecx, [esp + 24]
+        and ecx, 31
+        mov ebx, [esp + 28]
+        test ecx, ecx
+        jz sse_done
+    sse_top:
+        fld dword ptr [esi]
+        fld qword ptr [esi + 4]
+        fucom st(0)
+        fnstsw ax
+        test ah, 4
+        jz sse_ordered
+        fstp st(0)
+        fld dword ptr [esi + 4]
+    sse_ordered:
+        fcom st(1)
+        fnstsw ax
+        and eax, 0x4500
+        xor ebx, eax
+        rol ebx, 3
+        fcom dword ptr [esi + 1]
+        fnstsw ax
+        and eax, 0x4500
+        xor ebx, eax
+        rol ebx, 3
+        fucom st(1)
+        fnstsw ax
+        and eax, 0x4500
+        xor ebx, eax
+        rol ebx, 3
+        fcom qword ptr [esi + 4]
+        fnstsw ax
+        and eax, 0x4500
+        xor ebx, eax
+        rol ebx, 3
+        ftst
+        fnstsw ax
+        and eax, 0x4500
+        xor ebx, eax
+        rol ebx, 3
+        fst dword ptr [edi + 1]
+        fst qword ptr [edi + 3]
+        fxch st(1)
+        fst dword ptr [edi + 9]
+        fcomp dword ptr [edi + 9]
+        fnstsw ax
+        and eax, 0x4500
+        xor ebx, eax
+        rol ebx, 3
+        fstp qword ptr [edi + 16]
+        mov byte ptr [edi + 20], bl
+        fld dword ptr [edi + 16]
+        fucomp st(0)
+        fnstsw ax
+        and eax, 0x4500
+        xor ebx, eax
+        rol ebx, 3
+        fldz
+        fld dword ptr [esi + 12]
+        fucompp
+        fnstsw ax
+        and eax, 0x4500
+        xor ebx, eax
+        add esi, 13
+        add edi, 24
+        dec ecx
+        jnz sse_top
+    sse_done:
+        mov eax, ebx
+        xor edx, edx
+        pop ebx
+        pop edi
+        pop esi
+        ret
+    }
+}
+
+/* --opt x87w: x87 values written (not yet stored to c->st) when control leaves the straight-line run: a conditional
+ * forward branch, a block falling through into a label, a backward loop edge, an early exit with values on the stack,
+ * fxch, and popped slots (the model keeps a popped value in c->st; the full-state compare sees all eight). */
+EXPORT __declspec(naked) uint64_t __cdecl t_asm_x87w(const uint8_t* in, uint8_t* out, uint32_t n, uint32_t seed) {
+    __asm {
+        push esi
+        push edi
+        mov esi, [esp + 12]
+        mov edi, [esp + 16]
+        mov ecx, [esp + 20]
+        and ecx, 15
+        fld1
+        fild dword ptr [esp + 24]
+        fmul qword ptr [k_decay]
+        test ecx, ecx
+        jz w_done
+    w_top:
+        fild word ptr [esi]
+        fadd st(0), st(2)
+        fxch st(1)
+        fsub st(0), st(1)
+        test byte ptr [esi + 2], 1
+        jz w_skip
+        fld st(1)
+        fmulp st(1), st(0)
+        fxch st(2)
+        fadd qword ptr [k_decay]
+        fxch st(2)
+    w_skip:
+        fld st(0)
+        fstp dword ptr [edi]
+        fxch st(1)
+        fstp st(0)
+        fmul qword ptr [k_decay]
+        add esi, 3
+        add edi, 4
+        dec ecx
+        jnz w_top
+    w_done:
+        fstp qword ptr [edi]
+        fstp qword ptr [edi + 8]
+        mov eax, [edi]
+        mov edx, [edi + 12]
+        pop edi
+        pop esi
+        ret
+    }
+}

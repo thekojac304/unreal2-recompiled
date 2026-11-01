@@ -58,10 +58,17 @@ Optional optimizations (--opt LIST; default none, which keeps the output byte-id
          diagnostic dump may show older flags. Least fixed point over the module, iterated to a stable result.
   icall  (needs regs) indirect calls as ICALLI: the call-target cache hit path at the call site (a host indirect
          branch per guest call site). x87 and icall change only functions of at most LOCAL_MAX_INSNS instructions.
+  x87w   (needs x87v) x87 values stored to c->st once per straight-line run instead of after every write: before
+         calls, helpers, unrecognised x87 statements, branches, returns and labels (Lifter.x87_values).
+  sse    (needs base) guest float/double stores (fst/fstp m32/m64) as wrf32s/wrf64s and x87 compares as
+         XFCOMPAREO/fcompareo (xrt.h). MSVC compiles memcpy of a float/double to guest memory through a stack temporary
+         (store, integer reload, store: a store-forwarding round trip per fst), and isnan() under /fp:strict to two
+         out-of-line _dclass calls per compare, which also clobber xmm0-5 inside x87 code. Same addresses, widths,
+         bytes and status bits (a NaN operand fails <, == and >, which the third test of the ordered form checks).
 
 Usage:
   python -I tools/xrt/xlift.py <module> --out <dir> [--chunk 250] [--only 0xVA,...] [--marks FILE|--no-marks] [--base 0xADDR]
-                               [--opt flags,pc,base,regs,x87,icall]
+                               [--opt flags,pc,base,regs,x87,x87v,x87w,icall,iflags,sse]
 Outputs <dir>/<stem>_NNN.c, <stem>_protos.h, <stem>_table.c and <stem>_meta.json.
 """
 import collections
@@ -140,7 +147,11 @@ X87_RELOAD = "ft_ = c->top; fsw_ = c->fsw;"
 # --opt x87v: calls that cannot change c->st or TOP (a statement calling anything else ends the cached values)
 X87V_PURE = {n for n in NO_SPILL_CALLS if not n.startswith("xrt_f")} | {"XST", "XFPUSH", "XFPOP", "XFCOMPARE", "XFSTATUS"}
 XST_REF = re.compile(r"\*XST\((\d)\)")
+# --opt sse: final forms (after every analysis) of guest float/double stores and x87 compares (xrt.h wrf32s ...)
+SSE_FORMS = (("wrf32b(", "wrf32s("), ("wrf64b(", "wrf64s("), ("XFCOMPARE(", "XFCOMPAREO("), ("fcompare(c, ", "fcompareo(c, "))
 CALL_NAME = re.compile(r"\b([A-Za-z_]\w*)\s*\(")
+# --opt x87w: statements that may leave the straight-line run (the x87 values must be in c->st before them)
+X87W_EXIT = re.compile(r"\b(goto|return|switch|RET)\b")
 COMMENT = re.compile(r"/\*.*?\*/")
 
 
@@ -586,9 +597,26 @@ class Lifter:
         (pushes and pops since then are counted statically), every write also goes to c->st (write-through), and
         the cache ends at every label, at every statement that calls anything but pure helpers (register/x87
         spills, calls, x87 helpers in the CPU form) and at any x87 statement this pass does not recognise. So
-        c->st, TOP and FSW are exactly as without x87v wherever the runtime or another function can see them."""
+        c->st, TOP and FSW are exactly as without x87v wherever the runtime or another function can see them.
+        --opt x87w (write-back): a write only marks its slot dirty; the dirty slots are stored to c->st once, before a
+        statement that ends the cache (or an unrecognised x87 statement), before a statement that can leave the run
+        (goto, return, RET, switch: conditional branches included) and at the end of the block before a label. Every
+        stored slot was written at least once since the last store, so there are never more stores than with
+        write-through, and c->st is exact wherever another function, the runtime or a branch target can read it.
+        Popped slots are stored too (the model keeps their values in c->st, as write-through did). Only a fatal
+        guest-memory fault inside a run can show older c->st values in its diagnostic dump (as for --opt regs)."""
         out, used = [], False
         valid, d = set(), 0
+        wb = "x87w" in self.opt
+        dirty = set()
+
+        def flush():
+            st = [f"c->st[(ft_ + {(r - d) & 7}u) & 7u] = fc{r}_;" for r in sorted(dirty)]
+            if st:
+                self.opt_stats["x87w_flush_points"] += 1
+                self.opt_stats["x87w_flush_stores"] += len(st)
+            dirty.clear()
+            return st
 
         def split(t):
             parts, depth, cur = [], 0, ""
@@ -615,12 +643,18 @@ class Lifter:
 
         for va, stmts in body:
             if va is not None and va in labels:
+                if dirty:
+                    # the previous block falls through into the label: store at its end
+                    out[-1] = (out[-1][0], out[-1][1] + flush())
                 valid = set()
                 d = 0
             new = []
             for x in stmts:
                 if "XST(" not in x and "XFPUSH(" not in x and "XFPOP(" not in x:
-                    if self.x87v_ends(x):
+                    ends = self.x87v_ends(x)
+                    if dirty and (ends or self.x87w_exits(x)):
+                        new += flush()
+                    if ends:
                         valid, d = set(), 0
                     new.append(x)
                     continue
@@ -628,6 +662,7 @@ class Lifter:
                 parts = split(x[1:-1] if braced else x)
                 res = []
                 ok = True
+                d0, wrote = d, set()
                 for part in parts:
                     pre = []
                     if part == "XFPOP()":
@@ -636,15 +671,17 @@ class Lifter:
                     elif part.startswith("XFPUSH(") and part.endswith(")"):
                         e = reads(part[len("XFPUSH("):-1], pre)
                         r = (d - 1) & 7
-                        res += pre + [f"fc{r}_ = {e}; ft_ = (ft_ - 1u) & 7u; c->st[ft_] = fc{r}_;"]
+                        res += pre + [f"fc{r}_ = {e}; ft_ = (ft_ - 1u) & 7u;" + ("" if wb else f" c->st[ft_] = fc{r}_;")]
                         d -= 1
                         valid.add(r)
+                        wrote.add(r)
                     elif part.startswith("*XST(") and re.match(r"\*XST\((\d)\) = (?!=)", part):
                         k = int(part[5])
                         e = reads(part[part.index("=") + 1:].strip(), pre)
                         r = (d + k) & 7
-                        res += pre + [f"fc{r}_ = {e}; c->st[(ft_ + {k}u) & 7u] = fc{r}_;"]
+                        res += pre + [f"fc{r}_ = {e};" + ("" if wb else f" c->st[(ft_ + {k}u) & 7u] = fc{r}_;")]
                         valid.add(r)
+                        wrote.add(r)
                     elif "XFPUSH(" in part or "XFPOP(" in part or re.search(r"\*XST\(\d\) =(?!=)", part):
                         ok = False
                         break
@@ -652,14 +689,27 @@ class Lifter:
                         e = reads(part, pre)
                         res += pre + [e + ";"]
                 if not ok:
+                    if dirty:
+                        d = d0   # the statement stays as it was: store relative to TOP before it
+                        new += flush()
                     valid, d = set(), 0
                     new.append(x)
                     continue
                 self.opt_stats["x87_values_statements"] += 1
                 used = True
+                if wb:
+                    dirty.update(wrote)
+                    self.opt_stats["x87w_writes_deferred"] += len(wrote)
                 new.append(("{ " + " ".join(res) + " }") if braced else " ".join(res))
             out.append((va, new))
+        if dirty:
+            raise AssertionError("x87w: x87 values not stored at the end of the function body")
         return out, used
+
+    @staticmethod
+    def x87w_exits(x):
+        """--opt x87w: the statement may leave the straight-line run (a branch, return or switch)."""
+        return bool(X87W_EXIT.search(COMMENT.sub("", x)))
 
     def rebase(self, s):
         """--opt base: guest accesses through the function's local copy of xrt_g (xrt.h rd32b ...)."""
@@ -1400,7 +1450,23 @@ class Lifter:
                 lines.append(f"L_{va:x}:;")
             lines.extend("    " + s for s in stmts)
         lines.append("}")
+        if "sse" in self.opt:
+            lines = self.sse_forms(lines)
         return lines
+
+    def sse_forms(self, lines):
+        """--opt sse: guest float/double stores and x87 compares in the xrt.h forms MSVC compiles to single SSE
+        instructions (wrf32s/wrf64s, XFCOMPAREO/fcompareo). Same addresses, bytes and status bits; renamed after every
+        analysis, so liveness, spill points and the x87v cache see exactly the statements they saw before."""
+        out = []
+        for s in lines:
+            for old, new in SSE_FORMS:
+                n = s.count(old)
+                if n:
+                    s = s.replace(old, new)
+                    self.opt_stats["sse_" + old.split("(")[0]] += n
+            out.append(s)
+        return out
 
 
 def load_marks(path, img):
@@ -1457,13 +1523,17 @@ def main():
     # loader applies the same relocations when it maps the module there)
     base = int(args[args.index("--base") + 1], 16) if "--base" in args else None
     opt = set(args[args.index("--opt") + 1].split(",")) if "--opt" in args else set()
-    if opt - {"flags", "pc", "base", "regs", "x87", "x87v", "icall", "iflags"}:
-        sys.exit(f"unknown --opt {sorted(opt - {'flags', 'pc', 'base', 'regs', 'x87', 'x87v', 'icall', 'iflags'})} "
-                 "(known: flags, pc, base, regs, x87, x87v, icall, iflags)")
+    known = {"flags", "pc", "base", "regs", "x87", "x87v", "x87w", "icall", "iflags", "sse"}
+    if opt - known:
+        sys.exit(f"unknown --opt {sorted(opt - known)} (known: {', '.join(sorted(known))})")
+    if "sse" in opt and "base" not in opt:
+        sys.exit("--opt sse needs base (the direct float stores are the explicit-base forms wrf32b/wrf64b)")
     if "iflags" in opt and "flags" not in opt:
         sys.exit("--opt iflags needs flags (it refines the flag liveness at calls and returns)")
     if "x87v" in opt and "x87" not in opt:
         sys.exit("--opt x87v needs x87 (the cached values are indexed by the local TOP)")
+    if "x87w" in opt and "x87v" not in opt:
+        sys.exit("--opt x87w needs x87v (it defers the x87v write-through stores)")
     if "regs" in opt and "base" not in opt:
         sys.exit("--opt regs needs base (the promoted stack accesses use the local guest-memory base)")
     if "x87" in opt and "regs" not in opt:
