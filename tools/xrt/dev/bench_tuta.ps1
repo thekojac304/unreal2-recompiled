@@ -12,10 +12,14 @@
 # -FpsCap N: dev.py --fps-cap N (development frame limiter; 0 = uncapped).
 # -Monitor: typeperf (RAPL package power, CPU utility, 1 s) and nvidia-smi (GPU utilization/power, 0.5 s) run alongside;
 #   their CSVs land in the run directory as power.csv / gpu.csv (local wall-clock time; threads.csv has init_filetime).
+# -Background: dev.py --background (runs behind the owner's foreground application; scripted input only).
+# -Play STEPS -Seconds S (gameplay development, not a benchmark): STEPS replaces the benchmark part after the menu path
+#   (same "T:verb:args" syntax, T in ms after Init, after the menu's 20000:click); the run stops S s after Init.
 param([Parameter(Mandatory)][string]$Question, [Parameter(Mandatory)][string]$Change,
       [string]$Profile = 'development', [int]$SampleHz = 250, [switch]$TimingProbe, [string]$Res = '', [int]$Delay = 0, [switch]$NoCapture, [string]$Staging = 'strict',
-      [int]$FpsCap = 0, [switch]$PauseProbe, [switch]$Monitor, [int]$NativeVerify = 0)
+      [int]$FpsCap = 0, [switch]$PauseProbe, [switch]$Monitor, [int]$NativeVerify = 0, [switch]$Background, [string]$Play = '', [int]$Seconds = 0, [string[]]$SeedSave = @())
 if ($TimingProbe -and $PauseProbe) { throw '-TimingProbe and -PauseProbe both use the time after 247 s' }
+if ($Play -and ($TimingProbe -or $PauseProbe -or -not $Seconds)) { throw '-Play needs -Seconds and excludes the benchmark probes' }
 # Menu cursor: 1.5 px per DirectInput unit ([WinDrv.WindowsClient] MouseSpeed) from the top-left slam. The menus keep
 # their pixel size at every resolution (button pitch 46 px at 1540x945 and at 3840x2160) and are centred, so the
 # 1540x945 targets NEW GAME 507,233 / NORMAL 520,310 are fixed pixel offsets from the screen centre.
@@ -52,14 +56,31 @@ if ($NoCapture) {
     $bench = $bench.Replace('220000:shot;230000:shot;', '215000:shot;220000:cpu;230000:cpu;').Replace(
         '243500:move:600:0:1500;245500:shot', '243500:move:600:0:1500;245500:cpu;246000:shot')
 }
+if ($Play) {
+    $menu = $menu.Replace(';120000:shot;180000:shot;200000:shot', ''); $bench = $Play; $seconds = $Seconds
+}
+if ($Background) {
+    # Without the foreground the window gets no activation messages, so WinDrv captures the mouse only at the first click
+    # (launch 20261101-121336: the NEW GAME click was spent on that). Click once first, as a user clicks into a window.
+    $menu = $menu.Replace('13000:move', '12000:move:-3000:-3000:300;12600:click;13000:move')
+}
 $script = "$menu;$bench"
+if ($Play) {
+    # The menu part carries -NoCapture's cpu steps up to 210 s: merge by time (stable), or dev_support stops at the first
+    # step that does not ascend (launch 20261101-121336 lost its whole gameplay script that way).
+    $i = 0
+    $script = ($script -split ';' | Where-Object { $_ } | ForEach-Object { [pscustomobject]@{ T = [int]($_ -split ':')[0]; I = $i++; S = $_ } } |
+               Sort-Object T, I | ForEach-Object S) -join ';'
+}
 if ($Delay) {
     $script = ($script -split ';' | ForEach-Object { $t, $r = $_ -split ':', 2; '{0}:{1}' -f ([int]$t + 1000 * $Delay), $r }) -join ';'
     $seconds += $Delay
 }
 if ($NoCapture -and $Delay -ge 50) { $script = "30000:cpu;59900:cpu;$script" }
-$timeout = [math]::Min(360, $seconds + 83)
-$extra = @(); if ($Res) { $extra = '--windowed-res', $Res }
+$timeout = [math]::Min(600, $seconds + 83)
+if ($Background) { $extra = @('--background') } else { $extra = @() }
+$SeedSave | ForEach-Object { $extra += '--seed-save', $_ }   # saves written by an earlier developer run (dev.py --seed-save)
+if ($Res) { $extra += '--windowed-res', $Res }
 if ($NoCapture) { $extra += '--capture', 'shots' }
 if ($FpsCap) { $extra += '--fps-cap', $FpsCap }
 if ($NativeVerify) { $extra += '--native-verify', $NativeVerify }   # needs a dev.py build --native executable

@@ -342,6 +342,20 @@ int xrt_dev_input_blocked(const char *what) {
     if (mode && what && dropped++ < 16) xrt_log("DEV input isolation: dropped %s", what);
     return mode;
 }
+/* XRT_DEV_BACKGROUND=1 (dev.py --background; only together with isolation): the run stays behind the owner's
+ * foreground application. The input script does not pause without the foreground; the GUI layer never takes focus
+ * (top-level windows are shown without activation at the bottom of the z-order, SetForegroundWindow is not passed
+ * on) and reports the game's own active window as the foreground to the guest; DirectInput devices are acquired
+ * non-exclusive/background on the host, their physical data still dropped by isolation (hle_gui.c, hle_dinput.inc). */
+int xrt_dev_background(void) {
+    static int mode = -1;
+    if (mode < 0) {
+        const char *v = getenv("XRT_DEV_BACKGROUND");
+        mode = v && *v == '1' && xrt_dev_input_blocked(NULL);
+        if (v && *v == '1') xrt_log("DEV background mode %s", mode ? "on" : "REFUSED: needs input isolation (XRT_DEV_NO_INPUT)");
+    }
+    return mode;
+}
 /* XRT_DEV_INPUT (dev.py --input): a short explicit input script, only with isolation on.
  * Steps "T:verb[:a[:b[:c]]]" separated by ';', T = ms after Init return, ascending:
  *   key:VK[:HOLD]    WM_KEYDOWN, WM_KEYUP after HOLD ms (default 100), posted to the game's
@@ -351,6 +365,9 @@ int xrt_dev_input_blocked(const char *what) {
  *   click[:HOLD]     left button: DirectInput button 0 and WM_LBUTTONDOWN/UP
  *   shot             capture the next present
  *   cpu              thread CPU snapshot only (threads.csv), no capture
+ *   size:W:H         resize the game window to a W x H client area (SetWindowPos without activation or z-order
+ *                    change, as a user's resize does; applied by xrt_dev_input_window_actions inside the guest's
+ *                    PeekMessage, where Windows delivers the resulting sent messages)
  * Only the exact scripted messages pass the isolation filter; physical input stays dropped.
  * Under isolation GetCursorPos/SetCursorPos/ClipCursor use a virtual cursor, never the desktop's. */
 typedef struct { unsigned t; char verb; int a, b, c; } InputStep;
@@ -361,7 +378,7 @@ static HWND in_window;
 static struct { unsigned vk; ULONGLONG up; } in_keys[8];
 static struct { ULONGLONG start; unsigned ms; int dx, dy, done_x, done_y; } in_moves[4];
 static ULONGLONG in_button_up, in_paused;
-static int in_button;
+static int in_button, in_resize_w, in_resize_h;
 static struct { UINT msg; WPARAM wp; LPARAM lp; ULONGLONG expires; int any_wp; } in_allow[32];
 static struct { unsigned ofs, data; } in_di[256];
 static unsigned in_di_head, in_di_tail, in_shot;
@@ -381,6 +398,7 @@ static void input_parse(void) {
         if (!strcmp(verb, "key")) s.verb = 'k'; else if (!strcmp(verb, "move")) s.verb = 'm';
         else if (!strcmp(verb, "click")) s.verb = 'c'; else if (!strcmp(verb, "shot")) s.verb = 's';
         else if (!strcmp(verb, "cpu")) s.verb = 'u';
+        else if (!strcmp(verb, "size")) s.verb = 'z';
         else { xrt_log("DEV input script: unknown verb '%s'; script ignored from here", verb); break; }
         if (*v == ':') s.a = (int)strtol(v + 1, (char **)&v, 0);
         if (*v == ':') s.b = (int)strtol(v + 1, (char **)&v, 0);
@@ -472,16 +490,26 @@ void xrt_dev_input_tick(void) {
     {
         /* Focus-dependent input: new steps and motion run only while a window of this process is
          * the foreground window; otherwise the schedule pauses (later steps shift). Releases still
-         * go out so nothing stays held. Focus is never taken. */
+         * go out so nothing stays held. Focus is never taken. Background mode never pauses; a
+         * foreground change is still logged (there it means the game took the focus). */
         static ULONGLONG last; static int foreground = -1;
         DWORD pid = 0; HWND fg = GetForegroundWindow();
         if (fg) GetWindowThreadProcessId(fg, &pid);
         ours = pid == GetCurrentProcessId();
         if (ours != foreground) {
-            xrt_log("DEV input: game process %s the foreground at +%llu ms (schedule paused %llu ms so far)",
-                    ours ? "has" : "does not have", now - init_ms, in_paused);
+            /* Attribution: the window class and the age of the desktop's last physical input (an owner's click or key
+             * just before a change means the owner or Windows moved the focus, e.g. minimizing their window). */
+            LASTINPUTINFO li = {sizeof li}; WCHAR cls[64] = L"";
+            if (fg) GetClassNameW(fg, cls, 64);
+            GetLastInputInfo(&li);
+            xrt_log("DEV input: game process %s the foreground at +%llu ms (schedule paused %llu ms so far)%s; window %p "
+                    "class %ls; last physical input %lu ms ago",
+                    ours ? "has" : "does not have", now - init_ms, in_paused,
+                    xrt_dev_background() ? (ours ? " - BACKGROUND MODE: FOCUS TAKEN" : " - background mode") : "",
+                    fg, cls, GetTickCount() - li.dwTime);
             foreground = ours;
         }
+        if (xrt_dev_background()) ours = 1;
         if (!ours && last) in_paused += now - last;
         last = now;
     }
@@ -524,6 +552,9 @@ void xrt_dev_input_tick(void) {
             if (in_button) continue;
             in_button = 1; in_button_up = now + (s->a > 0 ? (unsigned)s->a : 100);
             di_push(12, 0x80); input_allow(WM_LBUTTONDOWN, MK_LBUTTON, client_point(), 0);
+        } else if (s->verb == 'z') {
+            if (s->a < 160 || s->b < 120 || s->a > 8192 || s->b > 8192) { xrt_log("DEV input: size step refused"); continue; }
+            in_resize_w = s->a; in_resize_h = s->b;
         } else if (s->verb == 's') { in_shot = 1; perf_threads("shot"); }
         else if (s->verb == 'u') perf_threads("cpu");
         {
@@ -531,6 +562,21 @@ void xrt_dev_input_tick(void) {
             xrt_log("DEV input cursor client %ld,%ld", p.x, p.y);
         }
     }
+}
+/* Pending "size" step: called by the guest's PeekMessage inside its callback region (message_pump.inc). */
+void xrt_dev_input_window_actions(void) {
+    RECT r = {0, 0, 0, 0}, before = {0}, after = {0};
+    DWORD style, ex;
+    if (!in_resize_w || !in_window) return;
+    r.right = in_resize_w; r.bottom = in_resize_h; in_resize_w = in_resize_h = 0;
+    style = (DWORD)GetWindowLongW(in_window, GWL_STYLE); ex = (DWORD)GetWindowLongW(in_window, GWL_EXSTYLE);
+    AdjustWindowRectEx(&r, style, FALSE, ex);
+    GetClientRect(in_window, &before);
+    if (!SetWindowPos(in_window, NULL, 0, 0, r.right - r.left, r.bottom - r.top, SWP_NOMOVE | SWP_NOZORDER | SWP_NOACTIVATE))
+        xrt_log("DEV input: resize SetWindowPos failed %lu", GetLastError());
+    GetClientRect(in_window, &after);
+    xrt_log("DEV input: window client %ldx%ld -> %ldx%ld at +%llu ms", before.right, before.bottom, after.right, after.bottom,
+            GetTickCount64() - init_ms);
 }
 static int map_allowed(const char *path) {
     const char *v = getenv("XRT_DEV_ALLOW_MAPS"), *base = strrchr(path, '\\');

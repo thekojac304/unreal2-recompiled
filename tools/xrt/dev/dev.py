@@ -455,8 +455,8 @@ def run(args):
         raise RuntimeError('No launch: separate explicit owner authorization is required; then use --authorize-init')
     if args.first_scene and not args.authorize_first_scene:
         raise RuntimeError('No launch: --first-scene needs the separately granted --authorize-first-scene scope')
-    if args.first_scene and args.timeout > 360:
-        raise RuntimeError('First-scene runs are limited to 360 seconds')
+    if args.first_scene and args.timeout > 600:
+        raise RuntimeError('First-scene runs are limited to 600 seconds')
     if args.scene_seconds and (not args.first_scene or args.scene_seconds >= args.timeout):
         raise RuntimeError('--scene-seconds needs --first-scene and must end before --timeout')
     if not args.question.strip() or not args.change.strip():
@@ -504,6 +504,20 @@ def run(args):
                     target.parent.mkdir(exist_ok=True)
                     shutil.copy2(f, target); added += 1
         print(f'dev: campaign assets: {added} install files added to the sandbox', flush=True)
+    if args.seed_save:
+        # Opt-in: save files the translated game itself wrote in an EARLIER developer run's sandbox (sandbox_cmp or the
+        # overflow folder), copied into this run's own Save folder so the game's Load menu can restore them. Never the
+        # install's Save (a junction to personal saves) and never an externally generated state.
+        allowed = [WS / 'sandbox_cmp', Path(os.environ.get('USERPROFILE', '')) / 'Unreal2-dev-sandbox-overflow']
+        target = sandbox / 'Save'
+        target.mkdir(exist_ok=True)
+        for spec in args.seed_save:
+            src = independent(Path(spec))
+            if src.suffix.lower() != '.usa' or not src.is_file() or not any(src.is_relative_to(a) for a in allowed) or \
+               not any(part.startswith('dev-init-') for part in src.parts):
+                raise RuntimeError(f'--seed-save: not a .usa written by an earlier developer run: {src}')
+            shutil.copy2(src, target / src.name)
+            print(f'dev: seeded save {src} ({src.stat().st_size} bytes, sha256 {hashlib.sha256(src.read_bytes()).hexdigest()[:16]})', flush=True)
     # Developer helper copy (out/dev-init/dmusic_helper, named CallRoutine admitted); else the shared build.
     helper = BUILD / 'dmusic_helper.exe'
     if not helper.is_file():
@@ -536,6 +550,10 @@ def run(args):
             env['XRT_DEV_NO_INPUT'] = '1'
         if args.allow_map:
             env['XRT_DEV_ALLOW_MAPS'] = ';'.join(args.allow_map)
+        if args.background:
+            if args.allow_input:
+                raise RuntimeError('No launch: --background needs input isolation (drop --allow-input)')
+            env['XRT_DEV_BACKGROUND'] = '1'   # never takes focus; scripted input only (dev_support.c xrt_dev_background)
         if args.input:
             if args.allow_input:
                 raise RuntimeError('No launch: --input needs input isolation (drop --allow-input)')
@@ -565,7 +583,7 @@ def run(args):
                                      'input_script': args.input, 'allowed_maps': args.allow_map,
                                      'campaign_assets': args.campaign_assets, 'sample_hz': args.sample_hz,
                                      'windowed_res': args.windowed_res, 'capture': args.capture,
-                                     'staging': args.staging, 'fps_cap': args.fps_cap, 'native_verify': args.native_verify,
+                                     'staging': args.staging, 'fps_cap': args.fps_cap, 'background': args.background, 'seed_save': args.seed_save, 'native_verify': args.native_verify,
                                      'native': read(BUILD / 'build-state.json').get('native', [])})
     if args.attach:
         env['XRT_DEV_ATTACH'] = '1'
@@ -603,7 +621,7 @@ def main():
     r = sub.add_parser('run')
     r.add_argument('--authorize-init', action='store_true', help='acknowledge separately granted owner authorization for this development Init run')
     r.add_argument('--question', required=True); r.add_argument('--change', required=True)
-    r.add_argument('--timeout', type=int, choices=range(1, 361), default=60, metavar='1..360')
+    r.add_argument('--timeout', type=int, choices=range(1, 601), default=60, metavar='1..600')
     r.add_argument('--attach', action='store_true')
     r.add_argument('--authorize-first-scene', action='store_true',
                    help='acknowledge separately granted owner authorization to continue past Init into world frames')
@@ -622,6 +640,11 @@ def main():
                    help='D3D8 buffer Lock staging: strict (default; decommitted at Unlock, stale pointers fault) or reuse (per-buffer block, stale pointers into it not trapped)')
     r.add_argument('--capture', choices=('periodic', 'shots'), default='periodic',
                    help='first-scene back-buffer captures: periodic (default; powers of two, every 256th world frame, cues) or shots (scripted shots only)')
+    r.add_argument('--seed-save', action='append', default=[], metavar='FILE.usa',
+                   help='copy a save written by an earlier developer run (its sandbox Save folder) into this run\'s Save')
+    r.add_argument('--background', action='store_true',
+                   help="developer background mode: the game runs behind the owner's foreground application and never "
+                        'takes focus; only --input reaches it (needs isolation; dev_support.c xrt_dev_background)')
     r.add_argument('--fps-cap', type=int, choices=range(0, 1001), default=0, metavar='0..1000',
                    help='first-scene: development frame limiter after each post-Init Present (waitable timer, baton released; 0 = uncapped)')
     r.add_argument('--native-verify', type=int, default=0, metavar='N',

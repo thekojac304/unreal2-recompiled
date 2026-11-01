@@ -306,6 +306,27 @@ FPS A/B (baseline runs 024147 + 035425 vs native 034834 + 040015) is within nois
 spawn +1.1%, movement +2.2%, while two baseline runs differ by up to 4%. Not retained (no measurable benefit; the
 translated C is as portable). Save points fps-cap-20261101 (default, translated), native-glm-20261101 (native).
 
+Background developer mode (2026-11-01, gameplay batch): dev.py run --background (bench_tuta.ps1 -Background), only with
+input isolation. The owner keeps using the desktop; the game window never takes focus and only the --input script reaches it.
+  - GUI (hle_gui.c, xrt_dev_background): visible top-level windows are created hidden and shown SW_SHOWNOACTIVATE at
+    HWND_BOTTOM; visible top-level dialogs (the startup splash) are created from a template copy without WS_VISIBLE and their
+    nonzero WM_INITDIALOG is reported FALSE to the dialog manager (its default focus assignment activates even a hidden
+    dialog); ShowWindow activating commands become non-activating; SetWindowPos gets SWP_NOACTIVATE|SWP_NOZORDER;
+    SetForegroundWindow is not passed on; SetActiveWindow/SetFocus stay virtual while another process owns the foreground
+    (GetFocus/GetForegroundWindow report the guest's own window). Reason (experiments/xrt/tests/bg_input, BG_PROBE=a/d):
+    with the owner idle past the foreground lock timeout, a real SetActiveWindow or a dialog's default focus TOOK the
+    foreground. No activation messages are synthesized: WinDrv captures the mouse at the first click, so the menu path
+    clicks once first (bench_tuta.ps1 -Background).
+  - DirectInput (dinput_lifecycle.inc): host cooperative level NONEXCLUSIVE|BACKGROUND instead of the guest's
+    FOREGROUND|EXCLUSIVE (which cannot be acquired without the foreground); physical records are still dropped by isolation.
+  - Input script (dev_support.c): never pauses for the foreground; a foreground change is still logged ("FOCUS TAKEN" =
+    our process became the foreground - e.g. Windows activates the next window when the owner minimizes theirs).
+  - Rendering continues behind other windows (DXVK Vulkan swapchain, D3D back-buffer readback for captures, not the desktop).
+Owned test: experiments/xrt/tests/bg_input/run.cmd (run with another application in front): 13 checks.
+Also new: dev.py --seed-save FILE.usa (a save written by an earlier developer run's sandbox, copied into this run's Save),
+input verb size:W:H (window resize inside the guest's PeekMessage), per-launch limit 600 s (owner-authorized batch),
+IDirect3DDevice8::Reset (windowed, same window), WM_SIZING/WM_MOVING RECT and WM_SETTINGCHANGE string marshalling.
+
 The third developer run (20261030-221937-21570264) reached successful window
 creation and continued file-backed loading. Its last completed ReadFile returned
 TRUE, its last SetFilePointer returned 0x6c560, and _vsnwprintf returned 12.
