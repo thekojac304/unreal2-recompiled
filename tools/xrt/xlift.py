@@ -45,6 +45,17 @@ Optional optimizations (--opt LIST; default none, which keeps the output byte-id
          They are stored and reloaded at the register spill points; a statement group calling an x87 helper keeps
          the CPU form between a store and a reload. Removes the serial read-modify-write of c->top per x87 op; the
          x87 state the runtime sees is exact at the same points as the registers.
+  iflags (needs flags) interprocedural flag liveness inside one module. A direct call to a translated function T
+         of the module is not a use of every flag but of reads(T) (flags T or its direct callees may read before
+         writing them) plus the flags live after the call that some returning path of T leaves unwritten
+         (preserved(T)). A return is a use of every flag unless the function cannot be entered except by direct calls,
+         tail jumps and fall-through from the module's own translated code (not a relocation target, export or the
+         image entry; modules without relocations: never); then it uses only what those call sites read after the
+         call. Indirect calls/jumps, imports, unknown or undiscovered targets, jump tables, int3/hlt/ud2, marks and
+         watches keep the "every flag" rule. Two refinements: registering a C++ EH frame (xrt_eh_register records
+         the frame node only; a landing resumes with the flags of the exception path) and a statically
+         untranslatable instruction (lifted as an unconditional fatal trap) are not flag reads, so a fatal trap's
+         diagnostic dump may show older flags. Least fixed point over the module, iterated to a stable result.
   icall  (needs regs) indirect calls as ICALLI: the call-target cache hit path at the call site (a host indirect
          branch per guest call site). x87 and icall change only functions of at most LOCAL_MAX_INSNS instructions.
 
@@ -308,6 +319,188 @@ class Lifter:
                     live_in[va] = li
                     changed = True
         return out
+
+    # ------------------------------------------------------------------ interprocedural flag liveness (--opt iflags)
+    def iflag_nodes(self, fn):
+        """Per instruction: (uses, kills, successors inside fn, special) with special one of
+        None, ("call", T) direct call of module function T, ("ret",), ("exit", T) tail jump / fall-through into T.
+        Every other way of leaving the function, and every boundary of flag_boundary, is a use of all flags."""
+        mod, nodes = self.mod, {}
+        for va, ins in fn.insns.items():
+            m, ops = ins.mnemonic, ins.operands
+            nxt = va + ins.size
+            plain = not (self.marks_at.get(va) or (self.watches and self.watched(ins)))
+            special, succ, outside = None, [nxt], None
+            # flag_boundary without EH registration: xrt_eh_register reads no guest flags
+            boundary = m in ("call", "ret", "retn", "int3", "hlt", "ud2") or not plain
+            if m in JCC or m in ("loop", "loope", "loopne", "jecxz"):
+                t = ops[0].imm & 0xFFFFFFFF
+                if t in fn.insns:
+                    succ = [t, nxt]
+                else:
+                    boundary = True                       # trap on the taken path
+            elif m == "jmp":
+                t = ops[0].imm & 0xFFFFFFFF if ops[0].type == X.X86_OP_IMM else None
+                succ = []
+                if t is not None and t in fn.insns and t not in fn.tails:
+                    succ = [t]
+                elif t is not None and t in mod.functions and plain:
+                    special = ("exit", t)                 # tail call (lifted as f_t(c); return;)
+                else:
+                    boundary = True                       # indirect jump, jump table, undecoded target
+            elif m in ("ret", "retn"):
+                succ = []
+                if plain:
+                    special, boundary = ("ret",), False
+            elif m == "call":
+                t = ops[0].imm & 0xFFFFFFFF if ops[0].type == X.X86_OP_IMM else None
+                if t is not None and t in mod.functions and plain:
+                    special, boundary = ("call", t), False
+            if succ and succ[-1] == nxt and nxt not in fn.insns:
+                succ = succ[:-1]
+                outside = nxt if nxt in mod.functions else -1   # fall-through into a function, or a trap
+            if special is None and not boundary:
+                eff = self.flag_effect(ins)
+                if eff is not None and m not in JCC and m not in ("jmp", "loop", "loope", "loopne", "jecxz"):
+                    try:
+                        self.lift_insn(ins, fn)           # an untranslatable instruction is a trap
+                    except Unsupported:
+                        eff = None
+                # eff None here: an untranslatable instruction, lifted as a fatal trap (flag_effect models every
+                # translatable one): nothing after it runs, only its diagnostic dump shows the flags
+                uses, kills = (frozenset(), frozenset()) if eff is None else eff
+                trap = eff is None
+            else:
+                uses, kills, trap = (FLAGS, frozenset(), False) if boundary else (frozenset(), frozenset(), False)
+            nodes[va] = (uses, kills, succ, outside, special, boundary, trap)
+        return nodes
+
+    def iflag_solve(self, fn, nodes, reads, pres, retlive):
+        """Three backward passes over one function with the current summaries: flags live after each instruction for
+        code generation (returns use retlive[fn]), flags read from the caller (returns use none) and flags that may
+        reach a return unwritten. Returns (live_after, reads, preserved, call-site live-after per callee)."""
+        F, ALL, E = fn.entry, FLAGS, frozenset()
+        order = sorted(nodes, reverse=True)
+
+        def exit_l(t, ret_use):
+            return reads[t] | (ret_use & pres[t])
+
+        def solve(kind):
+            val = {va: E for va in nodes}
+            after = {}
+            changed = True
+            while changed:
+                changed = False
+                for va in order:
+                    uses, kills, succ, outside, special, boundary, trap = nodes[va]
+                    if kind == "pres":
+                        if special and special[0] == "ret":
+                            v = ALL
+                        elif special and special[0] == "exit":
+                            v = pres[special[1]]
+                        else:
+                            lo = E
+                            for t in succ:
+                                lo |= val[t]
+                            if outside is not None:
+                                lo |= pres[outside] if outside >= 0 else E   # trap: never returns
+                            if boundary and not succ and outside is None:
+                                v = ALL                   # indirect/unknown continuation
+                            elif special and special[0] == "call":
+                                v = lo & pres[special[1]]
+                            elif boundary or trap:
+                                v = lo                    # may write nothing
+                            else:
+                                v = lo - kills
+                    else:
+                        ret_use = retlive[F] if kind == "live" else E
+                        lo = E
+                        for t in succ:
+                            lo |= val[t]
+                        if outside is not None:
+                            lo |= exit_l(outside, ret_use) if outside >= 0 and kind == "live" else \
+                                (reads[outside] if outside >= 0 else ALL)
+                        if special and special[0] == "ret":
+                            v = ret_use
+                        elif special and special[0] == "exit":
+                            v = exit_l(special[1], ret_use) if kind == "live" else reads[special[1]]
+                        elif special and special[0] == "call":
+                            v = reads[special[1]] | (lo & pres[special[1]])
+                        else:
+                            v = uses | (lo - kills)
+                        after[va] = lo
+                    if v != val[va]:
+                        val[va] = v
+                        changed = True
+            return val, after
+
+        live, after = solve("live")
+        rd, _ = solve("reads")
+        pr, _ = solve("pres")
+        sites = collections.defaultdict(frozenset)
+        for va, (_, _, _, outside, special, _, _) in nodes.items():
+            if special and special[0] == "call":
+                sites[special[1]] |= after[va]
+            if special and special[0] == "exit":
+                sites[special[1]] |= retlive[F]
+            if outside is not None and outside >= 0:
+                sites[outside] |= retlive[F]
+        return after, rd[F], pr[F], sites
+
+    def iflag_analysis(self):
+        """Module fixed point of the iflags summaries; {entry: flags live after each instruction}."""
+        if getattr(self, "_iflag_live", None) is not None:
+            return self._iflag_live
+        mod, fns = self.mod, self.mod.functions
+        img = mod.img
+        taken = set(img.reloc_targets_in_text()) | {img.base + r for r in img.exports.values()}
+        if img.entry_rva:
+            taken.add(img.base + img.entry_rva)
+        nodes = {e: self.iflag_nodes(fn) for e, fn in fns.items()}
+        known = bool(img.relocs)              # without relocations code pointers cannot be enumerated
+        eligible = {e for e in fns if known and e not in taken and e in nodes[e]}
+        reads = {e: frozenset() for e in fns}
+        pres = {e: frozenset() for e in fns}
+        retlive = {e: (frozenset() if e in eligible else FLAGS) for e in fns}
+        callers = collections.defaultdict(set)
+        for e, nd in nodes.items():
+            for _, _, _, outside, special, _, _ in nd.values():
+                if special and special[0] in ("call", "exit"):
+                    callers[special[1]].add(e)
+                if outside is not None and outside >= 0:
+                    callers[outside].add(e)
+        contrib = collections.defaultdict(dict)      # callee -> {caller: flags}
+        live = {}
+        work, queued = sorted(fns), set(fns)
+        while work:
+            e = work.pop()
+            queued.discard(e)
+            if e not in nodes[e]:
+                live[e] = {va: FLAGS for va in nodes[e]}
+                continue
+            after, rd, pr, sites = self.iflag_solve(fns[e], nodes[e], reads, pres, retlive)
+            live[e] = after
+            wake = set()
+            if rd != reads[e] or pr != pres[e]:
+                reads[e], pres[e] = rd, pr
+                wake |= callers[e]
+            for t, f in sites.items():
+                if contrib[t].get(e) != f:
+                    contrib[t][e] = f
+                    if t in eligible:
+                        new = frozenset().union(*contrib[t].values())
+                        if new != retlive[t]:
+                            retlive[t] = new
+                            wake.add(t)
+            for w in wake:
+                if w not in queued:
+                    queued.add(w)
+                    work.append(w)
+        self.opt_stats["iflags_returns_known"] = len(eligible)
+        self.opt_stats["iflags_functions_reading_flags"] = sum(1 for e in fns if reads[e])
+        self.iflag_summary = (reads, pres, retlive)
+        self._iflag_live = live
+        return live
 
     def fl(self, kind, a, b, r, bits, defs=FLAGS):
         """Flag update of an add/sub/logic/szp result: the xrt.h helper call, or (--opt flags) only the stores
@@ -1068,7 +1261,8 @@ class Lifter:
         pop = "XRT_EH_POP(); " if pad else ""
         if pad:
             self.eh_pad_functions.add(fn.entry)
-        live_after = self.flag_liveness(fn) if "flags" in self.opt else None
+        live_after = (self.iflag_analysis()[fn.entry] if "iflags" in self.opt else self.flag_liveness(fn)) \
+            if "flags" in self.opt else None
         # pass 1: emit, collecting goto targets
         for i, va in enumerate(order):
             ins = fn.insns[va]
@@ -1263,8 +1457,11 @@ def main():
     # loader applies the same relocations when it maps the module there)
     base = int(args[args.index("--base") + 1], 16) if "--base" in args else None
     opt = set(args[args.index("--opt") + 1].split(",")) if "--opt" in args else set()
-    if opt - {"flags", "pc", "base", "regs", "x87", "x87v", "icall"}:
-        sys.exit(f"unknown --opt {sorted(opt - {'flags', 'pc', 'base', 'regs', 'x87', 'x87v', 'icall'})} (known: flags, pc, base, regs, x87, x87v, icall)")
+    if opt - {"flags", "pc", "base", "regs", "x87", "x87v", "icall", "iflags"}:
+        sys.exit(f"unknown --opt {sorted(opt - {'flags', 'pc', 'base', 'regs', 'x87', 'x87v', 'icall', 'iflags'})} "
+                 "(known: flags, pc, base, regs, x87, x87v, icall, iflags)")
+    if "iflags" in opt and "flags" not in opt:
+        sys.exit("--opt iflags needs flags (it refines the flag liveness at calls and returns)")
     if "x87v" in opt and "x87" not in opt:
         sys.exit("--opt x87v needs x87 (the cached values are indexed by the local TOP)")
     if "regs" in opt and "base" not in opt:

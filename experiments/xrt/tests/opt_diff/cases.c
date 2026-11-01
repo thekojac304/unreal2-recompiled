@@ -383,6 +383,86 @@ EXPORT __declspec(naked) uint64_t __cdecl t_asm_flags(const uint8_t* in, uint8_t
     }
 }
 
+/* Interprocedural flag liveness (--opt iflags): the flags a callee returns (if_cmp), flags a callee leaves unwritten
+ * for the caller (if_inc keeps CF), flags a callee reads from its caller (if_adc), a tail jump into a flag-returning
+ * function whose direct callers read only CF while the tail path's caller reads ZF (if_tail -> if_cmp0), a function
+ * called both directly and through a pointer (if_sub_ind: its returns must keep the flags the indirect site reads,
+ * here ZF, although the direct site reads only CF) and an indirectly called callee that reads the caller's CF
+ * (if_adc_ind, CF from a cmp: stc is materialized unconditionally). */
+static __declspec(naked) void if_cmp(void) { __asm { cmp eax, edx
+                                                     ret } }
+static __declspec(naked) void if_inc(void) { __asm { inc eax
+                                                     ret } }
+static __declspec(naked) void if_adc(void) { __asm { adc eax, ebx
+                                                     ret } }
+static __declspec(naked) void if_cmp0(void) { __asm { cmp edx, 1   /* ZF opposite to the and in if_tail */
+                                                      ret } }
+static __declspec(naked) void if_tail(void) { __asm { and edx, 1
+                                                      jmp if_cmp0 } }
+static __declspec(naked) void if_sub_ind(void) { __asm { sub eax, edx
+                                                         ret } }
+static __declspec(naked) void if_adc_ind(void) { __asm { adc eax, 1
+                                                         ret } }
+EXPORT __declspec(naked) uint64_t __cdecl t_asm_iflags(const uint8_t* in, uint8_t* out, uint32_t n, uint32_t seed) {
+    __asm {
+        push ebx
+        push esi
+        push edi
+        push ebp
+        mov esi, [esp + 20]
+        mov ebp, [esp + 24]
+        mov ecx, [esp + 28]
+        and ecx, 127
+        mov eax, [esp + 32]
+        xor ebx, ebx
+        mov edi, offset if_sub_ind
+        jecxz if_done
+    if_top:
+        movzx edx, byte ptr [esi]
+        call if_cmp
+        jb if_a1
+        add ebx, 3
+    if_a1:
+        cmp edx, 0x80
+        call if_inc
+        adc ebx, 0
+        cmp eax, edx
+        call if_adc
+        jbe if_a2
+        xor ebx, 0x55
+    if_a2:
+        call if_cmp0
+        adc ebx, 0
+        push edx
+        call if_tail
+        setz dl
+        add bl, dl
+        pop edx
+        call if_sub_ind
+        sbb ebx, 0
+        call edi
+        setz dl
+        add bl, dl
+        cmp ebx, 0x40
+        mov edx, offset if_adc_ind
+        call edx
+        add ebx, eax
+        mov byte ptr [ebp], bl
+        inc ebp
+        inc esi
+        dec ecx
+        jnz if_top
+    if_done:
+        mov edx, eax
+        mov eax, ebx
+        pop ebp
+        pop edi
+        pop esi
+        pop ebx
+        ret
+    }
+}
+
 /* loop/loopne/jecxz, flags read across a backward edge, and flags returned to the caller */
 EXPORT __declspec(naked) uint64_t __cdecl t_asm_loops(const uint8_t* in, uint8_t* out, uint32_t n, uint32_t seed) {
     __asm {

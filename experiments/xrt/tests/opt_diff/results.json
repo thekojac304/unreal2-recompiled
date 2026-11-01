@@ -1,8 +1,8 @@
 {
- "opt": "flags,pc,base,regs,x87,x87v,icall",
- "vectors_per_function": 2000,
- "functions": 13,
- "cases": 26000,
+ "opt": "flags,pc,base,regs,x87,x87v,icall,iflags",
+ "vectors_per_function": 3000,
+ "functions": 14,
+ "cases": 42000,
  "static_traps": 1,
  "nonzero_status": 0,
  "native_vs_plain_mismatches": 0,
@@ -12,16 +12,19 @@
    "base",
    "flags",
    "icall",
+   "iflags",
    "pc",
    "regs",
    "x87",
    "x87v"
   ],
-  "accesses_rebased": 406,
-  "flag_updates_reduced": 276,
-  "icall_inline_functions": 25,
-  "pc_stores_omitted": 748,
-  "register_spill_points": 43,
+  "accesses_rebased": 422,
+  "flag_updates_reduced": 338,
+  "icall_inline_functions": 33,
+  "iflags_functions_reading_flags": 3,
+  "iflags_returns_known": 13,
+  "pc_stores_omitted": 781,
+  "register_spill_points": 59,
   "x87_functions": 8,
   "x87_helper_brackets": 5,
   "x87_statements_local": 256,
@@ -30,69 +33,246 @@
  },
  "per_function": {
   "t_asm_flags": {
-   "cases": 2000,
+   "cases": 3000,
+   "native_vs_plain": 0,
+   "plain_vs_opt": 0
+  },
+  "t_asm_iflags": {
+   "cases": 3000,
    "native_vs_plain": 0,
    "plain_vs_opt": 0
   },
   "t_asm_loops": {
-   "cases": 2000,
+   "cases": 3000,
    "native_vs_plain": 0,
    "plain_vs_opt": 0
   },
   "t_asm_x87": {
-   "cases": 2000,
+   "cases": 3000,
    "native_vs_plain": 0,
    "plain_vs_opt": 0
   },
   "t_bytes": {
-   "cases": 2000,
+   "cases": 3000,
    "native_vs_plain": 0,
    "plain_vs_opt": 0
   },
   "t_calls": {
-   "cases": 2000,
+   "cases": 3000,
    "native_vs_plain": 0,
    "plain_vs_opt": 0
   },
   "t_div": {
-   "cases": 2000,
+   "cases": 3000,
    "native_vs_plain": 0,
    "plain_vs_opt": 0
   },
   "t_float": {
-   "cases": 2000,
+   "cases": 3000,
    "native_vs_plain": 0,
    "plain_vs_opt": 0
   },
   "t_mix": {
-   "cases": 2000,
+   "cases": 3000,
    "native_vs_plain": 0,
    "plain_vs_opt": 0
   },
   "t_shift": {
-   "cases": 2000,
+   "cases": 3000,
    "native_vs_plain": 0,
    "plain_vs_opt": 0
   },
   "t_string": {
-   "cases": 2000,
+   "cases": 3000,
    "native_vs_plain": 0,
    "plain_vs_opt": 0
   },
   "t_switch": {
-   "cases": 2000,
+   "cases": 3000,
    "native_vs_plain": 0,
    "plain_vs_opt": 0
   },
   "t_wide": {
-   "cases": 2000,
+   "cases": 3000,
    "native_vs_plain": 0,
    "plain_vs_opt": 0
   },
   "t_x87_calls": {
-   "cases": 2000,
+   "cases": 3000,
    "native_vs_plain": 0,
    "plain_vs_opt": 0
+  }
+ },
+ "mutations": {
+  "jcc-reads-nothing": {
+   "detected": true,
+   "differing_cases": 41426,
+   "functions": [
+    "t_asm_flags",
+    "t_asm_iflags",
+    "t_asm_loops",
+    "t_asm_x87",
+    "t_bytes",
+    "t_calls",
+    "t_div",
+    "t_float",
+    "t_mix",
+    "t_shift",
+    "t_string",
+    "t_switch",
+    "t_wide",
+    "t_x87_calls"
+   ]
+  },
+  "cl-shift-always-writes": {
+   "detected": true,
+   "differing_cases": 3588,
+   "functions": [
+    "t_asm_flags",
+    "t_asm_loops"
+   ]
+  },
+  "inc-dec-overwrite-cf": {
+   "detected": true,
+   "differing_cases": 5892,
+   "functions": [
+    "t_asm_flags",
+    "t_asm_iflags"
+   ]
+  },
+  "regs-written-set-misses-esp": {
+   "detected": true,
+   "differing_cases": 14763,
+   "functions": [
+    "t_asm_flags",
+    "t_asm_iflags",
+    "t_asm_x87",
+    "t_calls",
+    "t_x87_calls"
+   ]
+  },
+  "regs-no-reload-after-call": {
+   "detected": true,
+   "differing_cases": 10998,
+   "functions": [
+    "t_asm_flags",
+    "t_asm_iflags",
+    "t_asm_x87",
+    "t_calls",
+    "t_x87_calls"
+   ]
+  },
+  "regs-no-spill-before-icall": {
+   "detected": true,
+   "differing_cases": 5976,
+   "functions": [
+    "t_asm_iflags",
+    "t_calls"
+   ]
+  },
+  "regs-no-spill-before-return": {
+   "detected": true,
+   "differing_cases": 42000,
+   "functions": [
+    "t_asm_flags",
+    "t_asm_iflags",
+    "t_asm_loops",
+    "t_asm_x87",
+    "t_bytes",
+    "t_calls",
+    "t_div",
+    "t_float",
+    "t_mix",
+    "t_shift",
+    "t_string",
+    "t_switch",
+    "t_wide",
+    "t_x87_calls"
+   ]
+  },
+  "x87-no-spill": {
+   "detected": true,
+   "differing_cases": 7508,
+   "functions": [
+    "t_asm_x87",
+    "t_float",
+    "t_x87_calls"
+   ]
+  },
+  "x87-no-reload": {
+   "detected": true,
+   "differing_cases": 5982,
+   "functions": [
+    "t_asm_x87",
+    "t_x87_calls"
+   ]
+  },
+  "x87-helper-no-reload": {
+   "detected": true,
+   "differing_cases": 3000,
+   "functions": [
+    "t_asm_x87"
+   ]
+  },
+  "x87v-label-keeps-values": {
+   "detected": true,
+   "differing_cases": 8718,
+   "functions": [
+    "t_asm_x87",
+    "t_float",
+    "t_x87_calls"
+   ]
+  },
+  "x87v-call-keeps-values": {
+   "detected": true,
+   "differing_cases": 2827,
+   "functions": [
+    "t_asm_x87"
+   ]
+  },
+  "iflags-callee-reads-nothing": {
+   "detected": true,
+   "differing_cases": 3020,
+   "functions": [
+    "t_asm_flags",
+    "t_asm_iflags"
+   ]
+  },
+  "iflags-callee-preserves-nothing": {
+   "detected": true,
+   "differing_cases": 5915,
+   "functions": [
+    "t_asm_flags",
+    "t_asm_iflags"
+   ]
+  },
+  "iflags-returns-read-nothing": {
+   "detected": true,
+   "differing_cases": 2978,
+   "functions": [
+    "t_asm_iflags"
+   ]
+  },
+  "iflags-tail-is-return": {
+   "detected": true,
+   "differing_cases": 2978,
+   "functions": [
+    "t_asm_iflags"
+   ]
+  },
+  "iflags-address-taken-known": {
+   "detected": true,
+   "differing_cases": 58,
+   "functions": [
+    "t_asm_iflags"
+   ]
+  },
+  "iflags-indirect-reads-nothing": {
+   "detected": true,
+   "differing_cases": 325,
+   "functions": [
+    "t_asm_iflags"
+   ]
   }
  }
 }

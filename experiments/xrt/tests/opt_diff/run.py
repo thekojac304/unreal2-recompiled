@@ -166,6 +166,65 @@ def mut_x87v_call_keeps_values(x):
     x.Lifter.x87v_ends = staticmethod(lambda s: False)
 
 
+def mut_iflags_reads_nothing(x):
+    orig = x.Lifter.iflag_solve
+    x.Lifter.iflag_solve = lambda self, *a: (lambda r: (r[0], frozenset(), r[2], r[3]))(orig(self, *a))
+
+
+def mut_iflags_preserves_nothing(x):
+    orig = x.Lifter.iflag_solve
+    x.Lifter.iflag_solve = lambda self, *a: (lambda r: (r[0], r[1], frozenset(), r[3]))(orig(self, *a))
+
+
+def mut_iflags_returns_read_nothing(x):
+    orig = x.Lifter.iflag_solve
+    x.Lifter.iflag_solve = lambda self, *a: (lambda r: (r[0], r[1], r[2], {}))(orig(self, *a))
+
+
+def mut_iflags_tail_is_return(x):
+    orig = x.Lifter.iflag_nodes
+
+    def nodes(self, fn):
+        out = orig(self, fn)
+        return {va: (n[:4] + ((("ret",),) if n[4] and n[4][0] == "exit" else (n[4],)) + n[5:]) for va, n in out.items()}
+    x.Lifter.iflag_nodes = nodes
+
+
+def mut_iflags_address_taken_known(x):
+    orig = x.Lifter.iflag_analysis
+
+    def analysis(self):
+        r = self.img.reloc_targets_in_text
+        self.img.reloc_targets_in_text = lambda: set()
+        try:
+            return orig(self)
+        finally:
+            self.img.reloc_targets_in_text = r
+    x.Lifter.iflag_analysis = analysis
+
+
+def mut_iflags_indirect_reads_nothing(x):
+    orig = x.Lifter.iflag_nodes
+
+    def nodes(self, fn):
+        out = orig(self, fn)
+        for va, n in out.items():
+            ins = fn.insns[va]
+            if ins.mnemonic == "call" and n[4] is None and ins.operands[0].type != x.X.X86_OP_IMM:
+                out[va] = (frozenset(), frozenset()) + n[2:5] + (False, False)
+        return out
+    x.Lifter.iflag_nodes = nodes
+
+
+# --opt iflags only
+IFLAG_MUTATIONS = {"iflags-callee-reads-nothing": mut_iflags_reads_nothing,
+                   "iflags-callee-preserves-nothing": mut_iflags_preserves_nothing,
+                   "iflags-returns-read-nothing": mut_iflags_returns_read_nothing,
+                   "iflags-tail-is-return": mut_iflags_tail_is_return,
+                   "iflags-address-taken-known": mut_iflags_address_taken_known,
+                   "iflags-indirect-reads-nothing": mut_iflags_indirect_reads_nothing}
+
+
 # --opt x87v only
 X87V_MUTATIONS = {"x87v-label-keeps-values": mut_x87v_label_keeps_values,
                   "x87v-call-keeps-values": mut_x87v_call_keeps_values}
@@ -233,6 +292,12 @@ def main():
             MUTATIONS.update(X87_MUTATIONS)
         if "x87v" in OPT.split(","):
             MUTATIONS.update(X87V_MUTATIONS)
+        if "iflags" in OPT.split(","):
+            # iflags replaces the local "every call/return reads all flags" rule these two break; its own mutations
+            # break the call-side summary, the return side, tail jumps, address-taken detection and indirect calls
+            for name in ("call-not-a-boundary", "return-not-a-boundary"):
+                MUTATIONS.pop(name, None)
+            MUTATIONS.update(IFLAG_MUTATIONS)
         for name in MUTATIONS:
             _, mut = lifted_run("mut", True, name)
             if mut is None:

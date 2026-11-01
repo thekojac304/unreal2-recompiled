@@ -32,7 +32,17 @@ guest-memory base, guest registers in locals) on whole functions, where the per-
    that pushes, fsqrt/fsin/fist/fnstcw/fldcw helpers from the middle of a stack, fxch, reversed and popping
    arithmetic, fcom/fcompp/fucom/fucompp with fnstsw). The harness's xrt_icall fills the call-target cache, so later
    indirect calls of `t_calls` take the inline ICALLI hit path.
+7. Interprocedural flag liveness (`--opt iflags`): `t_asm_iflags` has a callee whose flags are its result (`if_cmp`),
+   one that leaves the caller's CF unwritten (`if_inc`), one that reads the caller's CF (`if_adc`), a tail jump into
+   a flag-returning function whose direct callers read only CF while the tail path's caller reads ZF
+   (`if_tail` -> `if_cmp0`), a function called both directly and through a relocated pointer (`if_sub_ind`: the
+   indirect site reads ZF, the direct one CF) and an indirectly called callee that reads the caller's CF
+   (`if_adc_ind`); `t_asm_flags` adds `carry_in` / `keep_flags`. Mutations: callee summary reads nothing,
+   preserves nothing, returns read nothing, tail jump treated as a return, address-taken functions treated as
+   known, indirect calls read nothing. Under `iflags` the two local mutations "call / return not a boundary" do not
+   apply (iflags replaces that rule at direct calls and returns) and are skipped; every other configuration runs them.
 
 ```bat
 .venv\Scripts\python.exe -I experiments\xrt\tests\opt_diff\run.py --opt flags,pc,base,regs,x87,icall --mutations --vectors 3000
+.venv\Scripts\python.exe -I experiments\xrt\tests\opt_diff\run.py --opt flags,pc,base,regs,x87,x87v,icall,iflags --mutations --vectors 3000
 ```
