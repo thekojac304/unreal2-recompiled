@@ -189,6 +189,35 @@ own effect is within that noise. Target NOT met: slow subsection p95 13.4 ms (re
 Timing: probe shots (running distance 250.1 s, collision 258.5 s) match the 98 FPS run 20261031-163246 at ~190 FPS;
 the cutscene's per-second pattern lines up at the same script times in every run; jump still not visible (unverified).
 
+iflags batch (2026-10-31 night, 10 launches, 3066 s; commit 3587077 + this note). Selection from the slow-subsection
+profile of the x87v build (matching PDB/sources): full flag helpers (fl_add/fl_sub/fl_logic) 10.6% of samples, x87
+reloads from c->st 0.5%; 76% of the sampled full-flag work existed only because calls/returns read every flag.
+Implemented xlift --opt iflags (needs flags): module-wide least fixed point of reads(T)/preserved(T) for direct
+calls and of return liveness for functions entered only by the module's own direct calls/tail jumps/fall-through;
+indirect calls/jumps, imports, jump tables, marks, watches, int3/hlt/ud2 stay "all flags"; EH-frame registration and
+statically untranslatable instructions (fatal traps) are not reads. Rejected: indirect calls as non-reads - the union
+of entry reads over address-taken functions is all five flags (MMX/SSE trap paths, import thunks in vtables).
+Static: full flag helpers GlmLib 30101 -> 12348, Engine 41122 -> 26891, Core 10171 -> 5353; code 81.7 -> 76.5 MB.
+Tests: opt_diff t_asm_iflags + 6 mutations (42000 cases, 18/18 detected). Builds switched by copying each variant's
+saved exe/PDB into out/dev-init/build (baseline floor-cap-20261031/build-relink, candidate iflags-20261031/build).
+4K, --staging reuse, -NoCapture, unsampled; 3 baseline vs 5 candidate runs (interleaved B/C, then 2 confirmations),
+medians FPS (p95 ms):
+  window          baseline 221443/222648/223849   iflags 220829/222050/223248/225710/230314
+  CS_Intro 30-60  167.3 (9.15)                    172.9 (9.00)
+  cutscene full   134.1 (12.04)                   139.0 (11.83)
+  cut 150-210     107.3 (12.66)                   110.2 (12.46)
+  slow 158-177    90.0 (13.80), p99 15.86         91.9 (13.58), p99 15.37; range 88.6-98.2 vs 88.4-91.3
+  spawn           138.3 (9.22)                    146.0 (8.75)
+  movement        190.5 (8.17)                    199.4 (7.83)
+Strict compatibility run 20261031-225116 (iflags, --staging strict): slow 77.8, spawn 133.6, movement 178.2.
+Diagnostic sampled run 20261031-224507 (not a headline): in 158-177 s translated code ~73% (guest loads/stores
+20.5%, x87 lines 8.1%, full flag helpers 7.3%, reduced flag stores 4.0%, prologue/epilogue 5.0%, push/pop 3.1%,
+XRT_ENTER 1.9%, RET 1.6%), runtime ~27% (staging copies 2.3%, memset 1.8%, draw-validation memchr 1.7%,
+dispatch 1.6%, setjmp 1.2%, D3D8 evidence 1.2%, isnan helper 1.1%). Timing: probe run 20261031-225710 (185 FPS) ends
+at the same running position and collision as run 20261031-163246 (98 FPS); jump unverified. Shots match baseline
+(menu identical, scenes < 4% pixels apart; end-of-walk heading varies as between two baseline runs).
+Remaining gap: slow subsection p95 13.58 ms vs 8.33 (needs 39% less frame time), 0/19 seconds at >= 120 FPS.
+
 The third developer run (20261030-221937-21570264) reached successful window
 creation and continued file-backed loading. Its last completed ReadFile returned
 TRUE, its last SetFilePointer returned 0x6c560, and _vsnwprintf returned 12.
