@@ -366,6 +366,11 @@ int xrt_dev_background(void) {
  *   rclick[:HOLD]    right button: DirectInput button 1 and WM_RBUTTONDOWN/UP (the game binds it to AltFire)
  *   shot             capture the next present
  *   cpu              thread CPU snapshot only (threads.csv), no capture
+ *   goto:X:Y[:R]     walk to world X,Y (a nav node from the map's ReachSpecs): each tick the step reads the same view
+ *                    transform as the camera log, turns with mouse motion toward the point (re-steered every 220 ms, so
+ *                    it does not depend on the map's mouse scale) and holds W while facing it within 25 deg; ends within
+ *                    R uu (default 48) or after 30 s, logged either way. A later goto replaces it.
+ *   face:X:Y         turn only (same steering, no walking) until facing X,Y within 2.5 deg, or 3 s
  *   size:W:H         resize the game window to a W x H client area (SetWindowPos without activation or z-order
  *                    change, as a user's resize does; applied by xrt_dev_input_window_actions inside the guest's
  *                    PeekMessage, where Windows delivers the resulting sent messages)
@@ -401,6 +406,8 @@ static void input_parse(void) {
         else if (!strcmp(verb, "rclick")) s.verb = 'r';
         else if (!strcmp(verb, "cpu")) s.verb = 'u';
         else if (!strcmp(verb, "size")) s.verb = 'z';
+        else if (!strcmp(verb, "goto")) s.verb = 'g';
+        else if (!strcmp(verb, "face")) s.verb = 'f';
         else { xrt_log("DEV input script: unknown verb '%s'; script ignored from here", verb); break; }
         if (*v == ':') s.a = (int)strtol(v + 1, (char **)&v, 0);
         if (*v == ':') s.b = (int)strtol(v + 1, (char **)&v, 0);
@@ -483,6 +490,8 @@ static void key_post(unsigned vk, int down) {
     input_allow(down ? WM_KEYDOWN : WM_KEYUP, vk, lp, 0);
 }
 static void view_log(const char *why);
+static void goto_tick(ULONGLONG now);
+static struct { int active, turn_only; double x, y, r; ULONGLONG deadline, next; } go;
 /* Called from the guest's message pump before each host PeekMessage. */
 void xrt_dev_input_tick(void) {
     ULONGLONG now; unsigned i; int ours;
@@ -542,6 +551,7 @@ void xrt_dev_input_tick(void) {
         }
         if (f >= 1.0) in_moves[i].start = 0;
     }
+    goto_tick(now);
     while (in_next < in_count && now - init_ms - in_paused >= in_steps[in_next].t) {
         InputStep *s = &in_steps[in_next++];
         xrt_log("DEV input step %u at +%llu ms: %c %d %d %d", in_next, now - init_ms, s->verb, s->a, s->b, s->c);
@@ -563,6 +573,10 @@ void xrt_dev_input_tick(void) {
             if (in_rbutton) continue;
             in_rbutton = 1; in_rbutton_up = now + (s->a > 0 ? (unsigned)s->a : 100);
             di_push(13, 0x80); input_allow(WM_RBUTTONDOWN, MK_RBUTTON | (in_button ? MK_LBUTTON : 0), client_point(), 0);
+        } else if (s->verb == 'g') {
+            go.active = 1; go.turn_only = 0; go.x = s->a; go.y = s->b; go.r = s->c > 0 ? s->c : 48; go.deadline = now + 30000; go.next = now;
+        } else if (s->verb == 'f') {
+            go.active = 1; go.turn_only = 1; go.x = s->a; go.y = s->b; go.r = 0; go.deadline = now + 3000; go.next = now;
         } else if (s->verb == 'z') {
             if (s->a < 160 || s->b < 120 || s->a > 8192 || s->b > 8192) { xrt_log("DEV input: size step refused"); continue; }
             in_resize_w = s->a; in_resize_h = s->b;
@@ -591,6 +605,48 @@ static void view_log(const char *why) {
     }
     xrt_log("DEV camera %s at +%llu ms: X=%.0f Y=%.0f Z=%.0f yaw=%.1f pitch=%.1f", why, GetTickCount64() - init_ms, c[0], c[1], c[2],
             atan2(f[1], f[0]) * 57.29578, atan2(f[2], sqrt(f[0] * f[0] + f[1] * f[1])) * 57.29578);
+}
+/* goto step: steer toward go.x/go.y from the current view transform (camera = -t R^T, forward = third column). */
+static void goto_tick(ULONGLONG now) {
+    double cx, cy, yaw, err, d;
+    unsigned i, held = 8;
+    int walk;
+    if (!go.active || !view_valid) return;
+    cx = -(view_m[12] * view_m[0] + view_m[13] * view_m[1] + view_m[14] * view_m[2]);
+    cy = -(view_m[12] * view_m[4] + view_m[13] * view_m[5] + view_m[14] * view_m[6]);
+    yaw = atan2(view_m[6], view_m[2]);
+    d = sqrt((go.x - cx) * (go.x - cx) + (go.y - cy) * (go.y - cy));
+    err = atan2(go.y - cy, go.x - cx) - yaw;
+    while (err > 3.14159265) err -= 6.28318531;
+    while (err < -3.14159265) err += 6.28318531;
+    err *= 57.29578;
+    for (i = 0; i < 8; i++) if (in_keys[i].up && in_keys[i].vk == 'W') held = i;
+    if (go.turn_only && ((err < 2.5 && err > -2.5) || now >= go.deadline)) {
+        if (held < 8) in_keys[held].up = now;
+        go.active = 0;
+        xrt_log("DEV face %s (%.0f,%.0f) at +%llu ms: camera (%.0f,%.0f) yaw %.1f, error %.1f deg", now >= go.deadline ? "TIMEOUT" : "done",
+                go.x, go.y, now - init_ms, cx, cy, yaw * 57.29578, err);
+        return;
+    }
+    if (d <= go.r || now >= go.deadline) {
+        if (held < 8) in_keys[held].up = now;   /* released by the next tick */
+        go.active = 0;
+        xrt_log("DEV goto %s (%.0f,%.0f) at +%llu ms: camera (%.0f,%.0f), distance %.0f", d <= go.r ? "reached" : "TIMEOUT",
+                go.x, go.y, now - init_ms, cx, cy, d);
+        return;
+    }
+    if (now >= go.next && (err > 2.0 || err < -2.0)) {
+        int dx = (int)(err * 3.0);              /* below either measured scale (4.2 / 5.2 units/deg): no overshoot */
+        if (dx > 300) dx = 300; else if (dx < -300) dx = -300;
+        for (i = 0; i < 4 && in_moves[i].start; i++) {}
+        if (i < 4) { in_moves[i].start = now; in_moves[i].ms = 120; in_moves[i].dx = dx; in_moves[i].dy = 0; in_moves[i].done_x = in_moves[i].done_y = 0; }
+        go.next = now + 220;
+    }
+    walk = !go.turn_only && err < 25.0 && err > -25.0;
+    if (walk && held == 8) {
+        for (i = 0; i < 8 && in_keys[i].up; i++) {}
+        if (i < 8) { in_keys[i].vk = 'W'; in_keys[i].up = go.deadline; key_post('W', 1); }
+    } else if (!walk && held < 8) in_keys[held].up = now;
 }
 /* Pending "size" step: called by the guest's PeekMessage inside its callback region (message_pump.inc). */
 void xrt_dev_input_window_actions(void) {

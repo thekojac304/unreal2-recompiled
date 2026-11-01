@@ -1,5 +1,5 @@
 diff --git a/out/dev-init/dmusic_helper/main.c b/out/dev-init/dmusic_helper/main.c
-index 6243496..647d093 100644
+index 6243496..e40dbc1 100644
 --- a/out/dev-init/dmusic_helper/main.c
 +++ b/out/dev-init/dmusic_helper/main.c
 @@ -290,9 +290,15 @@ static void dispatch(DmbMessage*q,DmbMessage*r){
@@ -21,3 +21,23 @@ index 6243496..647d093 100644
    break;
   case DMB_SCRIPT:{BYTE expected[848]={0};
    REQUIRE(DMB_LOADER);*(DWORD*)expected=848;*(DWORD*)(expected+4)=0x206;memcpy(expected+24,&cls_script,16);memcpy(expected+56,L"Script1",16);
+@@ -355,8 +361,19 @@ static int wait_request(void){DWORD have;static ULONGLONG next,st_next_tick;stat
+   Sleep(1);
+  }
+ }
++/* Diagnostic: an unhandled exception (a crash inside DirectMusic or here) is reported on stderr with the faulting
++ * module and offset before the process ends; the host then sees the channel close as before. */
++static LONG WINAPI crash_report(EXCEPTION_POINTERS*e){HMODULE m=NULL;char name[MAX_PATH]="?";
++ GetModuleHandleExA(GET_MODULE_HANDLE_EX_FLAG_FROM_ADDRESS|GET_MODULE_HANDLE_EX_FLAG_UNCHANGED_REFCOUNT,(LPCSTR)e->ExceptionRecord->ExceptionAddress,&m);
++ if(m)GetModuleFileNameA(m,name,MAX_PATH);
++ fprintf(stderr,"DirectMusic helper crash: exception %08lx at %p (%s+%lx) thread %lu, access %lu %p\n",e->ExceptionRecord->ExceptionCode,
++  e->ExceptionRecord->ExceptionAddress,name,m?(unsigned long)((BYTE*)e->ExceptionRecord->ExceptionAddress-(BYTE*)m):0,GetCurrentThreadId(),
++  e->ExceptionRecord->NumberParameters>1?(unsigned long)e->ExceptionRecord->ExceptionInformation[0]:0,
++  e->ExceptionRecord->NumberParameters>1?(void*)e->ExceptionRecord->ExceptionInformation[1]:NULL);
++ fflush(stderr);return EXCEPTION_CONTINUE_SEARCH;}
+ int wmain(int argc,WCHAR**argv){
+  DmbMessage q,r;HRESULT hr;uint32_t last=0;
++ SetUnhandledExceptionFilter(crash_report);
+  {int a=6;
+  if(argc<6||wcscmp(argv[1],L"--pipes")||wcscmp(argv[4],L"--sandbox"))return 2;
+  if(argc>=a+3&&!wcscmp(argv[a],L"--async")){async_in=(HANDLE)(uintptr_t)_wcstoui64(argv[a+1],NULL,10);async_out=(HANDLE)(uintptr_t)_wcstoui64(argv[a+2],NULL,10);a+=3;}

@@ -365,7 +365,7 @@ natural transition TutB -> PD_Avalon (intro cinematic) -> Atlantis (player contr
   - Not covered: sound (still -nosound; ALAudio/OpenAL has no runtime adapter), maximize/borderless, Unreal2.log beyond its
     first 4 KB (file-writer buffer is lost at the endpoint stop).
 
-Audio / campaign / Windows batch (2026-11-01 night, 18 of 30 owner-authorized launches, 2656 s of 12000; journal, maps,
+Audio / campaign / Windows batch (2026-11-01 night, 26 of 30 owner-authorized launches, 3496 s of 12000; journal, maps,
 helpers and key images in out/dev-init/campaign-evidence-20261101):
   - SOUND: AudioDevice=ALAudio.ALAudioSubsystem (OpenAL). ALAudio.dll and its/Core's Ogg Vorbis DLLs (vorbisfile, ogg, vorbis)
     are lifted (dev.py lift-audio; bases fill the gap below U2.dll) and registered with XRT_WITH_AUDIO; the OpenAL driver
@@ -388,7 +388,17 @@ helpers and key images in out/dev-init/campaign-evidence-20261101):
     player control at the landing pad, assault rifle. Navigation from the maps' own ReachSpecs (helpers/route.py); Atlantis:
     5.2 mouse units/deg, walk 0.243 uu/ms; M08A1: 4.2 units/deg, ~0.27 uu/ms. Save/load: every run quick-loaded the previous
     checkpoint in a fresh sandbox (saves/20261101-1706-*-tobriefing, 1752-*-postbriefing, 1814-checkpoint-m08a1-start).
-    NOT demonstrated: a hit on an enemy (M08A1's Izarians were not in view at the first group's position; a civilian was).
+    Combat continuation (launches 19-26, 26 of 30 launches, 3496 s in total): ENEMY HIT AND KILL DEMONSTRATED in M08A1 (run
+    20261101-185046-6936236b): the first Izarians near the start are an inert scripted scare (Stabber1-3, gone after the pod
+    cutscene); the first real fight is the Puppeteer (U2Izarian17, TESTPuppeteer: inert with 999 health while puppeting a
+    corpse; line of sight or damage -> Attack, health 50; death -> IzarianPackcallsOut). Route via the use-opened door
+    m08adoor1, the seal door's Use panel (Trigger6) and the nav route to (1628,1400); facing it, it attacked; assault-rifle
+    fire: blue blood from its torso, collapse, gibbing (campaign-evidence 26-l26-*.png, frames-l26/), then the Izarian pack
+    attacked and killed the player. New input steps (dev_support.c): goto:X:Y[:R] walks to a point closed-loop on the camera
+    pose (waypoints from the map's ReachSpecs; 36-40 uu accuracy over 22 legs) and face:X:Y turns only; bg_input still PASS.
+    Checkpoints saves/20261101-1843-*-puppeteer-fight (mid-fight, lost position) and 20261101-1853-*-before-puppeteer.
+    Open: the DirectMusic helper crashed silently in 2 of 9 M08A1 loads right after the level's music routine (dmM08A001);
+    the developer helper now reports unhandled exceptions (code, module+offset) on stderr for the next occurrence.
   - DirectMusic helper: levels load their own music containers (M08.con); the developer helper admitted only Intro.con
     (FATAL 76 on the M08A1 load). Now any plain *.con name (patches/dmusic-helper-level-containers.patch); dmusic_async_test
     11/11. Campaign runs drop --music-script-track (an intro-only workaround).
