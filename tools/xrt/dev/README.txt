@@ -331,6 +331,40 @@ no reclaim needed), TutB arrival/lift/quicksave and loading TutB saves in fresh 
 TutB route: the arrival corridor (x~1515) leads to an east-west passage at y~-1300; RaffDoor (1010,-1221) at its west end
 is under a staircase; checkpoints in out/dev-init/saves/20261101-13*-checkpoint-tutb-*.
 
+TutB training/combat batch (2026-11-01 evening, 14 of 15 owner-authorized launches, 2603 s of 7200; journal and key PNGs in
+out/dev-init/tutb-evidence-20261101, helper sources in its helpers/ folder). TutB completed through normal play, then the
+natural transition TutB -> PD_Avalon (intro cinematic) -> Atlantis (player control, Aida's first conversation).
+  - Navigation blocker resolved from map data, not by trial walks: brush polygons (UELib UPolys of each Brush model) and
+    static-mesh bounds (UPrimitive bounding box) showed the earlier runs had walked off the hallway grating into a 64-unit
+    trench under leadingstairs1 (eye z1098 = floor 992 + 106), blocked by the stair side at x1144. Not a collision defect.
+    From the arrival save: W 1500 + W 1345 to x981, then north up the stairs through RaffDoor and the ramp (launch 1).
+  - Walk calibration: distance ~ 0.397 * hold_ms + 8 uu (W, S, A, D alike); 4.16-4.18 mouse units per degree yaw, 4.14 pitch
+    (+dy looks down). Turns repeat only to +-1-2 deg (mouse smoothing) and AR/GL firing kicks the view, so long legs keep
+    one view direction and move by strafing; aim deltas are computed from the previous run's camera log (same inputs from
+    the same save reproduce positions within ~10 uu).
+  - Verified by subtitles/HUD/camera: Raff welcome chain and OpenTutorialDoor; RaffHUD scan sequence; Use on the hologram ->
+    numbered dialogue options -> option 1; exit button; obstacle course: jump (eye +74 uu), mantle (holding Space at the
+    MantleMover face, eye 1096 -> 1266), crouch (~118 uu/s) -> ObstacleCourseFinished; weapons from inside booths (x-880 /
+    -1296 / -1872, railing stop y~-808; lanes along y-450 clear of the support pillars): DP primary and charged alt,
+    CAR swept bursts and alt bolts, GL fragment and incendiary hits each fired their damage-type target triggers and
+    Raff's next stage (WT4/WT5/WT7/WT9/WT11/WT13); TakeAwayWeapons, DM intro, loadout (real AR 75+90).
+  - Deathmatch: StartDMDispatcher ("Bring it, Dalton."), RaffTrainingBot hunted and hit the player (HUD 100/300 -> 12/120,
+    resets on "death", knockback, score Raff 1 at 68 s, 2 at 78 s), match over before 100 s (Raff most likely won 5-0; the
+    result line fell between shots), "No" to "Wanna go again?" -> ExitDM. Player hits on the bot were NOT demonstrated.
+  - Stations room (both stations), PlayerFinishedTutorial, Raff's farewell, dlgEndLevel -> PD_Avalon (+55.9 s); PD_Avalon
+    opens Atlantis.un2 ~46 s later. Atlantis: in-map F5, walk/turn, F8 restored the saved view exactly.
+  - Save/load: every launch started by quick-loading the previous run's quicksave in a fresh sandbox; position/facing, HUD
+    health/shield and ammo (100/300 AR 75/90; 31/134 no weapons) and the script stage were restored. Bookkeeping trap: the
+    game keeps two quicksaves (Save0 newest, Save1 previous); count every F5 of a run before picking one (launch 7 was lost
+    to a mislabelled checkpoint).
+  - Fixed: right-button release -> DefWindowProc -> WM_CONTEXTMENU (0x7b) was refused by the GUI callback admission (fatal
+    76 on the first DP alt fire); hle_gui.c now handles it like WM_SETCURSOR (patches/tutb-combat-runtime.patch). New input
+    verb rclick[:HOLD] (experiments/xrt/tests/bg_input 15/15). Save point out/dev-init-savepoints/tutb-combat-20261101.
+  - Performance at the 90 FPS cap, 3840x2160: every new area median 11.1 ms, p95 12.0-13.1 ms; game-thread work per frame
+    median 4-7 ms (p95 6-11) except the deathmatch (median 10.7, p95 13.5 ms, limiter wait ~0.6 ms). No area below 60 FPS.
+  - Not covered: sound (still -nosound; ALAudio/OpenAL has no runtime adapter), maximize/borderless, Unreal2.log beyond its
+    first 4 KB (file-writer buffer is lost at the endpoint stop).
+
 Background developer mode (2026-11-01, gameplay batch): dev.py run --background (bench_tuta.ps1 -Background), only with
 input isolation. The owner keeps using the desktop; the game window never takes focus and only the --input script reaches it.
   - GUI (hle_gui.c, xrt_dev_background): visible top-level windows are created hidden and shown SW_SHOWNOACTIVATE at
