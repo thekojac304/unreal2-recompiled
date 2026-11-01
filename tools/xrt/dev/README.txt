@@ -259,6 +259,53 @@ identical; scene shots < 2.5% pixels apart; end-of-walk heading varies as betwee
 Scripted Space still shows no jump: jump timing unverified. Save points sse-20261031, x87w-20261031 (final), pf-20261101;
 generated sources C:\Users\lawma\Unreal2-dev-sandbox-overflow\{sse,x87w}-20261031-generated.
 
+Efficiency batch (2026-11-01, 9 of 10 authorized launches, 2847 s; commits 34c94d2, 5bdabe8). Phase 1: after the storage cleanup the asset
+manifest still listed three protected files under sandbox_cmp/graphics-client/dc9cc5ddd1c5-dxvk (U2Player_A.uax,
+HUD_Fonts.utx, UI_Fonts.utx) that the cleanup had removed, so every run would refuse; restored byte-identical from the
+install (sha256 equal to the manifest). Measurement: bench_tuta.ps1 -NoCapture -SampleHz 0 -Profile quiet -Res 3840x2160
+-Delay 50 -Staging reuse -PauseProbe -Monitor [-FpsCap N]. threads.csv: per-thread CPU (whole process as tid 0, guest
+threads with their Sleep/preemption counts, host threads named by description or start address), taken by capture-free
+"cpu" input steps at the window bounds (xrt.log's 50000-line budget used to drop them) plus baton statistics; frames.csv
+gains cap_wait_us; -Monitor runs typeperf (\Energy Meter(RAPL_Package0_PKG)\Power = CPU package power, 1 s) and nvidia-smi
+(GPU utilization/power, 0.5 s) beside the run; perf_report.py reads all of it (--json). -PauseProbe: Escape at 247 s,
+in-game menu 248.5-256.5 s. Idle desktop without the game: package 62-63 W, GPU 0.4% at ~50 W.
+Frame limiter (dev.py --fps-cap N; the engine's MaxClientTickRate is used by GetMaxTickRate only for network clients,
+standalone returns 0): after each post-Init Present the game thread waits for the next 1/N s deadline on a high-resolution
+waitable timer with the baton released (as Sleep), once per UGameEngine::Tick (EnforceTickRate's place); late frames keep
+the phase, a deadline more than a period behind is re-anchored. Test experiments/xrt/tests/fps_cap (pacing within 1%, the
+wait costs ~0.1% of a core, baton balanced, overrun, phase, stall, loading, uncapped). Launch 2 (run 20261101-025451) also
+paced loading-screen presents: the TutA load (509 presents inside one tick) took 9.3 s instead of 1.1 s and shifted the
+cutscene; fixed by the per-tick rule (later runs load in 1.1 s). FPS (p95 ms) / process CPU (% of one core) / package W /
+GPU W; runs 024147 uncapped, 030402 60, 030956 90, 031540 120:
+  window       uncapped                     60                         90                         120
+  CS_Intro     175.4 (8.47) 107% 71.0 88.8  60.0 (20.54) 46% 61.6 62.3  90.0 (13.74) 63% 62.9 68.6  118.8 (10.90) 81% 67.2 82.4
+  main menu    162.2 (8.12)  99% 70.5 81.2  60.1 (19.50) 45% 62.2 60.4  90.1 (13.88) 68% 65.0 66.3  119.6 (10.46) 84% 65.0 78.1
+  cutscene     147.4 (10.80) 109% 70.1 88.0 59.9 (18.86) 59% 62.4 65.6  89.8 (13.16) 84% 66.4 79.7  112.5 (11.13) 99% 69.6 88.4
+  slow 158-177  99.2 (12.54) 105% 69.2 82.3 60.0 (19.15) 72% 63.2 66.9  89.5 (13.36) 99% 67.9 82.0  100.6 (12.27) 108% 69.1 87.2
+  spawn        151.3 (8.30) 104% 70.2 89.7  60.0 (18.43) 51% 61.2 62.7  90.0 (12.86) 72% 65.1 81.5  120.0 (9.93) 93% 68.5 83.7
+  movement     203.1 (7.54) 109% 70.9 98.5  60.0 (18.29) 39% 60.3 63.1  90.0 (12.65) 55% 62.8 80.9  120.0 (9.77) 74% 67.4 82.4
+  pause menu   336.1 (3.91) 109% 69.8 94.5  60.1 (17.91) 25% 59.0 55.5  90.1 (12.40) 34% 60.8 67.2  120.1 (9.48) 46% 62.8 73.1
+The game thread is 94-98% of a core uncapped in every window (the menus too); 120 FPS holds everywhere except the cutscene
+(slow subsection 100.6 FPS with no limiter wait). nvidia-smi utilization stays 10-17% at every cap (the GPU clocks down
+instead). Background threads: Core's FFileStream worker (guest thread 1, a Sleep(1) poll loop) uses 0.0-4.3% of a core at
+600-640 Sleep/s in every window and cap (2.5% paused at 60 FPS, mostly baton spin while the game thread's slice runs; baton
+waits 7.7 s per run at 60 FPS, 5.4 s uncapped); dxvk-submit/dxvk-cs 1-5% each. The "~43% polling thread" of earlier
+reports is the --sample-hz stack sampler (sampler_main sleeps, then spins with YieldProcessor to each deadline; 41-48% of a
+core in sampled runs 20261031-145028 and 20261101-040617). No scheduler change: a sleeping background waiter would save at
+most ~2% of a core and add a kernel wake to each of the game thread's ~640 hand-overs/s uncapped.
+Native C proof of concept (dev.py build --native, tools/xrt/dev/native/glm_xform.c; NOT in the default build): GlmLib
+f_2fd7d20, the virtual Node::GetTransform(out, world) (scale/rotation/translation composed up the parent chain, ancestors
+called through ICALLI), 3.8% self in the slow subsection. The guest's x87 order is kept in doubles with float rounding at
+its stores. experiments/xrt/tests/native_glm_xform: 120000 cases (realistic chains depth 0-6, IEEE specials, random bits,
+a synthetic ancestor class, out aliasing the input; MXCSR default and FTZ|DAZ): every NaN-free case bit-identical in
+registers, flags, all 8 x87 registers including stale popped slots, TOP/FSW, call order and guest memory; inputs with
+NaNs differ only in NaN payloads (which NaN survives depends on MSVC's operand order; the translation already differs from
+x87 hardware there); 6/6 mutations detected; --native-verify 64 in game: >= 131072 calls compared, 0 differ (run
+20261101-034834). 15-30% faster per call (microbenchmark), in-game self share 3.8% -> 2.0% (sampled run 040617), but the
+FPS A/B (baseline runs 024147 + 035425 vs native 034834 + 040015) is within noise: slow subsection -0.2%, cutscene +0.4%,
+spawn +1.1%, movement +2.2%, while two baseline runs differ by up to 4%. Not retained (no measurable benefit; the
+translated C is as portable). Save points fps-cap-20261101 (default, translated), native-glm-20261101 (native).
+
 The third developer run (20261030-221937-21570264) reached successful window
 creation and continued file-backed loading. Its last completed ReadFile returned
 TRUE, its last SetFilePointer returned 0x6c560, and _vsnwprintf returned 12.
