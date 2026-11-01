@@ -1,0 +1,162 @@
+diff --git a/out/dev-init-savepoints/x87v-20261031/runtime/hle_gui.c b/out/dev-init/runtime/hle_gui.c
+index 18d9f3d..afa04c7 100644
+--- a/out/dev-init-savepoints/x87v-20261031/runtime/hle_gui.c
++++ b/out/dev-init/runtime/hle_gui.c
+@@ -690,10 +690,30 @@ static INT_PTR invoke_gui_proc(HWND h, UINT msg, WPARAM wp, LPARAM lp, uint32_t
+         if (wp || lp)
+             xrt_fatal(&nested, XRT_EXIT_UNSUPPORTED, "theme destruction notification has nonzero arguments");
+         break;
+-    case WM_DEVICECHANGE: /* Host broadcast; only the scalar DBT_DEVNODES_CHANGED (7,0) form crosses. */
+-        if (wp != 7 || lp)
+-            xrt_fatal(&nested, XRT_EXIT_UNSUPPORTED, "WM_DEVICECHANGE event %llx with data %llx requires marshalling",
+-                      (unsigned long long)wp, (unsigned long long)lp);
++    case WM_DEVICECHANGE: /* Host broadcast: the scalar DBT_DEVNODES_CHANGED (7,0) form crosses as is. */
++        if (wp == 7 && !lp)
++            break;
++        /* DBT_DEVICEARRIVAL / DBT_DEVICEREMOVECOMPLETE carry a read-only DEV_BROADCAST_* structure of dbch_size
++         * bytes (observed 0x8004 when a host device went away during a run). It is copied onto the guest stack below
++         * the callback scratch and the guest stack pointer moves below it; DefWindowProc/CallWindowProc get the host
++         * structure back through the callback frame (forward_message). Nothing is copied back: no output fields. */
++        if ((wp == 0x8000 || wp == 0x8004) && lp)
++        {
++            DWORD size;
++            uint32_t data;
++            memcpy(&size, (const void *)lp, 4);
++            if (size < 12 || size > 1024)
++                xrt_fatal(&nested, XRT_EXIT_UNSUPPORTED, "WM_DEVICECHANGE %llx: DEV_BROADCAST size %lu outside 12..1024",
++                          (unsigned long long)wp, (unsigned long)size);
++            data = (scratch - ((size + 15u) & ~15u)) & ~15u;
++            gui_transition_memory(&nested, data, size, 1);
++            memcpy(G2H(data), (const void *)lp, size);
++            nested.r[ESP] = data;
++            args[3] = data;
++            break;
++        }
++        xrt_fatal(&nested, XRT_EXIT_UNSUPPORTED, "WM_DEVICECHANGE event %llx with data %llx requires marshalling",
++                  (unsigned long long)wp, (unsigned long long)lp);
+         break;
+     case WM_GETDLGCODE:
+         if (lp)
+diff --git a/out/dev-init-savepoints/x87v-20261031/runtime/resource_storage.inc b/out/dev-init/runtime/resource_storage.inc
+index 55310c2..435d16c 100644
+--- a/out/dev-init-savepoints/x87v-20261031/runtime/resource_storage.inc
++++ b/out/dev-init/runtime/resource_storage.inc
+@@ -119,6 +119,24 @@ static void d8_resource_LockRect(CPU*c) {
+  } else {if(lock.bits&&(uintptr_t)lock.bits!=1){d8_native_failed=1;xrt_fatal(c,76,"LockRect: failed call returned map");}d8_device_memory(c,out,8,1);wr32(out,(unsigned)lock.pitch);if(!lock.bits)wr32(out+4,0);}
+  d8_semantic_return(c,prev,id,n,hr,error);
+ }
++/* Buffer map staging. Strict (default): a fresh guest block per Lock, decommitted at Unlock, so a guest pointer kept
++ * past Unlock faults at once (bug detection beyond the D3D contract). XRT_DEV_STAGING=reuse (developer runs only,
++ * dev.py --staging reuse): Unlock leaves the block committed ("warm", xrt_mem.c xrt_staging_put) and the next buffer
++ * Lock of the same size class takes it (xrt_staging_take): no commit, decommit or re-validation per map, and the pool
++ * holds no more blocks than in strict mode. Unchanged: staging is guest memory (guest code cannot reach host memory
++ * through it), handle/type/ownership lookups, offset/size checks against the native descriptor, the checked
++ * guest-range snapshot and exact-length copies at Unlock, and the data the guest sees at Lock (the host shadow).
++ * Relaxed (diagnostics only): a guest pointer kept past Unlock no longer faults. It reads/writes a committed staging
++ * block that the next Lock of ANY vertex/index buffer of the same size class may receive, so a stale write can change
++ * the bytes another buffer's Lock handed out (and is then uploaded into that buffer), and a stale read can see another
++ * buffer's data - corruption confined to guest memory and guest-supplied buffer contents. Bytes of a block past the
++ * locked range keep earlier contents instead of zero. Textures/surfaces (LockRect) stay strict. */
++static int d8_staging_reuse(void) {
++ static int mode=-1;
++ if(mode<0){char v[16];DWORD n=GetEnvironmentVariableA("XRT_DEV_STAGING",v,sizeof v);mode=n&&n<sizeof v&&!strcmp(v,"reuse");
++  if(mode)xrt_log("DEV D3D8 buffer staging: reuse (per-buffer block; stale pointers until the next Lock are not trapped)");}
++ return mode;
++}
+ static void d8_resource_Lock(CPU*c) {
+  LONG id=d8_api_entry(c,311,5);D8Resource*r=d8_resource(c,ARG(0),0);D8BufferDesc desc={0};unsigned offset=ARG(1),size=ARG(2),out=ARG(3),flags=ARG(4);BYTE*data=(BYTE*)(uintptr_t)1;CPU*prev;HRESULT hr;DWORD error,saved=GetLastError();
+  if(r->kind!=D8_VERTEX&&r->kind!=D8_INDEX)xrt_fatal(c,76,"Lock: wrong resource type");
+@@ -139,7 +157,8 @@ static void d8_resource_Lock(CPU*c) {
+  if(SUCCEEDED(hr)) {
+   d8_locks++;r->locked=data;r->flags=flags;r->offset=offset;r->bytes=size;r->rows=1;r->rowbytes=size;r->pitch=size;
+   if(!data){d8_native_failed=1;xrt_fatal(c,76,"Lock: NULL native map");}
+-  r->staging=xrt_virtual_alloc(c,size);if(!r->staging)xrt_fatal(c,76,"Lock: staging allocation failed");d8_device_memory(c,r->staging,size,1);
++  r->staging=d8_staging_reuse()?xrt_staging_take(c,size):xrt_virtual_alloc(c,size);
++  if(!r->staging)xrt_fatal(c,76,"Lock: staging allocation failed");d8_device_memory(c,r->staging,size,1);
+   /* Reads from the native map hit GPU-visible (uncached) memory and dominated Lock.
+    * Only our Unlock writes these buffers natively (ProcessVertices is refused), so
+    * valid shadow bytes equal the native ones and every other byte is undefined by
+@@ -168,7 +187,7 @@ static void d8_unlock(CPU*c,int rectangle) {
+  }
+  prev=d8_native_enter(c,rectangle?317:312,NULL,0);
+  hr=!rectangle?XM_Unlock(c,(D8Buffer*)r->host):r->kind==D8_SURFACE?XM_UnlockRect(c,(D8Surface*)r->host):r->kind==D8_CUBE?((D8CubeUnlockFn)d8_cube_row(r,17))((D8Texture*)r->host,r->face,r->level):XM_UnlockRect(c,(D8Texture*)r->host,r->level);error=GetLastError();
+- if(SUCCEEDED(hr)){if(!xrt_virtual_free(c,r->staging))xrt_fatal(c,76,"Unlock: staging invalidation failed");r->staging=0;r->locked=NULL;d8_locks--;xm_d8_resource(c,r,"unlocked");}
++ if(SUCCEEDED(hr)){if(!(!rectangle&&d8_staging_reuse()?xrt_staging_put(c,r->staging):xrt_virtual_free(c,r->staging)))xrt_fatal(c,76,"Unlock: staging invalidation failed");r->staging=0;r->locked=NULL;d8_locks--;xm_d8_resource(c,r,"unlocked");}
+  else {d8_native_failed=1; /* Preserve failure HRESULT; retain mapping until process teardown. */}
+  d8_semantic_return(c,prev,id,n,hr,error);
+ }
+diff --git a/out/dev-init-savepoints/x87v-20261031/runtime/xrt_internal.h b/out/dev-init/runtime/xrt_internal.h
+index 7b8109f..289b186 100644
+--- a/out/dev-init-savepoints/x87v-20261031/runtime/xrt_internal.h
++++ b/out/dev-init/runtime/xrt_internal.h
+@@ -47,6 +47,8 @@ void xrt_commit(uint32_t a, uint32_t size);
+ int xrt_is_committed(uint32_t a, uint32_t size);
+ int xrt_range_is_free(uint32_t a, uint32_t size);           /* no page of the range committed */
+ void xrt_decommit(uint32_t a, uint32_t size);
++uint32_t xrt_staging_take(CPU* c, uint32_t size);   /* developer D3D8 staging reuse: a warm block of this size class */
++int xrt_staging_put(CPU* c, uint32_t base);         /* keeps the block committed for the next staging take */
+ uint32_t xrt_rt_alloc(uint32_t size, uint32_t align);       /* runtime region, zeroed, never freed */
+ uint32_t xrt_heap_alloc(uint32_t size);                      /* 0 on exhaustion */
+ void xrt_heap_free(CPU* c, uint32_t p);
+diff --git a/out/dev-init-savepoints/x87v-20261031/runtime/xrt_mem.c b/out/dev-init/runtime/xrt_mem.c
+index 4f38f41..3a423b8 100644
+--- a/out/dev-init-savepoints/x87v-20261031/runtime/xrt_mem.c
++++ b/out/dev-init/runtime/xrt_mem.c
+@@ -138,7 +138,7 @@ uint32_t xrt_guest_strlen16(uint32_t p) {
+  * reserve/commit/release bookkeeping, 64 KiB allocation alignment, page rounding and zero-on-recommit.
+  * This bounded pool sits between the platform DLLs and CRT heap; exhaustion is explicitly unsupported.
+  * Only NULL-address, read/write reserve+commit and whole-block release are currently exposed by the HLE. */
+-typedef struct { uint32_t base, reserved, committed; int live; } VirtualBlock;
++typedef struct { uint32_t base, reserved, committed; int live, warm; } VirtualBlock;
+ static VirtualBlock virtual_blocks[4096];
+ static uint32_t virtual_next = 0x12000000u;
+ static int nvirtual;
+@@ -150,7 +150,7 @@ uint32_t xrt_virtual_alloc(CPU* c, uint32_t size) {
+     VirtualBlock* b = NULL;
+     AcquireSRWLockExclusive(&virtual_lock);
+     for (i = 0; i < nvirtual; i++)
+-        if (!virtual_blocks[i].live && virtual_blocks[i].reserved == reserve) { b = &virtual_blocks[i]; break; }
++        if (!virtual_blocks[i].live && !virtual_blocks[i].warm && virtual_blocks[i].reserved == reserve) { b = &virtual_blocks[i]; break; }
+     if (!b) {
+         uint32_t end;
+         if (!size || reserve > 0x0E000000u || nvirtual == 4096 || virtual_next + reserve > XRT_HEAP_BASE ||
+@@ -182,6 +182,39 @@ int xrt_virtual_free(CPU* c, uint32_t base) {
+     return 0;
+ }
+ 
++/* Developer D3D8 buffer staging reuse (resource_storage.inc, XRT_DEV_STAGING=reuse): a released staging block stays
++ * committed ("warm") instead of being decommitted, and only the next staging Lock of the same reserve size takes it,
++ * committing more pages if it needs them. Ordinary VirtualAlloc never takes a warm block (its callers expect
++ * zero-filled memory), so the pool holds the same blocks as with decommit. */
++uint32_t xrt_staging_take(CPU* c, uint32_t size) {
++    uint64_t reserve = ((uint64_t)size + 0xFFFFu) & ~0xFFFFull;
++    uint32_t commit = (size + 0xFFFu) & ~0xFFFu;
++    int i;
++    AcquireSRWLockExclusive(&virtual_lock);
++    for (i = 0; i < nvirtual; i++)
++        if (virtual_blocks[i].warm && virtual_blocks[i].reserved == reserve) {
++            VirtualBlock* b = &virtual_blocks[i];
++            if (b->committed < commit) { xrt_commit(b->base + b->committed, commit - b->committed); b->committed = commit; }
++            b->warm = 0; b->live = 1;
++            ReleaseSRWLockExclusive(&virtual_lock);
++            return b->base;
++        }
++    ReleaseSRWLockExclusive(&virtual_lock);
++    return size ? xrt_virtual_alloc(c, size) : 0;
++}
++int xrt_staging_put(CPU* c, uint32_t base) {
++    int i;
++    (void)c;
++    AcquireSRWLockExclusive(&virtual_lock);
++    for (i = 0; i < nvirtual; i++) if (virtual_blocks[i].live && virtual_blocks[i].base == base) {
++        virtual_blocks[i].live = 0; virtual_blocks[i].warm = 1;
++        ReleaseSRWLockExclusive(&virtual_lock);
++        return 1;
++    }
++    ReleaseSRWLockExclusive(&virtual_lock);
++    return 0;
++}
++
+ /* ---------------------------------------------------------------- guest heap
+  * Block = 16-byte header {size, cap, magic, 0} + payload (16-byte aligned).
+  * Small payloads (cap <= 4096, multiples of 16) use per-class free lists; larger ones are page-rounded

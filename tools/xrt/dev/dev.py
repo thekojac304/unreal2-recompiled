@@ -533,6 +533,10 @@ def run(args):
             env['XRT_DEV_DRAW_FRAMES'] = ','.join(map(str, args.draw_dump[:4]))
         if args.sample_hz:
             env['XRT_DEV_SAMPLE_HZ'] = str(args.sample_hz)
+        if args.staging == 'reuse':
+            env['XRT_DEV_STAGING'] = 'reuse'   # buffer staging kept per buffer (runtime resource_storage.inc)
+        if args.capture == 'shots':
+            env['XRT_DEV_CAPTURE'] = 'shots'   # no periodic/cue/startup readbacks (dev_support.c)
     graphics.environment(env, out)
     write(out / 'trace-profile.json', {'profile': args.trace_profile, 'full': args.trace_full,
                                      'addresses': [hex(a) for a in args.trace_address],
@@ -541,7 +545,8 @@ def run(args):
                                      'music_script_track': args.music_script_track,
                                      'input_script': args.input, 'allowed_maps': args.allow_map,
                                      'campaign_assets': args.campaign_assets, 'sample_hz': args.sample_hz,
-                                     'windowed_res': args.windowed_res})
+                                     'windowed_res': args.windowed_res, 'capture': args.capture,
+                                     'staging': args.staging})
     if args.attach:
         env['XRT_DEV_ATTACH'] = '1'
     command_args = ['--guest', sandbox / 'System/Unreal2.exe', '--log', out / 'xrt.log',
@@ -592,6 +597,10 @@ def main():
     r.add_argument('--input', default='', metavar='SCRIPT',
                    help='first-scene: short explicit input script "T:verb[:args];..." (key/move/click/shot), '
                         'T in ms after Init; delivered to the game window only, isolation stays on')
+    r.add_argument('--staging', choices=('strict', 'reuse'), default='strict',
+                   help='D3D8 buffer Lock staging: strict (default; decommitted at Unlock, stale pointers fault) or reuse (per-buffer block, stale pointers into it not trapped)')
+    r.add_argument('--capture', choices=('periodic', 'shots'), default='periodic',
+                   help='first-scene back-buffer captures: periodic (default; powers of two, every 256th world frame, cues) or shots (scripted shots only)')
     r.add_argument('--windowed-res', type=lambda v: tuple(int(x) for x in v.lower().split('x')), metavar='WxH',
                    help='windowed viewport the game requests (WindowedViewportX/Y in the run sandbox Unreal2.ini)')
     r.add_argument('--campaign-assets', action='store_true',

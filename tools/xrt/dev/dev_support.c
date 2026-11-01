@@ -474,12 +474,17 @@ void xrt_dev_map_open(CPU *c, const char *path) {
 /* Returns the world frame to capture, or 0x10000|present for the first two
  * non-world post-Init presents (a readback reference from the same run). */
 int xrt_dev_scene_capture(unsigned level_renders, unsigned scene_draws) {
+    /* XRT_DEV_CAPTURE=shots (dev.py --capture shots): only scripted shots read the back buffer back; the periodic,
+     * cue and startup captures (a 4K readback + BMP write costs 30-90 ms on the game thread) are not taken. */
+    static int shots_only = -1;
+    if (shots_only < 0) { const char *v = getenv("XRT_DEV_CAPTURE"); shots_only = v && !strcmp(v, "shots"); }
     if (!scene_mode() || !post_init) return 0;
     if (in_shot) {
         in_shot = 0;
         if (level_renders != last_renders && scene_draws) return (int)(world_frames + 1);
         if (post_presents + 1 <= 0xffffu) return (int)(0x20000u | (post_presents + 1));
     }
+    if (shots_only) return 0;
     if (level_renders == last_renders || !scene_draws) {
         unsigned n = nonworld + 1;
         if (post_presents < 2) return (int)(0x10000u | (post_presents + 1));
