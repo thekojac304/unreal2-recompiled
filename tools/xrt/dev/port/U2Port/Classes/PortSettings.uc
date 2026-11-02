@@ -64,6 +64,41 @@ function SetUIScale(int P)
 	ConsoleCommand("PORTSET UIScale" @ P);
 }
 
+// Options > Video > Resolution (replaces CodeMonkey's GetRes/SetRes in the port's menu): the FULLSCREEN resolution.
+// Fullscreen is borderless in the port and renders at this size, scaled to the screen. A window always renders at
+// its own size, so in a window the choice is only stored and used the next time fullscreen is entered. The original
+// GetRes showed the UI root size (wrong with UI scaling) and SetRes resized the window.
+function string IniGet(string Key)
+{
+	return GetPlayerOwner().ConsoleCommand("get ini:Engine.Engine.ViewportManager" @ Key);
+}
+
+function string GetFullscreenRes()
+{
+	return IniGet("FullscreenViewportX") $ "x" $ IniGet("FullscreenViewportY");
+}
+
+function SetFullscreenRes(string S)
+{
+	local int i, W, H;
+
+	i = InStr(S, "x");
+	if (i <= 0)
+		return;
+	W = int(Left(S, i));
+	S = Mid(S, i + 1);
+	i = InStr(S, "x");
+	if (i > 0)
+		S = Left(S, i);
+	H = int(S);
+	if (W < 320 || H < 200)
+		return;
+	GetPlayerOwner().ConsoleCommand("set ini:Engine.Engine.ViewportManager FullscreenViewportX" @ W);
+	GetPlayerOwner().ConsoleCommand("set ini:Engine.Engine.ViewportManager FullscreenViewportY" @ H);
+	if (bool(IniGet("StartupFullscreen")))
+		GetPlayerOwner().ConsoleCommand("SETRES" @ W $ "x" $ H);
+}
+
 function SetUIScaleAuto() { SetUIScale(0); }
 function SetUIScale100() { SetUIScale(100); }
 function SetUIScale125() { SetUIScale(125); }

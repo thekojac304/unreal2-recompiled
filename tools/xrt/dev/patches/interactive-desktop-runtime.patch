@@ -155,7 +155,7 @@ index c55a9e2..8e8a8a6 100644
  }
  static int dm_backend_alive(void){return dm_backend_connection.process!=NULL;}
 diff --git a/out/dev-init-savepoints/interactive-20261101/runtime-base/hle_d3d8_device.inc b/out/dev-init/runtime/hle_d3d8_device.inc
-index ed9192a..0377258 100644
+index ed9192a..9312421 100644
 --- a/out/dev-init-savepoints/interactive-20261101/runtime-base/hle_d3d8_device.inc
 +++ b/out/dev-init/runtime/hle_d3d8_device.inc
 @@ -54,7 +54,9 @@ static void d8_declaration_device_dead(void);
@@ -217,7 +217,7 @@ index ed9192a..0377258 100644
              n.width,n.height,n.format,n.count,n.swap,n.depth,n.depthformat,n.flags,n.interval,o->width,o->height);
      prev=d8_native_enter(c,14,&n,sizeof n);hr=XM_Reset(c,o->host,&n);error=GetLastError();
      if(SUCCEEDED(hr)){o->width=n.width;o->height=n.height;o->depth=n.depth;o->depthformat=n.depthformat;d8_resource_device_dead();}
-+    if(SUCCEEDED(hr)&&bl){d8_bl_create(c,o->host);o->width=d8_bl.vw;o->height=d8_bl.vh;}
++    if(SUCCEEDED(hr)&&bl){d8_bl_create(c,o->host);o->width=d8_bl.vw;o->height=d8_bl.vh;o->depth=d8_bl.depth;o->depthformat=d8_bl.depthformat;}
      d8_device_memory(c,pp,52,1);
      wr32(pp,n.width);wr32(pp+4,n.height);wr32(pp+8,n.format);wr32(pp+12,n.count);wr32(pp+16,n.multisample);wr32(pp+20,n.swap);
      wr32(pp+24,xrt_gui_window_identity(c,n.window));wr32(pp+28,n.windowed);wr32(pp+32,n.depth);wr32(pp+36,n.depthformat);
@@ -261,7 +261,7 @@ index ed9192a..0377258 100644
 +    if(bl && !d8_native_failed) {
 +        /* Borderless fullscreen: the game's back buffer is the runtime's render target of the size it asked for. */
 +        CPU*bp=xrt_gui_callback_enter(c);d8_bl_create(c,host);xrt_gui_callback_leave(bp);
-+        o->width=d8_bl.vw;o->height=d8_bl.vh;
++        o->width=d8_bl.vw;o->height=d8_bl.vh;o->depth=d8_bl.depth;o->depthformat=d8_bl.depthformat;
 +        for(i=0;i<13;i++)if(i!=6)wr32(pp+4*i,bl_saved[i]);   /* the game sees the parameters it asked for */
 +    }
      wr32(out,o->refs?o->guest:0);xrt_set_last_error(c,error);RET_STD(7,hr);
@@ -284,26 +284,27 @@ index 061098a..ed380f4 100644
    xrt_baton_acquire();
    if(xrt_exiting){xrt_baton_release();return;}
 diff --git a/out/dev-init-savepoints/interactive-20261101/runtime-base/hle_gui.c b/out/dev-init/runtime/hle_gui.c
-index 8794a2a..8b1cdce 100644
+index 8794a2a..ea3da3e 100644
 --- a/out/dev-init-savepoints/interactive-20261101/runtime-base/hle_gui.c
 +++ b/out/dev-init/runtime/hle_gui.c
-@@ -657,6 +657,15 @@ static void dev_max_track(MINMAXINFO *m)
+@@ -657,6 +657,16 @@ static void dev_max_track(MINMAXINFO *m)
  #include "message_pump.inc"
  static INT_PTR invoke_gui_proc(HWND h, UINT msg, WPARAM wp, LPARAM lp, uint32_t explicit_proc)
  {
-+    /* F1: Windows' help request (WM_HELP, lParam a HELPINFO pointer or 0) reached the game's main dialog and stopped the
-+     * run (owner's run 20261101-211738). The game has no Windows help to offer; it is answered as handled here and
-+     * never crosses to the guest. The F1 key itself still reaches the game as WM_KEYDOWN/DirectInput. */
-+    if (msg == WM_HELP)
++    /* F1: Windows' help request reached the game's main dialog and stopped the run (owner's runs 20261101-211738,
++     * -215600): first the undocumented WM_KEYF1 (0x4D, both arguments 0) that DefDlgProc turns into WM_HELP (0x53,
++     * lParam a HELPINFO pointer). The game has no Windows help to offer; both are answered as handled here and never
++     * cross to the guest. The F1 key itself still reaches the game as WM_KEYDOWN/DirectInput. */
++    if (msg == WM_HELP || msg == 0x4D /* WM_KEYF1 */)
 +    {
 +        static unsigned logged;
-+        if (logged++ < 4) xrt_log("WM_HELP (F1) answered as handled; not passed to the game");
++        if (logged++ < 4) xrt_log("F1 help request (message %x) answered as handled; not passed to the game", msg);
 +        return TRUE;
 +    }
      xm_scope(callback_cpu,XM_BEGIN,XM_CALLBACK,"USER32.invoke_gui_proc",msg);
      CPU nested;
      uint32_t args[4], proc = explicit_proc, scratch = 0;
-@@ -938,6 +947,9 @@ static INT_PTR invoke_gui_proc(HWND h, UINT msg, WPARAM wp, LPARAM lp, uint32_t
+@@ -938,6 +948,9 @@ static INT_PTR invoke_gui_proc(HWND h, UINT msg, WPARAM wp, LPARAM lp, uint32_t
          /* Only measured scalar messages may cross unmodified. */
          if (!((msg <= WM_ENABLE && msg != WM_GETTEXT) || msg == WM_PAINT || msg == WM_ERASEBKGND ||
                msg == WM_SHOWWINDOW || msg == WM_NCPAINT || msg == WM_NCACTIVATE || msg == WM_DESTROY ||
@@ -313,7 +314,7 @@ index 8794a2a..8b1cdce 100644
                msg == WM_NCDESTROY || msg == WM_CANCELMODE || msg == WM_GETDLGCODE || msg == WM_GETFONT ||
                msg == WM_CHANGEUISTATE || msg == WM_UPDATEUISTATE || msg == WM_QUERYUISTATE ||
                msg == WM_QUERYNEWPALETTE || msg == WM_PALETTECHANGED || msg == WM_DWMNCRENDERINGCHANGED ||
-@@ -1189,6 +1201,31 @@ static void hle_IsWindow(CPU* c)
+@@ -1189,6 +1202,31 @@ static void hle_IsWindow(CPU* c)
  {
      BOOL ok;begin(c);ok=xm_win_IsWindow(window_host(ARG(0)));end(c);RET_STD(1,ok);
  }
@@ -345,7 +346,7 @@ index 8794a2a..8b1cdce 100644
  static void hle_ShowWindow(CPU* c)
  {
      BOOL previous_visible;CPU* previous=callback_cpu;int cmd=(int)ARG(1);
-@@ -1259,6 +1296,13 @@ static void send_message(CPU *c, int wide)
+@@ -1259,6 +1297,13 @@ static void send_message(CPU *c, int wide)
          result=wide?xm_win_SendMessageW(window_host(ARG(0)),msg,wp,(LPARAM)(int32_t)ARG(3)):xm_win_SendMessageA(window_host(ARG(0)),msg,wp,(LPARAM)(int32_t)ARG(3));
          end(c);callback_cpu=prev;RET_STD(4,(uint32_t)result);return;
      }
@@ -359,7 +360,7 @@ index 8794a2a..8b1cdce 100644
      if(msg==WM_SETTEXT || msg==WM_GETTEXTLENGTH) {
          if(msg==WM_SETTEXT && ARG(3) && ARG(3)<0x10000)
              xrt_fatal(c,XRT_EXIT_UNSUPPORTED,"WM_SETTEXT invalid guest string");
-@@ -1397,6 +1441,7 @@ const XrtHle xrt_hle_gui[] = {{"comctl32.dll", "#17", hle_InitCommonControls},
+@@ -1397,6 +1442,7 @@ const XrtHle xrt_hle_gui[] = {{"comctl32.dll", "#17", hle_InitCommonControls},
                                {"user32.dll", "SetMenu", hle_SetMenu},
                                {"user32.dll", "PostMessageA", hle_PostMessageA},
                                {"user32.dll", "PostMessageW", hle_PostMessageW},
@@ -367,7 +368,7 @@ index 8794a2a..8b1cdce 100644
                                {"user32.dll", "PeekMessageW", hle_PeekMessageW},
                                {"user32.dll", "PeekMessageA", hle_PeekMessageA},
                                {"user32.dll", "TranslateMessage", hle_TranslateMessage},
-@@ -1413,6 +1458,10 @@ const XrtHle xrt_hle_gui[] = {{"comctl32.dll", "#17", hle_InitCommonControls},
+@@ -1413,6 +1459,10 @@ const XrtHle xrt_hle_gui[] = {{"comctl32.dll", "#17", hle_InitCommonControls},
  
                                {"user32.dll", "GetWindowLongA", hle_GetWindowLongA},
                                {"user32.dll", "IsWindow", hle_IsWindow},
@@ -414,6 +415,41 @@ index 0df255b..0a5ac3b 100644
      xrt_fatal(c,XRT_EXIT_UNSUPPORTED,"window procedure message 0x%x has no validated callback frame",msg);
  }
  static void refresh_forwarded_message(UINT msg,uint32_t wp,uint32_t lp,LPARAM host_lp) {
+diff --git a/out/dev-init-savepoints/interactive-20261101/runtime-base/hle_msvcr70.c b/out/dev-init/runtime/hle_msvcr70.c
+index ba30f43..5b44ef3 100644
+--- a/out/dev-init-savepoints/interactive-20261101/runtime-base/hle_msvcr70.c
++++ b/out/dev-init/runtime/hle_msvcr70.c
+@@ -655,6 +655,22 @@ static int strout_put(void* ctx, uint16_t ch) {
+     wr8(s->dst + s->n++, (uint8_t)ch);
+     return 1;
+ }
++/* swprintf(buffer, format, ...): msvcr70's pre-C99 form without a count - _woutput into an unbounded wide string
++ * stream, then the terminator, as sprintf. Engine.dll logs with it during shutdown (owner's run 20261101-214813). */
++static int wstrout_put(void* ctx, uint16_t ch) {
++    StrOut* s = (StrOut*)ctx;
++    wr16(s->dst + 2u * s->n++, ch);
++    return 1;
++}
++static void hle_swprintf(CPU* c) {
++    StrOut s;
++    int32_t r;
++    s.dst = ARG(0);
++    s.n = 0;
++    r = xrt_woutput(ARG(1), c->r[ESP] + 12, wstrout_put, &s);
++    wr16(s.dst + 2u * s.n, 0);
++    RET_C((uint32_t)r);
++}
+ static void hle_sprintf(CPU* c) {
+     StrOut s;
+     int32_t r;
+@@ -2103,6 +2119,7 @@ const XrtHle xrt_hle_msvcr70[] = {
+     {"msvcr70.dll", "_stricmp", hle_stricmp},
+     {"msvcr70.dll", "atoi", hle_atoi},
+     {"msvcr70.dll", "sprintf", hle_sprintf},
++    {"msvcr70.dll", "swprintf", hle_swprintf},
+     {"msvcr70.dll", "qsort", hle_qsort},
+     {"msvcr70.dll", "_CIpow", hle_CIpow},
+     {"msvcr70.dll", "_CIfmod", hle_CIfmod},
 diff --git a/out/dev-init-savepoints/interactive-20261101/runtime-base/message_pump.inc b/out/dev-init/runtime/message_pump.inc
 index f49f534..14f4d2f 100644
 --- a/out/dev-init-savepoints/interactive-20261101/runtime-base/message_pump.inc

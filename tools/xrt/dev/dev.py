@@ -625,6 +625,11 @@ def run(args):
                 body = re.sub(rb'(?m)^' + re.escape(line.split(b'=')[0]) + rb'=\d+\r?\n', line, body)
             ini.write_bytes(replace_ini_section(text, b'WinDrv.WindowsClient', body))
             print(f'dev: profile {args.profile}: display settings restored', flush=True)
+    # The game starts fullscreen (borderless) when the player left it so; otherwise -windowed, as always.
+    startup_fullscreen = bool(profile) and re.search(rb'(?mi)^StartupFullscreen=true\r?$', ini_section(
+        (sandbox / 'System' / 'Unreal2.ini').read_bytes(), b'WinDrv.WindowsClient')) is not None
+    if startup_fullscreen:
+        print(f'dev: profile {args.profile}: starting full screen (borderless)', flush=True)
     # Developer helper copy (out/dev-init/dmusic_helper, named CallRoutine admitted); else the shared build.
     helper = BUILD / 'dmusic_helper.exe'
     if not helper.is_file():
@@ -705,7 +710,7 @@ def run(args):
     command_args = ['--guest', sandbox / 'System/Unreal2.exe', '--log', out / 'xrt.log',
                     '--report', out / 'runtime-report.json', '--run-id', out.name,
                     '--timeout-ms', str(args.timeout * 1000), '--', 'CS_Intro.un2',
-                    '-windowed', *([] if args.sound != 'off' else ['-nosound']), '-NOMMX', '-NOSSE']
+                    *([] if startup_fullscreen else ['-windowed']), *([] if args.sound != 'off' else ['-nosound']), '-NOMMX', '-NOSSE']
     print('Run output:', out, flush=True)
     try:
         code = launch(exe, command_args, out, sandbox / 'System', env, args.timeout)

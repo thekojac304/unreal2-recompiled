@@ -89,6 +89,9 @@ MENU_EDITS = [
     (VSYNC, VSYNC + 'Component=U2Selector:286\n\tGroup=OptionWidgets_VIDEO\n' +
      ''.join(f'\tListItem=UIScale{v},PortSettings,SetUIScale{v}\n' for v in ('Auto', '100', '125', '150', '200')) +
      '\tCurrentAccess=PortSettings,GetUIScaleIndex\n'),
+    # Resolution = the fullscreen resolution (PortSettings.uc): stored at once, applied at once only in fullscreen.
+    ('\tModifier=CodeMonkey,SetRes\n\tCurrentText=CodeMonkey,GetRes\n',
+     '\tModifier=PortSettings,SetFullscreenRes\n\tCurrentText=PortSettings,GetFullscreenRes\n'),
 ]
 TEXT_EDITS = [
     ('OptionDescriptionDodging=Dodging:\n',
@@ -100,6 +103,9 @@ TEXT_EDITS = [
      'MouseOver_VIDEO_10=Check this box to play full screen (borderless; the resolution above is scaled to fit the '
      'screen). Alt+Enter switches too.\n'),
     ('MouseOver_VIDEO_12=\n', 'MouseOver_VIDEO_12=Scale menus, HUD and subtitles. Auto picks a size for the screen height.\n'),
+    ('MouseOver_VIDEO_01=Adjust the video resolution -- lower resolutions will improve performance on older video cards.\n',
+     'MouseOver_VIDEO_01=Resolution used in full screen (scaled to fit the screen). In a window the game always renders at '
+     'the window size; resize or maximize the window instead.\n'),
 ]
 
 
