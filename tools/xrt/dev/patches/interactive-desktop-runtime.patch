@@ -1,9 +1,9 @@
 diff --git a/out/dev-init/runtime/d3d8_borderless.inc b/out/dev-init/runtime/d3d8_borderless.inc
 new file mode 100644
-index 0000000..a5f7743
+index 0000000..1d13448
 --- /dev/null
 +++ b/out/dev-init/runtime/d3d8_borderless.inc
-@@ -0,0 +1,115 @@
+@@ -0,0 +1,130 @@
 +/* Borderless fullscreen (port setting, owner's choice 2026-11-01). The game asks for exclusive fullscreen through
 + * CreateDevice/Reset with Windowed=FALSE at the resolution chosen in its menu (UWindowsViewport::ResizeViewport has
 + * already removed the caption and frame and captured the mouse). Instead of a display mode change:
@@ -18,6 +18,7 @@ index 0000000..a5f7743
 + * Leaving fullscreen (the game restores its frame and asks for a windowed device) releases all of it. */
 +typedef struct D8Borderless {
 +    int active;HWND window;
++    LONG style;int framed;RECT rect;            /* the window before the first fullscreen fit (restored if the game does not) */
 +    unsigned vw,vh,format,depth,depthformat;   /* the game's requested (virtual) back buffer */
 +    D8Texture*tex;D8Surface*rt,*ds;
 +    unsigned composites;
@@ -37,16 +38,30 @@ index 0000000..a5f7743
 +    if(d8_bl.rt){XM_Release(NULL,(D8Unknown*)d8_bl.rt);d8_bl.rt=NULL;}
 +    if(d8_bl.tex){XM_Release(NULL,(D8Unknown*)d8_bl.tex);d8_bl.tex=NULL;}
 +}
-+static void d8_bl_end(const char*why) {
-+    if(!d8_bl.active)return;
-+    d8_bl_release();d8_bl.active=0;
-+    xrt_log("D3D8 borderless fullscreen ended (%s)",why);
++/* windowed: the game asked for a windowed device again. Its ResizeViewport normally restores the caption and frame and
++ * moves the window back first; if the frame is still missing, the window as it was before fullscreen comes back. */
++static void d8_bl_end(const char*why,CPU*c,int windowed) {
++    if(d8_bl.active){d8_bl_release();d8_bl.active=0;xrt_log("D3D8 borderless fullscreen ended (%s)",why);}
++    if(!windowed || !d8_bl.framed)return;
++    if(IsWindow(d8_bl.window) && (GetWindowLongW(d8_bl.window,GWL_STYLE)&WS_CAPTION)!=WS_CAPTION) {
++        CPU*prev=xrt_gui_callback_enter(c);
++        SetWindowLongW(d8_bl.window,GWL_STYLE,d8_bl.style);
++        SetWindowPos(d8_bl.window,NULL,d8_bl.rect.left,d8_bl.rect.top,d8_bl.rect.right-d8_bl.rect.left,d8_bl.rect.bottom-d8_bl.rect.top,
++                     SWP_NOZORDER|SWP_FRAMECHANGED);
++        xrt_gui_callback_leave(prev);
++        xrt_log("D3D8 borderless: window frame restored by the runtime");
++    }
++    d8_bl.framed=0;
 +}
-+/* Places the window over its monitor; returns the client size (the window has no frame in fullscreen). */
++/* Places the window, without caption or frame, over its monitor; returns the client size. D3DDrv creates the device
++ * BEFORE UWindowsViewport::ResizeViewport removes the frame (owner's runs 20261101-214637/-214728: a 2544x1401 back
++ * buffer), so the same style change (style & ~(WS_CAPTION|WS_THICKFRAME), as ResizeViewport does) is made here first. */
 +static void d8_bl_fit(CPU*c,HWND h,unsigned*w,unsigned*hh) {
-+    MONITORINFO mi;RECT r;CPU*prev;
++    MONITORINFO mi;RECT r;CPU*prev;LONG style=GetWindowLongW(h,GWL_STYLE);
 +    mi.cbSize=sizeof mi;GetMonitorInfoW(MonitorFromWindow(h,MONITOR_DEFAULTTONEAREST),&mi);
++    if((style&WS_CAPTION)==WS_CAPTION && !d8_bl.framed){d8_bl.style=style;GetWindowRect(h,&d8_bl.rect);d8_bl.framed=1;}
 +    prev=xrt_gui_callback_enter(c);
++    if(style&(WS_CAPTION|WS_THICKFRAME))SetWindowLongW(h,GWL_STYLE,style&~(LONG)(WS_CAPTION|WS_THICKFRAME));
 +    SetWindowPos(h,HWND_TOP,mi.rcMonitor.left,mi.rcMonitor.top,mi.rcMonitor.right-mi.rcMonitor.left,mi.rcMonitor.bottom-mi.rcMonitor.top,
 +                 SWP_FRAMECHANGED|SWP_SHOWWINDOW);
 +    xrt_gui_callback_leave(prev);
@@ -140,7 +155,7 @@ index c55a9e2..8e8a8a6 100644
  }
  static int dm_backend_alive(void){return dm_backend_connection.process!=NULL;}
 diff --git a/out/dev-init-savepoints/interactive-20261101/runtime-base/hle_d3d8_device.inc b/out/dev-init/runtime/hle_d3d8_device.inc
-index ed9192a..4977b1d 100644
+index ed9192a..0377258 100644
 --- a/out/dev-init-savepoints/interactive-20261101/runtime-base/hle_d3d8_device.inc
 +++ b/out/dev-init/runtime/hle_d3d8_device.inc
 @@ -54,7 +54,9 @@ static void d8_declaration_device_dead(void);
@@ -149,7 +164,7 @@ index ed9192a..4977b1d 100644
  static void d8_resource_up_reset(int);
 +#include "d3d8_borderless.inc"
  static void d8_device_dead(D8DeviceObject*o) {
-+    d8_bl_end("device destroyed");   /* the runtime's own render target/depth surface held the native device */
++    d8_bl_end("device destroyed",NULL,0);   /* the runtime's own render target/depth surface held the native device */
      d8_declaration_device_dead();d8_resource_device_dead();
      o->host=NULL;xm_resource(NULL,2,o->guest,1,0,o->refs,o->children,"destroyed");
      if(!--o->parent->children && !o->parent->refs)o->parent->host=NULL;xm_resource(NULL,1,o->parent->guest,0,(uint64_t)(uintptr_t)o->parent->host,o->parent->refs,o->parent->children,"child-destroyed");
@@ -194,7 +209,7 @@ index ed9192a..4977b1d 100644
 +     * a fullscreen request is translated like CreateDevice's, a windowed one ends borderless mode. */
 +    d8_bl_release();
 +    bl=d8_bl_translate(c,pp,rd32(pp+24)?rd32(pp+24):o->window,bl_saved);
-+    if(!bl)d8_bl_end("windowed reset");
++    if(!bl)d8_bl_end("windowed reset",c,1);
      window=rd32(pp+24);memset(&n,0,sizeof n);
      n.width=rd32(pp);n.height=rd32(pp+4);n.format=rd32(pp+8);n.count=rd32(pp+12);n.multisample=rd32(pp+16);n.swap=rd32(pp+20);
      n.windowed=rd32(pp+28);n.depth=rd32(pp+32);n.depthformat=rd32(pp+36);n.flags=rd32(pp+40);n.refresh=rd32(pp+44);n.interval=rd32(pp+48);
@@ -229,7 +244,7 @@ index ed9192a..4977b1d 100644
      if(!focus && !rd32(pp+24))xrt_fatal(c,76,"SAFETY: CreateDevice requires an owned presentation/focus window");
 +    /* Borderless fullscreen: a fullscreen request becomes a windowed native request on the monitor-sized window. */
 +    {uint32_t bl_saved[13];int bl=d8_bl_translate(c,pp,rd32(pp+24)?rd32(pp+24):focus,bl_saved);
-+     if(!bl)d8_bl_end("windowed device requested");
++     if(!bl)d8_bl_end("windowed device requested",c,1);
 +     d8_create_device_body(c,p,o,adapter,type,focus,flags,pp,out,bl,bl_saved);}
 +}
 +static void d8_create_device_body(CPU*c,D8Object*p,D8DeviceObject*o,uint32_t adapter,uint32_t type,uint32_t focus,uint32_t flags,
@@ -269,7 +284,7 @@ index 061098a..ed380f4 100644
    xrt_baton_acquire();
    if(xrt_exiting){xrt_baton_release();return;}
 diff --git a/out/dev-init-savepoints/interactive-20261101/runtime-base/hle_gui.c b/out/dev-init/runtime/hle_gui.c
-index 8794a2a..02a3dac 100644
+index 8794a2a..8b1cdce 100644
 --- a/out/dev-init-savepoints/interactive-20261101/runtime-base/hle_gui.c
 +++ b/out/dev-init/runtime/hle_gui.c
 @@ -657,6 +657,15 @@ static void dev_max_track(MINMAXINFO *m)
@@ -294,7 +309,7 @@ index 8794a2a..02a3dac 100644
                msg == WM_SHOWWINDOW || msg == WM_NCPAINT || msg == WM_NCACTIVATE || msg == WM_DESTROY ||
 +              /* The window's close button: WinDrv's viewport passes WM_CLOSE (no arguments) on to the game's main
 +               * dialog window (runs 20261101-210939/-211024). */
-+              (msg == WM_CLOSE && !wp && !lp) ||
++              (msg == WM_CLOSE && !wp && !lp) || (msg == WM_SETREDRAW && !lp) ||
                msg == WM_NCDESTROY || msg == WM_CANCELMODE || msg == WM_GETDLGCODE || msg == WM_GETFONT ||
                msg == WM_CHANGEUISTATE || msg == WM_UPDATEUISTATE || msg == WM_QUERYUISTATE ||
                msg == WM_QUERYNEWPALETTE || msg == WM_PALETTECHANGED || msg == WM_DWMNCRENDERINGCHANGED ||
@@ -330,7 +345,21 @@ index 8794a2a..02a3dac 100644
  static void hle_ShowWindow(CPU* c)
  {
      BOOL previous_visible;CPU* previous=callback_cpu;int cmd=(int)ARG(1);
-@@ -1397,6 +1434,7 @@ const XrtHle xrt_hle_gui[] = {{"comctl32.dll", "#17", hle_InitCommonControls},
+@@ -1259,6 +1296,13 @@ static void send_message(CPU *c, int wide)
+         result=wide?xm_win_SendMessageW(window_host(ARG(0)),msg,wp,(LPARAM)(int32_t)ARG(3)):xm_win_SendMessageA(window_host(ARG(0)),msg,wp,(LPARAM)(int32_t)ARG(3));
+         end(c);callback_cpu=prev;RET_STD(4,(uint32_t)result);return;
+     }
++    if(msg==WM_SETREDRAW && !ARG(3)) {
++        /* UWindowsViewport::ResizeViewport brackets its fullscreen style change with WM_SETREDRAW 0/1 (owner's runs
++         * 20261101-214637/-214728): wParam BOOL, lParam 0. */
++        callback_cpu=c;begin(c);
++        result=wide?xm_win_SendMessageW(window_host(ARG(0)),msg,wp,0):xm_win_SendMessageA(window_host(ARG(0)),msg,wp,0);
++        end(c);callback_cpu=prev;RET_STD(4,(uint32_t)result);return;
++    }
+     if(msg==WM_SETTEXT || msg==WM_GETTEXTLENGTH) {
+         if(msg==WM_SETTEXT && ARG(3) && ARG(3)<0x10000)
+             xrt_fatal(c,XRT_EXIT_UNSUPPORTED,"WM_SETTEXT invalid guest string");
+@@ -1397,6 +1441,7 @@ const XrtHle xrt_hle_gui[] = {{"comctl32.dll", "#17", hle_InitCommonControls},
                                {"user32.dll", "SetMenu", hle_SetMenu},
                                {"user32.dll", "PostMessageA", hle_PostMessageA},
                                {"user32.dll", "PostMessageW", hle_PostMessageW},
@@ -338,7 +367,7 @@ index 8794a2a..02a3dac 100644
                                {"user32.dll", "PeekMessageW", hle_PeekMessageW},
                                {"user32.dll", "PeekMessageA", hle_PeekMessageA},
                                {"user32.dll", "TranslateMessage", hle_TranslateMessage},
-@@ -1413,6 +1451,10 @@ const XrtHle xrt_hle_gui[] = {{"comctl32.dll", "#17", hle_InitCommonControls},
+@@ -1413,6 +1458,10 @@ const XrtHle xrt_hle_gui[] = {{"comctl32.dll", "#17", hle_InitCommonControls},
  
                                {"user32.dll", "GetWindowLongA", hle_GetWindowLongA},
                                {"user32.dll", "IsWindow", hle_IsWindow},

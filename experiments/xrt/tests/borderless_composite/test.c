@@ -110,9 +110,34 @@ int main(void) {
     CHECK(SUCCEEDED(hr), "Present (hr %08lx)", (unsigned long)hr);
 
     dev->vt->SetStreamSource(dev, 0, NULL, 0); XM_Release(NULL, (D8Unknown*)vb);
-    d8_bl_end("test");
+    d8_bl_end("test", NULL, 0);
     v = dev->vt->Release(dev);
     CHECK(v == 0, "device released to 0 after the runtime's objects (%lu): no leaked references", v);
+
+    /* window fit: a framed window becomes frameless over its monitor, the native request is windowed at that size */
+    {
+        uint32_t saved[13], pp = 0x10000, k; RECT before, after; MONITORINFO mi = {sizeof mi}; LONG style;
+        xrt_g = (uint8_t*)VirtualAlloc(NULL, 0x20000, MEM_RESERVE, PAGE_NOACCESS);
+        VirtualAlloc(xrt_g + 0x10000, 0x1000, MEM_COMMIT, PAGE_READWRITE);
+        test_window = CreateWindowExW(0, wc.lpszClassName, L"fit", WS_OVERLAPPEDWINDOW, 100, 100, 800, 600, NULL, NULL, wc.hInstance, NULL);
+        GetWindowRect(test_window, &before);
+        GetMonitorInfoW(MonitorFromWindow(test_window, MONITOR_DEFAULTTONEAREST), &mi);
+        for (k = 0; k < 13; k++) wr32(pp + 4 * k, 0);
+        wr32(pp, 1024); wr32(pp + 4, 768); wr32(pp + 8, 22); wr32(pp + 12, 1); wr32(pp + 20, 1); wr32(pp + 24, 0x1234);
+        wr32(pp + 28, 0); wr32(pp + 32, 1); wr32(pp + 36, 77); wr32(pp + 44, 60); wr32(pp + 48, 0x80000000u);
+        CHECK(d8_bl_translate(NULL, pp, 0x1234, saved) == 1, "fit: fullscreen request translated");
+        style = GetWindowLongW(test_window, GWL_STYLE); GetClientRect(test_window, &after);
+        CHECK(!(style & WS_CAPTION) && !(style & WS_THICKFRAME) && after.right == mi.rcMonitor.right - mi.rcMonitor.left &&
+              after.bottom == mi.rcMonitor.bottom - mi.rcMonitor.top, "fit: frameless, client %ldx%ld = monitor", after.right, after.bottom);
+        CHECK(rd32(pp) == (uint32_t)after.right && rd32(pp + 4) == (uint32_t)after.bottom && rd32(pp + 28) == 1 && rd32(pp + 32) == 0 &&
+              rd32(pp + 44) == 0 && rd32(pp + 48) == 0 && saved[0] == 1024 && saved[1] == 768 && d8_bl.vw == 1024 && d8_bl.depthformat == 77,
+              "fit: native request windowed %ux%u without auto depth; the game's 1024x768 kept", rd32(pp), rd32(pp + 4));
+        d8_bl_end("test windowed", NULL, 1);
+        style = GetWindowLongW(test_window, GWL_STYLE); GetWindowRect(test_window, &after);
+        CHECK((style & WS_CAPTION) == WS_CAPTION && (style & WS_THICKFRAME) && after.left == before.left && after.right == before.right &&
+              after.bottom == before.bottom, "fit: frame and position restored when the game asks for a windowed device again");
+        DestroyWindow(test_window);
+    }
     printf("%s (%d failure%s)\n", failures ? "FAIL" : "PASS", failures, failures == 1 ? "" : "s");
     return failures ? 1 : 0;
 }
