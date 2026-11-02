@@ -777,3 +777,30 @@ Performance round 2 (2026-11-02, call/return protocol; PERF_REPORT_20261102.md, 
   - Gotchas: a play profile's WindowsClient.ini forces a 2560x1440 viewport (recorded 4K cursor paths miss); a non-default UIScale
     changes the menu geometry; the tutb-farewell save opens with a ~90 s cinematic (use the lift-corridor save for smoke tests);
     Start-Process powershell sessions wrote empty Get-FileHash results (hash in pwsh or Python); PowerShell *> logs are UTF-16.
+
+Performance round 3 (2026-11-02 afternoon: frame-cost attribution, V-cache, D3D8 HLE; PERF_REPORT_20261102_R3.md; save point
+perf-r3-20261102 recommended; owner granted 24 launches / 12,000 s, used 20 / 5,394 s, no fatal):
+  - Attribution (sampled TutA run 20261102-124315, profiling save point perf-c3c-profws-20261102 = C3c objects + diagnostics):
+    slow subsection 9.2 ms/frame = translated 4.6 ms (GlmLib animation 2.2, Engine 0.9, D3DDrv 0.7, Core 0.6) + runtime 4.4 ms
+    (D3D8 HLE 3.1: strict staging 2.1 + per-call validation/evidence 1.1; dispatch 0.45; EH pads 0.36); driver 0.13 ms. EH pads
+    (setjmp, guard/unguard in 7,908 functions) are 18-24% of UI-heavy frames. Combat (M08A1, sound on): audio <1% of the game thread.
+  - V-cache: ws probe ~59 MB of pages per frame (code 6.5, guest 14, host heaps/driver mappings 32); hot code 6.6-7.4x the x86 bytes,
+    executed code 16 MB vs <=1.86 MB x86. C3c on 8 cores of CCD1 25-31% slower than on CCD0; hot-code order +10-17% on CCD1, 0 on
+    CCD0; three 20 MB hot polluters on the same CCD0 cost 7-12%. cache_sweep (experiments/xrt/tests/cache_sweep): CCD1 single-core
+    cliff at 12-16 MB, CCD0 holds to ~48 MB.
+  - Accepted: S2 runtime (patches/perf-batch3-runtime.patch: validity bitmap d8_valid_bits.h, Unlock snapshot into the shadow,
+    LockRect padding-only zero fill, staging hints seeded at commit, decommit log 1024, checkpoint fast path with xrt_event_skip):
+    +3-5% FPS on CCD0, both runs beat both C3c runs in every window. dev.py build --order tools/xrt/dev/order-c3c-tuta.txt
+    (/ORDER; /O2 implies /Gy): hot set 6.5 MB on 1,591 pages instead of 56.7 MB on 2,295. Opt-in dev.py run --staging guard
+    (blocks PAGE_NOACCESS between uses, stale pointers fault as in strict): +3-6% over strict on the same binary; strict stays default.
+    Policy price after S2: reuse +5-14% over strict.
+  - Harness: dev_support.c samples 128 host frames (was 24), writes counters.csv (perf_counters.h: D3D8 calls, draws, Locks, bytes,
+    rdtsc HLE time in sampled runs) and runs the ws:0/ws:1 working-set probe; bench_tuta.ps1 -ExtraSteps merges extra steps by time.
+  - Verification: C3c (V1, run 20261102-123745) and R3 (runs -142701, -142829, -143132): load, movement/collision, quicksave/load,
+    resize, UI scale/walking speed via console PORTSET, OpenAL + DirectMusic, combat hits both ways, and normal shutdown via the
+    console (VK 192, "exit", Enter -> ExitProcess(0), outcome exited) on R3.
+  - Gotchas: perf_report symbolizes with the exe currently in out/dev-init/build (analysis scripts take XRT_SYM_EXE); the sampler
+    cannot unwind past ULegendMeshInstance::Render (host frame > 64 KB copy) and once hit a caught first-chance AV (crash.dmp);
+    samples.bin/frames.csv are only written at a scene stop, not at a normal game exit; xrt.log fills with _controlfp lines;
+    a single pointer-chase polluter cannot take L3 from a set re-touched every frame (use several small hot loops); powershell
+    -File mangles string arrays; Git Bash rewrites >nul in written .cmd files; `small` is a Windows header macro.

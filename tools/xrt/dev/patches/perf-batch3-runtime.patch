@@ -1,0 +1,447 @@
+diff --git a/out/dev-init/runtime/d8_valid_bits.h b/out/dev-init/runtime/d8_valid_bits.h
+new file mode 100644
+index 0000000..1d2a00c
+--- /dev/null
++++ b/out/dev-init/runtime/d8_valid_bits.h
+@@ -0,0 +1,26 @@
++/* D3D8 buffer upload validity, one bit per buffer byte (bit at&7 of byte at>>3): set by Unlock for the uploaded
++ * range, cleared for the whole buffer by a DISCARD Lock, required for every byte a draw reads. Same answers as the
++ * former byte-per-byte map (memchr for a zero byte / memset to 1) with an eighth of the memory traffic.
++ * The map is (length + 7) / 8 bytes; callers keep at + n <= length. */
++#ifndef D8_VALID_BITS_H
++#define D8_VALID_BITS_H
++#include <stdint.h>
++#include <string.h>
++static size_t d8_valid_bytes(uint64_t length) { return (size_t)((length + 7) >> 3); }
++static int d8_valid_all(const unsigned char *m, uint64_t at, uint64_t n) {
++    const unsigned char *p;
++    uint64_t k, w;
++    while (n && (at & 7)) { if (!((m[at >> 3] >> (at & 7)) & 1)) return 0; at++; n--; }
++    p = m + (at >> 3);
++    for (k = n >> 3; k >= 8; k -= 8, p += 8) { memcpy(&w, p, 8); if (w != ~0ull) return 0; }
++    for (; k; k--, p++) if (*p != 0xFF) return 0;
++    at += n & ~(uint64_t)7; n &= 7;
++    while (n) { if (!((m[at >> 3] >> (at & 7)) & 1)) return 0; at++; n--; }
++    return 1;
++}
++static void d8_valid_set(unsigned char *m, uint64_t at, uint64_t n) {
++    while (n && (at & 7)) { m[at >> 3] |= (unsigned char)(1u << (at & 7)); at++; n--; }
++    if (n >> 3) { memset(m + (at >> 3), 0xFF, (size_t)(n >> 3)); at += n & ~(uint64_t)7; n &= 7; }
++    while (n) { m[at >> 3] |= (unsigned char)(1u << (at & 7)); at++; n--; }
++}
++#endif
+diff --git a/out/dev-init-savepoints/perf-c3c-20261102/runtime/hle_d3d8_device.inc b/out/dev-init/runtime/hle_d3d8_device.inc
+index 0c1eeaf..b458d0d 100644
+--- a/out/dev-init-savepoints/perf-c3c-20261102/runtime/hle_d3d8_device.inc
++++ b/out/dev-init/runtime/hle_d3d8_device.inc
+@@ -23,6 +23,14 @@ static const GUID d8_device_iid={0x7385e5df,0x8fe8,0x41d5,{0x86,0xb6,0xd7,0xb4,0
+ /* Hints: the last eight whole regions verified committed, writable and not guard pages (valid for both
+  * modes) until an overlapping guest range is decommitted (xrt_mem_hint_valid). */
+ static struct {uint64_t lo,hi;long gen;} d8_memory_hint[8];static unsigned d8_memory_next;
++/* A staging block the HLE has just committed (xrt_virtual_alloc / xrt_staging_take) is committed, read-write and not a
++ * guard page: hint it in both tables instead of querying it (the answer VirtualQuery would give). */
++static void d8_staging_hint(uint32_t p,uint32_t size) {
++    uint64_t lo=p&~0xFFFull,hi=((uint64_t)p+size+0xFFF)&~0xFFFull;
++    xrt_hint_committed(p,size);
++    d8_memory_hint[d8_memory_next].lo=lo;d8_memory_hint[d8_memory_next].hi=hi;d8_memory_hint[d8_memory_next].gen=xrt_mem_generation;
++    d8_memory_next=(d8_memory_next+1)&7;
++}
+ static void d8_device_memory(CPU*c,uint32_t p,uint32_t size,int writable) {
+     uint64_t at=p,end=(uint64_t)p+size;unsigned h;long gen=xrt_mem_generation;
+     if(!p || end>0x100000000ull)
+@@ -204,7 +212,9 @@ static void d8_device_Present(CPU*c) {
+     xrt_event("d3d8_render_call","\"method\":\"Present\",\"slot\":15,\"this\":%u,\"source\":%u,\"destination\":%u,\"override\":%u,\"dirty\":0,\"esp\":%u,\"return\":%u",o->guest,ARG(1),ARG(2),ARG(3),esp,ret);
+     previous=xrt_gui_callback_enter(c);d8_rendering=1;SetLastError(xrt_get_last_error(c));before=_mm_getcsr();
+     d8_semantic_checkpoint(c,1,15,NULL,0,0,xrt_get_last_error(c));SetLastError(xrt_get_last_error(c));
++    {unsigned long long t0=XRT_PERF_T0();
+     hr=XM_Present(c,o->host,ARG(1)?&rects[0]:NULL,ARG(2)?&rects[1]:NULL,override,NULL);error=GetLastError();after=_mm_getcsr();
++    XRT_PERF_ADD(tsc_present,t0);XRT_PERF_ADD(tsc_native,t0);xrt_perf.present++;}
+     d8_semantic_checkpoint(c,2,15,NULL,0,(unsigned)hr,error);
+     d8_rendering=0;xrt_gui_callback_leave(previous);
+     /* Pinned DXVK x86, live window, CW=027f: first successful Present sets
+@@ -213,6 +223,7 @@ static void d8_device_Present(CPU*c) {
+      * Subsequent Presents leave the guest status alone, including fnclex. */
+     if(hr==S_OK && !o->presents)c->fsw|=0x20;
+     if(SUCCEEDED(hr))o->presents++;
++    XRT_PERF_ADD(tsc_d3d,d8_perf_t_api);
+     xrt_dev_scene_present(c,hr,d8_frame_draws,d8_frame_prims,d8_scene_draws,d8_scene_prims,d8_level_draws);
+     d8_frame_draws=d8_frame_prims=d8_scene_draws=d8_scene_prims=d8_level_draws=0;
+     xrt_set_last_error(c,error);RET_STD(5,hr);
+diff --git a/out/dev-init/runtime/perf_counters.h b/out/dev-init/runtime/perf_counters.h
+new file mode 100644
+index 0000000..f661910
+--- /dev/null
++++ b/out/dev-init/runtime/perf_counters.h
+@@ -0,0 +1,23 @@
++/* Developer cost counters (dev_support.c defines them and writes counters.csv at every scripted "cpu"/"shot" step).
++ * Counts are plain increments on the paths that own them. The tsc_* times (rdtsc ticks; counters.csv carries the
++ * ticks-per-ms calibration) are taken only when xrt_perf_timing is set, i.e. in sampled runs (XRT_DEV_SAMPLE_HZ > 0),
++ * so benchmark runs pay one predictable branch per site and no timestamp reads. */
++#ifndef XRT_PERF_COUNTERS_H
++#define XRT_PERF_COUNTERS_H
++#include <intrin.h>
++#define XRT_PERF_FIELDS(X) \
++    X(d3d_calls) X(draw_calls) X(present) \
++    X(buf_lock) X(buf_lock_bytes) X(buf_lock_discard) X(buf_lock_nooverwrite) X(buf_lock_undefined) \
++    X(buf_valid_scan_bytes) X(buf_valid_clear_bytes) X(buf_unlock) X(buf_unlock_bytes) \
++    X(tex_lock) X(tex_lock_bytes) X(tex_unlock) X(tex_unlock_bytes) \
++    X(staging_alloc) X(staging_alloc_bytes) X(staging_free) X(draw_copy_bytes) \
++    X(tsc_d3d) X(tsc_native) X(tsc_present) X(tsc_buf_lock) X(tsc_buf_unlock) X(tsc_tex_lock) X(tsc_tex_unlock) \
++    X(tsc_staging_alloc) X(tsc_staging_free)
++#define XRT_PERF_FIELD(name) unsigned long long name;
++typedef struct XrtPerfCounters { XRT_PERF_FIELDS(XRT_PERF_FIELD) } XrtPerfCounters;
++#undef XRT_PERF_FIELD
++extern XrtPerfCounters xrt_perf;
++extern int xrt_perf_timing;
++#define XRT_PERF_T0() (xrt_perf_timing ? __rdtsc() : 0ull)
++#define XRT_PERF_ADD(field, t0) do { if (xrt_perf_timing) xrt_perf.field += __rdtsc() - (t0); } while (0)
++#endif
+diff --git a/out/dev-init-savepoints/perf-c3c-20261102/runtime/resource_draw.inc b/out/dev-init/runtime/resource_draw.inc
+index e93662e..f5bba1e 100644
+--- a/out/dev-init-savepoints/perf-c3c-20261102/runtime/resource_draw.inc
++++ b/out/dev-init/runtime/resource_draw.inc
+@@ -39,8 +39,8 @@ static void d8_device_UpdateTexture(CPU*c) {
+ }
+ static void d8_buffer_readable(CPU*c,D8Resource*r,uint64_t start,uint64_t size) {
+  if(!r||!r->shadow||start+size<start||start+size>r->length)xrt_fatal(c,76,"D3D8 draw: buffer range outside owned upload");
+- /* valid[] holds 0/1 per byte: any zero byte in the range fails (memchr scans it vectorized). */
+- if(size&&memchr(r->valid+start,0,(size_t)size))xrt_fatal(c,76,"D3D8 draw: buffer range has no validated upload");
++ /* valid[] holds one bit per byte (d8_valid_bits.h): any clear bit in the range fails. */
++ if(size&&!d8_valid_all(r->valid,start,size))xrt_fatal(c,76,"D3D8 draw: buffer range has no validated upload");
+ }
+ static void d8_buffer_draw(CPU*c,int indexed) {
+  unsigned n=indexed?6:4,slot=indexed?71:70;LONG id=d8_api_entry(c,slot,n);D8DeviceObject*o=d8_semantic_frame(c);
+diff --git a/out/dev-init-savepoints/perf-c3c-20261102/runtime/resource_storage.inc b/out/dev-init/runtime/resource_storage.inc
+index 435d16c..2560e08 100644
+--- a/out/dev-init-savepoints/perf-c3c-20261102/runtime/resource_storage.inc
++++ b/out/dev-init/runtime/resource_storage.inc
+@@ -90,7 +90,7 @@ static HRESULT d8_desc_native(D8Resource*r,unsigned level,D8SurfaceDesc*d) {
+ }
+ static void d8_resource_LockRect(CPU*c) {
+  LONG id;D8Resource*r;unsigned level,out,rectarg,flags,n,rowbytes,rows,y;RECT rect;D8SurfaceDesc desc;D8Locked lock;
+- CPU*prev;HRESULT hr;DWORD error,saved=GetLastError();uint32_t stage;uint64_t size;
++ CPU*prev;HRESULT hr;DWORD error,saved=GetLastError();uint32_t stage;uint64_t size;unsigned long long t0=XRT_PERF_T0(),t1;
+  /* Read this only after validating a minimum complete surface frame. */
+  id=d8_api_entry(c,316,4);r=d8_resource(c,ARG(0),0);
+  if(r->kind!=D8_SURFACE&&!D8_TEXLIKE(r->kind))xrt_fatal(c,76,"LockRect: wrong resource type");
+@@ -112,13 +112,17 @@ static void d8_resource_LockRect(CPU*c) {
+   d8_locks++;r->locked=lock.bits;r->pitch=lock.pitch;r->level=level;r->face=r->kind==D8_CUBE?ARG(1):0;r->flags=flags;r->rows=rows;r->rowbytes=rowbytes;
+   size=(uint64_t)(unsigned)lock.pitch*rows;
+   if(!lock.bits||lock.pitch<=0||(unsigned)lock.pitch<rowbytes||size>64u*1024u*1024u){d8_native_failed=1;xrt_fatal(c,76,"LockRect: unsafe native layout");}
+-  stage=xrt_virtual_alloc(c,(unsigned)size);if(!stage)xrt_fatal(c,76,"LockRect: staging allocation failed");r->staging=stage;r->bytes=(unsigned)size;xm_d8_resource(c,r,"mapped");
+-  d8_device_memory(c,stage,(unsigned)size,1);memset(G2H(stage),0,(size_t)size);
+-  for(y=0;y<rows;y++)memcpy((BYTE*)G2H(stage)+y*lock.pitch,(BYTE*)lock.bits+y*lock.pitch,rowbytes);
++  t1=XRT_PERF_T0();stage=xrt_virtual_alloc(c,(unsigned)size);XRT_PERF_ADD(tsc_staging_alloc,t1);xrt_perf.staging_alloc++;xrt_perf.staging_alloc_bytes+=size;xrt_perf.tex_lock++;xrt_perf.tex_lock_bytes+=size;if(!stage)xrt_fatal(c,76,"LockRect: staging allocation failed");d8_staging_hint(stage,(unsigned)size);r->staging=stage;r->bytes=(unsigned)size;xm_d8_resource(c,r,"mapped");
++  d8_device_memory(c,stage,(unsigned)size,1);
++  /* every row is copied; only its pitch padding is zeroed (the whole block used to be zeroed first) */
++  for(y=0;y<rows;y++){memcpy((BYTE*)G2H(stage)+y*lock.pitch,(BYTE*)lock.bits+y*lock.pitch,rowbytes);
++   if((unsigned)lock.pitch>rowbytes)memset((BYTE*)G2H(stage)+y*lock.pitch+rowbytes,0,(unsigned)lock.pitch-rowbytes);}
+   xm_span(c,"resource.map.download",G2H(stage),r->bytes);d8_device_memory(c,out,8,1);wr32(out,(unsigned)lock.pitch);wr32(out+4,stage);
+  } else {if(lock.bits&&(uintptr_t)lock.bits!=1){d8_native_failed=1;xrt_fatal(c,76,"LockRect: failed call returned map");}d8_device_memory(c,out,8,1);wr32(out,(unsigned)lock.pitch);if(!lock.bits)wr32(out+4,0);}
++ XRT_PERF_ADD(tsc_tex_lock,t0);
+  d8_semantic_return(c,prev,id,n,hr,error);
+ }
++#include "d8_valid_bits.h"
+ /* Buffer map staging. Strict (default): a fresh guest block per Lock, decommitted at Unlock, so a guest pointer kept
+  * past Unlock faults at once (bug detection beyond the D3D contract). XRT_DEV_STAGING=reuse (developer runs only,
+  * dev.py --staging reuse): Unlock leaves the block committed ("warm", xrt_mem.c xrt_staging_put) and the next buffer
+@@ -137,8 +141,19 @@ static int d8_staging_reuse(void) {
+   if(mode)xrt_log("DEV D3D8 buffer staging: reuse (per-buffer block; stale pointers until the next Lock are not trapped)");}
+  return mode;
+ }
++/* XRT_DEV_STAGING=guard (dev.py --staging guard): strict's guarantee at lower cost. Unlock leaves the block committed but
++ * PAGE_NOACCESS (xrt_mem.c xrt_staging_guard_put) instead of decommitting it, so a stale guest pointer faults exactly as
++ * in strict mode; the next buffer Lock of the same size class re-opens it read-write, zero past the locked bytes, and
++ * receives the shadow bytes as always. Saved: the page faults and zero-filling of fresh pages and the decommit's page
++ * freeing; kept: one protection change per Lock and per Unlock. Textures/surfaces stay strict. */
++static int d8_staging_guard(void) {
++ static int mode=-1;
++ if(mode<0){char v[16];DWORD n=GetEnvironmentVariableA("XRT_DEV_STAGING",v,sizeof v);mode=n&&n<sizeof v&&!strcmp(v,"guard");
++  if(mode)xrt_log("DEV D3D8 buffer staging: guard (blocks PAGE_NOACCESS between uses; stale pointers fault as in strict)");}
++ return mode;
++}
+ static void d8_resource_Lock(CPU*c) {
+- LONG id=d8_api_entry(c,311,5);D8Resource*r=d8_resource(c,ARG(0),0);D8BufferDesc desc={0};unsigned offset=ARG(1),size=ARG(2),out=ARG(3),flags=ARG(4);BYTE*data=(BYTE*)(uintptr_t)1;CPU*prev;HRESULT hr;DWORD error,saved=GetLastError();
++ LONG id=d8_api_entry(c,311,5);D8Resource*r=d8_resource(c,ARG(0),0);D8BufferDesc desc={0};unsigned offset=ARG(1),size=ARG(2),out=ARG(3),flags=ARG(4);BYTE*data=(BYTE*)(uintptr_t)1;CPU*prev;HRESULT hr;DWORD error,saved=GetLastError();unsigned long long t0=XRT_PERF_T0(),t1;
+  if(r->kind!=D8_VERTEX&&r->kind!=D8_INDEX)xrt_fatal(c,76,"Lock: wrong resource type");
+  d8_lock_flags(c,flags);d8_device_memory(c,out,4,1);
+  if(r->locked)xrt_fatal(c,76,"Lock: resource already mapped");
+@@ -147,7 +162,7 @@ static void d8_resource_Lock(CPU*c) {
+  if(!r->shadow){
+   if(!desc.size||desc.size>64u*1024u*1024u)xrt_fatal(c,76,"Lock: buffer capacity");
+   if(d8_shadow_bytes+2ull*desc.size>256u*1024u*1024u)xrt_fatal(c,76,"Lock: 256 MiB host mirror budget exceeded");
+-  r->shadow=HeapAlloc(GetProcessHeap(),HEAP_ZERO_MEMORY,desc.size);r->valid=HeapAlloc(GetProcessHeap(),HEAP_ZERO_MEMORY,desc.size);
++  r->shadow=HeapAlloc(GetProcessHeap(),HEAP_ZERO_MEMORY,desc.size);r->valid=HeapAlloc(GetProcessHeap(),HEAP_ZERO_MEMORY,d8_valid_bytes(desc.size));
+   if(!r->shadow||!r->valid){if(r->shadow)HeapFree(GetProcessHeap(),0,r->shadow);if(r->valid)HeapFree(GetProcessHeap(),0,r->valid);r->shadow=r->valid=NULL;xrt_fatal(c,76,"Lock: host mirror allocation failed");}r->length=desc.size;r->format=desc.format;d8_shadow_bytes+=2ull*desc.size;
+  }
+  if(desc.size!=r->length||desc.format!=r->format)xrt_fatal(c,76,"Lock: native buffer descriptor changed");
+@@ -157,38 +172,49 @@ static void d8_resource_Lock(CPU*c) {
+  if(SUCCEEDED(hr)) {
+   d8_locks++;r->locked=data;r->flags=flags;r->offset=offset;r->bytes=size;r->rows=1;r->rowbytes=size;r->pitch=size;
+   if(!data){d8_native_failed=1;xrt_fatal(c,76,"Lock: NULL native map");}
+-  r->staging=d8_staging_reuse()?xrt_staging_take(c,size):xrt_virtual_alloc(c,size);
+-  if(!r->staging)xrt_fatal(c,76,"Lock: staging allocation failed");d8_device_memory(c,r->staging,size,1);
++  t1=XRT_PERF_T0();r->staging=d8_staging_reuse()?xrt_staging_take(c,size):d8_staging_guard()?xrt_staging_guard_take(c,size):xrt_virtual_alloc(c,size);XRT_PERF_ADD(tsc_staging_alloc,t1);
++  xrt_perf.staging_alloc++;xrt_perf.staging_alloc_bytes+=size;xrt_perf.buf_lock++;xrt_perf.buf_lock_bytes+=size;xrt_perf.buf_valid_scan_bytes+=d8_valid_bytes(size);
++  if(flags&0x2000){xrt_perf.buf_lock_discard++;xrt_perf.buf_valid_clear_bytes+=d8_valid_bytes(r->length);}if(flags&0x1000)xrt_perf.buf_lock_nooverwrite++;
++  if(!r->staging)xrt_fatal(c,76,"Lock: staging allocation failed");d8_staging_hint(r->staging,size);d8_device_memory(c,r->staging,size,1);
+   /* Reads from the native map hit GPU-visible (uncached) memory and dominated Lock.
+    * Only our Unlock writes these buffers natively (ProcessVertices is refused), so
+    * valid shadow bytes equal the native ones and every other byte is undefined by
+    * D3D (never written, or invalidated by DISCARD): the staging copy comes from the
+    * host shadow. Invalid bytes are counted for evidence. */
+   {static unsigned locks,undefined_locks;
+-   if(memchr(r->valid+offset,0,size))undefined_locks++;
++   if(!d8_valid_all(r->valid,offset,size)){undefined_locks++;xrt_perf.buf_lock_undefined++;}
+    memcpy(G2H(r->staging),r->shadow+offset,size);
+    if(!(++locks&0xffff))xrt_log("D3D8 buffer Lock downloads from shadow: %u (%u with D3D-undefined bytes)",locks,undefined_locks);}
+-  if(flags&0x2000)memset(r->valid,0,r->length);
++  if(flags&0x2000)memset(r->valid,0,d8_valid_bytes(r->length));
+   d8_device_memory(c,out,4,1);wr32(out,r->staging);xm_d8_resource(c,r,"mapped");xm_span(c,"resource.map.download",G2H(r->staging),r->bytes);
+  } else {if(data&&(uintptr_t)data!=1){d8_native_failed=1;xrt_fatal(c,76,"Lock: failed native map");}if(!data){d8_device_memory(c,out,4,1);wr32(out,0);}}
++ XRT_PERF_ADD(tsc_buf_lock,t0);
+  d8_semantic_return(c,prev,id,5,hr,error);
+ }
+ static void d8_unlock(CPU*c,int rectangle) {
+- LONG id=d8_api_entry(c,rectangle?317:312,1);D8Resource*r=d8_resource(c,ARG(0),0);unsigned n=rectangle&&r->kind==D8_CUBE?3:rectangle&&r->kind==D8_TEXTURE?2:1,y;BYTE*copy=NULL;CPU*prev;HRESULT hr;DWORD error;
++ LONG id=d8_api_entry(c,rectangle?317:312,1);D8Resource*r=d8_resource(c,ARG(0),0);unsigned n=rectangle&&r->kind==D8_CUBE?3:rectangle&&r->kind==D8_TEXTURE?2:1,y;BYTE*copy=NULL;CPU*prev;HRESULT hr;DWORD error;unsigned long long t0=XRT_PERF_T0(),t1;
+  d8_device_memory(c,c->r[ESP],4*(n+1),0);
+  if((rectangle&&(!D8_TEXLIKE(r->kind)&&r->kind!=D8_SURFACE))||(!rectangle&&(r->kind!=D8_VERTEX&&r->kind!=D8_INDEX)))xrt_fatal(c,76,"Unlock: wrong resource type");
+  if(!r->locked||!r->staging||(n==2&&ARG(1)!=r->level)||(n==3&&(ARG(1)!=r->face||ARG(2)!=r->level)))xrt_fatal(c,76,"Unlock: missing or mismatched map");
+- if(!(r->flags&0x10)) {
++ if(!(r->flags&0x10)&&!rectangle&&r->shadow) {
++  /* Buffers: the snapshot is taken straight into the host shadow (revalidated guest range, before native code),
++   * then uploaded from there: same bytes in the shadow and the native buffer, no heap block, one copy less. */
++  d8_device_memory(c,r->staging,r->bytes,0);memcpy(r->shadow+r->offset,G2H(r->staging),r->bytes);xrt_perf.draw_copy_bytes+=r->bytes;
++  xm_span(c,"resource.map.upload",r->shadow+r->offset,r->bytes);
++  memcpy(r->locked,r->shadow+r->offset,r->bytes);d8_valid_set(r->valid,r->offset,r->bytes);
++ } else if(!(r->flags&0x10)) {
+   /* Snapshot before entering native code; revalidate even if callback changed pages. */
+   copy=d8_draw_copy(c,r->staging,r->bytes);xm_span(c,"resource.map.upload",copy,r->bytes);
+   for(y=0;y<r->rows;y++)memcpy(r->locked+(size_t)y*r->pitch,copy+(size_t)y*r->pitch,r->rowbytes);
+-  if(r->shadow){memcpy(r->shadow+r->offset,copy,r->bytes);memset(r->valid+r->offset,1,r->bytes);}
++  if(r->shadow){memcpy(r->shadow+r->offset,copy,r->bytes);d8_valid_set(r->valid,r->offset,r->bytes);}
+   HeapFree(GetProcessHeap(),0,copy);
+  }
+  prev=d8_native_enter(c,rectangle?317:312,NULL,0);
+  hr=!rectangle?XM_Unlock(c,(D8Buffer*)r->host):r->kind==D8_SURFACE?XM_UnlockRect(c,(D8Surface*)r->host):r->kind==D8_CUBE?((D8CubeUnlockFn)d8_cube_row(r,17))((D8Texture*)r->host,r->face,r->level):XM_UnlockRect(c,(D8Texture*)r->host,r->level);error=GetLastError();
+- if(SUCCEEDED(hr)){if(!(!rectangle&&d8_staging_reuse()?xrt_staging_put(c,r->staging):xrt_virtual_free(c,r->staging)))xrt_fatal(c,76,"Unlock: staging invalidation failed");r->staging=0;r->locked=NULL;d8_locks--;xm_d8_resource(c,r,"unlocked");}
++ if(rectangle){xrt_perf.tex_unlock++;xrt_perf.tex_unlock_bytes+=r->bytes;}else{xrt_perf.buf_unlock++;xrt_perf.buf_unlock_bytes+=r->bytes;}
++ if(SUCCEEDED(hr)){t1=XRT_PERF_T0();if(!(!rectangle&&d8_staging_reuse()?xrt_staging_put(c,r->staging):!rectangle&&d8_staging_guard()?xrt_staging_guard_put(c,r->staging):xrt_virtual_free(c,r->staging)))xrt_fatal(c,76,"Unlock: staging invalidation failed");XRT_PERF_ADD(tsc_staging_free,t1);xrt_perf.staging_free++;r->staging=0;r->locked=NULL;d8_locks--;xm_d8_resource(c,r,"unlocked");}
+  else {d8_native_failed=1; /* Preserve failure HRESULT; retain mapping until process teardown. */}
++ if(rectangle)XRT_PERF_ADD(tsc_tex_unlock,t0);else XRT_PERF_ADD(tsc_buf_unlock,t0);
+  d8_semantic_return(c,prev,id,n,hr,error);
+ }
+ static void d8_resource_UnlockRect(CPU*c){d8_unlock(c,1);}
+diff --git a/out/dev-init-savepoints/perf-c3c-20261102/runtime/resources.inc b/out/dev-init/runtime/resources.inc
+index c6a1cc5..85cee00 100644
+--- a/out/dev-init-savepoints/perf-c3c-20261102/runtime/resources.inc
++++ b/out/dev-init/runtime/resources.inc
+@@ -10,7 +10,7 @@ enum {D8_SURFACE=1,D8_TEXTURE=3,D8_CUBE=5,D8_VERTEX=6,D8_INDEX=7,D8_RESOURCE_LIM
+ typedef struct D8Resource {
+  uint32_t guest,refs,kind,bindings;
+  D8Unknown*host;
+- BYTE*shadow,*valid;unsigned length,format;
++ BYTE*shadow,*valid;unsigned length,format;   /* valid: one bit per buffer byte (d8_valid_bits.h) */
+  /* One outstanding lock per object. Guest staging is never a host pointer. */
+  uint32_t staging,bytes,rows,rowbytes,level,flags,offset,face;
+  INT pitch;BYTE*locked;
+diff --git a/out/dev-init-savepoints/perf-c3c-20261102/runtime/scene_draw.inc b/out/dev-init/runtime/scene_draw.inc
+index 322cb9e..cdef00d 100644
+--- a/out/dev-init-savepoints/perf-c3c-20261102/runtime/scene_draw.inc
++++ b/out/dev-init/runtime/scene_draw.inc
+@@ -33,7 +33,7 @@ static unsigned d8_draw_size(CPU*c,uint64_t count,unsigned stride) {
+ }
+ static void*d8_draw_copy(CPU*c,uint32_t p,unsigned n) {
+     void*q;if(!n)return NULL;
+-    d8_device_memory(c,p,n,0);q=HeapAlloc(GetProcessHeap(),0,n);
++    d8_device_memory(c,p,n,0);q=HeapAlloc(GetProcessHeap(),0,n);xrt_perf.draw_copy_bytes+=n;
+     if(!q)xrt_fatal(c,76,"D3D8 draw: host staging allocation failed");
+     memcpy(q,G2H(p),n);return q;
+ }
+diff --git a/out/dev-init-savepoints/perf-c3c-20261102/runtime/semantic_evidence.inc b/out/dev-init/runtime/semantic_evidence.inc
+index 8ce4fea..5821824 100644
+--- a/out/dev-init-savepoints/perf-c3c-20261102/runtime/semantic_evidence.inc
++++ b/out/dev-init/runtime/semantic_evidence.inc
+@@ -1,4 +1,6 @@
+ /* Evidence precedes validation, including unreadable stacks. No guest writes. */
++#include "perf_counters.h"
++static unsigned long long d8_perf_t_api,d8_perf_t_native;
+ static volatile LONG d8_evidence_serial;
+ /* Evidence is formatted only when it can still be stored: once the event timeline is full
+  * (or under the quiet profile) xrt_event discards it, so encoding it is pure overhead. */
+@@ -40,7 +42,9 @@ static int d8_evidence_readable(uint32_t p,uint32_t size) {
+  * The separate observer is never installed by the build/preparation scripts. */
+ __declspec(noinline) static void d8_semantic_checkpoint(CPU*c,unsigned phase,unsigned slot,
+         const void*data,unsigned size,unsigned result,unsigned error) {
+-    DWORD saved=GetLastError();unsigned mxcsr=_mm_getcsr();
++    DWORD saved;unsigned mxcsr;
++    if(!xrt_event_room()){xrt_event_skip();return;}   /* full timeline: counted as dropped, as xrt_event would */
++    saved=GetLastError();mxcsr=_mm_getcsr();
+     xrt_event("d3d8_checkpoint","\"phase\":%u,\"slot\":%u,\"site\":%u,\"data\":%llu,\"size\":%u,\"result\":%u,\"error\":%u",
+         phase,slot,c->pc,(unsigned long long)(uintptr_t)data,size,result,error);
+     _mm_setcsr(mxcsr);SetLastError(saved);
+@@ -48,7 +52,9 @@ __declspec(noinline) static void d8_semantic_checkpoint(CPU*c,unsigned phase,uns
+ __declspec(noinline) static LONG d8_api_entry(CPU*c,unsigned slot,unsigned nargs) {
+     DWORD error=GetLastError(),mxcsr=_mm_getcsr();LONG id=InterlockedIncrement(&d8_evidence_serial);
+     __declspec(align(16)) CONTEXT host;
+-    int readable=d8_evidence_readable(c->r[ESP],4*(nargs+1));
++    int readable;
++    d8_perf_t_api=XRT_PERF_T0();xrt_perf.d3d_calls++;if(slot>=70&&slot<=73)xrt_perf.draw_calls++;
++    readable=d8_evidence_readable(c->r[ESP],4*(nargs+1));
+     if(d8_evidence_on()) {
+     RtlCaptureContext(&host);
+     xrt_event("d3d8_semantic_entry","\"id\":%ld,\"slot\":%u,\"site\":%u,\"esp\":%u,\"host_error\":%lu,\"guest_error\":%u,\"stack_readable\":%s,\"rendering\":%d,\"device\":%u,\"refs\":%u,\"host\":%llu,\"focus\":%u,\"window\":%u",
+diff --git a/out/dev-init-savepoints/perf-c3c-20261102/runtime/semantic_renderer.inc b/out/dev-init/runtime/semantic_renderer.inc
+index 89e48ca..4b40451 100644
+--- a/out/dev-init-savepoints/perf-c3c-20261102/runtime/semantic_renderer.inc
++++ b/out/dev-init/runtime/semantic_renderer.inc
+@@ -28,11 +28,12 @@ static unsigned d8_semantic_slot,d8_semantic_size;
+ static const void*d8_semantic_input;
+ static CPU* d8_native_enter(CPU*c,unsigned slot,const void*input,unsigned size) {
+     CPU*previous=xrt_gui_callback_enter(c);d8_rendering=1;
+-    d8_semantic_slot=slot;d8_semantic_input=input;d8_semantic_size=size;
++    d8_semantic_slot=slot;d8_semantic_input=input;d8_semantic_size=size;d8_perf_t_native=XRT_PERF_T0();
+     d8_semantic_checkpoint(c,1,slot,input,size,0,xrt_get_last_error(c));
+     SetLastError(xrt_get_last_error(c));return previous;
+ }
+ static void d8_semantic_return(CPU*c,CPU*previous,LONG id,unsigned n,HRESULT hr,DWORD error) {
++    XRT_PERF_ADD(tsc_native,d8_perf_t_native);XRT_PERF_ADD(tsc_d3d,d8_perf_t_api);
+     d8_semantic_checkpoint(c,2,d8_semantic_slot,d8_semantic_input,d8_semantic_size,(unsigned)hr,error);
+     d8_rendering=0;xrt_gui_callback_leave(previous);xrt_set_last_error(c,error);RET_STD(n,hr);
+     d8_semantic_checkpoint(c,3,d8_semantic_slot,d8_semantic_input,d8_semantic_size,(unsigned)hr,error);
+diff --git a/out/dev-init-savepoints/perf-c3c-20261102/runtime/xrt_events.c b/out/dev-init/runtime/xrt_events.c
+index a0c3bcf..eec8dd3 100644
+--- a/out/dev-init-savepoints/perf-c3c-20261102/runtime/xrt_events.c
++++ b/out/dev-init/runtime/xrt_events.c
+@@ -154,6 +154,7 @@ void xrt_world_return(CPU*c) {
+     c->world_floor=(uint32_t)floor;
+ }
+ int xrt_event_room(void){return events&&event_seq<MAX_EVENTS;}
++void xrt_event_skip(void){InterlockedIncrement64(&event_seq);}   /* what xrt_event does with a full timeline */
+ 
+ /* s is an ANSI (CP_ACP) string, as the guest and the host adapters use them; the JSON text stays pure ASCII:
+  * every character outside printable ASCII becomes a \uXXXX escape of its UTF-16 value. Truncated to fit n. */
+diff --git a/out/dev-init-savepoints/perf-c3c-20261102/runtime/xrt_internal.h b/out/dev-init/runtime/xrt_internal.h
+index b48ad99..8e91705 100644
+--- a/out/dev-init-savepoints/perf-c3c-20261102/runtime/xrt_internal.h
++++ b/out/dev-init/runtime/xrt_internal.h
+@@ -73,6 +73,10 @@ void xrt_event(const char* kind, const char* fmt, ...);     /* fmt: further JSON
+ int xrt_event_room(void);                                    /* 0 once further events would only be counted */
+ extern volatile long xrt_mem_generation;                     /* bumped before guest pages are decommitted */
+ int xrt_mem_hint_valid(uint64_t lo, uint64_t hi, long* gen); /* range checked under *gen not decommitted since */
++uint32_t xrt_staging_guard_take(CPU* c, uint32_t size);   /* guard staging: re-open a guarded block (xrt_mem.c) */
++int xrt_staging_guard_put(CPU* c, uint32_t base);          /* guard staging: close a block (PAGE_NOACCESS) */
++void xrt_hint_committed(uint32_t a, uint32_t size);          /* this thread just committed [a, a+size) read-write */
++void xrt_event_skip(void);   /* the event timeline is full: count an event as xrt_event would, without formatting it */
+ const char* xrt_jstr(char* out, size_t n, const char* s);   /* quoted, escaped JSON string in out */
+ void xrt_watches_arm(void);                                  /* after the modules are mapped */
+ void xrt_watches_arm_module(struct XrtModule* m);            /* a module mapped later (LoadLibrary) */
+diff --git a/out/dev-init-savepoints/perf-c3c-20261102/runtime/xrt_mem.c b/out/dev-init/runtime/xrt_mem.c
+index 01d6d7b..c062437 100644
+--- a/out/dev-init-savepoints/perf-c3c-20261102/runtime/xrt_mem.c
++++ b/out/dev-init/runtime/xrt_mem.c
+@@ -40,17 +40,23 @@ void xrt_commit(uint32_t a, uint32_t size) {
+  * unless a decommit since g overlapped it. The last XRT_DECOMMIT_LOG decommitted ranges are kept for that
+  * test (a buffer Unlock decommits its staging block every time; that must not invalidate the guest stack).
+  * Decommits run on guest threads holding the execution baton. */
+-#define XRT_DECOMMIT_LOG 64
++#define XRT_DECOMMIT_LOG 1024
+ volatile long xrt_mem_generation = 1;
+ static struct { uint64_t lo, hi; } decommit_log[XRT_DECOMMIT_LOG];
+ 
+-void xrt_decommit(uint32_t a, uint32_t size) {   /* an unloaded module's image: later accesses fault */
+-    uint64_t lo = a & ~0xFFFull, hi = ((uint64_t)a + size + 0xFFF) & ~0xFFFull;
++/* [lo, hi) is about to become inaccessible (decommit, or PAGE_NOACCESS in the guard staging mode): log it so range hints
++ * that overlap it are dropped (xrt_mem_hint_valid) */
++static void range_closing(uint64_t lo, uint64_t hi) {
+     long g = xrt_mem_generation;
+     decommit_log[g % XRT_DECOMMIT_LOG].lo = lo;
+     decommit_log[g % XRT_DECOMMIT_LOG].hi = hi;
+     MemoryBarrier();
+     InterlockedIncrement(&xrt_mem_generation);
++}
++
++void xrt_decommit(uint32_t a, uint32_t size) {   /* an unloaded module's image: later accesses fault */
++    uint64_t lo = a & ~0xFFFull, hi = ((uint64_t)a + size + 0xFFF) & ~0xFFFull;
++    range_closing(lo, hi);
+     if (size && !VirtualFree(xrt_g + lo, (SIZE_T)(hi - lo), MEM_DECOMMIT)) {
+         fprintf(stderr, "xrt: decommit of guest %08x+%x failed (error %lu)\n", a, size, GetLastError());
+         exit(XRT_EXIT_SETUP);
+@@ -96,6 +102,12 @@ int xrt_is_committed(uint32_t a, uint32_t size) {
+     return 1;
+ }
+ 
++void xrt_hint_committed(uint32_t a, uint32_t size) {   /* [a, a+size) was just committed PAGE_READWRITE (xrt_commit) */
++    commit_hint[commit_next].lo = a & ~0xFFFull; commit_hint[commit_next].hi = ((uint64_t)a + size + 0xFFF) & ~0xFFFull;
++    commit_hint[commit_next].gen = xrt_mem_generation;
++    commit_next = (commit_next + 1) & 7;
++}
++
+ int xrt_range_is_free(uint32_t a, uint32_t size) {   /* no page of [a, a+size) committed */
+     uint64_t p = a, end = (uint64_t)a + size;
+     while (p < end) {
+@@ -236,16 +248,62 @@ uint32_t xrt_staging_take(CPU* c, uint32_t size) {
+     int i;
+     AcquireSRWLockExclusive(&virtual_lock);
+     for (i = 0; i < nvirtual; i++)
+-        if (virtual_blocks[i].warm && virtual_blocks[i].reserved == reserve) {
++        if (virtual_blocks[i].warm == 1 && virtual_blocks[i].reserved == reserve) {
++            VirtualBlock* b = &virtual_blocks[i];
++            if (b->committed < commit) { xrt_commit(b->base + b->committed, commit - b->committed); b->committed = commit; }
++            b->warm = 0; b->live = 1;
++            ReleaseSRWLockExclusive(&virtual_lock);
++            return b->base;
++        }
++    ReleaseSRWLockExclusive(&virtual_lock);
++    return size ? xrt_virtual_alloc(c, size) : 0;
++}
++/* Guard staging (resource_storage.inc, XRT_DEV_STAGING=guard): a released block stays committed but PAGE_NOACCESS
++ * ("guarded", warm == 2), so a guest pointer kept past Unlock faults exactly as after a decommit; the next staging Lock of
++ * the same reserve size re-opens the pages it needs read-write and zeroes them past the locked bytes, so the guest sees
++ * what a fresh block would show (the HLE then copies the shadow bytes in). Reclaim decommits guarded blocks like warm
++ * ones; ordinary VirtualAlloc never takes them. */
++uint32_t xrt_staging_guard_take(CPU* c, uint32_t size) {
++    uint64_t reserve = ((uint64_t)size + 0xFFFFu) & ~0xFFFFull;
++    uint32_t commit = (size + 0xFFFu) & ~0xFFFu;
++    DWORD old;
++    int i;
++    AcquireSRWLockExclusive(&virtual_lock);
++    for (i = 0; i < nvirtual; i++)
++        if (virtual_blocks[i].warm == 2 && virtual_blocks[i].reserved == reserve) {
+             VirtualBlock* b = &virtual_blocks[i];
++            uint32_t open = commit < b->committed ? commit : b->committed;
++            if (open && !VirtualProtect(xrt_g + b->base, open, PAGE_READWRITE, &old)) {
++                ReleaseSRWLockExclusive(&virtual_lock);
++                xrt_fatal(c, XRT_EXIT_UNSUPPORTED, "staging guard: re-opening block %08x failed (%lu)", b->base, GetLastError());
++            }
+             if (b->committed < commit) { xrt_commit(b->base + b->committed, commit - b->committed); b->committed = commit; }
+             b->warm = 0; b->live = 1;
++            memset(xrt_g + b->base + size, 0, commit - size);   /* past the locked bytes: zero, as in a fresh block */
+             ReleaseSRWLockExclusive(&virtual_lock);
+             return b->base;
+         }
+     ReleaseSRWLockExclusive(&virtual_lock);
+     return size ? xrt_virtual_alloc(c, size) : 0;
+ }
++int xrt_staging_guard_put(CPU* c, uint32_t base) {
++    DWORD old;
++    int i;
++    AcquireSRWLockExclusive(&virtual_lock);
++    for (i = 0; i < nvirtual; i++) if (virtual_blocks[i].live && virtual_blocks[i].base == base) {
++        VirtualBlock* b = &virtual_blocks[i];
++        range_closing(b->base, (uint64_t)b->base + b->committed);
++        if (b->committed && !VirtualProtect(xrt_g + b->base, b->committed, PAGE_NOACCESS, &old)) {
++            ReleaseSRWLockExclusive(&virtual_lock);
++            xrt_fatal(c, XRT_EXIT_UNSUPPORTED, "staging guard: closing block %08x failed (%lu)", base, GetLastError());
++        }
++        b->live = 0; b->warm = 2;
++        ReleaseSRWLockExclusive(&virtual_lock);
++        return 1;
++    }
++    ReleaseSRWLockExclusive(&virtual_lock);
++    return 0;
++}
+ int xrt_staging_put(CPU* c, uint32_t base) {
+     int i;
+     (void)c;

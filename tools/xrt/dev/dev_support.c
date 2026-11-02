@@ -71,6 +71,7 @@ __declspec(noreturn) void dev_finish(void) {
 #ifndef XRT_DEV_FIXTURE
 #include "xrt_internal.h"
 #include "monitor.h"
+#include "perf_counters.h"
 /* First-scene mode (XRT_DEV_SCENE=<world frames>): Init return is recorded and
  * the normal caller continues. The stop is after the Nth successful Present of
  * a frame whose FLevelSceneNode::Render issued native draws. Init-only otherwise. */
@@ -107,12 +108,15 @@ static int scene_capture_frame(unsigned n) { return (n & (n - 1)) == 0 || !(n % 
  * Samples (host stack + guest pc) go to samples.bin, loaded modules to modules.txt. */
 typedef struct { ULONGLONG qpc; unsigned draws, prims, world, wait_us; } FrameRow;
 #define FRAME_ROWS 131072
-#define SAMPLE_DEPTH 24
+#define SAMPLE_DEPTH 128
 #define SAMPLE_STACK 65536
 typedef struct { ULONGLONG qpc; unsigned guest_pc, depth; ULONGLONG rip[SAMPLE_DEPTH]; } Sample;
 static FrameRow *frame_rows; static unsigned frame_count;
 static LARGE_INTEGER qpc_freq, qpc_init;
-static FILE *thread_csv;
+static FILE *thread_csv, *counter_csv;
+/* perf_counters.h: cumulative cost counters, one counters.csv row per counter at every "cpu"/"shot" step
+ * (rdtsc ticks per ms in the tsc_per_ms row; tsc_* are 0 unless the run is sampled). */
+XrtPerfCounters xrt_perf; int xrt_perf_timing; static unsigned long long perf_tsc0;
 /* XRT_DEV_FPS_CAP=N (dev.py --fps-cap): development frame limiter. After each post-Init Present returns,
  * the game thread waits for the next 1/N s deadline on a high-resolution waitable timer (no spinning),
  * with the execution baton released as the Sleep import does, so other guest threads run meanwhile.
@@ -173,6 +177,7 @@ static void perf_start(CPU *c) {
     unsigned hz = v && *v ? (unsigned)strtoul(v, NULL, 10) : 0;
     FILETIME ft; char path[1024];
     QueryPerformanceFrequency(&qpc_freq); QueryPerformanceCounter(&qpc_init); GetSystemTimePreciseAsFileTime(&ft);
+    perf_tsc0 = __rdtsc();
     frame_rows = calloc(FRAME_ROWS, sizeof *frame_rows);
     if (root) {
         /* ms is QPC time after Init return, as in frames.csv; init_filetime (UTC, 100 ns) aligns external monitors. */
@@ -180,6 +185,8 @@ static void perf_start(CPU *c) {
         if ((thread_csv = fopen(path, "w")))
             fprintf(thread_csv, "# init_filetime=%llu\nwhy,ms,tid,role,user_ms,kernel_ms,sleeps,preemptions\n",
                     ((ULONGLONG)ft.dwHighDateTime << 32) | ft.dwLowDateTime);
+        snprintf(path, sizeof path, "%s\\counters.csv", root);
+        if ((counter_csv = fopen(path, "w"))) fprintf(counter_csv, "why,ms,counter,value\n");
     }
     v = getenv("XRT_DEV_FPS_CAP");
     cap_fps = v && *v ? (unsigned)strtoul(v, NULL, 10) : 0;
@@ -191,6 +198,7 @@ static void perf_start(CPU *c) {
                 cap_timer ? "high-resolution" : "NO high-resolution (Sleep fallback)");
     }
     if (!hz || hz > 1000) return;
+    xrt_perf_timing = 1;
     sample_max = hz * 400;
     samples = calloc(sample_max, sizeof *samples); stack_copy = malloc(SAMPLE_STACK);
     if (!samples || !stack_copy) { xrt_log("DEV sampler: allocation failed; not sampling"); return; }
@@ -236,6 +244,13 @@ static void perf_threads(const char *why) {
     ms = qpc_ms((ULONGLONG)now.QuadPart);
     if (thread_csv && GetProcessTimes(GetCurrentProcess(), &cr, &ex, &k, &u))
         fprintf(thread_csv, "%s,%.1f,0,process,%.1f,%.1f,0,0\n", why, ms, ft_ms(u), ft_ms(k));
+    if (counter_csv) {
+        XrtPerfCounters v = xrt_perf;
+        fprintf(counter_csv, "%s,%.1f,tsc_per_ms,%.1f\n", why, ms, ms > 0 ? (double)(__rdtsc() - perf_tsc0) / ms : 0.0);
+#define XRT_PERF_ROW(name) fprintf(counter_csv, "%s,%.1f," #name ",%llu\n", why, ms, v.name);
+        XRT_PERF_FIELDS(XRT_PERF_ROW)
+#undef XRT_PERF_ROW
+    }
     te.dwSize = sizeof te;
     if (Thread32First(snap, &te)) do {
         HANDLE h; XrtThread *g = NULL; int i; char role[96];
@@ -256,6 +271,90 @@ static void perf_threads(const char *why) {
         CloseHandle(h);
     } while (Thread32Next(snap, &te));
     CloseHandle(snap);
+}
+/* "ws:0" empties this process's working set; "ws:1" counts the pages present again (touched since, QueryWorkingSet) by
+ * region: the executable's .text (translated code + runtime), its other sections, guest memory, other modules (DXVK,
+ * driver, system DLLs) and the rest (heaps, stacks, driver mappings). Page counts bound the page footprint of the frames
+ * in between from above; those frames are slowed by the soft faults. Rows go to counters.csv (why "ws"). */
+static int ws_cmp(const void *a, const void *b) {
+    ULONG_PTR x = *(const ULONG_PTR *)a, y = *(const ULONG_PTR *)b;
+    return x < y ? -1 : x > y;
+}
+/* The "other" pages of a ws_probe grouped by allocation (VirtualQuery AllocationBase): the 12 largest, as counters.csv
+ * rows "ws_alloc_<base>_<private|mapped|image>[_heap]" = pages touched, so heaps, driver mappings and stacks can be told
+ * apart. */
+typedef struct { ULONG_PTR base; DWORD type; unsigned pages; int heap; } WsAlloc;
+static void ws_other_allocs(ULONG_PTR *va, size_t n, double ms) {
+    WsAlloc top[64], tmp; size_t i, k, nt = 0;
+    HANDLE heaps[64]; DWORD nh = GetProcessHeaps(64, heaps), h;
+    MEMORY_BASIC_INFORMATION m; ULONG_PTR end = 0, base = 0; DWORD type = 0;
+    qsort(va, n, sizeof *va, ws_cmp);
+    for (i = 0; i < n; i++) {
+        if (va[i] >= end) {
+            if (!VirtualQuery((void *)va[i], &m, sizeof m)) continue;
+            end = (ULONG_PTR)m.BaseAddress + m.RegionSize; base = (ULONG_PTR)m.AllocationBase; type = m.Type;
+        }
+        for (k = 0; k < nt && top[k].base != base; k++) {}
+        if (k == nt) {
+            if (nt == 64) continue;
+            top[nt].base = base; top[nt].type = type; top[nt].pages = 0; top[nt].heap = 0;
+            for (h = 0; h < nh && h < 64; h++) if ((ULONG_PTR)heaps[h] == base) top[nt].heap = 1;
+            nt++;
+        }
+        top[k].pages++;
+    }
+    for (k = 0; k < 12 && k < nt; k++) {
+        size_t best = k, j;
+        for (j = k + 1; j < nt; j++) if (top[j].pages > top[best].pages) best = j;
+        if (best != k) { tmp = top[k]; top[k] = top[best]; top[best] = tmp; }
+        if (counter_csv)
+            fprintf(counter_csv, "ws,%.1f,ws_alloc_%llx_%s%s,%u\n", ms, (unsigned long long)top[k].base,
+                    top[k].type == MEM_MAPPED ? "mapped" : top[k].type == MEM_IMAGE ? "image" : "private", top[k].heap ? "_heap" : "",
+                    top[k].pages);
+    }
+}
+static void ws_probe(int read) {
+    static ULONGLONG t_empty; static unsigned f_empty; static PSAPI_WORKING_SET_INFORMATION *ws;
+    const size_t cap = (size_t)1 << 21;
+    LARGE_INTEGER now; HMODULE exe = GetModuleHandleW(NULL), mods[512]; DWORD need = 0; MODULEINFO mi;
+    IMAGE_NT_HEADERS *nt; IMAGE_SECTION_HEADER *sec; ULONG_PTR tlo = 0, thi = 0, ilo, ihi, mlo[512], mhi[512], va;
+    unsigned long long text = 0, image = 0, guest = 0, dll = 0, other = 0; size_t i, j, nm = 0, no = 0; double ms;
+    static ULONG_PTR *others;
+    QueryPerformanceCounter(&now); ms = qpc_ms((ULONGLONG)now.QuadPart);
+    if (!read) { K32EmptyWorkingSet(GetCurrentProcess()); t_empty = (ULONGLONG)now.QuadPart; f_empty = frame_count; return; }
+    if (!t_empty) return;
+    nt = (IMAGE_NT_HEADERS *)((BYTE *)exe + ((IMAGE_DOS_HEADER *)exe)->e_lfanew); sec = IMAGE_FIRST_SECTION(nt);
+    ilo = (ULONG_PTR)exe; ihi = ilo + nt->OptionalHeader.SizeOfImage;
+    for (i = 0; i < nt->FileHeader.NumberOfSections; i++)
+        if (!memcmp(sec[i].Name, ".text", 6)) { tlo = ilo + sec[i].VirtualAddress; thi = tlo + sec[i].Misc.VirtualSize; }
+    if (K32EnumProcessModules(GetCurrentProcess(), mods, sizeof mods, &need))
+        for (i = 0; i < need / sizeof mods[0] && i < 512; i++)
+            if (mods[i] != exe && K32GetModuleInformation(GetCurrentProcess(), mods[i], &mi, sizeof mi)) {
+                mlo[nm] = (ULONG_PTR)mi.lpBaseOfDll; mhi[nm++] = (ULONG_PTR)mi.lpBaseOfDll + mi.SizeOfImage;
+            }
+    if (!ws) ws = malloc(sizeof *ws + cap * sizeof ws->WorkingSetInfo[0]);
+    if (!ws || !K32QueryWorkingSet(GetCurrentProcess(), ws, (DWORD)(sizeof *ws + cap * sizeof ws->WorkingSetInfo[0]))) {
+        xrt_log("DEV ws: QueryWorkingSet failed %lu", GetLastError()); return;
+    }
+    for (i = 0; i < ws->NumberOfEntries && i < cap; i++) {
+        va = (ULONG_PTR)ws->WorkingSetInfo[i].VirtualPage << 12;
+        if (va >= tlo && va < thi) text++;
+        else if (va >= ilo && va < ihi) image++;
+        else if (va >= (ULONG_PTR)xrt_g && va < (ULONG_PTR)xrt_g + 0x100010000ull) guest++;
+        else {
+            for (j = 0; j < nm && !(va >= mlo[j] && va < mhi[j]); j++) {}
+            if (j < nm) dll++;
+            else { other++; if (!others) others = malloc(cap * sizeof *others); if (others) others[no++] = va; }
+        }
+    }
+    xrt_log("DEV ws after %.1f ms (%u presents): exe .text %llu pages, exe other %llu, guest %llu, modules %llu, other %llu",
+            ms - qpc_ms(t_empty), frame_count - f_empty, text, image, guest, dll, other);
+    if (counter_csv)
+        fprintf(counter_csv, "ws,%.1f,ws_elapsed_ms,%.1f\nws,%.1f,ws_presents,%u\nws,%.1f,ws_exe_text_pages,%llu\nws,%.1f,ws_exe_other_pages,%llu\n"
+                "ws,%.1f,ws_guest_pages,%llu\nws,%.1f,ws_module_pages,%llu\nws,%.1f,ws_other_pages,%llu\n", ms, ms - qpc_ms(t_empty), ms,
+                frame_count - f_empty, ms, text, ms, image, ms, guest, ms, dll, ms, other);
+    if (others) ws_other_allocs(others, no, ms);
+    t_empty = 0;
 }
 /* The frame limiter wait (see cap_period); returns the waited time in microseconds. */
 static unsigned perf_cap_wait(void) {
@@ -284,6 +383,7 @@ static void perf_write(void) {
     perf_threads("stop");
     xrt_baton_stats_log(thread_csv);
     if (thread_csv) { fclose(thread_csv); thread_csv = NULL; }
+    if (counter_csv) { fclose(counter_csv); counter_csv = NULL; }
     snprintf(path, sizeof path, "%s\\frames.csv", root);
     if ((f = fopen(path, "w"))) {
         fprintf(f, "present,ms,world,draws,prims,cap_wait_us\n");
@@ -387,6 +487,7 @@ int xrt_dev_background(void) {
  *                    it does not depend on the map's mouse scale) and holds W while facing it within 25 deg; ends within
  *                    R uu (default 48) or after 30 s, logged either way. A later goto replaces it.
  *   face:X:Y         turn only (same steering, no walking) until facing X,Y within 2.5 deg, or 3 s
+ *   ws:0 | ws:1      working-set probe: empty the working set | count the pages touched since (ws_probe)
  *   size:W:H         resize the game window to a W x H client area (SetWindowPos without activation or z-order
  *                    change, as a user's resize does; applied by xrt_dev_input_window_actions inside the guest's
  *                    PeekMessage, where Windows delivers the resulting sent messages)
@@ -424,6 +525,7 @@ static void input_parse(void) {
         else if (!strcmp(verb, "size")) s.verb = 'z';
         else if (!strcmp(verb, "goto")) s.verb = 'g';
         else if (!strcmp(verb, "face")) s.verb = 'f';
+        else if (!strcmp(verb, "ws")) s.verb = 'w';
         else { xrt_log("DEV input script: unknown verb '%s'; script ignored from here", verb); break; }
         if (*v == ':') s.a = (int)strtol(v + 1, (char **)&v, 0);
         if (*v == ':') s.b = (int)strtol(v + 1, (char **)&v, 0);
@@ -598,6 +700,7 @@ void xrt_dev_input_tick(void) {
             in_resize_w = s->a; in_resize_h = s->b;
         } else if (s->verb == 's') { in_shot = 1; perf_threads("shot"); }
         else if (s->verb == 'u') perf_threads("cpu");
+        else if (s->verb == 'w') ws_probe(s->a);
         {
             POINT p = in_cursor; ScreenToClient(in_window, &p);
             xrt_log("DEV input cursor client %ld,%ld", p.x, p.y);

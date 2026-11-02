@@ -244,7 +244,7 @@ def lift_options():
     return m.group(1).split(',') if m else []
 
 
-def build(full=False, fixtures_only=False, native=False, diag_move=False, lean=False, cc='cl', ltcg=False):
+def build(full=False, fixtures_only=False, native=False, diag_move=False, lean=False, cc='cl', ltcg=False, order=None):
     independent(DEV)
     BUILD.mkdir(parents=True, exist_ok=True)
     env = compiler_environment()
@@ -406,7 +406,10 @@ def build(full=False, fixtures_only=False, native=False, diag_move=False, lean=F
     rsp = BUILD / 'objects.rsp'
     rsp.write_text('\n'.join('"' + str(p) + '"' for p in objects))
     # Inherited generated objects may refer to their existing compiler PDBs.
-    command(['link', '/nologo', '/DEBUG', '/INCREMENTAL:NO', '/STACK:0x10000000', *(['/LTCG'] if ltcg else []),
+    # build --order FILE: link-time function order (/ORDER, one public function name per line; the generated units are
+    # /O2, which implies /Gy, so every translated function is its own COMDAT). Names not in the image are ignored (LNK4037).
+    order_args = [f'/ORDER:@{Path(order).resolve()}', '/IGNORE:4037'] if order else []
+    command(['link', '/nologo', '/DEBUG', '/INCREMENTAL:NO', '/STACK:0x10000000', *(['/LTCG'] if ltcg else []), *order_args,
              f'/OUT:{BUILD / "unreal2-dev.exe"}', f'/PDB:{BUILD / "unreal2-dev.pdb"}', '@' + str(rsp),
              'winmm.lib', 'advapi32.lib', 'ole32.lib', 'bcrypt.lib', 'user32.lib', 'gdi32.lib', 'dbghelp.lib', 'xaudio2.lib'], env, 'link',
             timeout=7200 if ltcg else 600)
@@ -417,7 +420,9 @@ def build(full=False, fixtures_only=False, native=False, diag_move=False, lean=F
                                       'native': [fn for units in NATIVE.values() for fn, _ in units] if native else [],
                                       'port': [fn for units in PORT.values() for fn, _ in units],
                                       'audio_units': len(audio), 'lean': bool(lean), 'generated_compiler': cc,
-                                      'ltcg': bool(ltcg), 'rv_abi': rv_abi, 'lift_options': lift_options()})
+                                      'ltcg': bool(ltcg), 'rv_abi': rv_abi, 'lift_options': lift_options(),
+                                      'order': {'file': str(Path(order).resolve()), 'sha256': hashlib.sha256(Path(order).read_bytes()).hexdigest()}
+                                      if order else None})
     print('Built (not executed):', BUILD / 'unreal2-dev.exe')
 
 def fresh_run():
@@ -758,8 +763,8 @@ def run(args):
             env['XRT_DEV_DRAW_FRAMES'] = ','.join(map(str, args.draw_dump[:4]))
         if args.sample_hz:
             env['XRT_DEV_SAMPLE_HZ'] = str(args.sample_hz)
-        if args.staging == 'reuse':
-            env['XRT_DEV_STAGING'] = 'reuse'   # buffer staging kept per buffer (runtime resource_storage.inc)
+        if args.staging in ('reuse', 'guard'):
+            env['XRT_DEV_STAGING'] = args.staging   # buffer staging mode (runtime resource_storage.inc)
         if args.capture == 'shots':
             env['XRT_DEV_CAPTURE'] = 'shots'   # no periodic/cue/startup readbacks (dev_support.c)
         if args.fps_cap:
@@ -828,6 +833,7 @@ def main():
     b.add_argument('--lean', action='store_true', help='generated code without the per-entry function history ring (xrt.h XRT_LEAN_ENTER); '
                                                        'fatal dumps keep the guest-stack scan, the preemption check stays')
     b.add_argument('--cc', choices=sorted(COMPILERS), default='cl', help='compiler for the generated and sound units (the runtime stays cl)')
+    b.add_argument('--order', metavar='FILE', help='link-time function order (/ORDER:@FILE): hot translated functions first')
     b.add_argument('--ltcg', action='store_true', help='generated and native units /GL, link /LTCG (whole-program optimization across the '
                                                        'translated units; long link); the runtime units stay as they are')
     lp = sub.add_parser('lift', help='re-lift shared generated modules into developer copies (then build)')
@@ -856,7 +862,7 @@ def main():
     r.add_argument('--input', default='', metavar='SCRIPT',
                    help='first-scene: short explicit input script "T:verb[:args];..." (key/move/click/rclick/shot/cpu/size), '
                         'T in ms after Init; delivered to the game window only, isolation stays on')
-    r.add_argument('--staging', choices=('strict', 'reuse'), default='strict',
+    r.add_argument('--staging', choices=('strict', 'reuse', 'guard'), default='strict',
                    help='D3D8 buffer Lock staging: strict (default; decommitted at Unlock, stale pointers fault) or reuse (per-buffer block, stale pointers into it not trapped)')
     r.add_argument('--capture', choices=('periodic', 'shots'), default='periodic',
                    help='first-scene back-buffer captures: periodic (default; powers of two, every 256th world frame, cues) or shots (scripted shots only)')
@@ -905,7 +911,7 @@ def main():
     args = parser.parse_args()
     independent(DEV)
     if args.action == 'setup': setup()
-    elif args.action == 'build': build(args.full, native=args.native, diag_move=args.diag_move, lean=args.lean, cc=args.cc, ltcg=args.ltcg)
+    elif args.action == 'build': build(args.full, native=args.native, diag_move=args.diag_move, lean=args.lean, cc=args.cc, ltcg=args.ltcg, order=args.order)
     elif args.action == 'lift': lift(args.modules, {x for x in args.opt.split(',') if x})
     elif args.action == 'lift-audio': lift_audio({x for x in args.opt.split(',') if x})
     elif args.action == 'port-build':

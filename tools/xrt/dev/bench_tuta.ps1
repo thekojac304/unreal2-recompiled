@@ -19,7 +19,7 @@
 param([Parameter(Mandatory)][string]$Question, [Parameter(Mandatory)][string]$Change,
       [string]$Profile = 'development', [int]$SampleHz = 250, [switch]$TimingProbe, [string]$Res = '', [int]$Delay = 0, [switch]$NoCapture, [string]$Staging = 'strict',
       [int]$FpsCap = 0, [switch]$PauseProbe, [switch]$Monitor, [int]$NativeVerify = 0, [switch]$Background, [string]$Play = '', [int]$StopAt = 0, [string[]]$SeedSave = @(), [switch]$NoMenu, [switch]$DiagMove,
-      [string]$Sound = 'off', [string]$Affinity = '')
+      [string]$Sound = 'off', [string]$Affinity = '', [string]$ExtraSteps = '')
 if ($TimingProbe -and $PauseProbe) { throw '-TimingProbe and -PauseProbe both use the time after 247 s' }
 if ($Play -and ($TimingProbe -or $PauseProbe -or -not $StopAt)) { throw '-Play needs -StopAt and excludes the benchmark probes' }
 # Menu cursor: 1.5 px per DirectInput unit ([WinDrv.WindowsClient] MouseSpeed) from the top-left slam. The menus keep
@@ -80,6 +80,13 @@ if ($Delay) {
     $seconds += $Delay
 }
 if ($NoCapture -and $Delay -ge 50) { $script = "30000:cpu;59900:cpu;$script" }
+# -ExtraSteps STEPS: additional steps in final script time (after -Delay), merged by time (stable), e.g. the working-set
+# probe "215000:ws:0;215100:ws:1" (dev_support.c ws_probe) inside a profiling run.
+if ($ExtraSteps) {
+    $i = 0
+    $script = ("$script;$ExtraSteps" -split ';' | Where-Object { $_ } | ForEach-Object { [pscustomobject]@{ T = [int]($_ -split ':')[0]; I = $i++; S = $_ } } |
+               Sort-Object T, I | ForEach-Object S) -join ';'
+}
 $timeout = [math]::Min(600, $seconds + 83)
 if ($Background) { $extra = @('--background') } else { $extra = @() }
 if ($DiagMove) { $extra += '--diag-move' }   # blocking-hit log; needs dev.py build --diag-move
