@@ -1,0 +1,419 @@
+diff --git a/runtime/xrt.h b/runtime/xrt.h
+index ce0a126..c17f836 100644
+--- a/runtime/xrt.h
++++ b/runtime/xrt.h
+@@ -7,7 +7,10 @@
+  *   guest handle   uint32_t values handed to guest code for host objects (see xrt_handle_*)
+  * Guest memory is one 4 GB host reservation: guest address a lives at host xrt_g + a, so no host
+  * pointer is ever narrowed. The low 64 KB stay unmapped so guest null dereferences fault and are
+- * reported (xrt_diag.c), like on Windows.
++ * reported (xrt_diag.c), like on Windows. The guest never maps memory at or above 0x80000000 (the
++ * 32-bit user-mode layout, asserted by xrt_commit), and a 2 GB guard is reserved below the window:
++ * translated code may therefore compute a [reg + disp] access as the 64-bit sum (xlift --opt addr64,
++ * the helpers below take a 64-bit address) - a wrapped guest address faults in either form.
+  *
+  * Portable C99 except where marked; host Win32 services are confined to the xrt_*.c adapters. */
+ #ifndef XRT_H
+@@ -43,28 +46,34 @@ typedef struct CPU {
+     uint16_t fcw, fsw;
+     uint32_t hist[XRT_HIST];            /* ring of recent function entries (diagnostics) */
+     uint32_t hpos;
++    uint32_t world_floor;               /* world observer (xrt_events.c): lowest guest esp at which a pending observed
++                                           call returns; 0 unknown, 0xFFFFFFFF none pending. Read inline after indirect
++                                           calls (ICALLI). Fills the alignment hole before `thread`: sizeof(CPU) stays
++                                           416, the monitor record's CPU image (monitor.h). */
+     XrtThread* thread;
+ } CPU;
+ 
+ typedef void (*XrtFn)(CPU*);
+ 
+ /* ---------------------------------------------------------------- guest memory */
++#define XRT_GUEST_GUARD_BELOW 0x80000000ull   /* reserved, never committed: wrapped addr64 accesses fault here */
++#define XRT_GUEST_WINDOW 0x100010000ull        /* 4 GB + 64 KB: the top 64 KB catch [reg + disp] past the end */
+ extern uint8_t* xrt_g;                 /* host address of guest address 0 */
+ #define G2H(a) ((void*)(xrt_g + (uint32_t)(a)))
+ uint32_t xrt_h2g(const void* p);       /* fatal if p is not inside guest memory */
+ 
+-XRT_INLINE uint8_t rd8(uint32_t a) { return xrt_g[a]; }
+-XRT_INLINE uint16_t rd16(uint32_t a) { uint16_t v; memcpy(&v, xrt_g + a, 2); return v; }
+-XRT_INLINE uint32_t rd32(uint32_t a) { uint32_t v; memcpy(&v, xrt_g + a, 4); return v; }
+-XRT_INLINE uint64_t rd64(uint32_t a) { uint64_t v; memcpy(&v, xrt_g + a, 8); return v; }
+-XRT_INLINE void wr8(uint32_t a, uint8_t v) { xrt_g[a] = v; }
+-XRT_INLINE void wr16(uint32_t a, uint16_t v) { memcpy(xrt_g + a, &v, 2); }
+-XRT_INLINE void wr32(uint32_t a, uint32_t v) { memcpy(xrt_g + a, &v, 4); }
+-XRT_INLINE void wr64(uint32_t a, uint64_t v) { memcpy(xrt_g + a, &v, 8); }
+-XRT_INLINE float rdf32(uint32_t a) { float f; memcpy(&f, xrt_g + a, 4); return f; }
+-XRT_INLINE double rdf64(uint32_t a) { double d; memcpy(&d, xrt_g + a, 8); return d; }
+-XRT_INLINE void wrf32(uint32_t a, float f) { memcpy(xrt_g + a, &f, 4); }
+-XRT_INLINE void wrf64(uint32_t a, double d) { memcpy(xrt_g + a, &d, 8); }
++XRT_INLINE uint8_t rd8(uint64_t a) { return xrt_g[a]; }
++XRT_INLINE uint16_t rd16(uint64_t a) { uint16_t v; memcpy(&v, xrt_g + a, 2); return v; }
++XRT_INLINE uint32_t rd32(uint64_t a) { uint32_t v; memcpy(&v, xrt_g + a, 4); return v; }
++XRT_INLINE uint64_t rd64(uint64_t a) { uint64_t v; memcpy(&v, xrt_g + a, 8); return v; }
++XRT_INLINE void wr8(uint64_t a, uint8_t v) { xrt_g[a] = v; }
++XRT_INLINE void wr16(uint64_t a, uint16_t v) { memcpy(xrt_g + a, &v, 2); }
++XRT_INLINE void wr32(uint64_t a, uint32_t v) { memcpy(xrt_g + a, &v, 4); }
++XRT_INLINE void wr64(uint64_t a, uint64_t v) { memcpy(xrt_g + a, &v, 8); }
++XRT_INLINE float rdf32(uint64_t a) { float f; memcpy(&f, xrt_g + a, 4); return f; }
++XRT_INLINE double rdf64(uint64_t a) { double d; memcpy(&d, xrt_g + a, 8); return d; }
++XRT_INLINE void wrf32(uint64_t a, float f) { memcpy(xrt_g + a, &f, 4); }
++XRT_INLINE void wrf64(uint64_t a, double d) { memcpy(xrt_g + a, &d, 8); }
+ 
+ XRT_INLINE void push32(CPU* c, uint32_t v) { c->r[ESP] -= 4; wr32(c->r[ESP], v); }
+ XRT_INLINE uint32_t pop32(CPU* c) { uint32_t v = rd32(c->r[ESP]); c->r[ESP] += 4; return v; }
+@@ -72,29 +81,29 @@ XRT_INLINE uint32_t pop32(CPU* c) { uint32_t v = rd32(c->r[ESP]); c->r[ESP] += 4
+ /* The same accesses through an explicit base (xlift --opt base): a translated function copies xrt_g into a local
+  * once, because every guest store goes through uint8_t* and may alias the global, so the compiler reloads xrt_g
+  * before each access otherwise. The guest address arithmetic and access widths are identical. */
+-XRT_INLINE uint8_t rd8b(const uint8_t* g, uint32_t a) { return g[a]; }
+-XRT_INLINE uint16_t rd16b(const uint8_t* g, uint32_t a) { uint16_t v; memcpy(&v, g + a, 2); return v; }
+-XRT_INLINE uint32_t rd32b(const uint8_t* g, uint32_t a) { uint32_t v; memcpy(&v, g + a, 4); return v; }
+-XRT_INLINE uint64_t rd64b(const uint8_t* g, uint32_t a) { uint64_t v; memcpy(&v, g + a, 8); return v; }
+-XRT_INLINE void wr8b(uint8_t* g, uint32_t a, uint8_t v) { g[a] = v; }
+-XRT_INLINE void wr16b(uint8_t* g, uint32_t a, uint16_t v) { memcpy(g + a, &v, 2); }
+-XRT_INLINE void wr32b(uint8_t* g, uint32_t a, uint32_t v) { memcpy(g + a, &v, 4); }
+-XRT_INLINE void wr64b(uint8_t* g, uint32_t a, uint64_t v) { memcpy(g + a, &v, 8); }
+-XRT_INLINE float rdf32b(const uint8_t* g, uint32_t a) { float f; memcpy(&f, g + a, 4); return f; }
+-XRT_INLINE double rdf64b(const uint8_t* g, uint32_t a) { double d; memcpy(&d, g + a, 8); return d; }
+-XRT_INLINE void wrf32b(uint8_t* g, uint32_t a, float f) { memcpy(g + a, &f, 4); }
+-XRT_INLINE void wrf64b(uint8_t* g, uint32_t a, double d) { memcpy(g + a, &d, 8); }
++XRT_INLINE uint8_t rd8b(const uint8_t* g, uint64_t a) { return g[a]; }
++XRT_INLINE uint16_t rd16b(const uint8_t* g, uint64_t a) { uint16_t v; memcpy(&v, g + a, 2); return v; }
++XRT_INLINE uint32_t rd32b(const uint8_t* g, uint64_t a) { uint32_t v; memcpy(&v, g + a, 4); return v; }
++XRT_INLINE uint64_t rd64b(const uint8_t* g, uint64_t a) { uint64_t v; memcpy(&v, g + a, 8); return v; }
++XRT_INLINE void wr8b(uint8_t* g, uint64_t a, uint8_t v) { g[a] = v; }
++XRT_INLINE void wr16b(uint8_t* g, uint64_t a, uint16_t v) { memcpy(g + a, &v, 2); }
++XRT_INLINE void wr32b(uint8_t* g, uint64_t a, uint32_t v) { memcpy(g + a, &v, 4); }
++XRT_INLINE void wr64b(uint8_t* g, uint64_t a, uint64_t v) { memcpy(g + a, &v, 8); }
++XRT_INLINE float rdf32b(const uint8_t* g, uint64_t a) { float f; memcpy(&f, g + a, 4); return f; }
++XRT_INLINE double rdf64b(const uint8_t* g, uint64_t a) { double d; memcpy(&d, g + a, 8); return d; }
++XRT_INLINE void wrf32b(uint8_t* g, uint64_t a, float f) { memcpy(g + a, &f, 4); }
++XRT_INLINE void wrf64b(uint8_t* g, uint64_t a, double d) { memcpy(g + a, &d, 8); }
+ /* xlift --opt sse: the same float/double guest stores as single SSE stores. Through memcpy, MSVC stores a float or double
+  * via a stack temporary (movss/movsd to the stack, integer reload, integer store), a store-forwarding round trip per
+  * fst/fstp that often sits on a dependency chain (fstp to a stack slot, fld of it a few instructions later). The stored
+  * bytes are the value's bits either way (no conversion happens in the store). */
+ #if defined(_MSC_VER) && (defined(_M_X64) || defined(_M_AMD64))
+ #include <emmintrin.h>
+-XRT_INLINE void wrf32s(uint8_t* g, uint32_t a, float f) { _mm_store_ss((float*)(g + a), _mm_set_ss(f)); }
+-XRT_INLINE void wrf64s(uint8_t* g, uint32_t a, double d) { _mm_storel_pd((double*)(g + a), _mm_set_sd(d)); }
++XRT_INLINE void wrf32s(uint8_t* g, uint64_t a, float f) { _mm_store_ss((float*)(g + a), _mm_set_ss(f)); }
++XRT_INLINE void wrf64s(uint8_t* g, uint64_t a, double d) { _mm_storel_pd((double*)(g + a), _mm_set_sd(d)); }
+ #else
+-XRT_INLINE void wrf32s(uint8_t* g, uint32_t a, float f) { wrf32b(g, a, f); }
+-XRT_INLINE void wrf64s(uint8_t* g, uint32_t a, double d) { wrf64b(g, a, d); }
++XRT_INLINE void wrf32s(uint8_t* g, uint64_t a, float f) { wrf32b(g, a, f); }
++XRT_INLINE void wrf64s(uint8_t* g, uint64_t a, double d) { wrf64b(g, a, d); }
+ #endif
+ XRT_INLINE void push32b(uint8_t* g, CPU* c, uint32_t v) { c->r[ESP] -= 4; wr32b(g, c->r[ESP], v); }
+ XRT_INLINE uint32_t pop32b(const uint8_t* g, CPU* c) { uint32_t v = rd32b(g, c->r[ESP]); c->r[ESP] += 4; return v; }
+@@ -177,6 +186,17 @@ void xrt_fldcw(CPU* c, uint16_t cw);              /* only PC=53-bit, RC=nearest
+ /* ---------------------------------------------------------------- privileged-ish instructions */
+ void xrt_cpuid(CPU* c);                                 /* documented guest CPU-feature policy */
+ void xrt_rdtsc(CPU* c);
++/* xlift --opt rdtsc: the counter read inline in translated code. x86 hosts use the instruction; others a runtime
++ * counter (xrt_cpu.c xrt_rdtsc64: ARM64 CNTVCT). */
++#if defined(_MSC_VER) && (defined(_M_X64) || defined(_M_IX86))
++#include <intrin.h>
++#define XRT_RDTSC() __rdtsc()
++#elif defined(__x86_64__) || defined(__i386__)
++#define XRT_RDTSC() __builtin_ia32_rdtsc()
++#else
++uint64_t xrt_rdtsc64(void);
++#define XRT_RDTSC() xrt_rdtsc64()
++#endif
+ 
+ /* ---------------------------------------------------------------- control transfer */
+ #if defined(_MSC_VER)
+@@ -194,7 +214,13 @@ XRT_NORETURN void xrt_div0(CPU* c, uint32_t site);
+  * waits for the execution baton and the time slice has expired, the runtime hands the baton over here. */
+ extern volatile long xrt_preempt_req;
+ void xrt_preempt(CPU* c);
++/* XRT_LEAN_ENTER (dev.py build --lean): no per-entry history ring (fatal dumps keep their guest-stack scan); the
++ * preemption check stays, it is what makes function entries the scheduling points. */
++#ifdef XRT_LEAN_ENTER
++#define XRT_ENTER(va) do { if (xrt_preempt_req) xrt_preempt(c); } while (0)
++#else
+ #define XRT_ENTER(va) do { c->hist[c->hpos++ & (XRT_HIST - 1)] = (va); if (xrt_preempt_req) xrt_preempt(c); } while (0)
++#endif
+ #ifdef XRT_NO_PC
+ #define P(va) ((void)0)
+ #else
+@@ -204,22 +230,43 @@ void xrt_preempt(CPU* c);
+ /* Indirect calls. ICALL goes through xrt_icall/dispatch. ICALLI (xlift --opt icall) expands the hit path of the
+  * runtime's call-target cache (xrt_loader.c) at the call site, so each guest call site has its own host indirect call:
+  * through the single call in dispatch the branch predictor saw one site for all of them. Any module map/unmap advances
+- * xrt_call_cache_gen; misses, imports, observed targets (flags) and stale entries take xrt_icall as before, and
+- * xrt_icall_after is the world-observer return check dispatch makes after a cached call. */
++ * xrt_call_cache_gen; misses, imports, observed targets (flags) and stale entries take xrt_icall as before. After a
++ * cached call the world-observer return check dispatch makes is made inline (c->world_floor; xrt_icall_after is the
++ * same check as a function, kept for older generated code). */
+ typedef struct { uint32_t va, gen; XrtFn fn; unsigned flags; } XrtCallCache;
+ extern XrtCallCache xrt_call_cache[65536];
+ extern uint32_t xrt_call_cache_gen;
+ #define XRT_CALL_CACHE_SLOT(t) ((((t) >> 2) ^ ((t) >> 18)) & 65535)
+ void xrt_icall_after(CPU* c);
++void xrt_world_return(CPU* c);
+ #define ICALL(t, nxt, site) do { uint32_t t__ = (t); push32(c, (nxt)); xrt_icall(c, t__, (site)); \
+                                  if (c->rv != (nxt)) xrt_badret(c, (site), (nxt)); } while (0)
+ #define ICALLI(t, nxt, site) do { uint32_t t__ = (t); const XrtCallCache* e__ = &xrt_call_cache[XRT_CALL_CACHE_SLOT(t__)]; \
+                                  push32(c, (nxt)); \
+-                                 if (e__->va == t__ && e__->gen == xrt_call_cache_gen && !e__->flags) { e__->fn(c); xrt_icall_after(c); } \
++                                 if (e__->va == t__ && e__->gen == xrt_call_cache_gen && !e__->flags) { e__->fn(c); \
++                                     if (c->r[ESP] >= c->world_floor) xrt_world_return(c); } \
+                                  else xrt_icall(c, t__, (site)); \
+                                  if (c->rv != (nxt)) xrt_badret(c, (site), (nxt)); } while (0)
+ #define RET(n) do { c->rv = pop32(c); c->r[ESP] += (n); return; } while (0)
+ 
++/* ---------------------------------------------------------------- lazy guest pc (xlift --opt lazypc)
++ * Translated code then stores c->pc only before calls, traps, marks and the helpers that read it; the instruction of
++ * a guest memory fault is recovered from the host pc through the chunk's source line table (xrt_diag.c: PDB line
++ * information -> file and line -> guest address). A chunk compiled with XRT_PCLINES registers its table at start-up. */
++typedef struct XrtPcLine { uint32_t line, va; } XrtPcLine;
++void xrt_pclines_register(const char* file, const XrtPcLine* lines, uint32_t n);
++#if defined(XRT_PCLINES) && defined(_MSC_VER)
++#define XRT_PCLINES_REGISTER(tab, n, file) \
++    static void tab##_reg(void) { xrt_pclines_register(file, tab, n); } \
++    __pragma(section(".CRT$XCU", read)) __declspec(allocate(".CRT$XCU")) void (*tab##_regp)(void) = tab##_reg; \
++    __pragma(comment(linker, "/include:" #tab "_regp"))
++#elif defined(XRT_PCLINES)
++#define XRT_PCLINES_REGISTER(tab, n, file) \
++    __attribute__((constructor)) static void tab##_reg(void) { xrt_pclines_register(file, tab, n); }
++#else
++#define XRT_PCLINES_REGISTER(tab, n, file) typedef int tab##_unused_t
++#endif
++
+ /* ---------------------------------------------------------------- C++ exception landing pads (runtime/xrt_eh.c)
+  * A translated function that registers an EH node (`mov fs:[0], esp`) declares a pad. XRT_EH_REGISTER() links it,
+  * keyed by the node, into the thread's landing stack and sets the host resume point; when the exception
+diff --git a/runtime/xrt_cpu.c b/runtime/xrt_cpu.c
+index 3d518fb..139f053 100644
+--- a/runtime/xrt_cpu.c
++++ b/runtime/xrt_cpu.c
+@@ -294,3 +294,10 @@ void xrt_rdtsc(CPU* c) {
+     c->r[EAX] = (uint32_t)t;
+     c->r[EDX] = (uint32_t)(t >> 32);
+ }
++
++/* xlift --opt rdtsc on hosts without the instruction (xrt.h XRT_RDTSC): the generic timer counter */
++#if defined(_M_ARM64)
++uint64_t xrt_rdtsc64(void) { return (uint64_t)_ReadStatusReg(ARM64_CNTVCT); }
++#elif defined(__aarch64__)
++uint64_t xrt_rdtsc64(void) { uint64_t v; __asm__ volatile("mrs %0, cntvct_el0" : "=r"(v)); return v; }
++#endif
+diff --git a/runtime/xrt_diag.c b/runtime/xrt_diag.c
+index b4b9535..4bf8e5d 100644
+--- a/runtime/xrt_diag.c
++++ b/runtime/xrt_diag.c
+@@ -4,10 +4,70 @@
+  * registers, a stack-scanned guest backtrace and the recent function-entry history. */
+ #define WIN32_LEAN_AND_MEAN
+ #include <windows.h>
++#include <dbghelp.h>
+ #include <stdlib.h>
+ #include "xrt_internal.h"
+ 
+ volatile long xrt_dying;
++
++/* ---------------------------------------------------------------- lazy guest pc (xrt.h XrtPcLine, xlift --opt lazypc)
++ * Chunks register their source-line -> guest-address tables at start-up; a fault in translated code maps the host pc
++ * to its source line with the PDB (dbghelp) and the line to the guest instruction. Diagnostics only. */
++static struct { const char* file; const XrtPcLine* lines; uint32_t n; } pcl_tabs[4096];
++static int npcl;
++void xrt_pclines_register(const char* file, const XrtPcLine* lines, uint32_t n) {
++    if (npcl < (int)(sizeof pcl_tabs / sizeof pcl_tabs[0])) {
++        pcl_tabs[npcl].file = file;
++        pcl_tabs[npcl].lines = lines;
++        pcl_tabs[npcl].n = n;
++        npcl++;
++    }
++}
++static int same_basename(const wchar_t* path, const char* name) {
++    const wchar_t* b = path;
++    const wchar_t* p;
++    for (p = path; *p; p++)
++        if (*p == L'\\' || *p == L'/')
++            b = p + 1;
++    for (; *b && *name; b++, name++)
++        if (towlower(*b) != (wint_t)tolower((unsigned char)*name))
++            return 0;
++    return !*b && !*name;
++}
++/* 1 and *va set when the host pc lies on a registered chunk's instruction line (PDB line information present) */
++int xrt_pc_from_host(const void* host_pc, uint32_t* va) {
++    static int sym_state;                /* 0 untried, 1 ready, -1 unavailable */
++    IMAGEHLP_LINEW64 line;
++    DWORD disp;
++    int k;
++    if (!npcl)
++        return 0;
++    if (sym_state == 0) {
++        SymSetOptions(SYMOPT_LOAD_LINES | SYMOPT_DEFERRED_LOADS | SYMOPT_UNDNAME);
++        sym_state = SymInitializeW(GetCurrentProcess(), NULL, TRUE) ? 1 : -1;
++    }
++    if (sym_state < 0)
++        return 0;
++    memset(&line, 0, sizeof line);
++    line.SizeOfStruct = sizeof line;
++    if (!SymGetLineFromAddrW64(GetCurrentProcess(), (DWORD64)(uintptr_t)host_pc, &disp, &line) || !line.FileName)
++        return 0;
++    for (k = 0; k < npcl; k++) {
++        if (same_basename(line.FileName, pcl_tabs[k].file)) {
++            const XrtPcLine* t = pcl_tabs[k].lines;
++            uint32_t lo = 0, hi = pcl_tabs[k].n;
++            while (lo < hi) {                /* greatest entry whose line <= the fault's line */
++                uint32_t mid = (lo + hi) / 2;
++                if (t[mid].line <= line.LineNumber) lo = mid + 1; else hi = mid;
++            }
++            if (lo == 0)
++                return 0;
++            *va = t[lo - 1].va;
++            return 1;
++        }
++    }
++    return 0;
++}
+ static FILE* log_file;
+ static long log_budget = 50000;
+ static SRWLOCK log_lock = SRWLOCK_INIT;
+@@ -164,13 +224,18 @@ static LONG CALLBACK veh(EXCEPTION_POINTERS* ep) {
+     if (code == EXCEPTION_ACCESS_VIOLATION && ep->ExceptionRecord->NumberParameters >= 2) {
+         uint8_t* a = (uint8_t*)ep->ExceptionRecord->ExceptionInformation[1];
+         const char* kind = ep->ExceptionRecord->ExceptionInformation[0] == 1 ? "write" : "read";
+-        if (a >= xrt_g && a < xrt_g + 0x100010000ull) {
+-            uint32_t ga = (uint32_t)(a - xrt_g);
++        if (a >= xrt_g - XRT_GUEST_GUARD_BELOW && a < xrt_g + XRT_GUEST_WINDOW) {
++            uint32_t ga = (uint32_t)(a - xrt_g), gpc = 0;   /* the wrapped guest address, also for a guard-region hit */
+             const char* stub = xrt_stub_name(ga & ~(XRT_STUB_SIZE - 1));
++            int lazy = owner == self && xrt_cur && xrt_pc_from_host(pc, &gpc);
++            int wrapped = a < xrt_g || a >= xrt_g + 0x100000000ull;
++            if (lazy)
++                xrt_cur->cpu.pc = gpc;       /* xlift --opt lazypc: the faulting instruction, from the line table */
+             if (stub)
+                 xrt_fatal(NULL, XRT_EXIT_FAULT, "guest %s of %08x: data access through function import stub %s", kind, ga, stub);
+-            xrt_fatal(NULL, XRT_EXIT_FAULT, "guest memory %s fault at guest address %08x%s (host pc %p%s)", kind, ga,
+-                      ga < 0x10000 ? " (null-pointer region)" : "", pc, owner == self ? "" : " in a host library");
++            xrt_fatal(NULL, XRT_EXIT_FAULT, "guest memory %s fault at guest address %08x%s%s (host pc %p%s%s)", kind, ga,
++                      ga < 0x10000 ? " (null-pointer region)" : "", wrapped ? " (address computation wrapped past 32 bits)" : "",
++                      pc, owner == self ? "" : " in a host library", lazy ? ", guest pc from the line table" : "");
+         }
+         if (owner == self)
+             xrt_fatal(NULL, XRT_EXIT_FAULT, "host %s fault at %p in the runtime (host pc %p)", kind, (void*)a, pc);
+diff --git a/runtime/xrt_events.c b/runtime/xrt_events.c
+index e9d1629..a0c3bcf 100644
+--- a/runtime/xrt_events.c
++++ b/runtime/xrt_events.c
+@@ -110,8 +110,8 @@ void xrt_world_enter(CPU*c,uint32_t target) {
+             p->kind=kind;p->stage=stage;p->self=self;p->world=0;p->esp=c->r[ESP];p->ret=rd32(p->esp);p->popped=popped;
+             p->arg0=rd32(p->esp+4);p->arg1=rd32(p->esp+0x20);world_pending++;
+             if(i>=world_top)world_top=i+1;
+-            if(c->thread&&(!c->thread->world_floor||(uint64_t)p->esp+p->popped<c->thread->world_floor))
+-                c->thread->world_floor=(uint64_t)p->esp+p->popped;
++            if(!c->world_floor||(uint64_t)p->esp+p->popped<c->world_floor)
++                c->world_floor=(uint32_t)((uint64_t)p->esp+p->popped);
+             return;
+         }
+         return;   /* table full: skip this call (diagnostic only) */
+@@ -122,19 +122,19 @@ void xrt_world_enter(CPU*c,uint32_t target) {
+         WorldCall*p=&world_calls[i];char event[64];
+         p->kind=kind;p->stage=stage;p->self=self;p->world=world;p->esp=c->r[ESP];p->ret=rd32(p->esp);p->popped=popped;world_pending++;
+         if(i>=world_top)world_top=i+1;
+-        if(c->thread&&(!c->thread->world_floor||(uint64_t)p->esp+p->popped<c->thread->world_floor))
+-            c->thread->world_floor=(uint64_t)p->esp+p->popped;
++        if(!c->world_floor||(uint64_t)p->esp+p->popped<c->world_floor)
++            c->world_floor=(uint32_t)((uint64_t)p->esp+p->popped);
+         snprintf(event,sizeof event,"%s_call",kind);
+         xrt_event(event,"\"stage\":\"%s\",\"this\":%u,\"world\":%u,\"esp\":%u,\"return\":%u",stage,self,world,p->esp,p->ret);
+         return;
+     }
+     xrt_fatal(c,XRT_EXIT_SETUP,"world observer pending-call bound exceeded");
+ }
+-/* Called after translated calls return while c->r[ESP] >= c->thread->world_floor (0: unknown); a pending
++/* Called after translated calls return while c->r[ESP] >= c->world_floor (0: unknown); a pending
+  * call can only complete at esp == its esp + popped, so returns below the floor are skipped by the caller. */
+ void xrt_world_return(CPU*c) {
+     unsigned i;uint64_t floor=~0ull;
+-    if(!world_pending){if(c->thread)c->thread->world_floor=~0ull;return;}
++    if(!world_pending){c->world_floor=0xFFFFFFFFu;return;}
+     for(i=0;i<world_top;i++) {
+         WorldCall*p=&world_calls[i];char event[64];
+         if(!p->kind || c->rv!=p->ret || c->r[ESP]!=p->esp+p->popped)continue;
+@@ -151,7 +151,7 @@ void xrt_world_return(CPU*c) {
+     while(world_top&&!world_calls[world_top-1].kind)world_top--;
+     for(i=0;i<world_top;i++)if(world_calls[i].kind&&(uint64_t)world_calls[i].esp+world_calls[i].popped<floor)
+         floor=(uint64_t)world_calls[i].esp+world_calls[i].popped;
+-    if(c->thread)c->thread->world_floor=floor;
++    c->world_floor=(uint32_t)floor;
+ }
+ int xrt_event_room(void){return events&&event_seq<MAX_EVENTS;}
+ 
+diff --git a/runtime/xrt_internal.h b/runtime/xrt_internal.h
+index ab66b49..fc76d39 100644
+--- a/runtime/xrt_internal.h
++++ b/runtime/xrt_internal.h
+@@ -99,7 +99,6 @@ struct XrtThread {
+     int eh_unwinding;              /* > 0 while the dispatcher runs unwind actions (a throw then is terminate()) */
+     int loader_lock;               /* > 0 while this thread runs DllMain notifications (no baton hand-over) */
+     unsigned com_initializations;  /* successful guest COM initializations owned by this host thread */
+-    uint64_t world_floor;          /* lowest esp at which a pending world-observer call returns (0: unknown) */
+ };
+ extern __declspec(thread) XrtThread* xrt_cur;
+ void xrt_com_thread_cleanup(CPU* c); /* owning thread only; Loader8 references before apartment balance */
+diff --git a/runtime/xrt_loader.c b/runtime/xrt_loader.c
+index 03bff18..11ca54f 100644
+--- a/runtime/xrt_loader.c
++++ b/runtime/xrt_loader.c
+@@ -597,10 +597,10 @@ static void dispatch(CPU* c, uint32_t target, uint32_t site, const char* what) {
+         fn=e->fn;
+         if(e->flags&(CALL_PORT_EXEC|CALL_PORT_UI_ROOT|CALL_PORT_UI_SCALE) &&
+            xrt_port_call(c,e->flags&CALL_PORT_EXEC?1:2,fn)){
+-            if(!c->thread||c->r[ESP]>=c->thread->world_floor)xrt_world_return(c);
++            if(c->r[ESP]>=c->world_floor)xrt_world_return(c);
+             return;
+         }
+-        if(!(e->flags&~(CALL_SETRES|CALL_PORT_EXEC|CALL_PORT_UI_ROOT|CALL_PORT_UI_SCALE))){fn(c);if(!c->thread||c->r[ESP]>=c->thread->world_floor)xrt_world_return(c);return;}
++        if(!(e->flags&~(CALL_SETRES|CALL_PORT_EXEC|CALL_PORT_UI_ROOT|CALL_PORT_UI_SCALE))){fn(c);if(c->r[ESP]>=c->world_floor)xrt_world_return(c);return;}
+     }
+     {
+         const CallCache*e=call_target(target);
+@@ -646,7 +646,7 @@ void xrt_icall(CPU* c, uint32_t target, uint32_t site) {
+ }
+ void xrt_ijmp(CPU* c, uint32_t target, uint32_t site) { dispatch(c, target, site, "indirect jump"); }
+ /* After a cached indirect call made inline by ICALL (xrt.h): the check dispatch makes after its cached call. */
+-void xrt_icall_after(CPU* c) { if(!c->thread||c->r[ESP]>=c->thread->world_floor)xrt_world_return(c); }
++void xrt_icall_after(CPU* c) { if(c->r[ESP]>=c->world_floor)xrt_world_return(c); }
+ 
+ uint32_t xrt_call_guest(CPU* c, uint32_t va, int nargs, const uint32_t* args, int stdcall) {
+     xm_scope(c,XM_BEGIN,XM_CALLBACK,"xrt_call_guest",va);
+diff --git a/runtime/xrt_mem.c b/runtime/xrt_mem.c
+index 1ac7ec1..01d6d7b 100644
+--- a/runtime/xrt_mem.c
++++ b/runtime/xrt_mem.c
+@@ -11,17 +11,24 @@ static SRWLOCK rt_lock = SRWLOCK_INIT;
+ static uint32_t rt_next = XRT_RT_BASE;
+ 
+ void xrt_mem_init(void) {
+-    xrt_g = (uint8_t*)VirtualAlloc(NULL, 0x100000000ull + 0x10000u, MEM_RESERVE, PAGE_NOACCESS);
+-    if (!xrt_g) {
+-        fprintf(stderr, "xrt: cannot reserve 4 GB of guest address space (error %lu)\n", GetLastError());
++    /* the 4 GB window with a 2 GB guard below it (xrt.h: xlift --opt addr64 may compute a [reg + disp] access as
++     * the 64-bit sum; a wrapped guest address then lands in a guard and faults as it would at its wrapped address) */
++    uint8_t* r = (uint8_t*)VirtualAlloc(NULL, (SIZE_T)(XRT_GUEST_GUARD_BELOW + XRT_GUEST_WINDOW), MEM_RESERVE, PAGE_NOACCESS);
++    if (!r) {
++        fprintf(stderr, "xrt: cannot reserve 6 GB of guest address space (error %lu)\n", GetLastError());
+         exit(XRT_EXIT_SETUP);
+     }
++    xrt_g = r + XRT_GUEST_GUARD_BELOW;
+ }
+ 
+ void xrt_commit(uint32_t a, uint32_t size) {
+     uint64_t lo = a & ~0xFFFull, hi = ((uint64_t)a + size + 0xFFF) & ~0xFFFull;
+     if (!size)
+         return;
++    if (hi > 0x80000000ull || lo < 0x10000ull) {   /* the layout above, relied on by xlift --opt addr64 */
++        fprintf(stderr, "xrt: commit of guest %08x+%x outside the 32-bit user layout [0x10000, 0x80000000) refused\n", a, size);
++        exit(XRT_EXIT_SETUP);
++    }
+     if (!VirtualAlloc(xrt_g + lo, (SIZE_T)(hi - lo), MEM_COMMIT, PAGE_READWRITE)) {
+         fprintf(stderr, "xrt: commit of guest %08x+%x failed (error %lu)\n", a, size, GetLastError());
+         exit(XRT_EXIT_SETUP);

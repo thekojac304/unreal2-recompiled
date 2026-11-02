@@ -10,6 +10,7 @@
 # -PauseProbe (not with -TimingProbe): Escape at 247 s opens the in-game menu; CPU snapshots at 248.5/256.5 s bound the
 #   paused window, shot at 256.6 s; the run stops at 258 s.
 # -FpsCap N: dev.py --fps-cap N (development frame limiter; 0 = uncapped).
+# -Sound off|muted|on: dev.py --sound (muted runs the lifted ALAudio/Vorbis + OpenAL adapter path silently: its CPU cost is measured).
 # -Monitor: typeperf (RAPL package power, CPU utility, 1 s) and nvidia-smi (GPU utilization/power, 0.5 s) run alongside;
 #   their CSVs land in the run directory as power.csv / gpu.csv (local wall-clock time; threads.csv has init_filetime).
 # -Background: dev.py --background (runs behind the owner's foreground application; scripted input only).
@@ -17,7 +18,8 @@
 #   (same "T:verb:args" syntax, T in ms after Init, after the menu's 20000:click); the run stops S s after Init.
 param([Parameter(Mandatory)][string]$Question, [Parameter(Mandatory)][string]$Change,
       [string]$Profile = 'development', [int]$SampleHz = 250, [switch]$TimingProbe, [string]$Res = '', [int]$Delay = 0, [switch]$NoCapture, [string]$Staging = 'strict',
-      [int]$FpsCap = 0, [switch]$PauseProbe, [switch]$Monitor, [int]$NativeVerify = 0, [switch]$Background, [string]$Play = '', [int]$StopAt = 0, [string[]]$SeedSave = @(), [switch]$NoMenu, [switch]$DiagMove)
+      [int]$FpsCap = 0, [switch]$PauseProbe, [switch]$Monitor, [int]$NativeVerify = 0, [switch]$Background, [string]$Play = '', [int]$StopAt = 0, [string[]]$SeedSave = @(), [switch]$NoMenu, [switch]$DiagMove,
+      [string]$Sound = 'off')
 if ($TimingProbe -and $PauseProbe) { throw '-TimingProbe and -PauseProbe both use the time after 247 s' }
 if ($Play -and ($TimingProbe -or $PauseProbe -or -not $StopAt)) { throw '-Play needs -StopAt and excludes the benchmark probes' }
 # Menu cursor: 1.5 px per DirectInput unit ([WinDrv.WindowsClient] MouseSpeed) from the top-left slam. The menus keep
@@ -87,6 +89,7 @@ if ($NoCapture) { $extra += '--capture', 'shots' }
 if ($FpsCap) { $extra += '--fps-cap', $FpsCap }
 if ($NativeVerify) { $extra += '--native-verify', $NativeVerify }   # needs a dev.py build --native executable
 $extra += '--staging', $Staging   # strict (default) or reuse: see dev.py --staging   # e.g. 3840x2160; empty = the snapshot's 1540x945
+$extra += '--sound', $Sound       # off (default, -nosound) | muted (whole audio path, mastering volume 0) | on: see dev.py --sound
 $maps = 'CS_Titles.un2','Atlantis.un2','m01a.un2','TutA.un2','TutB.un2','Entry.un2' | ForEach-Object { '--allow-map', $_ }
 Set-Location (Split-Path -Parent (Split-Path -Parent (Split-Path -Parent $PSScriptRoot)))
 $runs = 'out/dev-init/runs'; $before = @(Get-ChildItem $runs -Directory | ForEach-Object Name)

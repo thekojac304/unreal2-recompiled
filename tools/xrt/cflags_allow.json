@@ -1,0 +1,7 @@
+{
+ "comment": "xlift --opt cflags: address-taken entries exempt from the flag audit because they are data, not code (discovery seeds every relocation target in .text and lifts it as a function). Each is lifted as a fatal trap, so the assumption fails closed if the address is ever executed. rva is relative to the module's image base. Evidence: runtime-report.json hit_rvas over all developer runs.",
+ "GlmLib.dll": [
+  {"rva": "0x1c9790",
+   "reason": "16-byte data records (1c 26 02 03 ii 00 00 00 0c ii 00 80 00 00 00 00, ii = 0,1,2,...) reached only through one pointer slot at rva 0x237ed0; the decoded entry is 'sbb al, 0x26' (reads CF); executed in 0 of 197 recorded developer runs (2026-11-01)"}
+ ]
+}

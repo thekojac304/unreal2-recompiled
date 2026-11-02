@@ -65,10 +65,40 @@ Optional optimizations (--opt LIST; default none, which keeps the output byte-id
          (store, integer reload, store: a store-forwarding round trip per fst), and isnan() under /fp:strict to two
          out-of-line _dclass calls per compare, which also clobber xmm0-5 inside x87 code. Same addresses, widths,
          bytes and status bits (a NaN operand fails <, == and >, which the third test of the ordered form checks).
+  cflags (needs iflags) calling-convention flag liveness: no function reads CF/PF/ZF/SF/OF at entry and no caller
+         reads them after a call returns, as code compiled for any MSVC x86 calling convention guarantees (flags are
+         never preserved across calls). Indirect and import calls therefore read no flags and a return stores only
+         the flags its direct callers read (an address-taken function's unknown callers read none); fatal traps
+         (int3/hlt/ud2, undecoded branch targets, jump-table defaults) read none either (their diagnostic dump may
+         show older flags). Audited per module after the fixed point: a function whose entry reads a flag before
+         writing it and that may be called through a pointer (relocation target, export, image entry, or any
+         function of a module without relocations), or a call site that reads a flag after an indirect call before
+         writing it, is a violation; the module then keeps the iflags rules (the meta file lists the violations under
+         cflags_violations with cflags_active false). Evidence marks and watches record no flags, so they are not
+         flag boundaries here (they remain register spill points). Host adapters never read guest flags (runtime
+         grep: only the fatal-dump printer does). --cflags-allow FILE (default tools/xrt/cflags_allow.json): address-
+         taken entries that are data, not code (discovery seeds every relocation target in .text); each is exempt
+         from the audit and lifted as a fatal trap, so the assumption fails closed if the address is ever executed.
+  rdtsc  rdtsc as the host counter intrinsic inside the translated function (xrt.h XRT_RDTSC) instead of a runtime
+         call with a full register spill and reload around it; EAX/EDX get the same low/high words.
+  addr64 (needs base) a guest access [reg + disp] (no index register, -2^31 <= disp < 0x10000) computes its host
+         address as the 64-bit sum base + disp instead of the 32-bit wrapped guest address, so the compiler folds the
+         displacement into the x64 addressing mode (one instruction instead of lea + access). Equivalent because the
+         guest never maps memory below 0x10000 (null region) or at or above 0x80000000 (xrt_mem.c layout, asserted by
+         xrt_commit) and the runtime reserves a 2 GB guard below the 4 GB window: an access whose guest address wraps
+         faults in both models (the fault report shows the wrapped guest address). Indexed and far forms keep the exact
+         32-bit computation. lea stays 32-bit (it produces a guest value, not an access).
+  lazypc (needs pc) the c->pc store is kept only before statements that reach code reading it: calls (direct,
+         indirect, import), traps, marks, watches, EH registration, cpuid/rdtsc, fldcw, divide checks. Plain guest
+         memory accesses and x87 helpers no longer store it. A guest memory fault's instruction is recovered from the
+         host pc through the chunk's source line table (emitted at the end of every chunk as XrtPcLine entries and
+         registered at start-up when the unit is compiled with XRT_PCLINES; runtime xrt_diag.c maps the faulting
+         host pc to a source line with the PDB and the line to the guest address). Without PDB line information the
+         fault report falls back to the last stored pc (an earlier instruction of the same straight-line run).
 
 Usage:
   python -I tools/xrt/xlift.py <module> --out <dir> [--chunk 250] [--only 0xVA,...] [--marks FILE|--no-marks] [--base 0xADDR]
-                               [--opt flags,pc,base,regs,x87,x87v,x87w,icall,iflags,sse]
+                               [--opt flags,pc,base,regs,x87,x87v,x87w,icall,iflags,sse,cflags,rdtsc,lazypc,addr64] [--cflags-allow FILE]
 Outputs <dir>/<stem>_NNN.c, <stem>_protos.h, <stem>_table.c and <stem>_meta.json.
 """
 import collections
@@ -103,6 +133,7 @@ X87_STORES = {"fst", "fstp", "fist", "fistp", "fisttp", "fnstsw", "fstsw", "fnst
               "fnsave", "fsave", "fbstp"}
 CAPTURE_REGS = {"eax": 0, "ecx": 1, "edx": 2, "ebx": 3, "esp": 4, "ebp": 5, "esi": 6, "edi": 7}
 DEFAULT_MARKS = os.path.join(os.path.dirname(os.path.abspath(__file__)), "marks.json")
+DEFAULT_CFLAGS_ALLOW = os.path.join(os.path.dirname(os.path.abspath(__file__)), "cflags_allow.json")
 SIZE_SUFFIX = {"b": 1, "w": 2, "d": 4}
 # --opt flags: the five modelled status flags and the flags each condition reads (DF is never optimized)
 FLAGS = frozenset(("cf", "pf", "zf", "sf", "of"))
@@ -111,10 +142,10 @@ COND_USES = {"e": "zf", "ne": "zf", "l": "sf of", "ge": "sf of", "le": "zf sf of
              "ae": "cf", "be": "cf zf", "a": "cf zf", "s": "sf", "ns": "sf", "p": "pf", "np": "pf", "o": "of", "no": "of"}
 # instructions whose translation neither reads nor writes CF/PF/ZF/SF/OF
 FLAG_NEUTRAL = {"mov", "movzx", "movsx", "lea", "not", "push", "pop", "xchg", "nop", "fwait", "wait", "leave", "cld",
-                "std", "cdq", "cwde", "cbw", "cwd", "bswap", "div", "idiv", "rdtsc", "cpuid", "jecxz", "loop"}
+                "std", "cdq", "cwde", "cbw", "cwd", "bswap", "div", "idiv", "rdtsc", "cpuid", "jecxz", "loop", "jmp"}
 # --opt pc: helpers that cannot fault or reach the runtime (pure register/flag/x87-register computations)
 PURE_CALLS = {"fl_add", "fl_sub", "fl_logic", "fl_szp", "msb", "parity8", "ST", "fpush", "fpop", "fcompare",
-              "fstatus", "fabs", "isnan", "if"}
+              "fstatus", "fabs", "isnan", "if", "XRT_RDTSC"}
 # --opt base: guest memory helpers that get an explicit-base variant (xrt.h rd32b ...)
 BASE_ACCESS = re.compile(r"\b(rd8|rd16|rd32|rd64|rdf32|rdf64|wr8|wr16|wr32|wr64|wrf32|wrf64)\(")
 # --opt regs: guest register locals; calls that neither read nor write c->r need no spill around them
@@ -150,6 +181,12 @@ XST_REF = re.compile(r"\*XST\((\d)\)")
 # --opt sse: final forms (after every analysis) of guest float/double stores and x87 compares (xrt.h wrf32s ...)
 SSE_FORMS = (("wrf32b(", "wrf32s("), ("wrf64b(", "wrf64s("), ("XFCOMPARE(", "XFCOMPAREO("), ("fcompare(c, ", "fcompareo(c, "))
 CALL_NAME = re.compile(r"\b([A-Za-z_]\w*)\s*\(")
+# --opt lazypc: statement groups calling one of these keep their c->pc store (the callee, or what it may reach, reads
+# c->pc: dispatch and adapters record it as the call site, fatal dumps print it)
+LAZY_PC_KEEP = {"CALL", "ICALL", "ICALLI", "xrt_icall", "xrt_ijmp", "xrt_fldcw", "xrt_trap", "XRT_MARK", "xrt_mark",
+                "xrt_watch_store", "XRT_EH_REGISTER", "xrt_cpuid", "xrt_rdtsc", "xrt_div0", "xrt_dev_init_return"}
+# instruction header lines of a chunk (for the line table): a pc store or the comment that replaced it
+PCLINE = re.compile(r"^\s+(?:P\(0x([0-9a-f]+)u\);|/\* 0x([0-9a-f]+): )")
 # --opt x87w: statements that may leave the straight-line run (the x87 values must be in c->st before them)
 X87W_EXIT = re.compile(r"\b(goto|return|switch|RET)\b")
 COMMENT = re.compile(r"/\*.*?\*/")
@@ -190,6 +227,9 @@ class Lifter:
     def __init__(self, mod, marks=(), watches=(), stem="m", opt=()):
         self.mod = mod
         self.opt = frozenset(opt)         # subset of {"flags", "pc"}, see the module docstring
+        self.cflags_active = True         # --opt cflags: cleared by the audit (iflag_analysis) when the module violates it
+        self.cflags_violations = []       # the audit's findings (meta file), whether or not the fallback was taken
+        self.cflags_allow = {}            # entry va -> reason: address-taken data lifted as code (trap-guarded, see main)
         self.live = None                  # flags live after the instruction being lifted (None: all)
         self.opt_stats = collections.Counter()
         self.img = mod.img
@@ -337,22 +377,36 @@ class Lifter:
         return out
 
     # ------------------------------------------------------------------ interprocedural flag liveness (--opt iflags)
+    cflags_audit = True                   # test hook (opt_diff mutation): False applies cflags despite violations
+
+    def cflags_on(self):
+        return "cflags" in self.opt and self.cflags_active
+
     def iflag_nodes(self, fn):
         """Per instruction: (uses, kills, successors inside fn, special) with special one of
-        None, ("call", T) direct call of module function T, ("ret",), ("exit", T) tail jump / fall-through into T.
+        None, ("call", T) direct call of module function T, ("ret",), ("exit", T) tail jump / fall-through into T,
+        and with --opt cflags ("icall",) indirect or import call and ("ijmp",) indirect tail jump or import thunk.
         Every other way of leaving the function, and every boundary of flag_boundary, is a use of all flags."""
         mod, nodes = self.mod, {}
+        cf = self.cflags_on()
+        if cf and fn.entry in self.cflags_allow:
+            return {}                                     # lifted as a fatal trap: no flag reads, no returns
         for va, ins in fn.insns.items():
             m, ops = ins.mnemonic, ins.operands
             nxt = va + ins.size
-            plain = not (self.marks_at.get(va) or (self.watches and self.watched(ins)))
-            special, succ, outside = None, [nxt], None
+            # marks and watches record registers and stores, never flags: under cflags they are not flag boundaries
+            plain = cf or not (self.marks_at.get(va) or (self.watches and self.watched(ins)))
+            special, succ, outside, trap = None, [nxt], None, False
             # flag_boundary without EH registration: xrt_eh_register reads no guest flags
             boundary = m in ("call", "ret", "retn", "int3", "hlt", "ud2") or not plain
+            if cf and plain and m in ("int3", "hlt", "ud2"):
+                boundary, trap = False, True              # a fatal trap: nothing after it runs, no flag is read
             if m in JCC or m in ("loop", "loope", "loopne", "jecxz"):
                 t = ops[0].imm & 0xFFFFFFFF
                 if t in fn.insns:
                     succ = [t, nxt]
+                elif cf and plain:
+                    succ = [nxt]                          # the taken path is a fatal trap
                 else:
                     boundary = True                       # trap on the taken path
             elif m == "jmp":
@@ -362,6 +416,12 @@ class Lifter:
                     succ = [t]
                 elif t is not None and t in mod.functions and plain:
                     special = ("exit", t)                 # tail call (lifted as f_t(c); return;)
+                elif cf and plain and t is None and va in fn.jumptables:
+                    succ = sorted({x for x in fn.jumptables[va] if x in fn.insns})   # the default case is a fatal trap
+                elif cf and plain and t is None:
+                    special = ("ijmp",)                   # indirect tail jump or import thunk: the target reads no flags
+                elif cf and plain:
+                    trap = True                           # jmp to an undecoded address: a fatal trap
                 else:
                     boundary = True                       # indirect jump, jump table, undecoded target
             elif m in ("ret", "retn"):
@@ -372,10 +432,14 @@ class Lifter:
                 t = ops[0].imm & 0xFFFFFFFF if ops[0].type == X.X86_OP_IMM else None
                 if t is not None and t in mod.functions and plain:
                     special, boundary = ("call", t), False
+                elif cf and plain and t is None:
+                    special, boundary = ("icall",), False  # indirect or import call: reads no flags (audited)
+                elif cf and plain:
+                    boundary, trap = False, True           # call to an undiscovered target: a fatal trap
             if succ and succ[-1] == nxt and nxt not in fn.insns:
                 succ = succ[:-1]
                 outside = nxt if nxt in mod.functions else -1   # fall-through into a function, or a trap
-            if special is None and not boundary:
+            if special is None and not boundary and not trap:
                 eff = self.flag_effect(ins)
                 if eff is not None and m not in JCC and m not in ("jmp", "loop", "loope", "loopne", "jecxz"):
                     try:
@@ -397,6 +461,7 @@ class Lifter:
         reach a return unwritten. Returns (live_after, reads, preserved, call-site live-after per callee)."""
         F, ALL, E = fn.entry, FLAGS, frozenset()
         order = sorted(nodes, reverse=True)
+        cf = self.cflags_on()                 # cflags: a fall-through into a fatal trap (outside -1) reads nothing
 
         def exit_l(t, ret_use):
             return reads[t] | (ret_use & pres[t])
@@ -414,6 +479,8 @@ class Lifter:
                             v = ALL
                         elif special and special[0] == "exit":
                             v = pres[special[1]]
+                        elif special and special[0] == "ijmp":
+                            v = ALL                       # cflags: an unknown tail target may leave every flag unwritten
                         else:
                             lo = E
                             for t in succ:
@@ -435,13 +502,17 @@ class Lifter:
                             lo |= val[t]
                         if outside is not None:
                             lo |= exit_l(outside, ret_use) if outside >= 0 and kind == "live" else \
-                                (reads[outside] if outside >= 0 else ALL)
+                                (reads[outside] if outside >= 0 else (E if cf else ALL))
                         if special and special[0] == "ret":
                             v = ret_use
                         elif special and special[0] == "exit":
                             v = exit_l(special[1], ret_use) if kind == "live" else reads[special[1]]
                         elif special and special[0] == "call":
                             v = reads[special[1]] | (lo & pres[special[1]])
+                        elif special and special[0] == "icall":
+                            v = lo                        # cflags: the callee reads nothing and may preserve everything
+                        elif special and special[0] == "ijmp":
+                            v = E                         # cflags: the target reads nothing; our return is its business
                         else:
                             v = uses | (lo - kills)
                         after[va] = lo
@@ -474,7 +545,10 @@ class Lifter:
             taken.add(img.base + img.entry_rva)
         nodes = {e: self.iflag_nodes(fn) for e, fn in fns.items()}
         known = bool(img.relocs)              # without relocations code pointers cannot be enumerated
-        eligible = {e for e in fns if known and e not in taken and e in nodes[e]}
+        cf = self.cflags_on()
+        # cflags: every return uses only what the module's direct call sites read after the call (unknown callers
+        # read nothing; the audit below checks that this module's own indirect call sites read nothing too)
+        eligible = {e for e in fns if (cf or (known and e not in taken)) and e in nodes[e]}
         reads = {e: frozenset() for e in fns}
         pres = {e: frozenset() for e in fns}
         retlive = {e: (frozenset() if e in eligible else FLAGS) for e in fns}
@@ -512,6 +586,26 @@ class Lifter:
                 if w not in queued:
                     queued.add(w)
                     work.append(w)
+        if cf:
+            # Audit of the two cflags assumptions against this module's own code (see the module docstring).
+            viol = []
+            for e in sorted(fns):
+                if e not in nodes[e]:
+                    continue                      # entry undecoded, or an allow-listed data address (trap-guarded)
+                if reads[e] and (not known or e in taken):
+                    viol.append(f"f_{e:x} reads {'/'.join(sorted(reads[e]))} at entry and may be called through a pointer")
+                for va, nd in sorted(nodes[e].items()):
+                    if nd[4] == ("icall",) and live[e].get(va):
+                        viol.append(f"f_{e:x}+{va - e:x} reads {'/'.join(sorted(live[e][va]))} after an indirect call")
+            self.cflags_violations = viol
+            if viol and self.cflags_audit:
+                self.cflags_active = False        # sound fallback: this module keeps the iflags rules
+                self._iflag_live = None
+                return self.iflag_analysis()
+            self.opt_stats["cflags_active"] = 1
+            self.opt_stats["cflags_indirect_call_sites"] = sum(1 for nd in nodes.values() for n in nd.values()
+                                                               if n[4] == ("icall",))
+            self.opt_stats["cflags_allowed_trapped"] = sum(1 for e in fns if e in self.cflags_allow)
         self.opt_stats["iflags_returns_known"] = len(eligible)
         self.opt_stats["iflags_functions_reading_flags"] = sum(1 for e in fns if reads[e])
         self.iflag_summary = (reads, pres, retlive)
@@ -725,6 +819,12 @@ class Lifter:
         return s
 
     @staticmethod
+    def pc_lazy(stmts):
+        """--opt lazypc: nothing in the statements reads c->pc (guest memory accesses may fault, but the fault report
+        recovers the instruction from the host pc through the line table)."""
+        return not (called(" ".join(stmts)) & LAZY_PC_KEEP)
+
+    @staticmethod
     def pc_unobservable(stmts):
         """--opt pc: the translated statements touch no guest memory, call nothing that can fault, trap or
         reach the runtime, and do not leave the function, so nothing can read c->pc while they run."""
@@ -746,7 +846,7 @@ class Lifter:
     def rn(self, op):
         return self.md.reg_name(op.reg)
 
-    def addr(self, op, with_segment=True):
+    def addr(self, op, with_segment=True, access=False):
         mm = op.mem
         parts = []
         seg = self.md.reg_name(mm.segment) if mm.segment else None
@@ -759,8 +859,15 @@ class Lifter:
             parts.append(self.reg_read32(self.md.reg_name(mm.base)))
         if mm.index:
             parts.append(f"{self.reg_read32(self.md.reg_name(mm.index))}*{mm.scale}u")
+        disp = mm.disp & 0xFFFFFFFF
+        if access and "addr64" in self.opt and not mm.index and len(parts) == 1 and (disp < 0x10000 or disp >= 0x80000000):
+            # --opt addr64: the 64-bit sum (see the module docstring); the base register is zero-extended
+            self.opt_stats["addr64_accesses"] += 1
+            if not disp:
+                return f"(uint64_t){parts[0]}"
+            return f"((uint64_t){parts[0]} {'-' if disp >= 0x80000000 else '+'} 0x{(0x100000000 - disp) if disp >= 0x80000000 else disp:x}u)"
         if mm.disp or not parts:
-            parts.append(f"0x{mm.disp & 0xFFFFFFFF:x}u")
+            parts.append(f"0x{disp:x}u")
         return "(uint32_t)(" + " + ".join(parts) + ")"
 
     @staticmethod
@@ -789,7 +896,7 @@ class Lifter:
             fn = {1: "rd8", 2: "rd16", 4: "rd32"}.get(op.size)
             if not fn:
                 raise Unsupported(f"memory operand size {op.size}")
-            return f"{fn}({self.addr(op)})"
+            return f"{fn}({self.addr(op, access=True)})"
         raise Unsupported("operand type")
 
     def write(self, op, val):
@@ -808,7 +915,7 @@ class Lifter:
             fn = {1: "wr8", 2: "wr16", 4: "wr32"}.get(op.size)
             if not fn:
                 raise Unsupported(f"memory write size {op.size}")
-            return f"{fn}({self.addr(op)}, (uint{op.size * 8}_t)({val}));"
+            return f"{fn}({self.addr(op, access=True)}, (uint{op.size * 8}_t)({val}));"
         raise Unsupported("write to non-lvalue")
 
     def sti(self, op):
@@ -1015,7 +1122,12 @@ class Lifter:
         elif m == "bswap":
             o.append(f"{{ uint32_t v_ = {self.read(ops[0])}; {self.write(ops[0], '(v_ >> 24) | ((v_ >> 8) & 0xFF00u) | ((v_ << 8) & 0xFF0000u) | (v_ << 24)')} }}")
         elif m == "rdtsc":
-            o.append("xrt_rdtsc(c);")
+            if "rdtsc" in self.opt:
+                # the host counter read in the translated function (xrt.h XRT_RDTSC): no runtime call, spill or reload
+                o.append("{ uint64_t t_ = XRT_RDTSC(); c->r[0] = (uint32_t)t_; c->r[2] = (uint32_t)(t_ >> 32); }")
+                self.opt_stats["rdtsc_inline"] += 1
+            else:
+                o.append("xrt_rdtsc(c);")
         elif m == "cpuid":
             o.append("xrt_cpuid(c);")
         elif m in ("int3", "hlt", "ud2", "int", "into"):
@@ -1133,7 +1245,7 @@ class Lifter:
         mem = ops[0] if ops and ops[0].type == X.X86_OP_MEM else None
 
         def memload(op, kind):
-            a = self.addr(op)
+            a = self.addr(op, access=True)
             if kind == "f":
                 if op.size == 4:
                     return f"(double)rdf32({a})"
@@ -1194,7 +1306,7 @@ class Lifter:
         # ---- loads, stores, constants, misc
         if opc == 0xD9:
             if mod != 3:
-                a = self.addr(mem)
+                a = self.addr(mem, access=True)
                 if reg == 0:
                     o.append(f"fpush(c, (double)rdf32({a}));")
                 elif reg in (2, 3):
@@ -1231,7 +1343,7 @@ class Lifter:
             return o
         if opc == 0xDD:
             if mod != 3:
-                a = self.addr(mem)
+                a = self.addr(mem, access=True)
                 if reg == 0:
                     o.append(f"fpush(c, rdf64({a}));")
                 elif reg in (2, 3):
@@ -1260,7 +1372,7 @@ class Lifter:
             return o
         if opc == 0xDB:
             if mod != 3:
-                a = self.addr(mem)
+                a = self.addr(mem, access=True)
                 if reg == 0:
                     o.append(f"fpush(c, (double)(int32_t)rd32({a}));")
                 elif reg in (2, 3):
@@ -1281,7 +1393,7 @@ class Lifter:
             return o
         if opc == 0xDF:
             if mod != 3:
-                a = self.addr(mem)
+                a = self.addr(mem, access=True)
                 if reg == 0:
                     o.append(f"fpush(c, (double)(int16_t)rd16({a}));")
                 elif reg in (2, 3):
@@ -1332,6 +1444,16 @@ class Lifter:
         pop = "XRT_EH_POP(); " if pad else ""
         if pad:
             self.eh_pad_functions.add(fn.entry)
+        if self.cflags_on() and fn.entry in self.cflags_allow:
+            # --cflags-allow: an address-taken data table that discovery lifted as code. Its decoded "entry" reads
+            # flags, which no caller can be made to provide under cflags, so the assumption that it never executes
+            # is enforced: reaching it is a fatal trap with the recorded reason.
+            lines = [f"void f_{fn.entry:x}(CPU* c) {{", f"    XRT_ENTER(0x{fn.entry:x}u);"]
+            if hit_index is not None:
+                lines.append(f"    xrt_hits_{stem}[{hit_index}] = 1;")
+            lines.append("    " + self.trap(fn.entry, f"cflags allow-list: assumed never executed: {self.cflags_allow[fn.entry]}"))
+            lines.append("}")
+            return lines
         live_after = (self.iflag_analysis()[fn.entry] if "iflags" in self.opt else self.flag_liveness(fn)) \
             if "flags" in self.opt else None
         # pass 1: emit, collecting goto targets
@@ -1428,6 +1550,9 @@ class Lifter:
             if "pc" in self.opt and not self.marks_at.get(va) and self.pc_unobservable(stmts[pc_at + 1:]):
                 stmts[pc_at] = f"/* {va:#x}: {text} */"
                 self.opt_stats["pc_stores_omitted"] += 1
+            elif "lazypc" in self.opt and not self.marks_at.get(va) and self.pc_lazy(stmts[pc_at + 1:]):
+                stmts[pc_at] = f"/* {va:#x}: {text} */"
+                self.opt_stats["pc_stores_lazy"] += 1
             if "base" in self.opt:
                 stmts = [self.rebase(s) for s in stmts]
             body.append((va, stmts))
@@ -1556,13 +1681,21 @@ def main():
     # loader applies the same relocations when it maps the module there)
     base = int(args[args.index("--base") + 1], 16) if "--base" in args else None
     opt = set(args[args.index("--opt") + 1].split(",")) if "--opt" in args else set()
-    known = {"flags", "pc", "base", "regs", "x87", "x87v", "x87w", "icall", "iflags", "sse"}
+    known = {"flags", "pc", "base", "regs", "x87", "x87v", "x87w", "icall", "iflags", "sse", "cflags", "rdtsc", "lazypc", "addr64"}
     if opt - known:
         sys.exit(f"unknown --opt {sorted(opt - known)} (known: {', '.join(sorted(known))})")
     if "sse" in opt and "base" not in opt:
         sys.exit("--opt sse needs base (the direct float stores are the explicit-base forms wrf32b/wrf64b)")
     if "iflags" in opt and "flags" not in opt:
         sys.exit("--opt iflags needs flags (it refines the flag liveness at calls and returns)")
+    if "cflags" in opt and "iflags" not in opt:
+        sys.exit("--opt cflags needs iflags (it refines the interprocedural rules at indirect calls and returns)")
+    if "lazypc" in opt and "pc" not in opt:
+        sys.exit("--opt lazypc needs pc (it extends the pc-store elision to guest memory accesses)")
+    if "addr64" in opt and "base" not in opt:
+        sys.exit("--opt addr64 needs base (the 64-bit sums index the function's local guest-memory base)")
+    allow_path = args[args.index("--cflags-allow") + 1] if "--cflags-allow" in args else \
+        (DEFAULT_CFLAGS_ALLOW if os.path.exists(DEFAULT_CFLAGS_ALLOW) else None)
     if "x87v" in opt and "x87" not in opt:
         sys.exit("--opt x87v needs x87 (the cached values are indexed by the local TOP)")
     if "x87w" in opt and "x87v" not in opt:
@@ -1584,6 +1717,16 @@ def main():
     stem = re.sub(r"\W", "_", mod.img.name.rsplit(".", 1)[0])
     marks, watches, marks_digest = load_marks(marks_path, mod.img)
     lifter = Lifter(mod, marks, watches, stem, opt)
+    if "cflags" in opt and allow_path:
+        with open(allow_path, "rb") as f:
+            allow_raw = f.read()
+        for e in json.loads(allow_raw).get(mod.img.name, []):
+            va = mod.img.base + int(e["rva"], 16)
+            if va not in mod.functions:
+                sys.exit(f"{allow_path}: {mod.img.name} rva {e['rva']} is not a discovered function entry")
+            if any(va in fn.calls or va in fn.tails for fn in mod.functions.values()):
+                sys.exit(f"{allow_path}: {mod.img.name} rva {e['rva']} is a direct call or tail-jump target: not data")
+            lifter.cflags_allow[va] = e["reason"]
     tag = f" (--opt {','.join(sorted(opt))})" if opt else ""
     entries = sorted(e for e in mod.functions if only is None or e in only)
     conflicts = mod.conflicting()
@@ -1610,10 +1753,27 @@ def main():
         with open(os.path.join(out, name), "w", encoding="utf-8") as f:
             f.write(f"/* GENERATED by tools/xrt/xlift.py{tag} from {mod.img.name} - do not edit, do not distribute. */\n")
             f.write(f'#include "{hdr}"\n\n')
+            lineno, table = 4, []
             for j, e in enumerate(entries[k:k + chunk]):
                 fn = mod.functions[e]
                 ninsns += len(fn.insns)
-                f.write("\n".join(lifter.lift_function(fn, k + j, stem)) + "\n\n")
+                lines = lifter.lift_function(fn, k + j, stem)
+                if "lazypc" in opt:
+                    for line in lines:
+                        mm = PCLINE.match(line)
+                        if mm:
+                            table.append((lineno, int(mm.group(1) or mm.group(2), 16)))
+                        lineno += line.count("\n") + 1
+                    lineno += 1
+                f.write("\n".join(lines) + "\n\n")
+            if "lazypc" in opt:
+                # source line -> guest address of the instruction starting there (xrt.h XrtPcLine, runtime xrt_diag.c)
+                f.write(f"static const XrtPcLine xrt_pclines_{stem}_{k // chunk:03d}[] = {{\n")
+                for ln, va in table:
+                    f.write(f"    {{{ln}u, 0x{va:x}u}},\n")
+                f.write("    {0u, 0u}\n};\n")
+                f.write(f'XRT_PCLINES_REGISTER(xrt_pclines_{stem}_{k // chunk:03d}, {len(table)}u, "{name}");\n')
+                lifter.opt_stats["pcline_entries"] += len(table)
     digest = sha256_file(path)
     tab = f"{stem}_table.c"
     with open(os.path.join(out, tab), "w", encoding="utf-8") as f:
@@ -1676,10 +1836,20 @@ def main():
             "files": files + [tab, hdr], "discovery": mod.summary()}
     if opt:
         meta["optimizations"] = {"enabled": sorted(opt), **dict(sorted(lifter.opt_stats.items()))}
+        if "cflags" in opt:
+            meta["optimizations"]["cflags_active"] = bool(lifter.cflags_active)
+            meta["optimizations"]["cflags_violations"] = lifter.cflags_violations
+            meta["optimizations"]["cflags_allowed"] = {hex(va): r for va, r in sorted(lifter.cflags_allow.items())}
+            meta["optimizations"]["cflags_allow_sha256"] = hashlib.sha256(allow_raw).hexdigest() if lifter.cflags_allow else None
     with open(os.path.join(out, f"{stem}_meta.json"), "w") as f:
         json.dump(meta, f, indent=1)
     print(f"{mod.img.name}: {len(entries)} functions, {ninsns} instructions, {len(lifter.trap_sites)} static traps "
           f"-> {out} ({len(files)} chunks); C++ EH: {eh_meta}" + (f"; optimizations: {meta['optimizations']}" if opt else ""))
+    if "cflags" in opt and lifter.cflags_violations:
+        print(f"  cflags: {len(lifter.cflags_violations)} violation(s); module "
+              f"{'keeps the iflags rules' if not lifter.cflags_active else 'lifted WITHOUT the audit (test mutation)'}:")
+        for v in lifter.cflags_violations[:12]:
+            print(f"    {v}")
     for r, n in lifter.traps.most_common(30):
         print(f"  {n:6}  {r}")
 

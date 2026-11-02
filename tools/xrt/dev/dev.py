@@ -39,6 +39,10 @@ RT = DEV / 'runtime'
 BUILD = DEV / 'build'
 GAME_INSTALL = r'E:\Launchbox\Games\PC Games\Unreal 2 - The Awakening\singleplayer'  # read-only content source
 VC = Path(r'C:\Program Files\Microsoft Visual Studio\18\Community\VC\Auxiliary\Build\vcvarsall.bat')
+# build --cc clang-cl: the generated (and sound) units compiled by LLVM's MSVC-compatible driver, linked by the MSVC linker
+# as usual; the runtime stays cl. Measured on experiments/xrt/tests/perf_kernels (2026-11-01): clang-cl 23 /O2 /fp:strict
+# runs the same lifted C 10% faster than cl on the full option set and 40% faster on a plain lift, bit-identical results.
+COMPILERS = {'cl': 'cl', 'clang-cl': r'C:\Program Files\LLVM\bin\clang-cl.exe'}
 STOP = '    P(0x1090ed5cu); /* call 0x10901370 */'
 
 def read(path):
@@ -62,6 +66,23 @@ def replace_once(path, old, new):
     if text.count(old) != 1:
         raise RuntimeError(f'expected one development hook in {path}: {old}')
     path.write_text(text.replace(old, new))
+
+# xlift --opt lazypc: a chunk ends with its source-line -> guest-address table (xrt.h XrtPcLine). The endpoint hooks
+# inserted above add lines to Unreal2_001.c, so the table is regenerated from the instruction header lines afterwards
+# (the same pattern xlift uses: a pc store, or the comment that replaced it).
+PCLINE = re.compile(r'^\s+(?:P\(0x([0-9a-f]+)u\);|/\* 0x([0-9a-f]+): )')
+PCLINE_ENTRY = re.compile(r'^\s+\{\d+u, 0x[0-9a-f]+u\},$')
+
+def renumber_pclines(path):
+    lines = path.read_text().split('\n')
+    first = next((i for i, l in enumerate(lines) if PCLINE_ENTRY.match(l)), None)
+    if first is None:
+        return
+    last = max(i for i, l in enumerate(lines) if PCLINE_ENTRY.match(l))
+    table = [f'    {{{i + 1}u, 0x{int(m.group(1) or m.group(2), 16):x}u}},' for i, l in enumerate(lines[:first]) for m in [PCLINE.match(l)] if m]
+    if len(table) != last - first + 1:
+        raise RuntimeError(f'{path.name}: {len(table)} instruction lines but {last - first + 1} line-table entries')
+    path.write_text('\n'.join(lines[:first] + table + lines[last + 1:]))
 
 def setup():
     independent(DEV)
@@ -120,8 +141,9 @@ def lift_audio(opt):
 
 def lift(names, opt):
     """Re-lift shared generated modules (tools/xrt/xlift.py, --opt) into developer copies in out/dev-init/generated,
-    which build compiles instead of the shared units. Protos/tables must stay identical to the shared ones; chunks
-    identical to the shared unit are not copied (a stale copy is removed). Unreal2_001.c gets the endpoint hooks."""
+    which build compiles instead of the shared units. Chunks identical to the shared unit are not copied (a stale copy
+    is removed); protos/table are copied only when the discovered function set differs from the shared lift (the delta
+    is printed). Unreal2_001.c gets the endpoint hooks."""
     import struct
     gen = DEV / 'generated'
     tmp = independent(DEV / 'lift-tmp')
@@ -149,6 +171,9 @@ def lift(names, opt):
         if result.returncode:
             raise RuntimeError(f'xlift {name} failed:\n{result.stdout}{result.stderr}')
         print(result.stdout.splitlines()[0])
+        for line in result.stdout.splitlines()[1:]:
+            if line.startswith('  cflags') or line.startswith('    f_'):
+                print(line)                        # cflags audit findings (the module then keeps the iflags rules)
         out = tmp / name
         copied = 0
         for path in sorted(out.iterdir()):
@@ -158,12 +183,29 @@ def lift(names, opt):
                 # the static-trap count (evidence only) may differ: D3DDrv's ffree fix removed 8 traps
                 ntraps = lambda b: re.sub(rb'(funcs, \d+u, )\d+u', rb'\1Nu', b)
                 if ntraps(path.read_bytes()) != ntraps((shared / path.name).read_bytes()):
-                    raise RuntimeError(f'{path.name} differs from the shared unit; refusing a partial ABI change')
+                    # The discovered function set changed since the shared lift (discovery improvements: e.g. the static-CRT
+                    # memcpy jump-table slots of fb06f2a). The developer copies of the protos and the table are then used
+                    # as a pair with the chunks (build compiles any lineage source that has a copy here, and a chunk's
+                    # quoted #include finds the protos in its own directory first); the delta is reported. A function
+                    # that is still called by translated code but missing from the table would fail at link time.
+                    fnset = lambda b: set(re.findall(rb'void (f_[0-9a-f]+)\(CPU', b))
+                    if path.name.endswith('_protos.h'):
+                        old_set, new_set = fnset((shared / path.name).read_bytes()), fnset(path.read_bytes())
+                        print(f'  {name}: function set changed vs the shared lift: {len(old_set)} -> {len(new_set)}; dropped '
+                              f'{sorted(x.decode() for x in old_set - new_set)[:40]}; added {sorted(x.decode() for x in new_set - old_set)[:40]}',
+                              flush=True)
+                    dest = gen / path.name
+                    if not dest.exists() or dest.read_bytes() != path.read_bytes():
+                        shutil.copyfile(path, dest)
+                        copied += 1
+                    continue
+                (gen / path.name).unlink(missing_ok=True)   # identical again: the shared protos/table are used
                 continue
             dest = gen / path.name
             if path.name == 'Unreal2_001.c':
                 replace_once(path, '#include "Unreal2_protos.h"', '#include "Unreal2_protos.h"\nvoid xrt_dev_init_return(CPU*);')
                 replace_once(path, STOP, '    xrt_dev_init_return(c); /* developer endpoint, never returns */\n' + STOP)
+                renumber_pclines(path)
             elif path.read_bytes() == (shared / path.name).read_bytes():
                 dest.unlink(missing_ok=True)
                 continue
@@ -189,12 +231,13 @@ def command(args, env, name, timeout=600):
     if result.returncode:
         raise RuntimeError(f'{name} failed; see {BUILD / (name + ".txt")}')
 
-def compile_one(src, obj, env, includes=(), flags=(), timeout=600):
+def compile_one(src, obj, env, includes=(), flags=(), timeout=600, cc='cl'):
     obj.parent.mkdir(parents=True, exist_ok=True)
-    command(['cl', '/nologo', '/c', '/Z7', '/fp:strict', '/W3', '/D_CRT_SECURE_NO_WARNINGS',
+    warn = '/W3' if cc == 'cl' else '/w'   # clang-cl: MSVC warning numbers do not apply; the generated code is not hand-written
+    command([COMPILERS[cc], '/nologo', '/c', '/Z7', '/fp:strict', warn, '/D_CRT_SECURE_NO_WARNINGS',
              '/DXRT_WITH_UNREAL2', *flags, *[f'/I{x}' for x in includes], f'/Fo{obj}', src], env, obj.stem, timeout)
 
-def build(full=False, fixtures_only=False, native=False, diag_move=False):
+def build(full=False, fixtures_only=False, native=False, diag_move=False, lean=False, cc='cl'):
     independent(DEV)
     BUILD.mkdir(parents=True, exist_ok=True)
     env = compiler_environment()
@@ -241,6 +284,8 @@ def build(full=False, fixtures_only=False, native=False, diag_move=False):
         opt = obj.with_suffix('.opt')
         renames = [f'/D{fn}={fn}_translated' for fn, _ in NATIVE.get(src.name, [])] if native else []
         opt_text = GEN_OPT + (' /DXRT_NO_FORCE_INLINE' if src.name in GEN_NO_FORCE_INLINE else '') + ''.join(' ' + r for r in renames)
+        opt_text += ' /DXRT_LEAN_ENTER' if lean else ''   # build --lean: no per-entry history ring (xrt.h XRT_ENTER)
+        opt_text += f' cc={cc}' if cc != 'cl' else ''        # build --cc: a compiler switch recompiles every unit
         opt_text += ''.join(f' port:{fn}' for fn, _ in PORT.get(src.name, []))
         if observed and src.name in DIAG_MOVE_UNITS:
             opt_text += ' /FIworld_observer.h'   # recompiles the unit again when a later build drops --diag-move
@@ -252,7 +297,9 @@ def build(full=False, fixtures_only=False, native=False, diag_move=False):
                 not opt.exists() or opt.read_text() != opt_text or
                 obj.stat().st_mtime < max(src.stat().st_mtime, (RT / 'xrt.h').stat().st_mtime,
                                           (RT / 'world_observer.h').stat().st_mtime if observed else 0)):
-            flags = [GEN_OPT, '/wd4102', '/wd4146']
+            flags = [GEN_OPT, '/wd4102', '/wd4146', '/DXRT_PCLINES']   # XRT_PCLINES: lazypc line tables register (xrt.h)
+            if lean:
+                flags.append('/DXRT_LEAN_ENTER')
             if src.name in GEN_NO_FORCE_INLINE:
                 flags.append('/DXRT_NO_FORCE_INLINE')
             flags += renames
@@ -261,10 +308,10 @@ def build(full=False, fixtures_only=False, native=False, diag_move=False):
             # Shared generated sources must be the ones the baseline objects came from.
             expected = None if endpoint else row.get('source_sha256')
             jobs.append((src, obj, [RT, Path(row['source']).parent], flags, observed, marker, opt, expected, origin,
-                         opt_text))
+                         opt_text, cc))
         objects.append(obj)
     def compile_job(job):
-        src, obj, includes, flags, observed, marker, opt, expected, origin, opt_text = job
+        src, obj, includes, flags, observed, marker, opt, expected, origin, opt_text, cc = job
         if expected and hashlib.sha256(src.read_bytes()).hexdigest() != expected:
             raise RuntimeError(f'{src} differs from the lineage source hash; refusing to recompile it')
         opt.unlink(missing_ok=True)
@@ -280,28 +327,32 @@ def build(full=False, fixtures_only=False, native=False, diag_move=False):
             unit = BUILD / 'obj' / 'port-src' / src.name
             unit.parent.mkdir(parents=True, exist_ok=True)
             unit.write_text(text, encoding='latin-1')
-        compile_one(unit, obj, env, includes, flags, GEN_SLOW_UNITS.get(src.name, 600))
+        compile_one(unit, obj, env, includes, flags, GEN_SLOW_UNITS.get(src.name, 600), cc)
         if observed:
             marker.write_text('compiled with /FIworld_observer.h\n')
         opt.write_text(opt_text)
         origin.write_text(str(src))
     if jobs:
-        print(f'Compiling {len(jobs)} generated units {GEN_OPT}', flush=True)
+        print(f'Compiling {len(jobs)} generated units {GEN_OPT} ({cc})', flush=True)
         from concurrent.futures import ThreadPoolExecutor
         with ThreadPoolExecutor(max_workers=max(1, (os.cpu_count() or 2) - 2)) as pool:
             list(pool.map(compile_job, jobs))
     audio = sorted(AUDIO_LIFT.glob('*/*.c')) if AUDIO_LIFT.is_dir() else []
     audio_jobs = []
+    audio_stamp = BUILD / 'obj/audio/compiler.txt'
+    audio_cc_changed = audio and (not audio_stamp.exists() or audio_stamp.read_text() != cc)
     for src in audio:
         obj = BUILD / 'obj/audio' / (src.stem + '.obj')
-        if full or not obj.exists() or obj.stat().st_mtime < max(src.stat().st_mtime, (RT / 'xrt.h').stat().st_mtime):
+        if full or audio_cc_changed or not obj.exists() or obj.stat().st_mtime < max(src.stat().st_mtime, (RT / 'xrt.h').stat().st_mtime):
             audio_jobs.append((src, obj))
         objects.append(obj)
     if audio_jobs:
-        print(f'Compiling {len(audio_jobs)} sound units {GEN_OPT}', flush=True)
+        print(f'Compiling {len(audio_jobs)} sound units {GEN_OPT} ({cc})', flush=True)
         from concurrent.futures import ThreadPoolExecutor
         with ThreadPoolExecutor(max_workers=max(1, (os.cpu_count() or 2) - 2)) as pool:
-            list(pool.map(lambda j: compile_one(j[0], j[1], env, [RT, j[0].parent], [GEN_OPT, '/wd4102', '/wd4146']), audio_jobs))
+            list(pool.map(lambda j: compile_one(j[0], j[1], env, [RT, j[0].parent], [GEN_OPT, '/wd4102', '/wd4146', '/DXRT_PCLINES'], 600, cc), audio_jobs))
+        audio_stamp.parent.mkdir(parents=True, exist_ok=True)
+        audio_stamp.write_text(cc)
     rt_flags = ['/O2', '/std:c11'] + (['/DXRT_WITH_AUDIO'] if audio else [])
     rt_stamp = BUILD / 'rt-flags.txt'
     rt_flags_changed = not rt_stamp.exists() or rt_stamp.read_text() != ' '.join(rt_flags)
@@ -339,7 +390,7 @@ def build(full=False, fixtures_only=False, native=False, diag_move=False):
                                           1 for rel in lineage if rel.startswith('obj/rt/')),
                                       'native': [fn for units in NATIVE.values() for fn, _ in units] if native else [],
                                       'port': [fn for units in PORT.values() for fn, _ in units],
-                                      'audio_units': len(audio)})
+                                      'audio_units': len(audio), 'lean': bool(lean), 'generated_compiler': cc})
     print('Built (not executed):', BUILD / 'unreal2-dev.exe')
 
 def fresh_run():
@@ -744,6 +795,9 @@ def main():
     b = sub.add_parser('build'); b.add_argument('--full', action='store_true')
     b.add_argument('--diag-move', action='store_true', help='also observe ULevel::MoveActor/AActor::moveSmooth (blocking-hit log; slower)')
     b.add_argument('--native', action='store_true', help='link the native C replacements in NATIVE instead of their translations')
+    b.add_argument('--lean', action='store_true', help='generated code without the per-entry function history ring (xrt.h XRT_LEAN_ENTER); '
+                                                       'fatal dumps keep the guest-stack scan, the preemption check stays')
+    b.add_argument('--cc', choices=sorted(COMPILERS), default='cl', help='compiler for the generated and sound units (the runtime stays cl)')
     lp = sub.add_parser('lift', help='re-lift shared generated modules into developer copies (then build)')
     lp.add_argument('--opt', default='', help='xlift --opt list (flags,pc); empty = plain lift')
     lp.add_argument('modules', nargs='+', help='gen/ directory names, e.g. fire engine core')
@@ -816,7 +870,7 @@ def main():
     args = parser.parse_args()
     independent(DEV)
     if args.action == 'setup': setup()
-    elif args.action == 'build': build(args.full, native=args.native, diag_move=args.diag_move)
+    elif args.action == 'build': build(args.full, native=args.native, diag_move=args.diag_move, lean=args.lean, cc=args.cc)
     elif args.action == 'lift': lift(args.modules, {x for x in args.opt.split(',') if x})
     elif args.action == 'lift-audio': lift_audio({x for x in args.opt.split(',') if x})
     elif args.action == 'port-build':

@@ -21,6 +21,7 @@ OUT = os.path.join(WS, "experiments", "xrt", "build", "opt_diff")
 RT = os.path.join(WS, "out", "dev-init", "runtime")        # the runtime headers the game build uses
 VCVARS = r"C:\Program Files\Microsoft Visual Studio\18\Community\VC\Auxiliary\Build\vcvarsall.bat"
 OPT = "flags,pc,base"                                      # xlift --opt under test (--opt LIST overrides)
+DEFINES = []                                               # --define NAME: /DNAME for the x86 test DLL (CFLAGS_CLEAN)
 REC = struct.Struct("<3I2II2Q8I2I2HI8QQ")
 FIELDS = ("fn", "vec", "status", "eax", "edx", "pc", "h_in", "h_out", *[f"r{i}" for i in range(8)], "flags", "top",
           "fcw", "fsw", "pad", *[f"st{i}" for i in range(8)], "h_stack")
@@ -216,6 +217,10 @@ def mut_iflags_indirect_reads_nothing(x):
     x.Lifter.iflag_nodes = nodes
 
 
+def mut_cflags_no_audit(x):
+    x.Lifter.cflags_audit = False
+
+
 # --opt iflags only
 IFLAG_MUTATIONS = {"iflags-callee-reads-nothing": mut_iflags_reads_nothing,
                    "iflags-callee-preserves-nothing": mut_iflags_preserves_nothing,
@@ -291,8 +296,10 @@ def main():
     args = sys.argv[1:]
     nvec = int(args[args.index("--vectors") + 1]) if "--vectors" in args else 2000
     OPT = args[args.index("--opt") + 1] if "--opt" in args else OPT
+    DEFINES.extend(args[i + 1] for i, a in enumerate(args) if a == "--define")
     os.makedirs(OUT, exist_ok=True)
-    sh("x86", f'cl /nologo /O2 /arch:IA32 /GS- /Zl /W3 /LD "{os.path.join(HERE, "cases.c")}" /Fo"{OUT}\\\\" '
+    defs = "".join(f"/D{d} " for d in DEFINES)
+    sh("x86", f'cl /nologo /O2 /arch:IA32 /GS- /Zl /W3 /LD {defs}"{os.path.join(HERE, "cases.c")}" /Fo"{OUT}\\\\" '
               f'/link /NOENTRY /NODEFAULTLIB /BASE:0x5A000000 /DYNAMICBASE:NO /OUT:OptCases.dll')
     sh("x86", f'cl /nologo /O2 /W3 /I"{HERE}" "{os.path.join(HERE, "native.c")}" /Fo"{OUT}\\\\" /Fenative.exe')
     pe = pefile.PE(os.path.join(OUT, "OptCases.dll"))
@@ -326,12 +333,18 @@ def main():
     pmeta, plain = lifted_run("plain", False)
     ometa, opt = lifted_run("opt", True)
     full = [k for k in FIELDS if k not in ("fn", "vec", "pad")]
+    if "cflags" in OPT.split(","):
+        # cflags: the flags after a return are dead by definition (this harness is a caller reading them); every case
+        # still folds the flags it computes into eax/edx/out, which stay compared
+        full.remove("flags")
+    if "lazypc" in OPT.split(","):
+        full.remove("pc")      # lazypc: c->pc after the return is the last call/trap site, a diagnostic value
     vs_native = compare(nat, plain, ("eax", "edx", "h_in", "h_out"))
     not_ok = [(r["fn"], r["vec"], r["status"]) for r in plain + opt if r["status"]]
     vs_opt = compare(plain, opt, full)
     per_fn = {n: {"cases": nvec, "native_vs_plain": sum(1 for f, _, _ in vs_native if f == i),
                   "plain_vs_opt": sum(1 for f, _, _ in vs_opt if f == i)} for i, n in enumerate(names)}
-    res = {"opt": OPT, "vectors_per_function": nvec, "functions": len(names), "cases": nvec * len(names),
+    res = {"opt": OPT, "defines": DEFINES, "vectors_per_function": nvec, "functions": len(names), "cases": nvec * len(names),
            "static_traps": pmeta["static_traps"], "nonzero_status": len(not_ok),
            "native_vs_plain_mismatches": len(vs_native), "plain_vs_opt_mismatches": len(vs_opt),
            "optimizations": ometa.get("optimizations"), "per_function": per_fn}
@@ -358,6 +371,13 @@ def main():
             for name in ("call-not-a-boundary", "return-not-a-boundary"):
                 MUTATIONS.pop(name, None)
             MUTATIONS.update(IFLAG_MUTATIONS)
+        if "cflags" in OPT.split(","):
+            # cflags replaces the "indirect calls read everything" rule and the address-taken return rule by its audit;
+            # the audit is tested by lifting the violating DLL (no --define CFLAGS_CLEAN) with the audit disabled
+            for name in ("iflags-indirect-reads-nothing", "iflags-address-taken-known"):
+                MUTATIONS.pop(name, None)
+            if "CFLAGS_CLEAN" not in DEFINES:
+                MUTATIONS["cflags-no-audit"] = mut_cflags_no_audit
         for name in MUTATIONS:
             _, mut = lifted_run("mut", True, name)
             if mut is None:

@@ -33,6 +33,7 @@ void xrt_preempt(CPU* c) { (void)c; }
 XrtCallCache xrt_call_cache[65536];
 uint32_t xrt_call_cache_gen = 1;
 void xrt_icall_after(CPU* c) { (void)c; }
+void xrt_world_return(CPU* c) { (void)c; }
 void xrt_icall(CPU* c, uint32_t target, uint32_t site) {
     XrtFn fn = lookup(target);
     XrtCallCache* e = &xrt_call_cache[XRT_CALL_CACHE_SLOT(target)];
@@ -83,9 +84,10 @@ int main(int argc, char** argv) {
         return 2;
     size = (uint32_t)fread(image, 1, sizeof image, fi);
     fclose(fi);
-    xrt_g = (uint8_t*)VirtualAlloc(NULL, 0x100010000ull, MEM_RESERVE, PAGE_NOACCESS);
+    xrt_g = (uint8_t*)VirtualAlloc(NULL, XRT_GUEST_GUARD_BELOW + XRT_GUEST_WINDOW, MEM_RESERVE, PAGE_NOACCESS);
     if (!xrt_g)
         return 2;
+    xrt_g += XRT_GUEST_GUARD_BELOW;        /* 2 GB guard below the window (xrt.h, --opt addr64) */
     commit(base, size);
     memcpy(xrt_g + base, image, size);
     commit(OD_IN, OD_BUF);

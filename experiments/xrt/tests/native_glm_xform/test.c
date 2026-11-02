@@ -34,6 +34,7 @@ void xrt_preempt(CPU* c) { (void)c; }
 XrtCallCache xrt_call_cache[65536];
 uint32_t xrt_call_cache_gen = 1;   /* never matches a zeroed entry: every ICALLI takes xrt_icall */
 void xrt_icall_after(CPU* c) { (void)c; }
+void xrt_world_return(CPU* c) { (void)c; }
 uint8_t xrt_hits_GlmLib[8192];
 XRT_NORETURN void xrt_badret(CPU* c, uint32_t site, uint32_t expected) {
     printf("FAIL bad return at site %08x: %08x, expected %08x\n", site, c->rv, expected); exit(2);

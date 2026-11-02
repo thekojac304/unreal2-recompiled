@@ -33,6 +33,7 @@ void xrt_preempt(CPU* c) { (void)c; }
 XrtCallCache xrt_call_cache[65536];
 uint32_t xrt_call_cache_gen = 1;
 void xrt_icall_after(CPU* c) { (void)c; }
+void xrt_world_return(CPU* c) { (void)c; }
 void xrt_icall(CPU* c, uint32_t target, uint32_t site) {
     XrtFn fn = lookup(target);
     if (!fn) { why = "indirect transfer to a non-entry"; why_site = site; longjmp(jb, 4); }

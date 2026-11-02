@@ -401,8 +401,16 @@ static __declspec(naked) void if_tail(void) { __asm { and edx, 1
                                                       jmp if_cmp0 } }
 static __declspec(naked) void if_sub_ind(void) { __asm { sub eax, edx
                                                          ret } }
+#ifdef CFLAGS_CLEAN
+/* --opt cflags variant (run.py --define CFLAGS_CLEAN): the two sequences no compiler emits - an indirectly called
+ * callee reading its caller's CF (here), a caller reading ZF right after an indirect call (t_asm_iflags) - are
+ * replaced so the module passes the cflags audit; the indirect calls themselves stay. */
+static __declspec(naked) void if_adc_ind(void) { __asm { add eax, 1
+                                                         ret } }
+#else
 static __declspec(naked) void if_adc_ind(void) { __asm { adc eax, 1
                                                          ret } }
+#endif
 EXPORT __declspec(naked) uint64_t __cdecl t_asm_iflags(const uint8_t* in, uint8_t* out, uint32_t n, uint32_t seed) {
     __asm {
         push ebx
@@ -441,6 +449,9 @@ EXPORT __declspec(naked) uint64_t __cdecl t_asm_iflags(const uint8_t* in, uint8_
         call if_sub_ind
         sbb ebx, 0
         call edi
+#ifdef CFLAGS_CLEAN
+        test eax, eax
+#endif
         setz dl
         add bl, dl
         cmp ebx, 0x40
