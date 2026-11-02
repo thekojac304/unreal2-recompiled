@@ -46,6 +46,8 @@ int main(void) {
     CHECK(xrt_staging_guard_put(NULL, a), "guard put");
     CHECK(protect(a) == PAGE_NOACCESS && protect(a + 51079) == PAGE_NOACCESS, "the block stays committed but PAGE_NOACCESS");
     CHECK(faults(a) && faults(a + 51079), "a stale pointer into the block faults (as after a decommit)");
+    CHECK(!xrt_is_committed(a, 4) && !xrt_is_committed(a + 51076, 4),
+          "import adapters see a stale pointer as uncommitted, as after strict's decommit (round 4)");
     CHECK(xrt_mem_generation != gen, "the put is logged for range-hint invalidation");
     CHECK(!xrt_staging_guard_put(NULL, a), "a second put of the same block is refused");
     b = xrt_virtual_alloc(NULL, 51080);

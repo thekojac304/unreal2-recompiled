@@ -14,9 +14,11 @@ import sys
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 WS = os.path.abspath(os.path.join(HERE, "..", "..", "..", ".."))
-OUT = os.path.join(WS, "experiments", "xrt", "build", "ehprobe")
+# EHPROBE_OUT: another build directory (build_and_run_dev.cmd: the developer runtime and option set, round 4)
+OUT = os.environ.get("EHPROBE_OUT") or os.path.join(WS, "experiments", "xrt", "build", "ehprobe")
 SB = os.path.join(WS, "sandbox_cmp", "ehprobe")
-POSITIVE = ["probe_cleanup", "probe_rethrow", "probe_nested", "probe_enclosing", "probe_loop", "probe_rethrow_callee"]
+POSITIVE = ["probe_cleanup", "probe_rethrow", "probe_nested", "probe_enclosing", "probe_loop", "probe_rethrow_callee",
+            "probe_deep", "probe_caller_state", "probe_guard_calls"]
 NEGATIVE = {"probe_neg_unhandled": "is not caught by any handler",
             "probe_neg_catch_by_value": "needs its copy constructor"}
 

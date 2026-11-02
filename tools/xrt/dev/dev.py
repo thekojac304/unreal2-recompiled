@@ -70,7 +70,7 @@ def replace_once(path, old, new):
 # xlift --opt lazypc: a chunk ends with its source-line -> guest-address table (xrt.h XrtPcLine). The endpoint hooks
 # inserted above add lines to Unreal2_001.c, so the table is regenerated from the instruction header lines afterwards
 # (the same pattern xlift uses: a pc store, or the comment that replaced it).
-PCLINE = re.compile(r'^\s+(?:P\(0x([0-9a-f]+)u\);|/\* 0x([0-9a-f]+): )|^(?:void|uint32_t) f_([0-9a-f]+)\(CPU\*(?: __restrict)? c\) \{')
+PCLINE = re.compile(r'^\s+(?:P\(0x([0-9a-f]+)u\);|/\* 0x([0-9a-f]+): )|^(?:XRT_EH_FN )?(?:void|uint32_t) f_([0-9a-f]+)\(CPU\*(?: __restrict)? c\) \{')
 PCLINE_ENTRY = re.compile(r'^\s+\{\d+u, 0x[0-9a-f]+u\},$')
 
 def renumber_pclines(path):
@@ -244,6 +244,15 @@ def lift_options():
     return m.group(1).split(',') if m else []
 
 
+def audio_lift_options():
+    """The xlift --opt list of the sound-module lift (header of its first unit), or None when there is no sound lift."""
+    first = sorted(AUDIO_LIFT.glob('*/*.c'))[:1] if AUDIO_LIFT.is_dir() else []
+    if not first:
+        return None
+    m = re.search(r'\(--opt ([a-z0-9,]+)\)', first[0].read_text(encoding='latin-1', errors='replace')[:400])
+    return m.group(1).split(',') if m else []
+
+
 def build(full=False, fixtures_only=False, native=False, diag_move=False, lean=False, cc='cl', ltcg=False, order=None):
     independent(DEV)
     BUILD.mkdir(parents=True, exist_ok=True)
@@ -276,6 +285,13 @@ def build(full=False, fixtures_only=False, native=False, diag_move=False, lean=F
     # XRT_RV_ABI before including xrt.h, but a forced include (world_observer.h) reads xrt.h first, so the define
     # goes on the command line of the generated units as well as the runtime's and the natives'.
     rv_abi = 'rv' in lift_options()
+    # xlift --opt ehframe: the landing-pad layout and landing protocol (xrt.h XRT_EH_FRAMES, runtime xrt_eh.c and
+    # xrt_eh_land.asm) must be the same in every module and in the runtime: refuse a mixed build.
+    eh_frames = 'ehframe' in lift_options()
+    audio_opts = audio_lift_options()
+    if audio_opts is not None and ('ehframe' in audio_opts) != eh_frames:
+        raise RuntimeError('the generated and the sound lifts disagree on --opt ehframe: re-lift one of them (lift / lift-audio)')
+    eh_define = ['/DXRT_EH_FRAMES'] if eh_frames else []
     for rel, row in lineage.items():
         if rel.startswith('obj/rt/'):
             continue
@@ -299,6 +315,7 @@ def build(full=False, fixtures_only=False, native=False, diag_move=False, lean=F
         opt_text += f' cc={cc}' if cc != 'cl' else ''        # build --cc: a compiler switch recompiles every unit
         opt_text += ' /GL' if ltcg else ''                   # build --ltcg: whole-program optimization of the generated units
         opt_text += ' /DXRT_RV_ABI' if rv_abi else ''
+        opt_text += ' /DXRT_EH_FRAMES' if eh_frames else ''
         opt_text += ''.join(f' port:{fn}' for fn, _ in PORT.get(src.name, []))
         if observed and src.name in DIAG_MOVE_UNITS:
             opt_text += ' /FIworld_observer.h'   # recompiles the unit again when a later build drops --diag-move
@@ -317,6 +334,7 @@ def build(full=False, fixtures_only=False, native=False, diag_move=False, lean=F
                 flags.append('/GL')
             if rv_abi:
                 flags.append('/DXRT_RV_ABI')
+            flags += eh_define
             if src.name in GEN_NO_FORCE_INLINE:
                 flags.append('/DXRT_NO_FORCE_INLINE')
             flags += renames
@@ -340,7 +358,7 @@ def build(full=False, fixtures_only=False, native=False, diag_move=False, lean=F
             text = src.read_text(encoding='latin-1')
             for fn, _ in PORT[src.name]:
                 # the definition's header as xlift writes it: void or (--opt rv) uint32_t, CPU* or (--opt restrict) CPU* __restrict
-                head = re.compile(r'^(void|uint32_t) ' + fn + r'\((CPU\*(?: __restrict)?) c\) \{$', re.M)
+                head = re.compile(r'^((?:XRT_EH_FN )?(?:void|uint32_t)) ' + fn + r'\((CPU\*(?: __restrict)?) c\) \{$', re.M)
                 if len(head.findall(text)) != 1:
                     raise RuntimeError(f'{src.name}: definition of {fn} found {len(head.findall(text))} times')
                 text = head.sub(lambda m: f'{m.group(1)} {fn}_translated({m.group(2)} c) {{', text)
@@ -360,7 +378,7 @@ def build(full=False, fixtures_only=False, native=False, diag_move=False, lean=F
     audio = sorted(AUDIO_LIFT.glob('*/*.c')) if AUDIO_LIFT.is_dir() else []
     audio_jobs = []
     audio_stamp = BUILD / 'obj/audio/compiler.txt'
-    audio_cc_changed = audio and (not audio_stamp.exists() or audio_stamp.read_text() != cc + (' /GL' if ltcg else '') + (' /DXRT_RV_ABI' if rv_abi else ''))
+    audio_cc_changed = audio and (not audio_stamp.exists() or audio_stamp.read_text() != cc + (' /GL' if ltcg else '') + (' /DXRT_RV_ABI' if rv_abi else '') + ''.join(' ' + d for d in eh_define))
     for src in audio:
         obj = BUILD / 'obj/audio' / (src.stem + '.obj')
         if full or audio_cc_changed or not obj.exists() or obj.stat().st_mtime < max(src.stat().st_mtime, (RT / 'xrt.h').stat().st_mtime):
@@ -370,10 +388,10 @@ def build(full=False, fixtures_only=False, native=False, diag_move=False, lean=F
         print(f'Compiling {len(audio_jobs)} sound units {GEN_OPT} ({cc})', flush=True)
         from concurrent.futures import ThreadPoolExecutor
         with ThreadPoolExecutor(max_workers=max(1, (os.cpu_count() or 2) - 2)) as pool:
-            list(pool.map(lambda j: compile_one(j[0], j[1], env, [RT, j[0].parent], [GEN_OPT, '/wd4102', '/wd4146', '/DXRT_PCLINES'] + (['/GL'] if ltcg else []) + (['/DXRT_RV_ABI'] if rv_abi else []), 600, cc), audio_jobs))
+            list(pool.map(lambda j: compile_one(j[0], j[1], env, [RT, j[0].parent], [GEN_OPT, '/wd4102', '/wd4146', '/DXRT_PCLINES'] + (['/GL'] if ltcg else []) + (['/DXRT_RV_ABI'] if rv_abi else []) + eh_define, 600, cc), audio_jobs))
         audio_stamp.parent.mkdir(parents=True, exist_ok=True)
-        audio_stamp.write_text(cc + (' /GL' if ltcg else '') + (' /DXRT_RV_ABI' if rv_abi else ''))
-    rt_flags = ['/O2', '/std:c11'] + (['/DXRT_WITH_AUDIO'] if audio else []) + (['/DXRT_RV_ABI'] if rv_abi else [])
+        audio_stamp.write_text(cc + (' /GL' if ltcg else '') + (' /DXRT_RV_ABI' if rv_abi else '') + ''.join(' ' + d for d in eh_define))
+    rt_flags = ['/O2', '/std:c11'] + (['/DXRT_WITH_AUDIO'] if audio else []) + (['/DXRT_RV_ABI'] if rv_abi else []) + eh_define
     rt_stamp = BUILD / 'rt-flags.txt'
     rt_flags_changed = not rt_stamp.exists() or rt_stamp.read_text() != ' '.join(rt_flags)
     headers = [*RT.glob('*.h'), *RT.glob('*.inc'), *HERE.glob('*.inc'), HERE / 'dev_support.h']
@@ -388,7 +406,7 @@ def build(full=False, fixtures_only=False, native=False, diag_move=False, lean=F
     natives = [src for units in NATIVE.values() for _, src in units] if native else []
     natives += [src for units in PORT.values() for _, src in units]
     native_stamp = BUILD / 'obj/native/flags.txt'
-    native_flags = ['/O2', '/std:c11'] + (['/DXRT_RV_ABI'] if rv_abi else []) + (['/GL'] if ltcg else [])
+    native_flags = ['/O2', '/std:c11'] + (['/DXRT_RV_ABI'] if rv_abi else []) + (['/GL'] if ltcg else []) + eh_define
     native_changed = not native_stamp.exists() or native_stamp.read_text() != ' '.join(native_flags)
     for src in natives:
         obj = BUILD / 'obj/native' / (src.stem + '.obj')
@@ -402,6 +420,11 @@ def build(full=False, fixtures_only=False, native=False, diag_move=False, lean=F
     if full or not asm.exists() or asm.stat().st_mtime < (RT / 'monitor.asm').stat().st_mtime:
         command(['ml64', '/nologo', '/c', '/Zi', f'/Fo{asm}', RT / 'monitor.asm'], env, 'monitor-asm')
     objects.append(asm)
+    if eh_frames:   # the ehframe landing trampoline (runtime xrt_eh.c land_frame)
+        land = BUILD / 'obj/rt/xrt_eh_land_asm.obj'
+        if full or not land.exists() or land.stat().st_mtime < (RT / 'xrt_eh_land.asm').stat().st_mtime:
+            command(['ml64', '/nologo', '/c', '/Zi', f'/Fo{land}', RT / 'xrt_eh_land.asm'], env, 'eh-land-asm')
+        objects.append(land)
     rt_stamp.write_text(' '.join(rt_flags))
     rsp = BUILD / 'objects.rsp'
     rsp.write_text('\n'.join('"' + str(p) + '"' for p in objects))

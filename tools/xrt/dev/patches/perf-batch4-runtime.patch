@@ -1,0 +1,2176 @@
+diff --git a/out/dev-init-savepoints/perf-r3-20261102/runtime/hle_d3d8_device.inc b/out/dev-init/runtime/hle_d3d8_device.inc
+index b458d0d..9453ca5 100644
+--- a/out/dev-init-savepoints/perf-r3-20261102/runtime/hle_d3d8_device.inc
++++ b/out/dev-init/runtime/hle_d3d8_device.inc
+@@ -25,11 +25,14 @@ static const GUID d8_device_iid={0x7385e5df,0x8fe8,0x41d5,{0x86,0xb6,0xd7,0xb4,0
+ static struct {uint64_t lo,hi;long gen;} d8_memory_hint[8];static unsigned d8_memory_next;
+ /* A staging block the HLE has just committed (xrt_virtual_alloc / xrt_staging_take) is committed, read-write and not a
+  * guard page: hint it in both tables instead of querying it (the answer VirtualQuery would give). */
++/* Round 4: staging blocks go to two slots of their own, so a frame's buffer Locks no longer evict the guest stack/heap
++ * argument hints (each eviction cost two VirtualQuery calls at the next device call). */
++static struct {uint64_t lo,hi;long gen;} d8_staging_slot[2];static unsigned d8_staging_next;
+ static void d8_staging_hint(uint32_t p,uint32_t size) {
+     uint64_t lo=p&~0xFFFull,hi=((uint64_t)p+size+0xFFF)&~0xFFFull;
+     xrt_hint_committed(p,size);
+-    d8_memory_hint[d8_memory_next].lo=lo;d8_memory_hint[d8_memory_next].hi=hi;d8_memory_hint[d8_memory_next].gen=xrt_mem_generation;
+-    d8_memory_next=(d8_memory_next+1)&7;
++    d8_staging_slot[d8_staging_next].lo=lo;d8_staging_slot[d8_staging_next].hi=hi;d8_staging_slot[d8_staging_next].gen=xrt_mem_generation;
++    d8_staging_next=(d8_staging_next+1)&1;
+ }
+ static void d8_device_memory(CPU*c,uint32_t p,uint32_t size,int writable) {
+     uint64_t at=p,end=(uint64_t)p+size;unsigned h;long gen=xrt_mem_generation;
+@@ -38,6 +41,9 @@ static void d8_device_memory(CPU*c,uint32_t p,uint32_t size,int writable) {
+     for(h=0;h<8;h++)
+         if(at>=d8_memory_hint[h].lo && end<=d8_memory_hint[h].hi &&
+            xrt_mem_hint_valid(d8_memory_hint[h].lo,d8_memory_hint[h].hi,&d8_memory_hint[h].gen))return;
++    for(h=0;h<2;h++)
++        if(at>=d8_staging_slot[h].lo && end<=d8_staging_slot[h].hi &&
++           xrt_mem_hint_valid(d8_staging_slot[h].lo,d8_staging_slot[h].hi,&d8_staging_slot[h].gen))return;
+     if(!xrt_is_committed(p,size))
+         xrt_fatal(c,76,"D3D8 device: invalid %s guest range %08x size %u",writable?"writable":"readable",p,size);
+     while(at<end) {
+@@ -154,7 +160,9 @@ static void d8_render_ready(CPU*c,D8DeviceObject*o) {
+     /* At shutdown the game destroys the window first and then flushes and releases the device (owner's run
+      * 20261101-222030): those calls need no window. Present to the destroyed window is refused in d8_device_Present. */
+     if(!xrt_gui_window_destroyed(o->focus))xrt_gui_device_window(c,o->focus);
+-    if(!xrt_gui_window_destroyed(o->window))xrt_gui_device_window(c,o->window);
++    /* (round 4) the device window is usually the focus window itself: the same token was just checked, on this thread,
++     * with nothing in between (only the owning thread can destroy it), so a second check could only repeat the answer */
++    if(o->window!=o->focus && !xrt_gui_window_destroyed(o->window))xrt_gui_device_window(c,o->window);
+ }
+ /* Developer first-scene evidence: successful native draws since the previous
+  * Present, and those issued inside FLevelSceneNode::Render. Never guest-visible. */
+diff --git a/out/dev-init-savepoints/perf-r3-20261102/runtime/monitor.c b/out/dev-init/runtime/monitor.c
+index a467da5..21ccf86 100644
+--- a/out/dev-init-savepoints/perf-r3-20261102/runtime/monitor.c
++++ b/out/dev-init/runtime/monitor.c
+@@ -128,6 +128,7 @@ int xm_enabled(void){return initialized!=0;}
+ CPU* xm_current_cpu(void){return tls.depth?tls.cpu[tls.depth-1]:NULL;}
+ /* Marks are kept in push order and searched newest-first: landing records are LIFO, so mark/forget are O(1) in
+  * deep guarded recursion. A duplicate cookie resolves to its newest (live) entry; leaks still end in failure 18. */
++unsigned xm_depth(void){return initialized?tls.depth:0;}   /* ehframe landing pads record it (xrt_eh.c) */
+ void xm_mark(const void*cookie){unsigned i;if(!initialized)return;
+  i=tls.marks_used;
+  if(i&&tls.marks[i-1].cookie==cookie)i--;
+@@ -239,18 +240,24 @@ finished:
+     if(q->event==XM_END||q->event==XM_ABORT){tls.depth--;InterlockedDecrement(&active);}
+     ReleaseSRWLockExclusive(&lock);tls.busy=0;SetLastError(saved);
+ }
++/* Quiet profile: a routine request is dropped by xm_probe_gated anyway; returning before the request is built saves its
++ * zero fill on every import adapter call and resource lookup (round 4). */
+ void xm_scope(CPU*c,unsigned event,unsigned domain,const char*name,uint64_t result) {
+-    XmRequest q={0};q.event=event;q.domain=domain;q.name=name;q.result=result;xm_probe(c,&q);
++    if(xm_quiet_routine(event,name))return;
++    {XmRequest q={0};q.event=event;q.domain=domain;q.name=name;q.result=result;xm_probe(c,&q);}
+ }
+ void xm_native(CPU*c,unsigned event,const char*name,uint64_t host,uint64_t result) {
+-    XmRequest q={0};q.event=event;q.domain=XM_NATIVE;q.name=name;q.host=host;q.result=result;xm_probe(c,&q);
++    if(xm_quiet_routine(event,name))return;
++    {XmRequest q={0};q.event=event;q.domain=XM_NATIVE;q.name=name;q.host=host;q.result=result;xm_probe(c,&q);}
+ }
+ void xm_resource(CPU*c,unsigned iface,unsigned guest,unsigned generation,uint64_t host,unsigned refs,unsigned bindings,const char*name) {
++    if(xm_quiet_routine(XM_RESOURCE,name))return;
+     XmRequest q={0};q.event=XM_RESOURCE;q.domain=XM_LIFETIME;q.name=name;q.guest=guest;
+     q.generation=generation;q.interface_id=iface;q.host=host;q.refs=refs;q.bindings=bindings;xm_probe(c,&q);
+ }
+ void xm_blob(CPU*c,const char*name,const void*trusted,unsigned size) {
+-    XmRequest q={0};if(xm_quiet)return;q.event=XM_DATA;q.name=name;q.blob=trusted;q.blob_size=size;xm_probe(c,&q);
++    if(xm_quiet)return;
++    {XmRequest q={0};q.event=XM_DATA;q.name=name;q.blob=trusted;q.blob_size=size;xm_probe(c,&q);}
+ }
+ void xm_span(CPU*c,const char*name,const void*trusted,unsigned size) {
+     unsigned off;XmValue v[2]={{XM_U32,4,size},{XM_U32,4,0}};
+@@ -267,8 +274,9 @@ void xm_span(CPU*c,const char*name,const void*trusted,unsigned size) {
+         v[1].value=off;xm_values(c,name,2,v);xm_blob(c,name,(const unsigned char*)trusted+off,n);}
+ }
+ void xm_values(CPU*c,const char*name,unsigned count,const XmValue*v) {
+-    XmRequest q={0};if(xm_quiet)return;q.event=XM_DATA;q.name=name;q.count=count;
+-    if(count<=12)memcpy(q.values,v,count*sizeof *v);xm_probe(c,&q);
++    if(xm_quiet)return;
++    {XmRequest q={0};q.event=XM_DATA;q.name=name;q.count=count;
++    if(count<=12)memcpy(q.values,v,count*sizeof *v);xm_probe(c,&q);}
+ }
+ void xm_guest(CPU*c,const char*name,unsigned address,unsigned size) {
+     DWORD saved=GetLastError();unsigned char bytes[256];XmRequest q={0};
+diff --git a/out/dev-init-savepoints/perf-r3-20261102/runtime/monitor.h b/out/dev-init/runtime/monitor.h
+index 1775ed2..b8a4e6c 100644
+--- a/out/dev-init-savepoints/perf-r3-20261102/runtime/monitor.h
++++ b/out/dev-init/runtime/monitor.h
+@@ -43,6 +43,7 @@ extern unsigned xm_quiet; /* developer quiet profile: no routine records */
+ extern XmRecord xm_buffer[4096];
+ int xm_enabled(void);
+ CPU* xm_current_cpu(void);
++unsigned xm_depth(void);
+ void xm_mark(const void*cookie);
+ void xm_forget(const void*cookie);
+ void xm_restore(CPU*,const void*cookie,unsigned reason);
+@@ -50,10 +51,13 @@ void xm_unwind(CPU*,unsigned depth,unsigned reason);
+ /* MASM saves/restores ALL GPRs, flags and complete legacy x87/SSE state. */
+ void xm_probe(CPU*,const XmRequest*);
+ /* Quiet profile: routine records are dropped before the probe saves any host state. */
+-static __inline int xm_quiet_drop(const XmRequest*q) {
+-    return xm_quiet && (q->event==XM_BEGIN||q->event==XM_END||q->event==XM_DATA||q->event==XM_RESOURCE||q->event==XM_OMITTED) &&
+-           !(q->name && !strcmp(q->name,"UGameEngine.Init"));
++/* (round 4: the routine-event test is shared with the xm_scope/xm_native/xm_resource fast paths in monitor.c, which
++ * return before building a request; the first-character test only skips the strcmp, same answer) */
++static __inline int xm_quiet_routine(unsigned event,const char*name) {
++    return xm_quiet && (event==XM_BEGIN||event==XM_END||event==XM_DATA||event==XM_RESOURCE||event==XM_OMITTED) &&
++           !(name && name[0]=='U' && !strcmp(name,"UGameEngine.Init"));
+ }
++static __inline int xm_quiet_drop(const XmRequest*q) { return xm_quiet_routine(q->event,q->name); }
+ static __inline void xm_probe_gated(CPU*c,const XmRequest*q) { if(!xm_quiet_drop(q))xm_probe(c,q); }
+ #define xm_probe xm_probe_gated
+ void xm_scope(CPU*,unsigned event,unsigned domain,const char*name,uint64_t result);
+diff --git a/out/dev-init-savepoints/perf-r3-20261102/runtime/monitor_com.inc b/out/dev-init/runtime/monitor_com.inc
+index b90bf83..8f6240e 100644
+--- a/out/dev-init-savepoints/perf-r3-20261102/runtime/monitor_com.inc
++++ b/out/dev-init/runtime/monitor_com.inc
+@@ -8,6 +8,7 @@
+ #include "monitor.h"
+ typedef char xm_slot_D8Interface_QueryInterface[offsetof(D8Vtable,QueryInterface)==0*sizeof(void*)?1:-1];
+ static HRESULT xm_D8Interface_QueryInterface(CPU*c,D8Interface* a0, REFIID a1, void** a2) {
++ if(xm_quiet)return a0->vt->QueryInterface(a0,a1,a2);   /* quiet profile: every record below is dropped (round 4) */
+  XmRequest q={0}; HRESULT ret;
+  q.event=XM_BEGIN;q.domain=XM_NATIVE;q.name="D8Interface.QueryInterface";q.slot=0;q.interface_id=1;q.host=(uint64_t)(uintptr_t)a0;q.count=3;
+  q.values[0].type=XM_OPAQUE;q.values[0].bytes=sizeof(a0);
+@@ -26,6 +27,7 @@ static HRESULT xm_D8Interface_QueryInterface(CPU*c,D8Interface* a0, REFIID a1, v
+ }
+ typedef char xm_slot_D8Interface_AddRef[offsetof(D8Vtable,AddRef)==1*sizeof(void*)?1:-1];
+ static ULONG xm_D8Interface_AddRef(CPU*c,D8Interface* a0) {
++ if(xm_quiet)return a0->vt->AddRef(a0);   /* quiet profile: every record below is dropped (round 4) */
+  XmRequest q={0}; ULONG ret;
+  q.event=XM_BEGIN;q.domain=XM_NATIVE;q.name="D8Interface.AddRef";q.slot=1;q.interface_id=1;q.host=(uint64_t)(uintptr_t)a0;q.count=1;
+  q.values[0].type=XM_OPAQUE;q.values[0].bytes=sizeof(a0);
+@@ -38,6 +40,7 @@ static ULONG xm_D8Interface_AddRef(CPU*c,D8Interface* a0) {
+ }
+ typedef char xm_slot_D8Interface_Release[offsetof(D8Vtable,Release)==2*sizeof(void*)?1:-1];
+ static ULONG xm_D8Interface_Release(CPU*c,D8Interface* a0) {
++ if(xm_quiet)return a0->vt->Release(a0);   /* quiet profile: every record below is dropped (round 4) */
+  XmRequest q={0}; ULONG ret;
+  q.event=XM_BEGIN;q.domain=XM_NATIVE;q.name="D8Interface.Release";q.slot=2;q.interface_id=1;q.host=(uint64_t)(uintptr_t)a0;q.count=1;
+  q.values[0].type=XM_OPAQUE;q.values[0].bytes=sizeof(a0);
+@@ -50,6 +53,7 @@ static ULONG xm_D8Interface_Release(CPU*c,D8Interface* a0) {
+ }
+ typedef char xm_slot_D8Interface_RegisterSoftwareDevice[offsetof(D8Vtable,RegisterSoftwareDevice)==3*sizeof(void*)?1:-1];
+ static HRESULT xm_D8Interface_RegisterSoftwareDevice(CPU*c,D8Interface* a0, void* a1) {
++ if(xm_quiet)return a0->vt->RegisterSoftwareDevice(a0,a1);   /* quiet profile: every record below is dropped (round 4) */
+  XmRequest q={0}; HRESULT ret;
+  q.event=XM_BEGIN;q.domain=XM_NATIVE;q.name="D8Interface.RegisterSoftwareDevice";q.slot=3;q.interface_id=1;q.host=(uint64_t)(uintptr_t)a0;q.count=2;
+  q.values[0].type=XM_OPAQUE;q.values[0].bytes=sizeof(a0);
+@@ -64,6 +68,7 @@ static HRESULT xm_D8Interface_RegisterSoftwareDevice(CPU*c,D8Interface* a0, void
+ }
+ typedef char xm_slot_D8Interface_GetAdapterCount[offsetof(D8Vtable,GetAdapterCount)==4*sizeof(void*)?1:-1];
+ static UINT xm_D8Interface_GetAdapterCount(CPU*c,D8Interface* a0) {
++ if(xm_quiet)return a0->vt->GetAdapterCount(a0);   /* quiet profile: every record below is dropped (round 4) */
+  XmRequest q={0}; UINT ret;
+  q.event=XM_BEGIN;q.domain=XM_NATIVE;q.name="D8Interface.GetAdapterCount";q.slot=4;q.interface_id=1;q.host=(uint64_t)(uintptr_t)a0;q.count=1;
+  q.values[0].type=XM_OPAQUE;q.values[0].bytes=sizeof(a0);
+@@ -76,6 +81,7 @@ static UINT xm_D8Interface_GetAdapterCount(CPU*c,D8Interface* a0) {
+ }
+ typedef char xm_slot_D8Interface_GetAdapterIdentifier[offsetof(D8Vtable,GetAdapterIdentifier)==5*sizeof(void*)?1:-1];
+ static HRESULT xm_D8Interface_GetAdapterIdentifier(CPU*c,D8Interface* a0, UINT a1, DWORD a2, D8Identifier* a3) {
++ if(xm_quiet)return a0->vt->GetAdapterIdentifier(a0,a1,a2,a3);   /* quiet profile: every record below is dropped (round 4) */
+  XmRequest q={0}; HRESULT ret;
+  q.event=XM_BEGIN;q.domain=XM_NATIVE;q.name="D8Interface.GetAdapterIdentifier";q.slot=5;q.interface_id=1;q.host=(uint64_t)(uintptr_t)a0;q.count=4;
+  q.values[0].type=XM_OPAQUE;q.values[0].bytes=sizeof(a0);
+@@ -94,6 +100,7 @@ static HRESULT xm_D8Interface_GetAdapterIdentifier(CPU*c,D8Interface* a0, UINT a
+ }
+ typedef char xm_slot_D8Interface_GetAdapterModeCount[offsetof(D8Vtable,GetAdapterModeCount)==6*sizeof(void*)?1:-1];
+ static UINT xm_D8Interface_GetAdapterModeCount(CPU*c,D8Interface* a0, UINT a1) {
++ if(xm_quiet)return a0->vt->GetAdapterModeCount(a0,a1);   /* quiet profile: every record below is dropped (round 4) */
+  XmRequest q={0}; UINT ret;
+  q.event=XM_BEGIN;q.domain=XM_NATIVE;q.name="D8Interface.GetAdapterModeCount";q.slot=6;q.interface_id=1;q.host=(uint64_t)(uintptr_t)a0;q.count=2;
+  q.values[0].type=XM_OPAQUE;q.values[0].bytes=sizeof(a0);
+@@ -108,6 +115,7 @@ static UINT xm_D8Interface_GetAdapterModeCount(CPU*c,D8Interface* a0, UINT a1) {
+ }
+ typedef char xm_slot_D8Interface_EnumAdapterModes[offsetof(D8Vtable,EnumAdapterModes)==7*sizeof(void*)?1:-1];
+ static HRESULT xm_D8Interface_EnumAdapterModes(CPU*c,D8Interface* a0, UINT a1, UINT a2, D8Mode* a3) {
++ if(xm_quiet)return a0->vt->EnumAdapterModes(a0,a1,a2,a3);   /* quiet profile: every record below is dropped (round 4) */
+  XmRequest q={0}; HRESULT ret;
+  q.event=XM_BEGIN;q.domain=XM_NATIVE;q.name="D8Interface.EnumAdapterModes";q.slot=7;q.interface_id=1;q.host=(uint64_t)(uintptr_t)a0;q.count=4;
+  q.values[0].type=XM_OPAQUE;q.values[0].bytes=sizeof(a0);
+@@ -127,6 +135,7 @@ static HRESULT xm_D8Interface_EnumAdapterModes(CPU*c,D8Interface* a0, UINT a1, U
+ }
+ typedef char xm_slot_D8Interface_GetAdapterDisplayMode[offsetof(D8Vtable,GetAdapterDisplayMode)==8*sizeof(void*)?1:-1];
+ static HRESULT xm_D8Interface_GetAdapterDisplayMode(CPU*c,D8Interface* a0, UINT a1, D8Mode* a2) {
++ if(xm_quiet)return a0->vt->GetAdapterDisplayMode(a0,a1,a2);   /* quiet profile: every record below is dropped (round 4) */
+  XmRequest q={0}; HRESULT ret;
+  q.event=XM_BEGIN;q.domain=XM_NATIVE;q.name="D8Interface.GetAdapterDisplayMode";q.slot=8;q.interface_id=1;q.host=(uint64_t)(uintptr_t)a0;q.count=3;
+  q.values[0].type=XM_OPAQUE;q.values[0].bytes=sizeof(a0);
+@@ -144,6 +153,7 @@ static HRESULT xm_D8Interface_GetAdapterDisplayMode(CPU*c,D8Interface* a0, UINT
+ }
+ typedef char xm_slot_D8Interface_CheckDeviceType[offsetof(D8Vtable,CheckDeviceType)==9*sizeof(void*)?1:-1];
+ static HRESULT xm_D8Interface_CheckDeviceType(CPU*c,D8Interface* a0, UINT a1, UINT a2, UINT a3, UINT a4, BOOL a5) {
++ if(xm_quiet)return a0->vt->CheckDeviceType(a0,a1,a2,a3,a4,a5);   /* quiet profile: every record below is dropped (round 4) */
+  XmRequest q={0}; HRESULT ret;
+  q.event=XM_BEGIN;q.domain=XM_NATIVE;q.name="D8Interface.CheckDeviceType";q.slot=9;q.interface_id=1;q.host=(uint64_t)(uintptr_t)a0;q.count=6;
+  q.values[0].type=XM_OPAQUE;q.values[0].bytes=sizeof(a0);
+@@ -166,6 +176,7 @@ static HRESULT xm_D8Interface_CheckDeviceType(CPU*c,D8Interface* a0, UINT a1, UI
+ }
+ typedef char xm_slot_D8Interface_CheckDeviceFormat[offsetof(D8Vtable,CheckDeviceFormat)==10*sizeof(void*)?1:-1];
+ static HRESULT xm_D8Interface_CheckDeviceFormat(CPU*c,D8Interface* a0, UINT a1, UINT a2, UINT a3, DWORD a4, UINT a5, UINT a6) {
++ if(xm_quiet)return a0->vt->CheckDeviceFormat(a0,a1,a2,a3,a4,a5,a6);   /* quiet profile: every record below is dropped (round 4) */
+  XmRequest q={0}; HRESULT ret;
+  q.event=XM_BEGIN;q.domain=XM_NATIVE;q.name="D8Interface.CheckDeviceFormat";q.slot=10;q.interface_id=1;q.host=(uint64_t)(uintptr_t)a0;q.count=7;
+  q.values[0].type=XM_OPAQUE;q.values[0].bytes=sizeof(a0);
+@@ -190,6 +201,7 @@ static HRESULT xm_D8Interface_CheckDeviceFormat(CPU*c,D8Interface* a0, UINT a1,
+ }
+ typedef char xm_slot_D8Interface_CheckDeviceMultiSampleType[offsetof(D8Vtable,CheckDeviceMultiSampleType)==11*sizeof(void*)?1:-1];
+ static HRESULT xm_D8Interface_CheckDeviceMultiSampleType(CPU*c,D8Interface* a0, UINT a1, UINT a2, UINT a3, BOOL a4, UINT a5) {
++ if(xm_quiet)return a0->vt->CheckDeviceMultiSampleType(a0,a1,a2,a3,a4,a5);   /* quiet profile: every record below is dropped (round 4) */
+  XmRequest q={0}; HRESULT ret;
+  q.event=XM_BEGIN;q.domain=XM_NATIVE;q.name="D8Interface.CheckDeviceMultiSampleType";q.slot=11;q.interface_id=1;q.host=(uint64_t)(uintptr_t)a0;q.count=6;
+  q.values[0].type=XM_OPAQUE;q.values[0].bytes=sizeof(a0);
+@@ -212,6 +224,7 @@ static HRESULT xm_D8Interface_CheckDeviceMultiSampleType(CPU*c,D8Interface* a0,
+ }
+ typedef char xm_slot_D8Interface_CheckDepthStencilMatch[offsetof(D8Vtable,CheckDepthStencilMatch)==12*sizeof(void*)?1:-1];
+ static HRESULT xm_D8Interface_CheckDepthStencilMatch(CPU*c,D8Interface* a0, UINT a1, UINT a2, UINT a3, UINT a4, UINT a5) {
++ if(xm_quiet)return a0->vt->CheckDepthStencilMatch(a0,a1,a2,a3,a4,a5);   /* quiet profile: every record below is dropped (round 4) */
+  XmRequest q={0}; HRESULT ret;
+  q.event=XM_BEGIN;q.domain=XM_NATIVE;q.name="D8Interface.CheckDepthStencilMatch";q.slot=12;q.interface_id=1;q.host=(uint64_t)(uintptr_t)a0;q.count=6;
+  q.values[0].type=XM_OPAQUE;q.values[0].bytes=sizeof(a0);
+@@ -234,6 +247,7 @@ static HRESULT xm_D8Interface_CheckDepthStencilMatch(CPU*c,D8Interface* a0, UINT
+ }
+ typedef char xm_slot_D8Interface_GetDeviceCaps[offsetof(D8Vtable,GetDeviceCaps)==13*sizeof(void*)?1:-1];
+ static HRESULT xm_D8Interface_GetDeviceCaps(CPU*c,D8Interface* a0, UINT a1, UINT a2, D8Caps* a3) {
++ if(xm_quiet)return a0->vt->GetDeviceCaps(a0,a1,a2,a3);   /* quiet profile: every record below is dropped (round 4) */
+  XmRequest q={0}; HRESULT ret;
+  q.event=XM_BEGIN;q.domain=XM_NATIVE;q.name="D8Interface.GetDeviceCaps";q.slot=13;q.interface_id=1;q.host=(uint64_t)(uintptr_t)a0;q.count=4;
+  q.values[0].type=XM_OPAQUE;q.values[0].bytes=sizeof(a0);
+@@ -253,6 +267,7 @@ static HRESULT xm_D8Interface_GetDeviceCaps(CPU*c,D8Interface* a0, UINT a1, UINT
+ }
+ typedef char xm_slot_D8Interface_GetAdapterMonitor[offsetof(D8Vtable,GetAdapterMonitor)==14*sizeof(void*)?1:-1];
+ static HMONITOR xm_D8Interface_GetAdapterMonitor(CPU*c,D8Interface* a0, UINT a1) {
++ if(xm_quiet)return a0->vt->GetAdapterMonitor(a0,a1);   /* quiet profile: every record below is dropped (round 4) */
+  XmRequest q={0}; HMONITOR ret;
+  q.event=XM_BEGIN;q.domain=XM_NATIVE;q.name="D8Interface.GetAdapterMonitor";q.slot=14;q.interface_id=1;q.host=(uint64_t)(uintptr_t)a0;q.count=2;
+  q.values[0].type=XM_OPAQUE;q.values[0].bytes=sizeof(a0);
+@@ -267,6 +282,7 @@ static HMONITOR xm_D8Interface_GetAdapterMonitor(CPU*c,D8Interface* a0, UINT a1)
+ }
+ typedef char xm_slot_D8Interface_CreateDevice[offsetof(D8Vtable,CreateDevice)==15*sizeof(void*)?1:-1];
+ static HRESULT xm_D8Interface_CreateDevice(CPU*c,D8Interface* a0, UINT a1, UINT a2, HWND a3, DWORD a4, D8Present* a5, D8Device** a6) {
++ if(xm_quiet)return a0->vt->CreateDevice(a0,a1,a2,a3,a4,a5,a6);   /* quiet profile: every record below is dropped (round 4) */
+  XmRequest q={0}; HRESULT ret;
+  q.event=XM_BEGIN;q.domain=XM_NATIVE;q.name="D8Interface.CreateDevice";q.slot=15;q.interface_id=1;q.host=(uint64_t)(uintptr_t)a0;q.count=7;
+  q.values[0].type=XM_OPAQUE;q.values[0].bytes=sizeof(a0);
+@@ -295,6 +311,7 @@ static HRESULT xm_D8Interface_CreateDevice(CPU*c,D8Interface* a0, UINT a1, UINT
+ }
+ typedef char xm_slot_D8Device_QueryInterface[offsetof(D8DeviceVtable,QueryInterface)==0*sizeof(void*)?1:-1];
+ static HRESULT xm_D8Device_QueryInterface(CPU*c,D8Device* a0, REFIID a1, void** a2) {
++ if(xm_quiet)return a0->vt->QueryInterface(a0,a1,a2);   /* quiet profile: every record below is dropped (round 4) */
+  XmRequest q={0}; HRESULT ret;
+  q.event=XM_BEGIN;q.domain=XM_NATIVE;q.name="D8Device.QueryInterface";q.slot=0;q.interface_id=2;q.host=(uint64_t)(uintptr_t)a0;q.count=3;
+  q.values[0].type=XM_OPAQUE;q.values[0].bytes=sizeof(a0);
+@@ -313,6 +330,7 @@ static HRESULT xm_D8Device_QueryInterface(CPU*c,D8Device* a0, REFIID a1, void**
+ }
+ typedef char xm_slot_D8Device_AddRef[offsetof(D8DeviceVtable,AddRef)==1*sizeof(void*)?1:-1];
+ static ULONG xm_D8Device_AddRef(CPU*c,D8Device* a0) {
++ if(xm_quiet)return a0->vt->AddRef(a0);   /* quiet profile: every record below is dropped (round 4) */
+  XmRequest q={0}; ULONG ret;
+  q.event=XM_BEGIN;q.domain=XM_NATIVE;q.name="D8Device.AddRef";q.slot=1;q.interface_id=2;q.host=(uint64_t)(uintptr_t)a0;q.count=1;
+  q.values[0].type=XM_OPAQUE;q.values[0].bytes=sizeof(a0);
+@@ -325,6 +343,7 @@ static ULONG xm_D8Device_AddRef(CPU*c,D8Device* a0) {
+ }
+ typedef char xm_slot_D8Device_Release[offsetof(D8DeviceVtable,Release)==2*sizeof(void*)?1:-1];
+ static ULONG xm_D8Device_Release(CPU*c,D8Device* a0) {
++ if(xm_quiet)return a0->vt->Release(a0);   /* quiet profile: every record below is dropped (round 4) */
+  XmRequest q={0}; ULONG ret;
+  q.event=XM_BEGIN;q.domain=XM_NATIVE;q.name="D8Device.Release";q.slot=2;q.interface_id=2;q.host=(uint64_t)(uintptr_t)a0;q.count=1;
+  q.values[0].type=XM_OPAQUE;q.values[0].bytes=sizeof(a0);
+@@ -337,6 +356,7 @@ static ULONG xm_D8Device_Release(CPU*c,D8Device* a0) {
+ }
+ typedef char xm_slot_D8Device_TestCooperativeLevel[offsetof(D8DeviceVtable,TestCooperativeLevel)==3*sizeof(void*)?1:-1];
+ static HRESULT xm_D8Device_TestCooperativeLevel(CPU*c,D8Device* a0) {
++ if(xm_quiet)return a0->vt->TestCooperativeLevel(a0);   /* quiet profile: every record below is dropped (round 4) */
+  XmRequest q={0}; HRESULT ret;
+  q.event=XM_BEGIN;q.domain=XM_NATIVE;q.name="D8Device.TestCooperativeLevel";q.slot=3;q.interface_id=2;q.host=(uint64_t)(uintptr_t)a0;q.count=1;
+  q.values[0].type=XM_OPAQUE;q.values[0].bytes=sizeof(a0);
+@@ -349,6 +369,7 @@ static HRESULT xm_D8Device_TestCooperativeLevel(CPU*c,D8Device* a0) {
+ }
+ typedef char xm_slot_D8Device_GetAvailableTextureMem[offsetof(D8DeviceVtable,GetAvailableTextureMem)==4*sizeof(void*)?1:-1];
+ static UINT xm_D8Device_GetAvailableTextureMem(CPU*c,D8Device* a0) {
++ if(xm_quiet)return a0->vt->GetAvailableTextureMem(a0);   /* quiet profile: every record below is dropped (round 4) */
+  XmRequest q={0}; UINT ret;
+  q.event=XM_BEGIN;q.domain=XM_NATIVE;q.name="D8Device.GetAvailableTextureMem";q.slot=4;q.interface_id=2;q.host=(uint64_t)(uintptr_t)a0;q.count=1;
+  q.values[0].type=XM_OPAQUE;q.values[0].bytes=sizeof(a0);
+@@ -361,6 +382,7 @@ static UINT xm_D8Device_GetAvailableTextureMem(CPU*c,D8Device* a0) {
+ }
+ typedef char xm_slot_D8Device_ResourceManagerDiscardBytes[offsetof(D8DeviceVtable,ResourceManagerDiscardBytes)==5*sizeof(void*)?1:-1];
+ static HRESULT xm_D8Device_ResourceManagerDiscardBytes(CPU*c,D8Device* a0, DWORD a1) {
++ if(xm_quiet)return a0->vt->ResourceManagerDiscardBytes(a0,a1);   /* quiet profile: every record below is dropped (round 4) */
+  XmRequest q={0}; HRESULT ret;
+  q.event=XM_BEGIN;q.domain=XM_NATIVE;q.name="D8Device.ResourceManagerDiscardBytes";q.slot=5;q.interface_id=2;q.host=(uint64_t)(uintptr_t)a0;q.count=2;
+  q.values[0].type=XM_OPAQUE;q.values[0].bytes=sizeof(a0);
+@@ -375,6 +397,7 @@ static HRESULT xm_D8Device_ResourceManagerDiscardBytes(CPU*c,D8Device* a0, DWORD
+ }
+ typedef char xm_slot_D8Device_GetDirect3D[offsetof(D8DeviceVtable,GetDirect3D)==6*sizeof(void*)?1:-1];
+ static HRESULT xm_D8Device_GetDirect3D(CPU*c,D8Device* a0, D8Interface** a1) {
++ if(xm_quiet)return a0->vt->GetDirect3D(a0,a1);   /* quiet profile: every record below is dropped (round 4) */
+  XmRequest q={0}; HRESULT ret;
+  q.event=XM_BEGIN;q.domain=XM_NATIVE;q.name="D8Device.GetDirect3D";q.slot=6;q.interface_id=2;q.host=(uint64_t)(uintptr_t)a0;q.count=2;
+  q.values[0].type=XM_OPAQUE;q.values[0].bytes=sizeof(a0);
+@@ -390,6 +413,7 @@ static HRESULT xm_D8Device_GetDirect3D(CPU*c,D8Device* a0, D8Interface** a1) {
+ }
+ typedef char xm_slot_D8Device_GetDeviceCaps[offsetof(D8DeviceVtable,GetDeviceCaps)==7*sizeof(void*)?1:-1];
+ static HRESULT xm_D8Device_GetDeviceCaps(CPU*c,D8Device* a0, D8Caps* a1) {
++ if(xm_quiet)return a0->vt->GetDeviceCaps(a0,a1);   /* quiet profile: every record below is dropped (round 4) */
+  XmRequest q={0}; HRESULT ret;
+  q.event=XM_BEGIN;q.domain=XM_NATIVE;q.name="D8Device.GetDeviceCaps";q.slot=7;q.interface_id=2;q.host=(uint64_t)(uintptr_t)a0;q.count=2;
+  q.values[0].type=XM_OPAQUE;q.values[0].bytes=sizeof(a0);
+@@ -405,6 +429,7 @@ static HRESULT xm_D8Device_GetDeviceCaps(CPU*c,D8Device* a0, D8Caps* a1) {
+ }
+ typedef char xm_slot_D8Device_GetDisplayMode[offsetof(D8DeviceVtable,GetDisplayMode)==8*sizeof(void*)?1:-1];
+ static HRESULT xm_D8Device_GetDisplayMode(CPU*c,D8Device* a0, D8Mode* a1) {
++ if(xm_quiet)return a0->vt->GetDisplayMode(a0,a1);   /* quiet profile: every record below is dropped (round 4) */
+  XmRequest q={0}; HRESULT ret;
+  q.event=XM_BEGIN;q.domain=XM_NATIVE;q.name="D8Device.GetDisplayMode";q.slot=8;q.interface_id=2;q.host=(uint64_t)(uintptr_t)a0;q.count=2;
+  q.values[0].type=XM_OPAQUE;q.values[0].bytes=sizeof(a0);
+@@ -420,6 +445,7 @@ static HRESULT xm_D8Device_GetDisplayMode(CPU*c,D8Device* a0, D8Mode* a1) {
+ }
+ typedef char xm_slot_D8Device_GetCreationParameters[offsetof(D8DeviceVtable,GetCreationParameters)==9*sizeof(void*)?1:-1];
+ static HRESULT xm_D8Device_GetCreationParameters(CPU*c,D8Device* a0, D8Creation* a1) {
++ if(xm_quiet)return a0->vt->GetCreationParameters(a0,a1);   /* quiet profile: every record below is dropped (round 4) */
+  XmRequest q={0}; HRESULT ret;
+  q.event=XM_BEGIN;q.domain=XM_NATIVE;q.name="D8Device.GetCreationParameters";q.slot=9;q.interface_id=2;q.host=(uint64_t)(uintptr_t)a0;q.count=2;
+  q.values[0].type=XM_OPAQUE;q.values[0].bytes=sizeof(a0);
+@@ -435,6 +461,7 @@ static HRESULT xm_D8Device_GetCreationParameters(CPU*c,D8Device* a0, D8Creation*
+ }
+ typedef char xm_slot_D8Device_Present[offsetof(D8DeviceVtable,Present)==15*sizeof(void*)?1:-1];
+ static HRESULT xm_D8Device_Present(CPU*c,D8Device* a0, const RECT* a1, const RECT* a2, HWND a3, const RGNDATA* a4) {
++ if(xm_quiet)return a0->vt->Present(a0,a1,a2,a3,a4);   /* quiet profile: every record below is dropped (round 4) */
+  XmRequest q={0}; HRESULT ret;
+  q.event=XM_BEGIN;q.domain=XM_NATIVE;q.name="D8Device.Present";q.slot=15;q.interface_id=2;q.host=(uint64_t)(uintptr_t)a0;q.count=5;
+  q.values[0].type=XM_OPAQUE;q.values[0].bytes=sizeof(a0);
+@@ -457,6 +484,7 @@ static HRESULT xm_D8Device_Present(CPU*c,D8Device* a0, const RECT* a1, const REC
+ }
+ typedef char xm_slot_D8Device_Reset[offsetof(D8DeviceVtable,Reset)==14*sizeof(void*)?1:-1];
+ static HRESULT xm_D8Device_Reset(CPU*c,D8Device* a0, D8Present* a1) {
++ if(xm_quiet)return a0->vt->Reset(a0,a1);   /* quiet profile: every record below is dropped (round 4) */
+  XmRequest q={0}; HRESULT ret;
+  q.event=XM_BEGIN;q.domain=XM_NATIVE;q.name="D8Device.Reset";q.slot=14;q.interface_id=2;q.host=(uint64_t)(uintptr_t)a0;q.count=2;
+  q.values[0].type=XM_OPAQUE;q.values[0].bytes=sizeof(a0);
+@@ -474,6 +502,7 @@ static HRESULT xm_D8Device_Reset(CPU*c,D8Device* a0, D8Present* a1) {
+ #define XM_Reset(cpu,self,...) xm_D8Device_Reset((cpu),(self),##__VA_ARGS__)
+ typedef char xm_slot_D8Device_GetBackBuffer[offsetof(D8DeviceVtable,GetBackBuffer)==16*sizeof(void*)?1:-1];
+ static HRESULT xm_D8Device_GetBackBuffer(CPU*c,D8Device* a0, UINT a1, DWORD a2, D8Surface** a3) {
++ if(xm_quiet)return a0->vt->GetBackBuffer(a0,a1,a2,a3);   /* quiet profile: every record below is dropped (round 4) */
+  XmRequest q={0}; HRESULT ret;
+  q.event=XM_BEGIN;q.domain=XM_NATIVE;q.name="D8Device.GetBackBuffer";q.slot=16;q.interface_id=2;q.host=(uint64_t)(uintptr_t)a0;q.count=4;
+  q.values[0].type=XM_OPAQUE;q.values[0].bytes=sizeof(a0);
+@@ -493,6 +522,7 @@ static HRESULT xm_D8Device_GetBackBuffer(CPU*c,D8Device* a0, UINT a1, DWORD a2,
+ }
+ typedef char xm_slot_D8Device_SetGammaRamp[offsetof(D8DeviceVtable,SetGammaRamp)==18*sizeof(void*)?1:-1];
+ static void xm_D8Device_SetGammaRamp(CPU*c,D8Device* a0, DWORD a1, const D8Gamma* a2) {
++ if(xm_quiet){a0->vt->SetGammaRamp(a0,a1,a2);return;}   /* quiet profile: every record below is dropped (round 4) */
+  XmRequest q={0};
+  q.event=XM_BEGIN;q.domain=XM_NATIVE;q.name="D8Device.SetGammaRamp";q.slot=18;q.interface_id=2;q.host=(uint64_t)(uintptr_t)a0;q.count=3;
+  q.values[0].type=XM_OPAQUE;q.values[0].bytes=sizeof(a0);
+@@ -509,6 +539,7 @@ static void xm_D8Device_SetGammaRamp(CPU*c,D8Device* a0, DWORD a1, const D8Gamma
+ }
+ typedef char xm_slot_D8Device_GetGammaRamp[offsetof(D8DeviceVtable,GetGammaRamp)==19*sizeof(void*)?1:-1];
+ static void xm_D8Device_GetGammaRamp(CPU*c,D8Device* a0, D8Gamma* a1) {
++ if(xm_quiet){a0->vt->GetGammaRamp(a0,a1);return;}   /* quiet profile: every record below is dropped (round 4) */
+  XmRequest q={0};
+  q.event=XM_BEGIN;q.domain=XM_NATIVE;q.name="D8Device.GetGammaRamp";q.slot=19;q.interface_id=2;q.host=(uint64_t)(uintptr_t)a0;q.count=2;
+  q.values[0].type=XM_OPAQUE;q.values[0].bytes=sizeof(a0);
+@@ -523,6 +554,7 @@ static void xm_D8Device_GetGammaRamp(CPU*c,D8Device* a0, D8Gamma* a1) {
+ }
+ typedef char xm_slot_D8Device_CreateTexture[offsetof(D8DeviceVtable,CreateTexture)==20*sizeof(void*)?1:-1];
+ static HRESULT xm_D8Device_CreateTexture(CPU*c,D8Device* a0, UINT a1, UINT a2, UINT a3, DWORD a4, DWORD a5, DWORD a6, D8Texture** a7) {
++ if(xm_quiet)return a0->vt->CreateTexture(a0,a1,a2,a3,a4,a5,a6,a7);   /* quiet profile: every record below is dropped (round 4) */
+  XmRequest q={0}; HRESULT ret;
+  q.event=XM_BEGIN;q.domain=XM_NATIVE;q.name="D8Device.CreateTexture";q.slot=20;q.interface_id=2;q.host=(uint64_t)(uintptr_t)a0;q.count=8;
+  q.values[0].type=XM_OPAQUE;q.values[0].bytes=sizeof(a0);
+@@ -550,6 +582,7 @@ static HRESULT xm_D8Device_CreateTexture(CPU*c,D8Device* a0, UINT a1, UINT a2, U
+ }
+ typedef char xm_slot_D8Device_CreateVertexBuffer[offsetof(D8DeviceVtable,CreateVertexBuffer)==23*sizeof(void*)?1:-1];
+ static HRESULT xm_D8Device_CreateVertexBuffer(CPU*c,D8Device* a0, UINT a1, DWORD a2, DWORD a3, DWORD a4, D8Buffer** a5) {
++ if(xm_quiet)return a0->vt->CreateVertexBuffer(a0,a1,a2,a3,a4,a5);   /* quiet profile: every record below is dropped (round 4) */
+  XmRequest q={0}; HRESULT ret;
+  q.event=XM_BEGIN;q.domain=XM_NATIVE;q.name="D8Device.CreateVertexBuffer";q.slot=23;q.interface_id=2;q.host=(uint64_t)(uintptr_t)a0;q.count=6;
+  q.values[0].type=XM_OPAQUE;q.values[0].bytes=sizeof(a0);
+@@ -573,6 +606,7 @@ static HRESULT xm_D8Device_CreateVertexBuffer(CPU*c,D8Device* a0, UINT a1, DWORD
+ }
+ typedef char xm_slot_D8Device_CreateIndexBuffer[offsetof(D8DeviceVtable,CreateIndexBuffer)==24*sizeof(void*)?1:-1];
+ static HRESULT xm_D8Device_CreateIndexBuffer(CPU*c,D8Device* a0, UINT a1, DWORD a2, DWORD a3, DWORD a4, D8Buffer** a5) {
++ if(xm_quiet)return a0->vt->CreateIndexBuffer(a0,a1,a2,a3,a4,a5);   /* quiet profile: every record below is dropped (round 4) */
+  XmRequest q={0}; HRESULT ret;
+  q.event=XM_BEGIN;q.domain=XM_NATIVE;q.name="D8Device.CreateIndexBuffer";q.slot=24;q.interface_id=2;q.host=(uint64_t)(uintptr_t)a0;q.count=6;
+  q.values[0].type=XM_OPAQUE;q.values[0].bytes=sizeof(a0);
+@@ -596,6 +630,7 @@ static HRESULT xm_D8Device_CreateIndexBuffer(CPU*c,D8Device* a0, UINT a1, DWORD
+ }
+ typedef char xm_slot_D8Device_CreateRenderTarget[offsetof(D8DeviceVtable,CreateRenderTarget)==25*sizeof(void*)?1:-1];
+ static HRESULT xm_D8Device_CreateRenderTarget(CPU*c,D8Device* a0, UINT a1, UINT a2, DWORD a3, DWORD a4, BOOL a5, D8Surface** a6) {
++ if(xm_quiet)return a0->vt->CreateRenderTarget(a0,a1,a2,a3,a4,a5,a6);   /* quiet profile: every record below is dropped (round 4) */
+  XmRequest q={0}; HRESULT ret;
+  q.event=XM_BEGIN;q.domain=XM_NATIVE;q.name="D8Device.CreateRenderTarget";q.slot=25;q.interface_id=2;q.host=(uint64_t)(uintptr_t)a0;q.count=7;
+  q.values[0].type=XM_OPAQUE;q.values[0].bytes=sizeof(a0);
+@@ -621,6 +656,7 @@ static HRESULT xm_D8Device_CreateRenderTarget(CPU*c,D8Device* a0, UINT a1, UINT
+ }
+ typedef char xm_slot_D8Device_CreateDepthStencilSurface[offsetof(D8DeviceVtable,CreateDepthStencilSurface)==26*sizeof(void*)?1:-1];
+ static HRESULT xm_D8Device_CreateDepthStencilSurface(CPU*c,D8Device* a0, UINT a1, UINT a2, DWORD a3, DWORD a4, D8Surface** a5) {
++ if(xm_quiet)return a0->vt->CreateDepthStencilSurface(a0,a1,a2,a3,a4,a5);   /* quiet profile: every record below is dropped (round 4) */
+  XmRequest q={0}; HRESULT ret;
+  q.event=XM_BEGIN;q.domain=XM_NATIVE;q.name="D8Device.CreateDepthStencilSurface";q.slot=26;q.interface_id=2;q.host=(uint64_t)(uintptr_t)a0;q.count=6;
+  q.values[0].type=XM_OPAQUE;q.values[0].bytes=sizeof(a0);
+@@ -644,6 +680,7 @@ static HRESULT xm_D8Device_CreateDepthStencilSurface(CPU*c,D8Device* a0, UINT a1
+ }
+ typedef char xm_slot_D8Device_CreateImageSurface[offsetof(D8DeviceVtable,CreateImageSurface)==27*sizeof(void*)?1:-1];
+ static HRESULT xm_D8Device_CreateImageSurface(CPU*c,D8Device* a0, UINT a1, UINT a2, DWORD a3, D8Surface** a4) {
++ if(xm_quiet)return a0->vt->CreateImageSurface(a0,a1,a2,a3,a4);   /* quiet profile: every record below is dropped (round 4) */
+  XmRequest q={0}; HRESULT ret;
+  q.event=XM_BEGIN;q.domain=XM_NATIVE;q.name="D8Device.CreateImageSurface";q.slot=27;q.interface_id=2;q.host=(uint64_t)(uintptr_t)a0;q.count=5;
+  q.values[0].type=XM_OPAQUE;q.values[0].bytes=sizeof(a0);
+@@ -665,6 +702,7 @@ static HRESULT xm_D8Device_CreateImageSurface(CPU*c,D8Device* a0, UINT a1, UINT
+ }
+ typedef char xm_slot_D8Device_CopyRects[offsetof(D8DeviceVtable,CopyRects)==28*sizeof(void*)?1:-1];
+ static HRESULT xm_D8Device_CopyRects(CPU*c,D8Device* a0, D8Surface* a1, const RECT* a2, UINT a3, D8Surface* a4, const POINT* a5) {
++ if(xm_quiet)return a0->vt->CopyRects(a0,a1,a2,a3,a4,a5);   /* quiet profile: every record below is dropped (round 4) */
+  XmRequest q={0}; HRESULT ret;
+  q.event=XM_BEGIN;q.domain=XM_NATIVE;q.name="D8Device.CopyRects";q.slot=28;q.interface_id=2;q.host=(uint64_t)(uintptr_t)a0;q.count=6;
+  q.values[0].type=XM_OPAQUE;q.values[0].bytes=sizeof(a0);
+@@ -688,6 +726,7 @@ static HRESULT xm_D8Device_CopyRects(CPU*c,D8Device* a0, D8Surface* a1, const RE
+ }
+ typedef char xm_slot_D8Device_UpdateTexture[offsetof(D8DeviceVtable,UpdateTexture)==29*sizeof(void*)?1:-1];
+ static HRESULT xm_D8Device_UpdateTexture(CPU*c,D8Device* a0, D8Texture* a1, D8Texture* a2) {
++ if(xm_quiet)return a0->vt->UpdateTexture(a0,a1,a2);   /* quiet profile: every record below is dropped (round 4) */
+  XmRequest q={0}; HRESULT ret;
+  q.event=XM_BEGIN;q.domain=XM_NATIVE;q.name="D8Device.UpdateTexture";q.slot=29;q.interface_id=2;q.host=(uint64_t)(uintptr_t)a0;q.count=3;
+  q.values[0].type=XM_OPAQUE;q.values[0].bytes=sizeof(a0);
+@@ -704,6 +743,7 @@ static HRESULT xm_D8Device_UpdateTexture(CPU*c,D8Device* a0, D8Texture* a1, D8Te
+ }
+ typedef char xm_slot_D8Device_GetFrontBuffer[offsetof(D8DeviceVtable,GetFrontBuffer)==30*sizeof(void*)?1:-1];
+ static HRESULT xm_D8Device_GetFrontBuffer(CPU*c,D8Device* a0, D8Surface* a1) {
++ if(xm_quiet)return a0->vt->GetFrontBuffer(a0,a1);   /* quiet profile: every record below is dropped (round 4) */
+  XmRequest q={0}; HRESULT ret;
+  q.event=XM_BEGIN;q.domain=XM_NATIVE;q.name="D8Device.GetFrontBuffer";q.slot=30;q.interface_id=2;q.host=(uint64_t)(uintptr_t)a0;q.count=2;
+  q.values[0].type=XM_OPAQUE;q.values[0].bytes=sizeof(a0);
+@@ -718,6 +758,7 @@ static HRESULT xm_D8Device_GetFrontBuffer(CPU*c,D8Device* a0, D8Surface* a1) {
+ }
+ typedef char xm_slot_D8Device_SetRenderTarget[offsetof(D8DeviceVtable,SetRenderTarget)==31*sizeof(void*)?1:-1];
+ static HRESULT xm_D8Device_SetRenderTarget(CPU*c,D8Device* a0, D8Surface* a1, D8Surface* a2) {
++ if(xm_quiet)return a0->vt->SetRenderTarget(a0,a1,a2);   /* quiet profile: every record below is dropped (round 4) */
+  XmRequest q={0}; HRESULT ret;
+  q.event=XM_BEGIN;q.domain=XM_NATIVE;q.name="D8Device.SetRenderTarget";q.slot=31;q.interface_id=2;q.host=(uint64_t)(uintptr_t)a0;q.count=3;
+  q.values[0].type=XM_OPAQUE;q.values[0].bytes=sizeof(a0);
+@@ -734,6 +775,7 @@ static HRESULT xm_D8Device_SetRenderTarget(CPU*c,D8Device* a0, D8Surface* a1, D8
+ }
+ typedef char xm_slot_D8Device_GetRenderTarget[offsetof(D8DeviceVtable,GetRenderTarget)==32*sizeof(void*)?1:-1];
+ static HRESULT xm_D8Device_GetRenderTarget(CPU*c,D8Device* a0, D8Surface** a1) {
++ if(xm_quiet)return a0->vt->GetRenderTarget(a0,a1);   /* quiet profile: every record below is dropped (round 4) */
+  XmRequest q={0}; HRESULT ret;
+  q.event=XM_BEGIN;q.domain=XM_NATIVE;q.name="D8Device.GetRenderTarget";q.slot=32;q.interface_id=2;q.host=(uint64_t)(uintptr_t)a0;q.count=2;
+  q.values[0].type=XM_OPAQUE;q.values[0].bytes=sizeof(a0);
+@@ -749,6 +791,7 @@ static HRESULT xm_D8Device_GetRenderTarget(CPU*c,D8Device* a0, D8Surface** a1) {
+ }
+ typedef char xm_slot_D8Device_GetDepthStencilSurface[offsetof(D8DeviceVtable,GetDepthStencilSurface)==33*sizeof(void*)?1:-1];
+ static HRESULT xm_D8Device_GetDepthStencilSurface(CPU*c,D8Device* a0, D8Surface** a1) {
++ if(xm_quiet)return a0->vt->GetDepthStencilSurface(a0,a1);   /* quiet profile: every record below is dropped (round 4) */
+  XmRequest q={0}; HRESULT ret;
+  q.event=XM_BEGIN;q.domain=XM_NATIVE;q.name="D8Device.GetDepthStencilSurface";q.slot=33;q.interface_id=2;q.host=(uint64_t)(uintptr_t)a0;q.count=2;
+  q.values[0].type=XM_OPAQUE;q.values[0].bytes=sizeof(a0);
+@@ -764,6 +807,7 @@ static HRESULT xm_D8Device_GetDepthStencilSurface(CPU*c,D8Device* a0, D8Surface*
+ }
+ typedef char xm_slot_D8Device_BeginScene[offsetof(D8DeviceVtable,BeginScene)==34*sizeof(void*)?1:-1];
+ static HRESULT xm_D8Device_BeginScene(CPU*c,D8Device* a0) {
++ if(xm_quiet)return a0->vt->BeginScene(a0);   /* quiet profile: every record below is dropped (round 4) */
+  XmRequest q={0}; HRESULT ret;
+  q.event=XM_BEGIN;q.domain=XM_NATIVE;q.name="D8Device.BeginScene";q.slot=34;q.interface_id=2;q.host=(uint64_t)(uintptr_t)a0;q.count=1;
+  q.values[0].type=XM_OPAQUE;q.values[0].bytes=sizeof(a0);
+@@ -776,6 +820,7 @@ static HRESULT xm_D8Device_BeginScene(CPU*c,D8Device* a0) {
+ }
+ typedef char xm_slot_D8Device_EndScene[offsetof(D8DeviceVtable,EndScene)==35*sizeof(void*)?1:-1];
+ static HRESULT xm_D8Device_EndScene(CPU*c,D8Device* a0) {
++ if(xm_quiet)return a0->vt->EndScene(a0);   /* quiet profile: every record below is dropped (round 4) */
+  XmRequest q={0}; HRESULT ret;
+  q.event=XM_BEGIN;q.domain=XM_NATIVE;q.name="D8Device.EndScene";q.slot=35;q.interface_id=2;q.host=(uint64_t)(uintptr_t)a0;q.count=1;
+  q.values[0].type=XM_OPAQUE;q.values[0].bytes=sizeof(a0);
+@@ -788,6 +833,7 @@ static HRESULT xm_D8Device_EndScene(CPU*c,D8Device* a0) {
+ }
+ typedef char xm_slot_D8Device_Clear[offsetof(D8DeviceVtable,Clear)==36*sizeof(void*)?1:-1];
+ static HRESULT xm_D8Device_Clear(CPU*c,D8Device* a0, DWORD a1, const D8Rect* a2, DWORD a3, DWORD a4, float a5, DWORD a6) {
++ if(xm_quiet)return a0->vt->Clear(a0,a1,a2,a3,a4,a5,a6);   /* quiet profile: every record below is dropped (round 4) */
+  XmRequest q={0}; HRESULT ret;
+  q.event=XM_BEGIN;q.domain=XM_NATIVE;q.name="D8Device.Clear";q.slot=36;q.interface_id=2;q.host=(uint64_t)(uintptr_t)a0;q.count=7;
+  q.values[0].type=XM_OPAQUE;q.values[0].bytes=sizeof(a0);
+@@ -813,6 +859,7 @@ static HRESULT xm_D8Device_Clear(CPU*c,D8Device* a0, DWORD a1, const D8Rect* a2,
+ }
+ typedef char xm_slot_D8Device_SetTransform[offsetof(D8DeviceVtable,SetTransform)==37*sizeof(void*)?1:-1];
+ static HRESULT xm_D8Device_SetTransform(CPU*c,D8Device* a0, DWORD a1, const D8Matrix* a2) {
++ if(xm_quiet)return a0->vt->SetTransform(a0,a1,a2);   /* quiet profile: every record below is dropped (round 4) */
+  XmRequest q={0}; HRESULT ret;
+  q.event=XM_BEGIN;q.domain=XM_NATIVE;q.name="D8Device.SetTransform";q.slot=37;q.interface_id=2;q.host=(uint64_t)(uintptr_t)a0;q.count=3;
+  q.values[0].type=XM_OPAQUE;q.values[0].bytes=sizeof(a0);
+@@ -830,6 +877,7 @@ static HRESULT xm_D8Device_SetTransform(CPU*c,D8Device* a0, DWORD a1, const D8Ma
+ }
+ typedef char xm_slot_D8Device_GetTransform[offsetof(D8DeviceVtable,GetTransform)==38*sizeof(void*)?1:-1];
+ static HRESULT xm_D8Device_GetTransform(CPU*c,D8Device* a0, DWORD a1, D8Matrix* a2) {
++ if(xm_quiet)return a0->vt->GetTransform(a0,a1,a2);   /* quiet profile: every record below is dropped (round 4) */
+  XmRequest q={0}; HRESULT ret;
+  q.event=XM_BEGIN;q.domain=XM_NATIVE;q.name="D8Device.GetTransform";q.slot=38;q.interface_id=2;q.host=(uint64_t)(uintptr_t)a0;q.count=3;
+  q.values[0].type=XM_OPAQUE;q.values[0].bytes=sizeof(a0);
+@@ -847,6 +895,7 @@ static HRESULT xm_D8Device_GetTransform(CPU*c,D8Device* a0, DWORD a1, D8Matrix*
+ }
+ typedef char xm_slot_D8Device_SetViewport[offsetof(D8DeviceVtable,SetViewport)==40*sizeof(void*)?1:-1];
+ static HRESULT xm_D8Device_SetViewport(CPU*c,D8Device* a0, const D8Viewport* a1) {
++ if(xm_quiet)return a0->vt->SetViewport(a0,a1);   /* quiet profile: every record below is dropped (round 4) */
+  XmRequest q={0}; HRESULT ret;
+  q.event=XM_BEGIN;q.domain=XM_NATIVE;q.name="D8Device.SetViewport";q.slot=40;q.interface_id=2;q.host=(uint64_t)(uintptr_t)a0;q.count=2;
+  q.values[0].type=XM_OPAQUE;q.values[0].bytes=sizeof(a0);
+@@ -862,6 +911,7 @@ static HRESULT xm_D8Device_SetViewport(CPU*c,D8Device* a0, const D8Viewport* a1)
+ }
+ typedef char xm_slot_D8Device_GetViewport[offsetof(D8DeviceVtable,GetViewport)==41*sizeof(void*)?1:-1];
+ static HRESULT xm_D8Device_GetViewport(CPU*c,D8Device* a0, D8Viewport* a1) {
++ if(xm_quiet)return a0->vt->GetViewport(a0,a1);   /* quiet profile: every record below is dropped (round 4) */
+  XmRequest q={0}; HRESULT ret;
+  q.event=XM_BEGIN;q.domain=XM_NATIVE;q.name="D8Device.GetViewport";q.slot=41;q.interface_id=2;q.host=(uint64_t)(uintptr_t)a0;q.count=2;
+  q.values[0].type=XM_OPAQUE;q.values[0].bytes=sizeof(a0);
+@@ -877,6 +927,7 @@ static HRESULT xm_D8Device_GetViewport(CPU*c,D8Device* a0, D8Viewport* a1) {
+ }
+ typedef char xm_slot_D8Device_SetMaterial[offsetof(D8DeviceVtable,SetMaterial)==42*sizeof(void*)?1:-1];
+ static HRESULT xm_D8Device_SetMaterial(CPU*c,D8Device* a0, const D8Material* a1) {
++ if(xm_quiet)return a0->vt->SetMaterial(a0,a1);   /* quiet profile: every record below is dropped (round 4) */
+  XmRequest q={0}; HRESULT ret;
+  q.event=XM_BEGIN;q.domain=XM_NATIVE;q.name="D8Device.SetMaterial";q.slot=42;q.interface_id=2;q.host=(uint64_t)(uintptr_t)a0;q.count=2;
+  q.values[0].type=XM_OPAQUE;q.values[0].bytes=sizeof(a0);
+@@ -892,6 +943,7 @@ static HRESULT xm_D8Device_SetMaterial(CPU*c,D8Device* a0, const D8Material* a1)
+ }
+ typedef char xm_slot_D8Device_SetRenderState[offsetof(D8DeviceVtable,SetRenderState)==50*sizeof(void*)?1:-1];
+ static HRESULT xm_D8Device_SetRenderState(CPU*c,D8Device* a0, DWORD a1, DWORD a2) {
++ if(xm_quiet)return a0->vt->SetRenderState(a0,a1,a2);   /* quiet profile: every record below is dropped (round 4) */
+  XmRequest q={0}; HRESULT ret;
+  q.event=XM_BEGIN;q.domain=XM_NATIVE;q.name="D8Device.SetRenderState";q.slot=50;q.interface_id=2;q.host=(uint64_t)(uintptr_t)a0;q.count=3;
+  q.values[0].type=XM_OPAQUE;q.values[0].bytes=sizeof(a0);
+@@ -908,6 +960,7 @@ static HRESULT xm_D8Device_SetRenderState(CPU*c,D8Device* a0, DWORD a1, DWORD a2
+ }
+ typedef char xm_slot_D8Device_GetRenderState[offsetof(D8DeviceVtable,GetRenderState)==51*sizeof(void*)?1:-1];
+ static HRESULT xm_D8Device_GetRenderState(CPU*c,D8Device* a0, DWORD a1, DWORD* a2) {
++ if(xm_quiet)return a0->vt->GetRenderState(a0,a1,a2);   /* quiet profile: every record below is dropped (round 4) */
+  XmRequest q={0}; HRESULT ret;
+  q.event=XM_BEGIN;q.domain=XM_NATIVE;q.name="D8Device.GetRenderState";q.slot=51;q.interface_id=2;q.host=(uint64_t)(uintptr_t)a0;q.count=3;
+  q.values[0].type=XM_OPAQUE;q.values[0].bytes=sizeof(a0);
+@@ -924,6 +977,7 @@ static HRESULT xm_D8Device_GetRenderState(CPU*c,D8Device* a0, DWORD a1, DWORD* a
+ }
+ typedef char xm_slot_D8Device_GetTexture[offsetof(D8DeviceVtable,GetTexture)==60*sizeof(void*)?1:-1];
+ static HRESULT xm_D8Device_GetTexture(CPU*c,D8Device* a0, DWORD a1, void** a2) {
++ if(xm_quiet)return a0->vt->GetTexture(a0,a1,a2);   /* quiet profile: every record below is dropped (round 4) */
+  XmRequest q={0}; HRESULT ret;
+  q.event=XM_BEGIN;q.domain=XM_NATIVE;q.name="D8Device.GetTexture";q.slot=60;q.interface_id=2;q.host=(uint64_t)(uintptr_t)a0;q.count=3;
+  q.values[0].type=XM_OPAQUE;q.values[0].bytes=sizeof(a0);
+@@ -941,6 +995,7 @@ static HRESULT xm_D8Device_GetTexture(CPU*c,D8Device* a0, DWORD a1, void** a2) {
+ }
+ typedef char xm_slot_D8Device_SetTexture[offsetof(D8DeviceVtable,SetTexture)==61*sizeof(void*)?1:-1];
+ static HRESULT xm_D8Device_SetTexture(CPU*c,D8Device* a0, DWORD a1, void* a2) {
++ if(xm_quiet)return a0->vt->SetTexture(a0,a1,a2);   /* quiet profile: every record below is dropped (round 4) */
+  XmRequest q={0}; HRESULT ret;
+  q.event=XM_BEGIN;q.domain=XM_NATIVE;q.name="D8Device.SetTexture";q.slot=61;q.interface_id=2;q.host=(uint64_t)(uintptr_t)a0;q.count=3;
+  q.values[0].type=XM_OPAQUE;q.values[0].bytes=sizeof(a0);
+@@ -957,6 +1012,7 @@ static HRESULT xm_D8Device_SetTexture(CPU*c,D8Device* a0, DWORD a1, void* a2) {
+ }
+ typedef char xm_slot_D8Device_GetTextureStageState[offsetof(D8DeviceVtable,GetTextureStageState)==62*sizeof(void*)?1:-1];
+ static HRESULT xm_D8Device_GetTextureStageState(CPU*c,D8Device* a0, DWORD a1, DWORD a2, DWORD* a3) {
++ if(xm_quiet)return a0->vt->GetTextureStageState(a0,a1,a2,a3);   /* quiet profile: every record below is dropped (round 4) */
+  XmRequest q={0}; HRESULT ret;
+  q.event=XM_BEGIN;q.domain=XM_NATIVE;q.name="D8Device.GetTextureStageState";q.slot=62;q.interface_id=2;q.host=(uint64_t)(uintptr_t)a0;q.count=4;
+  q.values[0].type=XM_OPAQUE;q.values[0].bytes=sizeof(a0);
+@@ -975,6 +1031,7 @@ static HRESULT xm_D8Device_GetTextureStageState(CPU*c,D8Device* a0, DWORD a1, DW
+ }
+ typedef char xm_slot_D8Device_SetTextureStageState[offsetof(D8DeviceVtable,SetTextureStageState)==63*sizeof(void*)?1:-1];
+ static HRESULT xm_D8Device_SetTextureStageState(CPU*c,D8Device* a0, DWORD a1, DWORD a2, DWORD a3) {
++ if(xm_quiet)return a0->vt->SetTextureStageState(a0,a1,a2,a3);   /* quiet profile: every record below is dropped (round 4) */
+  XmRequest q={0}; HRESULT ret;
+  q.event=XM_BEGIN;q.domain=XM_NATIVE;q.name="D8Device.SetTextureStageState";q.slot=63;q.interface_id=2;q.host=(uint64_t)(uintptr_t)a0;q.count=4;
+  q.values[0].type=XM_OPAQUE;q.values[0].bytes=sizeof(a0);
+@@ -993,6 +1050,7 @@ static HRESULT xm_D8Device_SetTextureStageState(CPU*c,D8Device* a0, DWORD a1, DW
+ }
+ typedef char xm_slot_D8Device_DrawPrimitive[offsetof(D8DeviceVtable,DrawPrimitive)==70*sizeof(void*)?1:-1];
+ static HRESULT xm_D8Device_DrawPrimitive(CPU*c,D8Device* a0, DWORD a1, UINT a2, UINT a3) {
++ if(xm_quiet)return a0->vt->DrawPrimitive(a0,a1,a2,a3);   /* quiet profile: every record below is dropped (round 4) */
+  XmRequest q={0}; HRESULT ret;
+  q.event=XM_BEGIN;q.domain=XM_NATIVE;q.name="D8Device.DrawPrimitive";q.slot=70;q.interface_id=2;q.host=(uint64_t)(uintptr_t)a0;q.count=4;
+  q.values[0].type=XM_OPAQUE;q.values[0].bytes=sizeof(a0);
+@@ -1011,6 +1069,7 @@ static HRESULT xm_D8Device_DrawPrimitive(CPU*c,D8Device* a0, DWORD a1, UINT a2,
+ }
+ typedef char xm_slot_D8Device_DrawIndexedPrimitive[offsetof(D8DeviceVtable,DrawIndexedPrimitive)==71*sizeof(void*)?1:-1];
+ static HRESULT xm_D8Device_DrawIndexedPrimitive(CPU*c,D8Device* a0, DWORD a1, UINT a2, UINT a3, UINT a4, UINT a5) {
++ if(xm_quiet)return a0->vt->DrawIndexedPrimitive(a0,a1,a2,a3,a4,a5);   /* quiet profile: every record below is dropped (round 4) */
+  XmRequest q={0}; HRESULT ret;
+  q.event=XM_BEGIN;q.domain=XM_NATIVE;q.name="D8Device.DrawIndexedPrimitive";q.slot=71;q.interface_id=2;q.host=(uint64_t)(uintptr_t)a0;q.count=6;
+  q.values[0].type=XM_OPAQUE;q.values[0].bytes=sizeof(a0);
+@@ -1033,6 +1092,7 @@ static HRESULT xm_D8Device_DrawIndexedPrimitive(CPU*c,D8Device* a0, DWORD a1, UI
+ }
+ typedef char xm_slot_D8Device_DrawPrimitiveUP[offsetof(D8DeviceVtable,DrawPrimitiveUP)==72*sizeof(void*)?1:-1];
+ static HRESULT xm_D8Device_DrawPrimitiveUP(CPU*c,D8Device* a0, DWORD a1, UINT a2, const void* a3, UINT a4) {
++ if(xm_quiet)return a0->vt->DrawPrimitiveUP(a0,a1,a2,a3,a4);   /* quiet profile: every record below is dropped (round 4) */
+  XmRequest q={0}; HRESULT ret;
+  q.event=XM_BEGIN;q.domain=XM_NATIVE;q.name="D8Device.DrawPrimitiveUP";q.slot=72;q.interface_id=2;q.host=(uint64_t)(uintptr_t)a0;q.count=5;
+  q.values[0].type=XM_OPAQUE;q.values[0].bytes=sizeof(a0);
+@@ -1053,6 +1113,7 @@ static HRESULT xm_D8Device_DrawPrimitiveUP(CPU*c,D8Device* a0, DWORD a1, UINT a2
+ }
+ typedef char xm_slot_D8Device_DrawIndexedPrimitiveUP[offsetof(D8DeviceVtable,DrawIndexedPrimitiveUP)==73*sizeof(void*)?1:-1];
+ static HRESULT xm_D8Device_DrawIndexedPrimitiveUP(CPU*c,D8Device* a0, DWORD a1, UINT a2, UINT a3, UINT a4, const void* a5, DWORD a6, const void* a7, UINT a8) {
++ if(xm_quiet)return a0->vt->DrawIndexedPrimitiveUP(a0,a1,a2,a3,a4,a5,a6,a7,a8);   /* quiet profile: every record below is dropped (round 4) */
+  XmRequest q={0}; HRESULT ret;
+  q.event=XM_BEGIN;q.domain=XM_NATIVE;q.name="D8Device.DrawIndexedPrimitiveUP";q.slot=73;q.interface_id=2;q.host=(uint64_t)(uintptr_t)a0;q.count=9;
+  q.values[0].type=XM_OPAQUE;q.values[0].bytes=sizeof(a0);
+@@ -1081,6 +1142,7 @@ static HRESULT xm_D8Device_DrawIndexedPrimitiveUP(CPU*c,D8Device* a0, DWORD a1,
+ }
+ typedef char xm_slot_D8Device_CreateVertexShader[offsetof(D8DeviceVtable,CreateVertexShader)==75*sizeof(void*)?1:-1];
+ static HRESULT xm_D8Device_CreateVertexShader(CPU*c,D8Device* a0, const DWORD* a1, const DWORD* a2, DWORD* a3, DWORD a4) {
++ if(xm_quiet)return a0->vt->CreateVertexShader(a0,a1,a2,a3,a4);   /* quiet profile: every record below is dropped (round 4) */
+  XmRequest q={0}; HRESULT ret;
+  q.event=XM_BEGIN;q.domain=XM_NATIVE;q.name="D8Device.CreateVertexShader";q.slot=75;q.interface_id=2;q.host=(uint64_t)(uintptr_t)a0;q.count=5;
+  q.values[0].type=XM_OPAQUE;q.values[0].bytes=sizeof(a0);
+@@ -1101,6 +1163,7 @@ static HRESULT xm_D8Device_CreateVertexShader(CPU*c,D8Device* a0, const DWORD* a
+ }
+ typedef char xm_slot_D8Device_SetVertexShader[offsetof(D8DeviceVtable,SetVertexShader)==76*sizeof(void*)?1:-1];
+ static HRESULT xm_D8Device_SetVertexShader(CPU*c,D8Device* a0, DWORD a1) {
++ if(xm_quiet)return a0->vt->SetVertexShader(a0,a1);   /* quiet profile: every record below is dropped (round 4) */
+  XmRequest q={0}; HRESULT ret;
+  q.event=XM_BEGIN;q.domain=XM_NATIVE;q.name="D8Device.SetVertexShader";q.slot=76;q.interface_id=2;q.host=(uint64_t)(uintptr_t)a0;q.count=2;
+  q.values[0].type=XM_OPAQUE;q.values[0].bytes=sizeof(a0);
+@@ -1115,6 +1178,7 @@ static HRESULT xm_D8Device_SetVertexShader(CPU*c,D8Device* a0, DWORD a1) {
+ }
+ typedef char xm_slot_D8Device_GetVertexShader[offsetof(D8DeviceVtable,GetVertexShader)==77*sizeof(void*)?1:-1];
+ static HRESULT xm_D8Device_GetVertexShader(CPU*c,D8Device* a0, DWORD* a1) {
++ if(xm_quiet)return a0->vt->GetVertexShader(a0,a1);   /* quiet profile: every record below is dropped (round 4) */
+  XmRequest q={0}; HRESULT ret;
+  q.event=XM_BEGIN;q.domain=XM_NATIVE;q.name="D8Device.GetVertexShader";q.slot=77;q.interface_id=2;q.host=(uint64_t)(uintptr_t)a0;q.count=2;
+  q.values[0].type=XM_OPAQUE;q.values[0].bytes=sizeof(a0);
+@@ -1129,6 +1193,7 @@ static HRESULT xm_D8Device_GetVertexShader(CPU*c,D8Device* a0, DWORD* a1) {
+ }
+ typedef char xm_slot_D8Device_DeleteVertexShader[offsetof(D8DeviceVtable,DeleteVertexShader)==78*sizeof(void*)?1:-1];
+ static HRESULT xm_D8Device_DeleteVertexShader(CPU*c,D8Device* a0, DWORD a1) {
++ if(xm_quiet)return a0->vt->DeleteVertexShader(a0,a1);   /* quiet profile: every record below is dropped (round 4) */
+  XmRequest q={0}; HRESULT ret;
+  q.event=XM_BEGIN;q.domain=XM_NATIVE;q.name="D8Device.DeleteVertexShader";q.slot=78;q.interface_id=2;q.host=(uint64_t)(uintptr_t)a0;q.count=2;
+  q.values[0].type=XM_OPAQUE;q.values[0].bytes=sizeof(a0);
+@@ -1143,6 +1208,7 @@ static HRESULT xm_D8Device_DeleteVertexShader(CPU*c,D8Device* a0, DWORD a1) {
+ }
+ typedef char xm_slot_D8Device_SetStreamSource[offsetof(D8DeviceVtable,SetStreamSource)==83*sizeof(void*)?1:-1];
+ static HRESULT xm_D8Device_SetStreamSource(CPU*c,D8Device* a0, DWORD a1, void* a2, DWORD a3) {
++ if(xm_quiet)return a0->vt->SetStreamSource(a0,a1,a2,a3);   /* quiet profile: every record below is dropped (round 4) */
+  XmRequest q={0}; HRESULT ret;
+  q.event=XM_BEGIN;q.domain=XM_NATIVE;q.name="D8Device.SetStreamSource";q.slot=83;q.interface_id=2;q.host=(uint64_t)(uintptr_t)a0;q.count=4;
+  q.values[0].type=XM_OPAQUE;q.values[0].bytes=sizeof(a0);
+@@ -1161,6 +1227,7 @@ static HRESULT xm_D8Device_SetStreamSource(CPU*c,D8Device* a0, DWORD a1, void* a
+ }
+ typedef char xm_slot_D8Device_GetStreamSource[offsetof(D8DeviceVtable,GetStreamSource)==84*sizeof(void*)?1:-1];
+ static HRESULT xm_D8Device_GetStreamSource(CPU*c,D8Device* a0, DWORD a1, void** a2, DWORD* a3) {
++ if(xm_quiet)return a0->vt->GetStreamSource(a0,a1,a2,a3);   /* quiet profile: every record below is dropped (round 4) */
+  XmRequest q={0}; HRESULT ret;
+  q.event=XM_BEGIN;q.domain=XM_NATIVE;q.name="D8Device.GetStreamSource";q.slot=84;q.interface_id=2;q.host=(uint64_t)(uintptr_t)a0;q.count=4;
+  q.values[0].type=XM_OPAQUE;q.values[0].bytes=sizeof(a0);
+@@ -1180,6 +1247,7 @@ static HRESULT xm_D8Device_GetStreamSource(CPU*c,D8Device* a0, DWORD a1, void**
+ }
+ typedef char xm_slot_D8Device_SetIndices[offsetof(D8DeviceVtable,SetIndices)==85*sizeof(void*)?1:-1];
+ static HRESULT xm_D8Device_SetIndices(CPU*c,D8Device* a0, void* a1, DWORD a2) {
++ if(xm_quiet)return a0->vt->SetIndices(a0,a1,a2);   /* quiet profile: every record below is dropped (round 4) */
+  XmRequest q={0}; HRESULT ret;
+  q.event=XM_BEGIN;q.domain=XM_NATIVE;q.name="D8Device.SetIndices";q.slot=85;q.interface_id=2;q.host=(uint64_t)(uintptr_t)a0;q.count=3;
+  q.values[0].type=XM_OPAQUE;q.values[0].bytes=sizeof(a0);
+@@ -1196,6 +1264,7 @@ static HRESULT xm_D8Device_SetIndices(CPU*c,D8Device* a0, void* a1, DWORD a2) {
+ }
+ typedef char xm_slot_D8Device_GetIndices[offsetof(D8DeviceVtable,GetIndices)==86*sizeof(void*)?1:-1];
+ static HRESULT xm_D8Device_GetIndices(CPU*c,D8Device* a0, void** a1, DWORD* a2) {
++ if(xm_quiet)return a0->vt->GetIndices(a0,a1,a2);   /* quiet profile: every record below is dropped (round 4) */
+  XmRequest q={0}; HRESULT ret;
+  q.event=XM_BEGIN;q.domain=XM_NATIVE;q.name="D8Device.GetIndices";q.slot=86;q.interface_id=2;q.host=(uint64_t)(uintptr_t)a0;q.count=3;
+  q.values[0].type=XM_OPAQUE;q.values[0].bytes=sizeof(a0);
+@@ -1213,6 +1282,7 @@ static HRESULT xm_D8Device_GetIndices(CPU*c,D8Device* a0, void** a1, DWORD* a2)
+ }
+ typedef char xm_slot_D8Unknown_QueryInterface[offsetof(D8UnknownVtable,QueryInterface)==0*sizeof(void*)?1:-1];
+ static HRESULT xm_D8Unknown_QueryInterface(CPU*c,D8Unknown* a0, REFIID a1, void** a2) {
++ if(xm_quiet)return a0->vt->QueryInterface(a0,a1,a2);   /* quiet profile: every record below is dropped (round 4) */
+  XmRequest q={0}; HRESULT ret;
+  q.event=XM_BEGIN;q.domain=XM_NATIVE;q.name="D8Unknown.QueryInterface";q.slot=0;q.interface_id=0;q.host=(uint64_t)(uintptr_t)a0;q.count=3;
+  q.values[0].type=XM_OPAQUE;q.values[0].bytes=sizeof(a0);
+@@ -1231,6 +1301,7 @@ static HRESULT xm_D8Unknown_QueryInterface(CPU*c,D8Unknown* a0, REFIID a1, void*
+ }
+ typedef char xm_slot_D8Unknown_AddRef[offsetof(D8UnknownVtable,AddRef)==1*sizeof(void*)?1:-1];
+ static ULONG xm_D8Unknown_AddRef(CPU*c,D8Unknown* a0) {
++ if(xm_quiet)return a0->vt->AddRef(a0);   /* quiet profile: every record below is dropped (round 4) */
+  XmRequest q={0}; ULONG ret;
+  q.event=XM_BEGIN;q.domain=XM_NATIVE;q.name="D8Unknown.AddRef";q.slot=1;q.interface_id=0;q.host=(uint64_t)(uintptr_t)a0;q.count=1;
+  q.values[0].type=XM_OPAQUE;q.values[0].bytes=sizeof(a0);
+@@ -1243,6 +1314,7 @@ static ULONG xm_D8Unknown_AddRef(CPU*c,D8Unknown* a0) {
+ }
+ typedef char xm_slot_D8Unknown_Release[offsetof(D8UnknownVtable,Release)==2*sizeof(void*)?1:-1];
+ static ULONG xm_D8Unknown_Release(CPU*c,D8Unknown* a0) {
++ if(xm_quiet)return a0->vt->Release(a0);   /* quiet profile: every record below is dropped (round 4) */
+  XmRequest q={0}; ULONG ret;
+  q.event=XM_BEGIN;q.domain=XM_NATIVE;q.name="D8Unknown.Release";q.slot=2;q.interface_id=0;q.host=(uint64_t)(uintptr_t)a0;q.count=1;
+  q.values[0].type=XM_OPAQUE;q.values[0].bytes=sizeof(a0);
+@@ -1255,6 +1327,7 @@ static ULONG xm_D8Unknown_Release(CPU*c,D8Unknown* a0) {
+ }
+ typedef char xm_slot_D8Unknown_GetDevice[offsetof(D8UnknownVtable,GetDevice)==3*sizeof(void*)?1:-1];
+ static HRESULT xm_D8Unknown_GetDevice(CPU*c,D8Unknown* a0, D8Device** a1) {
++ if(xm_quiet)return a0->vt->GetDevice(a0,a1);   /* quiet profile: every record below is dropped (round 4) */
+  XmRequest q={0}; HRESULT ret;
+  q.event=XM_BEGIN;q.domain=XM_NATIVE;q.name="D8Unknown.GetDevice";q.slot=3;q.interface_id=0;q.host=(uint64_t)(uintptr_t)a0;q.count=2;
+  q.values[0].type=XM_OPAQUE;q.values[0].bytes=sizeof(a0);
+@@ -1270,6 +1343,7 @@ static HRESULT xm_D8Unknown_GetDevice(CPU*c,D8Unknown* a0, D8Device** a1) {
+ }
+ typedef char xm_slot_D8Surface_QueryInterface[offsetof(D8SurfaceVtable,QueryInterface)==0*sizeof(void*)?1:-1];
+ static HRESULT xm_D8Surface_QueryInterface(CPU*c,D8Surface* a0, REFIID a1, void** a2) {
++ if(xm_quiet)return a0->vt->QueryInterface(a0,a1,a2);   /* quiet profile: every record below is dropped (round 4) */
+  XmRequest q={0}; HRESULT ret;
+  q.event=XM_BEGIN;q.domain=XM_NATIVE;q.name="D8Surface.QueryInterface";q.slot=0;q.interface_id=101;q.host=(uint64_t)(uintptr_t)a0;q.count=3;
+  q.values[0].type=XM_OPAQUE;q.values[0].bytes=sizeof(a0);
+@@ -1288,6 +1362,7 @@ static HRESULT xm_D8Surface_QueryInterface(CPU*c,D8Surface* a0, REFIID a1, void*
+ }
+ typedef char xm_slot_D8Surface_AddRef[offsetof(D8SurfaceVtable,AddRef)==1*sizeof(void*)?1:-1];
+ static ULONG xm_D8Surface_AddRef(CPU*c,D8Surface* a0) {
++ if(xm_quiet)return a0->vt->AddRef(a0);   /* quiet profile: every record below is dropped (round 4) */
+  XmRequest q={0}; ULONG ret;
+  q.event=XM_BEGIN;q.domain=XM_NATIVE;q.name="D8Surface.AddRef";q.slot=1;q.interface_id=101;q.host=(uint64_t)(uintptr_t)a0;q.count=1;
+  q.values[0].type=XM_OPAQUE;q.values[0].bytes=sizeof(a0);
+@@ -1300,6 +1375,7 @@ static ULONG xm_D8Surface_AddRef(CPU*c,D8Surface* a0) {
+ }
+ typedef char xm_slot_D8Surface_Release[offsetof(D8SurfaceVtable,Release)==2*sizeof(void*)?1:-1];
+ static ULONG xm_D8Surface_Release(CPU*c,D8Surface* a0) {
++ if(xm_quiet)return a0->vt->Release(a0);   /* quiet profile: every record below is dropped (round 4) */
+  XmRequest q={0}; ULONG ret;
+  q.event=XM_BEGIN;q.domain=XM_NATIVE;q.name="D8Surface.Release";q.slot=2;q.interface_id=101;q.host=(uint64_t)(uintptr_t)a0;q.count=1;
+  q.values[0].type=XM_OPAQUE;q.values[0].bytes=sizeof(a0);
+@@ -1312,6 +1388,7 @@ static ULONG xm_D8Surface_Release(CPU*c,D8Surface* a0) {
+ }
+ typedef char xm_slot_D8Surface_GetDevice[offsetof(D8SurfaceVtable,GetDevice)==3*sizeof(void*)?1:-1];
+ static HRESULT xm_D8Surface_GetDevice(CPU*c,D8Surface* a0, D8Device** a1) {
++ if(xm_quiet)return a0->vt->GetDevice(a0,a1);   /* quiet profile: every record below is dropped (round 4) */
+  XmRequest q={0}; HRESULT ret;
+  q.event=XM_BEGIN;q.domain=XM_NATIVE;q.name="D8Surface.GetDevice";q.slot=3;q.interface_id=101;q.host=(uint64_t)(uintptr_t)a0;q.count=2;
+  q.values[0].type=XM_OPAQUE;q.values[0].bytes=sizeof(a0);
+@@ -1327,6 +1404,7 @@ static HRESULT xm_D8Surface_GetDevice(CPU*c,D8Surface* a0, D8Device** a1) {
+ }
+ typedef char xm_slot_D8Surface_GetContainer[offsetof(D8SurfaceVtable,GetContainer)==7*sizeof(void*)?1:-1];
+ static HRESULT xm_D8Surface_GetContainer(CPU*c,D8Surface* a0, REFIID a1, void** a2) {
++ if(xm_quiet)return a0->vt->GetContainer(a0,a1,a2);   /* quiet profile: every record below is dropped (round 4) */
+  XmRequest q={0}; HRESULT ret;
+  q.event=XM_BEGIN;q.domain=XM_NATIVE;q.name="D8Surface.GetContainer";q.slot=7;q.interface_id=101;q.host=(uint64_t)(uintptr_t)a0;q.count=3;
+  q.values[0].type=XM_OPAQUE;q.values[0].bytes=sizeof(a0);
+@@ -1345,6 +1423,7 @@ static HRESULT xm_D8Surface_GetContainer(CPU*c,D8Surface* a0, REFIID a1, void**
+ }
+ typedef char xm_slot_D8Surface_GetDesc[offsetof(D8SurfaceVtable,GetDesc)==8*sizeof(void*)?1:-1];
+ static HRESULT xm_D8Surface_GetDesc(CPU*c,D8Surface* a0, D8SurfaceDesc* a1) {
++ if(xm_quiet)return a0->vt->GetDesc(a0,a1);   /* quiet profile: every record below is dropped (round 4) */
+  XmRequest q={0}; HRESULT ret;
+  q.event=XM_BEGIN;q.domain=XM_NATIVE;q.name="D8Surface.GetDesc";q.slot=8;q.interface_id=101;q.host=(uint64_t)(uintptr_t)a0;q.count=2;
+  q.values[0].type=XM_OPAQUE;q.values[0].bytes=sizeof(a0);
+@@ -1360,6 +1439,7 @@ static HRESULT xm_D8Surface_GetDesc(CPU*c,D8Surface* a0, D8SurfaceDesc* a1) {
+ }
+ typedef char xm_slot_D8Surface_LockRect[offsetof(D8SurfaceVtable,LockRect)==9*sizeof(void*)?1:-1];
+ static HRESULT xm_D8Surface_LockRect(CPU*c,D8Surface* a0, D8Locked* a1, const RECT* a2, DWORD a3) {
++ if(xm_quiet)return a0->vt->LockRect(a0,a1,a2,a3);   /* quiet profile: every record below is dropped (round 4) */
+  XmRequest q={0}; HRESULT ret;
+  q.event=XM_BEGIN;q.domain=XM_NATIVE;q.name="D8Surface.LockRect";q.slot=9;q.interface_id=101;q.host=(uint64_t)(uintptr_t)a0;q.count=4;
+  q.values[0].type=XM_OPAQUE;q.values[0].bytes=sizeof(a0);
+@@ -1380,6 +1460,7 @@ static HRESULT xm_D8Surface_LockRect(CPU*c,D8Surface* a0, D8Locked* a1, const RE
+ }
+ typedef char xm_slot_D8Surface_UnlockRect[offsetof(D8SurfaceVtable,UnlockRect)==10*sizeof(void*)?1:-1];
+ static HRESULT xm_D8Surface_UnlockRect(CPU*c,D8Surface* a0) {
++ if(xm_quiet)return a0->vt->UnlockRect(a0);   /* quiet profile: every record below is dropped (round 4) */
+  XmRequest q={0}; HRESULT ret;
+  q.event=XM_BEGIN;q.domain=XM_NATIVE;q.name="D8Surface.UnlockRect";q.slot=10;q.interface_id=101;q.host=(uint64_t)(uintptr_t)a0;q.count=1;
+  q.values[0].type=XM_OPAQUE;q.values[0].bytes=sizeof(a0);
+@@ -1392,6 +1473,7 @@ static HRESULT xm_D8Surface_UnlockRect(CPU*c,D8Surface* a0) {
+ }
+ typedef char xm_slot_D8Texture_QueryInterface[offsetof(D8TextureVtable,QueryInterface)==0*sizeof(void*)?1:-1];
+ static HRESULT xm_D8Texture_QueryInterface(CPU*c,D8Texture* a0, REFIID a1, void** a2) {
++ if(xm_quiet)return a0->vt->QueryInterface(a0,a1,a2);   /* quiet profile: every record below is dropped (round 4) */
+  XmRequest q={0}; HRESULT ret;
+  q.event=XM_BEGIN;q.domain=XM_NATIVE;q.name="D8Texture.QueryInterface";q.slot=0;q.interface_id=103;q.host=(uint64_t)(uintptr_t)a0;q.count=3;
+  q.values[0].type=XM_OPAQUE;q.values[0].bytes=sizeof(a0);
+@@ -1410,6 +1492,7 @@ static HRESULT xm_D8Texture_QueryInterface(CPU*c,D8Texture* a0, REFIID a1, void*
+ }
+ typedef char xm_slot_D8Texture_AddRef[offsetof(D8TextureVtable,AddRef)==1*sizeof(void*)?1:-1];
+ static ULONG xm_D8Texture_AddRef(CPU*c,D8Texture* a0) {
++ if(xm_quiet)return a0->vt->AddRef(a0);   /* quiet profile: every record below is dropped (round 4) */
+  XmRequest q={0}; ULONG ret;
+  q.event=XM_BEGIN;q.domain=XM_NATIVE;q.name="D8Texture.AddRef";q.slot=1;q.interface_id=103;q.host=(uint64_t)(uintptr_t)a0;q.count=1;
+  q.values[0].type=XM_OPAQUE;q.values[0].bytes=sizeof(a0);
+@@ -1422,6 +1505,7 @@ static ULONG xm_D8Texture_AddRef(CPU*c,D8Texture* a0) {
+ }
+ typedef char xm_slot_D8Texture_Release[offsetof(D8TextureVtable,Release)==2*sizeof(void*)?1:-1];
+ static ULONG xm_D8Texture_Release(CPU*c,D8Texture* a0) {
++ if(xm_quiet)return a0->vt->Release(a0);   /* quiet profile: every record below is dropped (round 4) */
+  XmRequest q={0}; ULONG ret;
+  q.event=XM_BEGIN;q.domain=XM_NATIVE;q.name="D8Texture.Release";q.slot=2;q.interface_id=103;q.host=(uint64_t)(uintptr_t)a0;q.count=1;
+  q.values[0].type=XM_OPAQUE;q.values[0].bytes=sizeof(a0);
+@@ -1434,6 +1518,7 @@ static ULONG xm_D8Texture_Release(CPU*c,D8Texture* a0) {
+ }
+ typedef char xm_slot_D8Texture_GetDevice[offsetof(D8TextureVtable,GetDevice)==3*sizeof(void*)?1:-1];
+ static HRESULT xm_D8Texture_GetDevice(CPU*c,D8Texture* a0, D8Device** a1) {
++ if(xm_quiet)return a0->vt->GetDevice(a0,a1);   /* quiet profile: every record below is dropped (round 4) */
+  XmRequest q={0}; HRESULT ret;
+  q.event=XM_BEGIN;q.domain=XM_NATIVE;q.name="D8Texture.GetDevice";q.slot=3;q.interface_id=103;q.host=(uint64_t)(uintptr_t)a0;q.count=2;
+  q.values[0].type=XM_OPAQUE;q.values[0].bytes=sizeof(a0);
+@@ -1449,6 +1534,7 @@ static HRESULT xm_D8Texture_GetDevice(CPU*c,D8Texture* a0, D8Device** a1) {
+ }
+ typedef char xm_slot_D8Texture_SetPriority[offsetof(D8TextureVtable,SetPriority)==7*sizeof(void*)?1:-1];
+ static DWORD xm_D8Texture_SetPriority(CPU*c,D8Texture* a0, DWORD a1) {
++ if(xm_quiet)return a0->vt->SetPriority(a0,a1);   /* quiet profile: every record below is dropped (round 4) */
+  XmRequest q={0}; DWORD ret;
+  q.event=XM_BEGIN;q.domain=XM_NATIVE;q.name="D8Texture.SetPriority";q.slot=7;q.interface_id=103;q.host=(uint64_t)(uintptr_t)a0;q.count=2;
+  q.values[0].type=XM_OPAQUE;q.values[0].bytes=sizeof(a0);
+@@ -1463,6 +1549,7 @@ static DWORD xm_D8Texture_SetPriority(CPU*c,D8Texture* a0, DWORD a1) {
+ }
+ typedef char xm_slot_D8Texture_GetPriority[offsetof(D8TextureVtable,GetPriority)==8*sizeof(void*)?1:-1];
+ static DWORD xm_D8Texture_GetPriority(CPU*c,D8Texture* a0) {
++ if(xm_quiet)return a0->vt->GetPriority(a0);   /* quiet profile: every record below is dropped (round 4) */
+  XmRequest q={0}; DWORD ret;
+  q.event=XM_BEGIN;q.domain=XM_NATIVE;q.name="D8Texture.GetPriority";q.slot=8;q.interface_id=103;q.host=(uint64_t)(uintptr_t)a0;q.count=1;
+  q.values[0].type=XM_OPAQUE;q.values[0].bytes=sizeof(a0);
+@@ -1475,6 +1562,7 @@ static DWORD xm_D8Texture_GetPriority(CPU*c,D8Texture* a0) {
+ }
+ typedef char xm_slot_D8Texture_PreLoad[offsetof(D8TextureVtable,PreLoad)==9*sizeof(void*)?1:-1];
+ static void xm_D8Texture_PreLoad(CPU*c,D8Texture* a0) {
++ if(xm_quiet){a0->vt->PreLoad(a0);return;}   /* quiet profile: every record below is dropped (round 4) */
+  XmRequest q={0};
+  q.event=XM_BEGIN;q.domain=XM_NATIVE;q.name="D8Texture.PreLoad";q.slot=9;q.interface_id=103;q.host=(uint64_t)(uintptr_t)a0;q.count=1;
+  q.values[0].type=XM_OPAQUE;q.values[0].bytes=sizeof(a0);
+@@ -1486,6 +1574,7 @@ static void xm_D8Texture_PreLoad(CPU*c,D8Texture* a0) {
+ }
+ typedef char xm_slot_D8Texture_GetType[offsetof(D8TextureVtable,GetType)==10*sizeof(void*)?1:-1];
+ static DWORD xm_D8Texture_GetType(CPU*c,D8Texture* a0) {
++ if(xm_quiet)return a0->vt->GetType(a0);   /* quiet profile: every record below is dropped (round 4) */
+  XmRequest q={0}; DWORD ret;
+  q.event=XM_BEGIN;q.domain=XM_NATIVE;q.name="D8Texture.GetType";q.slot=10;q.interface_id=103;q.host=(uint64_t)(uintptr_t)a0;q.count=1;
+  q.values[0].type=XM_OPAQUE;q.values[0].bytes=sizeof(a0);
+@@ -1498,6 +1587,7 @@ static DWORD xm_D8Texture_GetType(CPU*c,D8Texture* a0) {
+ }
+ typedef char xm_slot_D8Texture_SetLOD[offsetof(D8TextureVtable,SetLOD)==11*sizeof(void*)?1:-1];
+ static DWORD xm_D8Texture_SetLOD(CPU*c,D8Texture* a0, DWORD a1) {
++ if(xm_quiet)return a0->vt->SetLOD(a0,a1);   /* quiet profile: every record below is dropped (round 4) */
+  XmRequest q={0}; DWORD ret;
+  q.event=XM_BEGIN;q.domain=XM_NATIVE;q.name="D8Texture.SetLOD";q.slot=11;q.interface_id=103;q.host=(uint64_t)(uintptr_t)a0;q.count=2;
+  q.values[0].type=XM_OPAQUE;q.values[0].bytes=sizeof(a0);
+@@ -1512,6 +1602,7 @@ static DWORD xm_D8Texture_SetLOD(CPU*c,D8Texture* a0, DWORD a1) {
+ }
+ typedef char xm_slot_D8Texture_GetLOD[offsetof(D8TextureVtable,GetLOD)==12*sizeof(void*)?1:-1];
+ static DWORD xm_D8Texture_GetLOD(CPU*c,D8Texture* a0) {
++ if(xm_quiet)return a0->vt->GetLOD(a0);   /* quiet profile: every record below is dropped (round 4) */
+  XmRequest q={0}; DWORD ret;
+  q.event=XM_BEGIN;q.domain=XM_NATIVE;q.name="D8Texture.GetLOD";q.slot=12;q.interface_id=103;q.host=(uint64_t)(uintptr_t)a0;q.count=1;
+  q.values[0].type=XM_OPAQUE;q.values[0].bytes=sizeof(a0);
+@@ -1524,6 +1615,7 @@ static DWORD xm_D8Texture_GetLOD(CPU*c,D8Texture* a0) {
+ }
+ typedef char xm_slot_D8Texture_GetLevelCount[offsetof(D8TextureVtable,GetLevelCount)==13*sizeof(void*)?1:-1];
+ static DWORD xm_D8Texture_GetLevelCount(CPU*c,D8Texture* a0) {
++ if(xm_quiet)return a0->vt->GetLevelCount(a0);   /* quiet profile: every record below is dropped (round 4) */
+  XmRequest q={0}; DWORD ret;
+  q.event=XM_BEGIN;q.domain=XM_NATIVE;q.name="D8Texture.GetLevelCount";q.slot=13;q.interface_id=103;q.host=(uint64_t)(uintptr_t)a0;q.count=1;
+  q.values[0].type=XM_OPAQUE;q.values[0].bytes=sizeof(a0);
+@@ -1536,6 +1628,7 @@ static DWORD xm_D8Texture_GetLevelCount(CPU*c,D8Texture* a0) {
+ }
+ typedef char xm_slot_D8Texture_GetLevelDesc[offsetof(D8TextureVtable,GetLevelDesc)==14*sizeof(void*)?1:-1];
+ static HRESULT xm_D8Texture_GetLevelDesc(CPU*c,D8Texture* a0, UINT a1, D8SurfaceDesc* a2) {
++ if(xm_quiet)return a0->vt->GetLevelDesc(a0,a1,a2);   /* quiet profile: every record below is dropped (round 4) */
+  XmRequest q={0}; HRESULT ret;
+  q.event=XM_BEGIN;q.domain=XM_NATIVE;q.name="D8Texture.GetLevelDesc";q.slot=14;q.interface_id=103;q.host=(uint64_t)(uintptr_t)a0;q.count=3;
+  q.values[0].type=XM_OPAQUE;q.values[0].bytes=sizeof(a0);
+@@ -1553,6 +1646,7 @@ static HRESULT xm_D8Texture_GetLevelDesc(CPU*c,D8Texture* a0, UINT a1, D8Surface
+ }
+ typedef char xm_slot_D8Texture_GetSurfaceLevel[offsetof(D8TextureVtable,GetSurfaceLevel)==15*sizeof(void*)?1:-1];
+ static HRESULT xm_D8Texture_GetSurfaceLevel(CPU*c,D8Texture* a0, UINT a1, D8Surface** a2) {
++ if(xm_quiet)return a0->vt->GetSurfaceLevel(a0,a1,a2);   /* quiet profile: every record below is dropped (round 4) */
+  XmRequest q={0}; HRESULT ret;
+  q.event=XM_BEGIN;q.domain=XM_NATIVE;q.name="D8Texture.GetSurfaceLevel";q.slot=15;q.interface_id=103;q.host=(uint64_t)(uintptr_t)a0;q.count=3;
+  q.values[0].type=XM_OPAQUE;q.values[0].bytes=sizeof(a0);
+@@ -1570,6 +1664,7 @@ static HRESULT xm_D8Texture_GetSurfaceLevel(CPU*c,D8Texture* a0, UINT a1, D8Surf
+ }
+ typedef char xm_slot_D8Texture_LockRect[offsetof(D8TextureVtable,LockRect)==16*sizeof(void*)?1:-1];
+ static HRESULT xm_D8Texture_LockRect(CPU*c,D8Texture* a0, UINT a1, D8Locked* a2, const RECT* a3, DWORD a4) {
++ if(xm_quiet)return a0->vt->LockRect(a0,a1,a2,a3,a4);   /* quiet profile: every record below is dropped (round 4) */
+  XmRequest q={0}; HRESULT ret;
+  q.event=XM_BEGIN;q.domain=XM_NATIVE;q.name="D8Texture.LockRect";q.slot=16;q.interface_id=103;q.host=(uint64_t)(uintptr_t)a0;q.count=5;
+  q.values[0].type=XM_OPAQUE;q.values[0].bytes=sizeof(a0);
+@@ -1592,6 +1687,7 @@ static HRESULT xm_D8Texture_LockRect(CPU*c,D8Texture* a0, UINT a1, D8Locked* a2,
+ }
+ typedef char xm_slot_D8Texture_UnlockRect[offsetof(D8TextureVtable,UnlockRect)==17*sizeof(void*)?1:-1];
+ static HRESULT xm_D8Texture_UnlockRect(CPU*c,D8Texture* a0, UINT a1) {
++ if(xm_quiet)return a0->vt->UnlockRect(a0,a1);   /* quiet profile: every record below is dropped (round 4) */
+  XmRequest q={0}; HRESULT ret;
+  q.event=XM_BEGIN;q.domain=XM_NATIVE;q.name="D8Texture.UnlockRect";q.slot=17;q.interface_id=103;q.host=(uint64_t)(uintptr_t)a0;q.count=2;
+  q.values[0].type=XM_OPAQUE;q.values[0].bytes=sizeof(a0);
+@@ -1606,6 +1702,7 @@ static HRESULT xm_D8Texture_UnlockRect(CPU*c,D8Texture* a0, UINT a1) {
+ }
+ typedef char xm_slot_D8Texture_AddDirtyRect[offsetof(D8TextureVtable,AddDirtyRect)==18*sizeof(void*)?1:-1];
+ static HRESULT xm_D8Texture_AddDirtyRect(CPU*c,D8Texture* a0, const RECT* a1) {
++ if(xm_quiet)return a0->vt->AddDirtyRect(a0,a1);   /* quiet profile: every record below is dropped (round 4) */
+  XmRequest q={0}; HRESULT ret;
+  q.event=XM_BEGIN;q.domain=XM_NATIVE;q.name="D8Texture.AddDirtyRect";q.slot=18;q.interface_id=103;q.host=(uint64_t)(uintptr_t)a0;q.count=2;
+  q.values[0].type=XM_OPAQUE;q.values[0].bytes=sizeof(a0);
+@@ -1621,6 +1718,7 @@ static HRESULT xm_D8Texture_AddDirtyRect(CPU*c,D8Texture* a0, const RECT* a1) {
+ }
+ typedef char xm_slot_D8Buffer_QueryInterface[offsetof(D8BufferVtable,QueryInterface)==0*sizeof(void*)?1:-1];
+ static HRESULT xm_D8Buffer_QueryInterface(CPU*c,D8Buffer* a0, REFIID a1, void** a2) {
++ if(xm_quiet)return a0->vt->QueryInterface(a0,a1,a2);   /* quiet profile: every record below is dropped (round 4) */
+  XmRequest q={0}; HRESULT ret;
+  q.event=XM_BEGIN;q.domain=XM_NATIVE;q.name="D8Buffer.QueryInterface";q.slot=0;q.interface_id=106;q.host=(uint64_t)(uintptr_t)a0;q.count=3;
+  q.values[0].type=XM_OPAQUE;q.values[0].bytes=sizeof(a0);
+@@ -1639,6 +1737,7 @@ static HRESULT xm_D8Buffer_QueryInterface(CPU*c,D8Buffer* a0, REFIID a1, void**
+ }
+ typedef char xm_slot_D8Buffer_AddRef[offsetof(D8BufferVtable,AddRef)==1*sizeof(void*)?1:-1];
+ static ULONG xm_D8Buffer_AddRef(CPU*c,D8Buffer* a0) {
++ if(xm_quiet)return a0->vt->AddRef(a0);   /* quiet profile: every record below is dropped (round 4) */
+  XmRequest q={0}; ULONG ret;
+  q.event=XM_BEGIN;q.domain=XM_NATIVE;q.name="D8Buffer.AddRef";q.slot=1;q.interface_id=106;q.host=(uint64_t)(uintptr_t)a0;q.count=1;
+  q.values[0].type=XM_OPAQUE;q.values[0].bytes=sizeof(a0);
+@@ -1651,6 +1750,7 @@ static ULONG xm_D8Buffer_AddRef(CPU*c,D8Buffer* a0) {
+ }
+ typedef char xm_slot_D8Buffer_Release[offsetof(D8BufferVtable,Release)==2*sizeof(void*)?1:-1];
+ static ULONG xm_D8Buffer_Release(CPU*c,D8Buffer* a0) {
++ if(xm_quiet)return a0->vt->Release(a0);   /* quiet profile: every record below is dropped (round 4) */
+  XmRequest q={0}; ULONG ret;
+  q.event=XM_BEGIN;q.domain=XM_NATIVE;q.name="D8Buffer.Release";q.slot=2;q.interface_id=106;q.host=(uint64_t)(uintptr_t)a0;q.count=1;
+  q.values[0].type=XM_OPAQUE;q.values[0].bytes=sizeof(a0);
+@@ -1663,6 +1763,7 @@ static ULONG xm_D8Buffer_Release(CPU*c,D8Buffer* a0) {
+ }
+ typedef char xm_slot_D8Buffer_GetDevice[offsetof(D8BufferVtable,GetDevice)==3*sizeof(void*)?1:-1];
+ static HRESULT xm_D8Buffer_GetDevice(CPU*c,D8Buffer* a0, D8Device** a1) {
++ if(xm_quiet)return a0->vt->GetDevice(a0,a1);   /* quiet profile: every record below is dropped (round 4) */
+  XmRequest q={0}; HRESULT ret;
+  q.event=XM_BEGIN;q.domain=XM_NATIVE;q.name="D8Buffer.GetDevice";q.slot=3;q.interface_id=106;q.host=(uint64_t)(uintptr_t)a0;q.count=2;
+  q.values[0].type=XM_OPAQUE;q.values[0].bytes=sizeof(a0);
+@@ -1678,6 +1779,7 @@ static HRESULT xm_D8Buffer_GetDevice(CPU*c,D8Buffer* a0, D8Device** a1) {
+ }
+ typedef char xm_slot_D8Buffer_SetPriority[offsetof(D8BufferVtable,SetPriority)==7*sizeof(void*)?1:-1];
+ static DWORD xm_D8Buffer_SetPriority(CPU*c,D8Buffer* a0, DWORD a1) {
++ if(xm_quiet)return a0->vt->SetPriority(a0,a1);   /* quiet profile: every record below is dropped (round 4) */
+  XmRequest q={0}; DWORD ret;
+  q.event=XM_BEGIN;q.domain=XM_NATIVE;q.name="D8Buffer.SetPriority";q.slot=7;q.interface_id=106;q.host=(uint64_t)(uintptr_t)a0;q.count=2;
+  q.values[0].type=XM_OPAQUE;q.values[0].bytes=sizeof(a0);
+@@ -1692,6 +1794,7 @@ static DWORD xm_D8Buffer_SetPriority(CPU*c,D8Buffer* a0, DWORD a1) {
+ }
+ typedef char xm_slot_D8Buffer_GetPriority[offsetof(D8BufferVtable,GetPriority)==8*sizeof(void*)?1:-1];
+ static DWORD xm_D8Buffer_GetPriority(CPU*c,D8Buffer* a0) {
++ if(xm_quiet)return a0->vt->GetPriority(a0);   /* quiet profile: every record below is dropped (round 4) */
+  XmRequest q={0}; DWORD ret;
+  q.event=XM_BEGIN;q.domain=XM_NATIVE;q.name="D8Buffer.GetPriority";q.slot=8;q.interface_id=106;q.host=(uint64_t)(uintptr_t)a0;q.count=1;
+  q.values[0].type=XM_OPAQUE;q.values[0].bytes=sizeof(a0);
+@@ -1704,6 +1807,7 @@ static DWORD xm_D8Buffer_GetPriority(CPU*c,D8Buffer* a0) {
+ }
+ typedef char xm_slot_D8Buffer_PreLoad[offsetof(D8BufferVtable,PreLoad)==9*sizeof(void*)?1:-1];
+ static void xm_D8Buffer_PreLoad(CPU*c,D8Buffer* a0) {
++ if(xm_quiet){a0->vt->PreLoad(a0);return;}   /* quiet profile: every record below is dropped (round 4) */
+  XmRequest q={0};
+  q.event=XM_BEGIN;q.domain=XM_NATIVE;q.name="D8Buffer.PreLoad";q.slot=9;q.interface_id=106;q.host=(uint64_t)(uintptr_t)a0;q.count=1;
+  q.values[0].type=XM_OPAQUE;q.values[0].bytes=sizeof(a0);
+@@ -1715,6 +1819,7 @@ static void xm_D8Buffer_PreLoad(CPU*c,D8Buffer* a0) {
+ }
+ typedef char xm_slot_D8Buffer_GetType[offsetof(D8BufferVtable,GetType)==10*sizeof(void*)?1:-1];
+ static DWORD xm_D8Buffer_GetType(CPU*c,D8Buffer* a0) {
++ if(xm_quiet)return a0->vt->GetType(a0);   /* quiet profile: every record below is dropped (round 4) */
+  XmRequest q={0}; DWORD ret;
+  q.event=XM_BEGIN;q.domain=XM_NATIVE;q.name="D8Buffer.GetType";q.slot=10;q.interface_id=106;q.host=(uint64_t)(uintptr_t)a0;q.count=1;
+  q.values[0].type=XM_OPAQUE;q.values[0].bytes=sizeof(a0);
+@@ -1727,6 +1832,7 @@ static DWORD xm_D8Buffer_GetType(CPU*c,D8Buffer* a0) {
+ }
+ typedef char xm_slot_D8Buffer_Lock[offsetof(D8BufferVtable,Lock)==11*sizeof(void*)?1:-1];
+ static HRESULT xm_D8Buffer_Lock(CPU*c,D8Buffer* a0, UINT a1, UINT a2, BYTE** a3, DWORD a4) {
++ if(xm_quiet)return a0->vt->Lock(a0,a1,a2,a3,a4);   /* quiet profile: every record below is dropped (round 4) */
+  XmRequest q={0}; HRESULT ret;
+  q.event=XM_BEGIN;q.domain=XM_NATIVE;q.name="D8Buffer.Lock";q.slot=11;q.interface_id=106;q.host=(uint64_t)(uintptr_t)a0;q.count=5;
+  q.values[0].type=XM_OPAQUE;q.values[0].bytes=sizeof(a0);
+@@ -1748,6 +1854,7 @@ static HRESULT xm_D8Buffer_Lock(CPU*c,D8Buffer* a0, UINT a1, UINT a2, BYTE** a3,
+ }
+ typedef char xm_slot_D8Buffer_Unlock[offsetof(D8BufferVtable,Unlock)==12*sizeof(void*)?1:-1];
+ static HRESULT xm_D8Buffer_Unlock(CPU*c,D8Buffer* a0) {
++ if(xm_quiet)return a0->vt->Unlock(a0);   /* quiet profile: every record below is dropped (round 4) */
+  XmRequest q={0}; HRESULT ret;
+  q.event=XM_BEGIN;q.domain=XM_NATIVE;q.name="D8Buffer.Unlock";q.slot=12;q.interface_id=106;q.host=(uint64_t)(uintptr_t)a0;q.count=1;
+  q.values[0].type=XM_OPAQUE;q.values[0].bytes=sizeof(a0);
+@@ -1760,6 +1867,7 @@ static HRESULT xm_D8Buffer_Unlock(CPU*c,D8Buffer* a0) {
+ }
+ typedef char xm_slot_D8Buffer_GetDesc[offsetof(D8BufferVtable,GetDesc)==13*sizeof(void*)?1:-1];
+ static HRESULT xm_D8Buffer_GetDesc(CPU*c,D8Buffer* a0, D8BufferDesc* a1) {
++ if(xm_quiet)return a0->vt->GetDesc(a0,a1);   /* quiet profile: every record below is dropped (round 4) */
+  XmRequest q={0}; HRESULT ret;
+  q.event=XM_BEGIN;q.domain=XM_NATIVE;q.name="D8Buffer.GetDesc";q.slot=13;q.interface_id=106;q.host=(uint64_t)(uintptr_t)a0;q.count=2;
+  q.values[0].type=XM_OPAQUE;q.values[0].bytes=sizeof(a0);
+diff --git a/out/dev-init-savepoints/perf-r3-20261102/runtime/monitor_windows.inc b/out/dev-init/runtime/monitor_windows.inc
+index f785579..e372575 100644
+--- a/out/dev-init-savepoints/perf-r3-20261102/runtime/monitor_windows.inc
++++ b/out/dev-init/runtime/monitor_windows.inc
+@@ -5,6 +5,7 @@
+ #include <objbase.h>
+ #include "monitor.h"
+ static BOOL xm_win_AdjustWindowRect(LPRECT a0, DWORD a1, BOOL a2) {
++ if(xm_quiet)return AdjustWindowRect(a0,a1,a2);   /* quiet profile: every record below is dropped (round 4) */
+  CPU*c=xm_current_cpu();XmRequest q={0};BOOL ret;
+  q.event=XM_BEGIN;q.domain=XM_NATIVE;q.name="WIN.AdjustWindowRect";q.count=3;
+  q.values[0].type=XM_OPAQUE;q.values[0].bytes=sizeof(a0);
+@@ -22,6 +23,7 @@ static BOOL xm_win_AdjustWindowRect(LPRECT a0, DWORD a1, BOOL a2) {
+  return ret;
+ }
+ static BOOL xm_win_AttachThreadInput(DWORD a0, DWORD a1, BOOL a2) {
++ if(xm_quiet)return AttachThreadInput(a0,a1,a2);   /* quiet profile: every record below is dropped (round 4) */
+  CPU*c=xm_current_cpu();XmRequest q={0};BOOL ret;
+  q.event=XM_BEGIN;q.domain=XM_NATIVE;q.name="WIN.AttachThreadInput";q.count=3;
+  q.values[0].type=XM_OPAQUE;q.values[0].bytes=sizeof(a0);
+@@ -37,6 +39,7 @@ static BOOL xm_win_AttachThreadInput(DWORD a0, DWORD a1, BOOL a2) {
+  return ret;
+ }
+ static LRESULT xm_win_CallWindowProcA(WNDPROC a0, HWND a1, UINT a2, WPARAM a3, LPARAM a4) {
++ if(xm_quiet)return CallWindowProcA(a0,a1,a2,a3,a4);   /* quiet profile: every record below is dropped (round 4) */
+  CPU*c=xm_current_cpu();XmRequest q={0};LRESULT ret;
+  q.event=XM_BEGIN;q.domain=XM_NATIVE;q.name="WIN.CallWindowProcA";q.count=5;
+  q.values[0].type=XM_OPAQUE;q.values[0].bytes=sizeof(a0);
+@@ -56,6 +59,7 @@ static LRESULT xm_win_CallWindowProcA(WNDPROC a0, HWND a1, UINT a2, WPARAM a3, L
+  return ret;
+ }
+ static LRESULT xm_win_CallWindowProcW(WNDPROC a0, HWND a1, UINT a2, WPARAM a3, LPARAM a4) {
++ if(xm_quiet)return CallWindowProcW(a0,a1,a2,a3,a4);   /* quiet profile: every record below is dropped (round 4) */
+  CPU*c=xm_current_cpu();XmRequest q={0};LRESULT ret;
+  q.event=XM_BEGIN;q.domain=XM_NATIVE;q.name="WIN.CallWindowProcW";q.count=5;
+  q.values[0].type=XM_OPAQUE;q.values[0].bytes=sizeof(a0);
+@@ -75,6 +79,7 @@ static LRESULT xm_win_CallWindowProcW(WNDPROC a0, HWND a1, UINT a2, WPARAM a3, L
+  return ret;
+ }
+ static BOOL xm_win_ClipCursor(const RECT * a0) {
++ if(xm_quiet)return ClipCursor(a0);   /* quiet profile: every record below is dropped (round 4) */
+  CPU*c=xm_current_cpu();XmRequest q={0};BOOL ret;
+  q.event=XM_BEGIN;q.domain=XM_NATIVE;q.name="WIN.ClipCursor";q.count=1;
+  q.values[0].type=XM_OPAQUE;q.values[0].bytes=sizeof(a0);
+@@ -86,6 +91,7 @@ static BOOL xm_win_ClipCursor(const RECT * a0) {
+  return ret;
+ }
+ static HRESULT xm_win_CoCreateInstance(const IID * const a0, LPUNKNOWN a1, DWORD a2, const IID * const a3, LPVOID * a4) {
++ if(xm_quiet)return CoCreateInstance(a0,a1,a2,a3,a4);   /* quiet profile: every record below is dropped (round 4) */
+  CPU*c=xm_current_cpu();XmRequest q={0};HRESULT ret;
+  q.event=XM_BEGIN;q.domain=XM_NATIVE;q.name="WIN.CoCreateInstance";q.count=5;
+  q.values[0].type=XM_OPAQUE;q.values[0].bytes=sizeof(a0);
+@@ -108,6 +114,7 @@ static HRESULT xm_win_CoCreateInstance(const IID * const a0, LPUNKNOWN a1, DWORD
+  return ret;
+ }
+ static HRESULT xm_win_CoGetApartmentType(APTTYPE* a0, APTTYPEQUALIFIER* a1) {
++ if(xm_quiet)return CoGetApartmentType(a0,a1);   /* quiet profile: every record below is dropped (round 4) */
+  CPU*c=xm_current_cpu();XmRequest q={0};HRESULT ret;
+  q.event=XM_BEGIN;q.domain=XM_NATIVE;q.name="WIN.CoGetApartmentType";q.count=2;
+  q.values[0].type=XM_OPAQUE;q.values[0].bytes=sizeof(a0);
+@@ -121,6 +128,7 @@ static HRESULT xm_win_CoGetApartmentType(APTTYPE* a0, APTTYPEQUALIFIER* a1) {
+  return ret;
+ }
+ static HRESULT xm_win_CoInitialize(LPVOID a0) {
++ if(xm_quiet)return CoInitialize(a0);   /* quiet profile: every record below is dropped (round 4) */
+  CPU*c=xm_current_cpu();XmRequest q={0};HRESULT ret;
+  q.event=XM_BEGIN;q.domain=XM_NATIVE;q.name="WIN.CoInitialize";q.count=1;
+  q.values[0].type=XM_OPAQUE;q.values[0].bytes=sizeof(a0);
+@@ -132,6 +140,7 @@ static HRESULT xm_win_CoInitialize(LPVOID a0) {
+  return ret;
+ }
+ static HRESULT xm_win_CoInitializeEx(LPVOID a0, DWORD a1) {
++ if(xm_quiet)return CoInitializeEx(a0,a1);   /* quiet profile: every record below is dropped (round 4) */
+  CPU*c=xm_current_cpu();XmRequest q={0};HRESULT ret;
+  q.event=XM_BEGIN;q.domain=XM_NATIVE;q.name="WIN.CoInitializeEx";q.count=2;
+  q.values[0].type=XM_OPAQUE;q.values[0].bytes=sizeof(a0);
+@@ -145,6 +154,7 @@ static HRESULT xm_win_CoInitializeEx(LPVOID a0, DWORD a1) {
+  return ret;
+ }
+ static void xm_win_CoUninitialize(void) {
++ if(xm_quiet){CoUninitialize();return;}   /* quiet profile: every record below is dropped (round 4) */
+  CPU*c=xm_current_cpu();XmRequest q={0};
+  q.event=XM_BEGIN;q.domain=XM_NATIVE;q.name="WIN.CoUninitialize";q.count=0;
+  xm_probe(c,&q);
+@@ -153,6 +163,7 @@ static void xm_win_CoUninitialize(void) {
+  xm_probe(c,&q);
+ }
+ static HBITMAP xm_win_CreateBitmap(int a0, int a1, UINT a2, UINT a3, const void * a4) {
++ if(xm_quiet)return CreateBitmap(a0,a1,a2,a3,a4);   /* quiet profile: every record below is dropped (round 4) */
+  CPU*c=xm_current_cpu();XmRequest q={0};HBITMAP ret;
+  q.event=XM_BEGIN;q.domain=XM_NATIVE;q.name="WIN.CreateBitmap";q.count=5;
+  q.values[0].type=XM_OPAQUE;q.values[0].bytes=sizeof(a0);
+@@ -172,6 +183,7 @@ static HBITMAP xm_win_CreateBitmap(int a0, int a1, UINT a2, UINT a3, const void
+  return ret;
+ }
+ static HBITMAP xm_win_CreateDIBitmap(HDC a0, const BITMAPINFOHEADER * a1, DWORD a2, const void * a3, const BITMAPINFO * a4, UINT a5) {
++ if(xm_quiet)return CreateDIBitmap(a0,a1,a2,a3,a4,a5);   /* quiet profile: every record below is dropped (round 4) */
+  CPU*c=xm_current_cpu();XmRequest q={0};HBITMAP ret;
+  q.event=XM_BEGIN;q.domain=XM_NATIVE;q.name="WIN.CreateDIBitmap";q.count=6;
+  q.values[0].type=XM_OPAQUE;q.values[0].bytes=sizeof(a0);
+@@ -193,6 +205,7 @@ static HBITMAP xm_win_CreateDIBitmap(HDC a0, const BITMAPINFOHEADER * a1, DWORD
+  return ret;
+ }
+ static HWND xm_win_CreateDialogParamA(HINSTANCE a0, LPCSTR a1, HWND a2, DLGPROC a3, LPARAM a4) {
++ if(xm_quiet)return CreateDialogParamA(a0,a1,a2,a3,a4);   /* quiet profile: every record below is dropped (round 4) */
+  CPU*c=xm_current_cpu();XmRequest q={0};HWND ret;
+  q.event=XM_BEGIN;q.domain=XM_NATIVE;q.name="WIN.CreateDialogParamA";q.count=5;
+  q.values[0].type=XM_OPAQUE;q.values[0].bytes=sizeof(a0);
+@@ -212,6 +225,7 @@ static HWND xm_win_CreateDialogParamA(HINSTANCE a0, LPCSTR a1, HWND a2, DLGPROC
+  return ret;
+ }
+ static HWND xm_win_CreateDialogParamW(HINSTANCE a0, LPCWSTR a1, HWND a2, DLGPROC a3, LPARAM a4) {
++ if(xm_quiet)return CreateDialogParamW(a0,a1,a2,a3,a4);   /* quiet profile: every record below is dropped (round 4) */
+  CPU*c=xm_current_cpu();XmRequest q={0};HWND ret;
+  q.event=XM_BEGIN;q.domain=XM_NATIVE;q.name="WIN.CreateDialogParamW";q.count=5;
+  q.values[0].type=XM_OPAQUE;q.values[0].bytes=sizeof(a0);
+@@ -231,6 +245,7 @@ static HWND xm_win_CreateDialogParamW(HINSTANCE a0, LPCWSTR a1, HWND a2, DLGPROC
+  return ret;
+ }
+ static HBRUSH xm_win_CreatePatternBrush(HBITMAP a0) {
++ if(xm_quiet)return CreatePatternBrush(a0);   /* quiet profile: every record below is dropped (round 4) */
+  CPU*c=xm_current_cpu();XmRequest q={0};HBRUSH ret;
+  q.event=XM_BEGIN;q.domain=XM_NATIVE;q.name="WIN.CreatePatternBrush";q.count=1;
+  q.values[0].type=XM_OPAQUE;q.values[0].bytes=sizeof(a0);
+@@ -242,6 +257,7 @@ static HBRUSH xm_win_CreatePatternBrush(HBITMAP a0) {
+  return ret;
+ }
+ static HBRUSH xm_win_CreateSolidBrush(COLORREF a0) {
++ if(xm_quiet)return CreateSolidBrush(a0);   /* quiet profile: every record below is dropped (round 4) */
+  CPU*c=xm_current_cpu();XmRequest q={0};HBRUSH ret;
+  q.event=XM_BEGIN;q.domain=XM_NATIVE;q.name="WIN.CreateSolidBrush";q.count=1;
+  q.values[0].type=XM_OPAQUE;q.values[0].bytes=sizeof(a0);
+@@ -253,6 +269,7 @@ static HBRUSH xm_win_CreateSolidBrush(COLORREF a0) {
+  return ret;
+ }
+ static HWND xm_win_CreateWindowExA(DWORD a0, LPCSTR a1, LPCSTR a2, DWORD a3, int a4, int a5, int a6, int a7, HWND a8, HMENU a9, HINSTANCE a10, LPVOID a11) {
++ if(xm_quiet)return CreateWindowExA(a0,a1,a2,a3,a4,a5,a6,a7,a8,a9,a10,a11);   /* quiet profile: every record below is dropped (round 4) */
+  CPU*c=xm_current_cpu();XmRequest q={0};HWND ret;
+  q.event=XM_BEGIN;q.domain=XM_NATIVE;q.name="WIN.CreateWindowExA";q.count=12;
+  q.values[0].type=XM_OPAQUE;q.values[0].bytes=sizeof(a0);
+@@ -286,6 +303,7 @@ static HWND xm_win_CreateWindowExA(DWORD a0, LPCSTR a1, LPCSTR a2, DWORD a3, int
+  return ret;
+ }
+ static HWND xm_win_CreateWindowExW(DWORD a0, LPCWSTR a1, LPCWSTR a2, DWORD a3, int a4, int a5, int a6, int a7, HWND a8, HMENU a9, HINSTANCE a10, LPVOID a11) {
++ if(xm_quiet)return CreateWindowExW(a0,a1,a2,a3,a4,a5,a6,a7,a8,a9,a10,a11);   /* quiet profile: every record below is dropped (round 4) */
+  CPU*c=xm_current_cpu();XmRequest q={0};HWND ret;
+  q.event=XM_BEGIN;q.domain=XM_NATIVE;q.name="WIN.CreateWindowExW";q.count=12;
+  q.values[0].type=XM_OPAQUE;q.values[0].bytes=sizeof(a0);
+@@ -319,6 +337,7 @@ static HWND xm_win_CreateWindowExW(DWORD a0, LPCWSTR a1, LPCWSTR a2, DWORD a3, i
+  return ret;
+ }
+ static LRESULT xm_win_DefWindowProcA(HWND a0, UINT a1, WPARAM a2, LPARAM a3) {
++ if(xm_quiet)return DefWindowProcA(a0,a1,a2,a3);   /* quiet profile: every record below is dropped (round 4) */
+  CPU*c=xm_current_cpu();XmRequest q={0};LRESULT ret;
+  q.event=XM_BEGIN;q.domain=XM_NATIVE;q.name="WIN.DefWindowProcA";q.count=4;
+  q.values[0].type=XM_OPAQUE;q.values[0].bytes=sizeof(a0);
+@@ -336,6 +355,7 @@ static LRESULT xm_win_DefWindowProcA(HWND a0, UINT a1, WPARAM a2, LPARAM a3) {
+  return ret;
+ }
+ static LRESULT xm_win_DefWindowProcW(HWND a0, UINT a1, WPARAM a2, LPARAM a3) {
++ if(xm_quiet)return DefWindowProcW(a0,a1,a2,a3);   /* quiet profile: every record below is dropped (round 4) */
+  CPU*c=xm_current_cpu();XmRequest q={0};LRESULT ret;
+  q.event=XM_BEGIN;q.domain=XM_NATIVE;q.name="WIN.DefWindowProcW";q.count=4;
+  q.values[0].type=XM_OPAQUE;q.values[0].bytes=sizeof(a0);
+@@ -353,6 +373,7 @@ static LRESULT xm_win_DefWindowProcW(HWND a0, UINT a1, WPARAM a2, LPARAM a3) {
+  return ret;
+ }
+ static BOOL xm_win_DeleteObject(HGDIOBJ a0) {
++ if(xm_quiet)return DeleteObject(a0);   /* quiet profile: every record below is dropped (round 4) */
+  CPU*c=xm_current_cpu();XmRequest q={0};BOOL ret;
+  q.event=XM_BEGIN;q.domain=XM_NATIVE;q.name="WIN.DeleteObject";q.count=1;
+  q.values[0].type=XM_OPAQUE;q.values[0].bytes=sizeof(a0);
+@@ -364,6 +385,7 @@ static BOOL xm_win_DeleteObject(HGDIOBJ a0) {
+  return ret;
+ }
+ static BOOL xm_win_DestroyWindow(HWND a0) {
++ if(xm_quiet)return DestroyWindow(a0);   /* quiet profile: every record below is dropped (round 4) */
+  CPU*c=xm_current_cpu();XmRequest q={0};BOOL ret;
+  q.event=XM_BEGIN;q.domain=XM_NATIVE;q.name="WIN.DestroyWindow";q.count=1;
+  q.values[0].type=XM_OPAQUE;q.values[0].bytes=sizeof(a0);
+@@ -375,6 +397,7 @@ static BOOL xm_win_DestroyWindow(HWND a0) {
+  return ret;
+ }
+ static BOOL xm_win_FreeLibrary(HMODULE a0) {
++ if(xm_quiet)return FreeLibrary(a0);   /* quiet profile: every record below is dropped (round 4) */
+  CPU*c=xm_current_cpu();XmRequest q={0};BOOL ret;
+  q.event=XM_BEGIN;q.domain=XM_NATIVE;q.name="WIN.FreeLibrary";q.count=1;
+  q.values[0].type=XM_OPAQUE;q.values[0].bytes=sizeof(a0);
+@@ -386,6 +409,7 @@ static BOOL xm_win_FreeLibrary(HMODULE a0) {
+  return ret;
+ }
+ static HWND xm_win_GetActiveWindow(void) {
++ if(xm_quiet)return GetActiveWindow();   /* quiet profile: every record below is dropped (round 4) */
+  CPU*c=xm_current_cpu();XmRequest q={0};HWND ret;
+  q.event=XM_BEGIN;q.domain=XM_NATIVE;q.name="WIN.GetActiveWindow";q.count=0;
+  xm_probe(c,&q);
+@@ -395,6 +419,7 @@ static HWND xm_win_GetActiveWindow(void) {
+  return ret;
+ }
+ static HWND xm_support_GetActiveWindow(void) {
++ if(xm_quiet)return GetActiveWindow();   /* quiet profile: every record below is dropped (round 4) */
+  CPU*c=xm_current_cpu();XmRequest q={0};HWND ret;
+  q.event=XM_BEGIN;q.domain=XM_SUPPORT;q.name="PROBE.GetActiveWindow";q.count=0;
+  xm_probe(c,&q);
+@@ -404,6 +429,7 @@ static HWND xm_support_GetActiveWindow(void) {
+  return ret;
+ }
+ static BOOL xm_win_GetClassInfoExA(HINSTANCE a0, LPCSTR a1, LPWNDCLASSEXA a2) {
++ if(xm_quiet)return GetClassInfoExA(a0,a1,a2);   /* quiet profile: every record below is dropped (round 4) */
+  CPU*c=xm_current_cpu();XmRequest q={0};BOOL ret;
+  q.event=XM_BEGIN;q.domain=XM_NATIVE;q.name="WIN.GetClassInfoExA";q.count=3;
+  q.values[0].type=XM_OPAQUE;q.values[0].bytes=sizeof(a0);
+@@ -420,6 +446,7 @@ static BOOL xm_win_GetClassInfoExA(HINSTANCE a0, LPCSTR a1, LPWNDCLASSEXA a2) {
+  return ret;
+ }
+ static BOOL xm_win_GetClassInfoExW(HINSTANCE a0, LPCWSTR a1, LPWNDCLASSEXW a2) {
++ if(xm_quiet)return GetClassInfoExW(a0,a1,a2);   /* quiet profile: every record below is dropped (round 4) */
+  CPU*c=xm_current_cpu();XmRequest q={0};BOOL ret;
+  q.event=XM_BEGIN;q.domain=XM_NATIVE;q.name="WIN.GetClassInfoExW";q.count=3;
+  q.values[0].type=XM_OPAQUE;q.values[0].bytes=sizeof(a0);
+@@ -436,6 +463,7 @@ static BOOL xm_win_GetClassInfoExW(HINSTANCE a0, LPCWSTR a1, LPWNDCLASSEXW a2) {
+  return ret;
+ }
+ static ULONG_PTR xm_win_GetClassLongPtrW(HWND a0, int a1) {
++ if(xm_quiet)return GetClassLongPtrW(a0,a1);   /* quiet profile: every record below is dropped (round 4) */
+  CPU*c=xm_current_cpu();XmRequest q={0};ULONG_PTR ret;
+  q.event=XM_BEGIN;q.domain=XM_NATIVE;q.name="WIN.GetClassLongPtrW";q.count=2;
+  q.values[0].type=XM_OPAQUE;q.values[0].bytes=sizeof(a0);
+@@ -449,6 +477,7 @@ static ULONG_PTR xm_win_GetClassLongPtrW(HWND a0, int a1) {
+  return ret;
+ }
+ static BOOL xm_win_GetClientRect(HWND a0, LPRECT a1) {
++ if(xm_quiet)return GetClientRect(a0,a1);   /* quiet profile: every record below is dropped (round 4) */
+  CPU*c=xm_current_cpu();XmRequest q={0};BOOL ret;
+  q.event=XM_BEGIN;q.domain=XM_NATIVE;q.name="WIN.GetClientRect";q.count=2;
+  q.values[0].type=XM_OPAQUE;q.values[0].bytes=sizeof(a0);
+@@ -463,6 +492,7 @@ static BOOL xm_win_GetClientRect(HWND a0, LPRECT a1) {
+  return ret;
+ }
+ static int xm_win_GetClipboardFormatNameW(UINT a0, LPWSTR a1, int a2) {
++ if(xm_quiet)return GetClipboardFormatNameW(a0,a1,a2);   /* quiet profile: every record below is dropped (round 4) */
+  CPU*c=xm_current_cpu();XmRequest q={0};int ret;
+  q.event=XM_BEGIN;q.domain=XM_NATIVE;q.name="WIN.GetClipboardFormatNameW";q.count=3;
+  q.values[0].type=XM_OPAQUE;q.values[0].bytes=sizeof(a0);
+@@ -478,6 +508,7 @@ static int xm_win_GetClipboardFormatNameW(UINT a0, LPWSTR a1, int a2) {
+  return ret;
+ }
+ static int xm_support_GetClipboardFormatNameW(UINT a0, LPWSTR a1, int a2) {
++ if(xm_quiet)return GetClipboardFormatNameW(a0,a1,a2);   /* quiet profile: every record below is dropped (round 4) */
+  CPU*c=xm_current_cpu();XmRequest q={0};int ret;
+  q.event=XM_BEGIN;q.domain=XM_SUPPORT;q.name="PROBE.GetClipboardFormatNameW";q.count=3;
+  q.values[0].type=XM_OPAQUE;q.values[0].bytes=sizeof(a0);
+@@ -493,6 +524,7 @@ static int xm_support_GetClipboardFormatNameW(UINT a0, LPWSTR a1, int a2) {
+  return ret;
+ }
+ static DWORD xm_win_GetCurrentProcessId(void) {
++ if(xm_quiet)return GetCurrentProcessId();   /* quiet profile: every record below is dropped (round 4) */
+  CPU*c=xm_current_cpu();XmRequest q={0};DWORD ret;
+  q.event=XM_BEGIN;q.domain=XM_NATIVE;q.name="WIN.GetCurrentProcessId";q.count=0;
+  xm_probe(c,&q);
+@@ -502,6 +534,7 @@ static DWORD xm_win_GetCurrentProcessId(void) {
+  return ret;
+ }
+ static DWORD xm_support_GetCurrentProcessId(void) {
++ if(xm_quiet)return GetCurrentProcessId();   /* quiet profile: every record below is dropped (round 4) */
+  CPU*c=xm_current_cpu();XmRequest q={0};DWORD ret;
+  q.event=XM_BEGIN;q.domain=XM_SUPPORT;q.name="PROBE.GetCurrentProcessId";q.count=0;
+  xm_probe(c,&q);
+@@ -511,6 +544,7 @@ static DWORD xm_support_GetCurrentProcessId(void) {
+  return ret;
+ }
+ static DWORD xm_win_GetCurrentThreadId(void) {
++ if(xm_quiet)return GetCurrentThreadId();   /* quiet profile: every record below is dropped (round 4) */
+  CPU*c=xm_current_cpu();XmRequest q={0};DWORD ret;
+  q.event=XM_BEGIN;q.domain=XM_NATIVE;q.name="WIN.GetCurrentThreadId";q.count=0;
+  xm_probe(c,&q);
+@@ -520,6 +554,7 @@ static DWORD xm_win_GetCurrentThreadId(void) {
+  return ret;
+ }
+ static DWORD xm_support_GetCurrentThreadId(void) {
++ if(xm_quiet)return GetCurrentThreadId();   /* quiet profile: every record below is dropped (round 4) */
+  CPU*c=xm_current_cpu();XmRequest q={0};DWORD ret;
+  q.event=XM_BEGIN;q.domain=XM_SUPPORT;q.name="PROBE.GetCurrentThreadId";q.count=0;
+  xm_probe(c,&q);
+@@ -529,6 +564,7 @@ static DWORD xm_support_GetCurrentThreadId(void) {
+  return ret;
+ }
+ static HDC xm_win_GetDC(HWND a0) {
++ if(xm_quiet)return GetDC(a0);   /* quiet profile: every record below is dropped (round 4) */
+  CPU*c=xm_current_cpu();XmRequest q={0};HDC ret;
+  q.event=XM_BEGIN;q.domain=XM_NATIVE;q.name="WIN.GetDC";q.count=1;
+  q.values[0].type=XM_OPAQUE;q.values[0].bytes=sizeof(a0);
+@@ -540,6 +576,7 @@ static HDC xm_win_GetDC(HWND a0) {
+  return ret;
+ }
+ static int xm_win_GetDIBits(HDC a0, HBITMAP a1, UINT a2, UINT a3, LPVOID a4, LPBITMAPINFO a5, UINT a6) {
++ if(xm_quiet)return GetDIBits(a0,a1,a2,a3,a4,a5,a6);   /* quiet profile: every record below is dropped (round 4) */
+  CPU*c=xm_current_cpu();XmRequest q={0};int ret;
+  q.event=XM_BEGIN;q.domain=XM_NATIVE;q.name="WIN.GetDIBits";q.count=7;
+  q.values[0].type=XM_OPAQUE;q.values[0].bytes=sizeof(a0);
+@@ -563,6 +600,7 @@ static int xm_win_GetDIBits(HDC a0, HBITMAP a1, UINT a2, UINT a3, LPVOID a4, LPB
+  return ret;
+ }
+ static HWND xm_win_GetDesktopWindow(void) {
++ if(xm_quiet)return GetDesktopWindow();   /* quiet profile: every record below is dropped (round 4) */
+  CPU*c=xm_current_cpu();XmRequest q={0};HWND ret;
+  q.event=XM_BEGIN;q.domain=XM_NATIVE;q.name="WIN.GetDesktopWindow";q.count=0;
+  xm_probe(c,&q);
+@@ -572,6 +610,7 @@ static HWND xm_win_GetDesktopWindow(void) {
+  return ret;
+ }
+ static int xm_win_GetDeviceCaps(HDC a0, int a1) {
++ if(xm_quiet)return GetDeviceCaps(a0,a1);   /* quiet profile: every record below is dropped (round 4) */
+  CPU*c=xm_current_cpu();XmRequest q={0};int ret;
+  q.event=XM_BEGIN;q.domain=XM_NATIVE;q.name="WIN.GetDeviceCaps";q.count=2;
+  q.values[0].type=XM_OPAQUE;q.values[0].bytes=sizeof(a0);
+@@ -585,6 +624,7 @@ static int xm_win_GetDeviceCaps(HDC a0, int a1) {
+  return ret;
+ }
+ static HWND xm_win_GetDlgItem(HWND a0, int a1) {
++ if(xm_quiet)return GetDlgItem(a0,a1);   /* quiet profile: every record below is dropped (round 4) */
+  CPU*c=xm_current_cpu();XmRequest q={0};HWND ret;
+  q.event=XM_BEGIN;q.domain=XM_NATIVE;q.name="WIN.GetDlgItem";q.count=2;
+  q.values[0].type=XM_OPAQUE;q.values[0].bytes=sizeof(a0);
+@@ -598,6 +638,7 @@ static HWND xm_win_GetDlgItem(HWND a0, int a1) {
+  return ret;
+ }
+ static HWND xm_win_GetFocus(void) {
++ if(xm_quiet)return GetFocus();   /* quiet profile: every record below is dropped (round 4) */
+  CPU*c=xm_current_cpu();XmRequest q={0};HWND ret;
+  q.event=XM_BEGIN;q.domain=XM_NATIVE;q.name="WIN.GetFocus";q.count=0;
+  xm_probe(c,&q);
+@@ -607,6 +648,7 @@ static HWND xm_win_GetFocus(void) {
+  return ret;
+ }
+ static HWND xm_support_GetFocus(void) {
++ if(xm_quiet)return GetFocus();   /* quiet profile: every record below is dropped (round 4) */
+  CPU*c=xm_current_cpu();XmRequest q={0};HWND ret;
+  q.event=XM_BEGIN;q.domain=XM_SUPPORT;q.name="PROBE.GetFocus";q.count=0;
+  xm_probe(c,&q);
+@@ -616,6 +658,7 @@ static HWND xm_support_GetFocus(void) {
+  return ret;
+ }
+ static HWND xm_win_GetForegroundWindow(void) {
++ if(xm_quiet)return GetForegroundWindow();   /* quiet profile: every record below is dropped (round 4) */
+  CPU*c=xm_current_cpu();XmRequest q={0};HWND ret;
+  q.event=XM_BEGIN;q.domain=XM_NATIVE;q.name="WIN.GetForegroundWindow";q.count=0;
+  xm_probe(c,&q);
+@@ -625,6 +668,7 @@ static HWND xm_win_GetForegroundWindow(void) {
+  return ret;
+ }
+ static HWND xm_support_GetForegroundWindow(void) {
++ if(xm_quiet)return GetForegroundWindow();   /* quiet profile: every record below is dropped (round 4) */
+  CPU*c=xm_current_cpu();XmRequest q={0};HWND ret;
+  q.event=XM_BEGIN;q.domain=XM_SUPPORT;q.name="PROBE.GetForegroundWindow";q.count=0;
+  xm_probe(c,&q);
+@@ -634,6 +678,7 @@ static HWND xm_support_GetForegroundWindow(void) {
+  return ret;
+ }
+ static DWORD xm_win_GetFullPathNameW(LPCWSTR a0, DWORD a1, LPWSTR a2, LPWSTR* a3) {
++ if(xm_quiet)return GetFullPathNameW(a0,a1,a2,a3);   /* quiet profile: every record below is dropped (round 4) */
+  CPU*c=xm_current_cpu();XmRequest q={0};DWORD ret;
+  q.event=XM_BEGIN;q.domain=XM_NATIVE;q.name="WIN.GetFullPathNameW";q.count=4;
+  q.values[0].type=XM_OPAQUE;q.values[0].bytes=sizeof(a0);
+@@ -651,6 +696,7 @@ static DWORD xm_win_GetFullPathNameW(LPCWSTR a0, DWORD a1, LPWSTR a2, LPWSTR* a3
+  return ret;
+ }
+ static SHORT xm_win_GetKeyState(int a0) {
++ if(xm_quiet)return GetKeyState(a0);   /* quiet profile: every record below is dropped (round 4) */
+  CPU*c=xm_current_cpu();XmRequest q={0};SHORT ret;
+  q.event=XM_BEGIN;q.domain=XM_NATIVE;q.name="WIN.GetKeyState";q.count=1;
+  q.values[0].type=XM_OPAQUE;q.values[0].bytes=sizeof(a0);
+@@ -662,6 +708,7 @@ static SHORT xm_win_GetKeyState(int a0) {
+  return ret;
+ }
+ static DWORD xm_win_GetModuleFileNameW(HMODULE a0, LPWSTR a1, DWORD a2) {
++ if(xm_quiet)return GetModuleFileNameW(a0,a1,a2);   /* quiet profile: every record below is dropped (round 4) */
+  CPU*c=xm_current_cpu();XmRequest q={0};DWORD ret;
+  q.event=XM_BEGIN;q.domain=XM_NATIVE;q.name="WIN.GetModuleFileNameW";q.count=3;
+  q.values[0].type=XM_OPAQUE;q.values[0].bytes=sizeof(a0);
+@@ -677,6 +724,7 @@ static DWORD xm_win_GetModuleFileNameW(HMODULE a0, LPWSTR a1, DWORD a2) {
+  return ret;
+ }
+ static DWORD xm_support_GetModuleFileNameW(HMODULE a0, LPWSTR a1, DWORD a2) {
++ if(xm_quiet)return GetModuleFileNameW(a0,a1,a2);   /* quiet profile: every record below is dropped (round 4) */
+  CPU*c=xm_current_cpu();XmRequest q={0};DWORD ret;
+  q.event=XM_BEGIN;q.domain=XM_SUPPORT;q.name="PROBE.GetModuleFileNameW";q.count=3;
+  q.values[0].type=XM_OPAQUE;q.values[0].bytes=sizeof(a0);
+@@ -692,6 +740,7 @@ static DWORD xm_support_GetModuleFileNameW(HMODULE a0, LPWSTR a1, DWORD a2) {
+  return ret;
+ }
+ static BOOL xm_win_GetModuleHandleExW(DWORD a0, LPCWSTR a1, HMODULE* a2) {
++ if(xm_quiet)return GetModuleHandleExW(a0,a1,a2);   /* quiet profile: every record below is dropped (round 4) */
+  CPU*c=xm_current_cpu();XmRequest q={0};BOOL ret;
+  q.event=XM_BEGIN;q.domain=XM_NATIVE;q.name="WIN.GetModuleHandleExW";q.count=3;
+  q.values[0].type=XM_OPAQUE;q.values[0].bytes=sizeof(a0);
+@@ -707,6 +756,7 @@ static BOOL xm_win_GetModuleHandleExW(DWORD a0, LPCWSTR a1, HMODULE* a2) {
+  return ret;
+ }
+ static BOOL xm_support_GetModuleHandleExW(DWORD a0, LPCWSTR a1, HMODULE* a2) {
++ if(xm_quiet)return GetModuleHandleExW(a0,a1,a2);   /* quiet profile: every record below is dropped (round 4) */
+  CPU*c=xm_current_cpu();XmRequest q={0};BOOL ret;
+  q.event=XM_BEGIN;q.domain=XM_SUPPORT;q.name="PROBE.GetModuleHandleExW";q.count=3;
+  q.values[0].type=XM_OPAQUE;q.values[0].bytes=sizeof(a0);
+@@ -722,6 +772,7 @@ static BOOL xm_support_GetModuleHandleExW(DWORD a0, LPCWSTR a1, HMODULE* a2) {
+  return ret;
+ }
+ static DWORD xm_win_GetObjectType(HGDIOBJ a0) {
++ if(xm_quiet)return GetObjectType(a0);   /* quiet profile: every record below is dropped (round 4) */
+  CPU*c=xm_current_cpu();XmRequest q={0};DWORD ret;
+  q.event=XM_BEGIN;q.domain=XM_NATIVE;q.name="WIN.GetObjectType";q.count=1;
+  q.values[0].type=XM_OPAQUE;q.values[0].bytes=sizeof(a0);
+@@ -733,6 +784,7 @@ static DWORD xm_win_GetObjectType(HGDIOBJ a0) {
+  return ret;
+ }
+ static FARPROC xm_win_GetProcAddress(HMODULE a0, LPCSTR a1) {
++ if(xm_quiet)return GetProcAddress(a0,a1);   /* quiet profile: every record below is dropped (round 4) */
+  CPU*c=xm_current_cpu();XmRequest q={0};FARPROC ret;
+  q.event=XM_BEGIN;q.domain=XM_NATIVE;q.name="WIN.GetProcAddress";q.count=2;
+  q.values[0].type=XM_OPAQUE;q.values[0].bytes=sizeof(a0);
+@@ -746,6 +798,7 @@ static FARPROC xm_win_GetProcAddress(HMODULE a0, LPCSTR a1) {
+  return ret;
+ }
+ static DWORD xm_win_GetProcessId(HANDLE a0) {
++ if(xm_quiet)return GetProcessId(a0);   /* quiet profile: every record below is dropped (round 4) */
+  CPU*c=xm_current_cpu();XmRequest q={0};DWORD ret;
+  q.event=XM_BEGIN;q.domain=XM_NATIVE;q.name="WIN.GetProcessId";q.count=1;
+  q.values[0].type=XM_OPAQUE;q.values[0].bytes=sizeof(a0);
+@@ -757,6 +810,7 @@ static DWORD xm_win_GetProcessId(HANDLE a0) {
+  return ret;
+ }
+ static HANDLE xm_win_GetPropA(HWND a0, LPCSTR a1) {
++ if(xm_quiet)return GetPropA(a0,a1);   /* quiet profile: every record below is dropped (round 4) */
+  CPU*c=xm_current_cpu();XmRequest q={0};HANDLE ret;
+  q.event=XM_BEGIN;q.domain=XM_NATIVE;q.name="WIN.GetPropA";q.count=2;
+  q.values[0].type=XM_OPAQUE;q.values[0].bytes=sizeof(a0);
+@@ -770,6 +824,7 @@ static HANDLE xm_win_GetPropA(HWND a0, LPCSTR a1) {
+  return ret;
+ }
+ static HANDLE xm_win_GetPropW(HWND a0, LPCWSTR a1) {
++ if(xm_quiet)return GetPropW(a0,a1);   /* quiet profile: every record below is dropped (round 4) */
+  CPU*c=xm_current_cpu();XmRequest q={0};HANDLE ret;
+  q.event=XM_BEGIN;q.domain=XM_NATIVE;q.name="WIN.GetPropW";q.count=2;
+  q.values[0].type=XM_OPAQUE;q.values[0].bytes=sizeof(a0);
+@@ -783,6 +838,7 @@ static HANDLE xm_win_GetPropW(HWND a0, LPCWSTR a1) {
+  return ret;
+ }
+ static HGDIOBJ xm_win_GetStockObject(int a0) {
++ if(xm_quiet)return GetStockObject(a0);   /* quiet profile: every record below is dropped (round 4) */
+  CPU*c=xm_current_cpu();XmRequest q={0};HGDIOBJ ret;
+  q.event=XM_BEGIN;q.domain=XM_NATIVE;q.name="WIN.GetStockObject";q.count=1;
+  q.values[0].type=XM_OPAQUE;q.values[0].bytes=sizeof(a0);
+@@ -794,6 +850,7 @@ static HGDIOBJ xm_win_GetStockObject(int a0) {
+  return ret;
+ }
+ static int xm_win_GetSystemMetrics(int a0) {
++ if(xm_quiet)return GetSystemMetrics(a0);   /* quiet profile: every record below is dropped (round 4) */
+  CPU*c=xm_current_cpu();XmRequest q={0};int ret;
+  q.event=XM_BEGIN;q.domain=XM_NATIVE;q.name="WIN.GetSystemMetrics";q.count=1;
+  q.values[0].type=XM_OPAQUE;q.values[0].bytes=sizeof(a0);
+@@ -805,6 +862,7 @@ static int xm_win_GetSystemMetrics(int a0) {
+  return ret;
+ }
+ static LONG xm_win_GetWindowLongA(HWND a0, int a1) {
++ if(xm_quiet)return GetWindowLongA(a0,a1);   /* quiet profile: every record below is dropped (round 4) */
+  CPU*c=xm_current_cpu();XmRequest q={0};LONG ret;
+  q.event=XM_BEGIN;q.domain=XM_NATIVE;q.name="WIN.GetWindowLongA";q.count=2;
+  q.values[0].type=XM_OPAQUE;q.values[0].bytes=sizeof(a0);
+@@ -818,6 +876,7 @@ static LONG xm_win_GetWindowLongA(HWND a0, int a1) {
+  return ret;
+ }
+ static LONG_PTR xm_win_GetWindowLongPtrW(HWND a0, int a1) {
++ if(xm_quiet)return GetWindowLongPtrW(a0,a1);   /* quiet profile: every record below is dropped (round 4) */
+  CPU*c=xm_current_cpu();XmRequest q={0};LONG_PTR ret;
+  q.event=XM_BEGIN;q.domain=XM_NATIVE;q.name="WIN.GetWindowLongPtrW";q.count=2;
+  q.values[0].type=XM_OPAQUE;q.values[0].bytes=sizeof(a0);
+@@ -831,6 +890,7 @@ static LONG_PTR xm_win_GetWindowLongPtrW(HWND a0, int a1) {
+  return ret;
+ }
+ static LONG_PTR xm_support_GetWindowLongPtrW(HWND a0, int a1) {
++ if(xm_quiet)return GetWindowLongPtrW(a0,a1);   /* quiet profile: every record below is dropped (round 4) */
+  CPU*c=xm_current_cpu();XmRequest q={0};LONG_PTR ret;
+  q.event=XM_BEGIN;q.domain=XM_SUPPORT;q.name="PROBE.GetWindowLongPtrW";q.count=2;
+  q.values[0].type=XM_OPAQUE;q.values[0].bytes=sizeof(a0);
+@@ -844,6 +904,7 @@ static LONG_PTR xm_support_GetWindowLongPtrW(HWND a0, int a1) {
+  return ret;
+ }
+ static LONG xm_win_GetWindowLongW(HWND a0, int a1) {
++ if(xm_quiet)return GetWindowLongW(a0,a1);   /* quiet profile: every record below is dropped (round 4) */
+  CPU*c=xm_current_cpu();XmRequest q={0};LONG ret;
+  q.event=XM_BEGIN;q.domain=XM_NATIVE;q.name="WIN.GetWindowLongW";q.count=2;
+  q.values[0].type=XM_OPAQUE;q.values[0].bytes=sizeof(a0);
+@@ -857,6 +918,7 @@ static LONG xm_win_GetWindowLongW(HWND a0, int a1) {
+  return ret;
+ }
+ static BOOL xm_win_GetWindowRect(HWND a0, LPRECT a1) {
++ if(xm_quiet)return GetWindowRect(a0,a1);   /* quiet profile: every record below is dropped (round 4) */
+  CPU*c=xm_current_cpu();XmRequest q={0};BOOL ret;
+  q.event=XM_BEGIN;q.domain=XM_NATIVE;q.name="WIN.GetWindowRect";q.count=2;
+  q.values[0].type=XM_OPAQUE;q.values[0].bytes=sizeof(a0);
+@@ -871,6 +933,7 @@ static BOOL xm_win_GetWindowRect(HWND a0, LPRECT a1) {
+  return ret;
+ }
+ static DWORD xm_win_GetWindowThreadProcessId(HWND a0, LPDWORD a1) {
++ if(xm_quiet)return GetWindowThreadProcessId(a0,a1);   /* quiet profile: every record below is dropped (round 4) */
+  CPU*c=xm_current_cpu();XmRequest q={0};DWORD ret;
+  q.event=XM_BEGIN;q.domain=XM_NATIVE;q.name="WIN.GetWindowThreadProcessId";q.count=2;
+  q.values[0].type=XM_OPAQUE;q.values[0].bytes=sizeof(a0);
+@@ -884,6 +947,7 @@ static DWORD xm_win_GetWindowThreadProcessId(HWND a0, LPDWORD a1) {
+  return ret;
+ }
+ static DWORD xm_support_GetWindowThreadProcessId(HWND a0, LPDWORD a1) {
++ if(xm_quiet)return GetWindowThreadProcessId(a0,a1);   /* quiet profile: every record below is dropped (round 4) */
+  CPU*c=xm_current_cpu();XmRequest q={0};DWORD ret;
+  q.event=XM_BEGIN;q.domain=XM_SUPPORT;q.name="PROBE.GetWindowThreadProcessId";q.count=2;
+  q.values[0].type=XM_OPAQUE;q.values[0].bytes=sizeof(a0);
+@@ -897,6 +961,7 @@ static DWORD xm_support_GetWindowThreadProcessId(HWND a0, LPDWORD a1) {
+  return ret;
+ }
+ static HIMC xm_win_ImmAssociateContext(HWND a0, HIMC a1) {
++ if(xm_quiet)return ImmAssociateContext(a0,a1);   /* quiet profile: every record below is dropped (round 4) */
+  CPU*c=xm_current_cpu();XmRequest q={0};HIMC ret;
+  q.event=XM_BEGIN;q.domain=XM_NATIVE;q.name="WIN.ImmAssociateContext";q.count=2;
+  q.values[0].type=XM_OPAQUE;q.values[0].bytes=sizeof(a0);
+@@ -910,6 +975,7 @@ static HIMC xm_win_ImmAssociateContext(HWND a0, HIMC a1) {
+  return ret;
+ }
+ static DWORD xm_win_InSendMessageEx(LPVOID a0) {
++ if(xm_quiet)return InSendMessageEx(a0);   /* quiet profile: every record below is dropped (round 4) */
+  CPU*c=xm_current_cpu();XmRequest q={0};DWORD ret;
+  q.event=XM_BEGIN;q.domain=XM_NATIVE;q.name="WIN.InSendMessageEx";q.count=1;
+  q.values[0].type=XM_OPAQUE;q.values[0].bytes=sizeof(a0);
+@@ -921,6 +987,7 @@ static DWORD xm_win_InSendMessageEx(LPVOID a0) {
+  return ret;
+ }
+ static DWORD xm_support_InSendMessageEx(LPVOID a0) {
++ if(xm_quiet)return InSendMessageEx(a0);   /* quiet profile: every record below is dropped (round 4) */
+  CPU*c=xm_current_cpu();XmRequest q={0};DWORD ret;
+  q.event=XM_BEGIN;q.domain=XM_SUPPORT;q.name="PROBE.InSendMessageEx";q.count=1;
+  q.values[0].type=XM_OPAQUE;q.values[0].bytes=sizeof(a0);
+@@ -932,6 +999,7 @@ static DWORD xm_support_InSendMessageEx(LPVOID a0) {
+  return ret;
+ }
+ static BOOL xm_win_IsWindow(HWND a0) {
++ if(xm_quiet)return IsWindow(a0);   /* quiet profile: every record below is dropped (round 4) */
+  CPU*c=xm_current_cpu();XmRequest q={0};BOOL ret;
+  q.event=XM_BEGIN;q.domain=XM_NATIVE;q.name="WIN.IsWindow";q.count=1;
+  q.values[0].type=XM_OPAQUE;q.values[0].bytes=sizeof(a0);
+@@ -943,6 +1011,7 @@ static BOOL xm_win_IsWindow(HWND a0) {
+  return ret;
+ }
+ static BOOL xm_win_IsWindowUnicode(HWND a0) {
++ if(xm_quiet)return IsWindowUnicode(a0);   /* quiet profile: every record below is dropped (round 4) */
+  CPU*c=xm_current_cpu();XmRequest q={0};BOOL ret;
+  q.event=XM_BEGIN;q.domain=XM_NATIVE;q.name="WIN.IsWindowUnicode";q.count=1;
+  q.values[0].type=XM_OPAQUE;q.values[0].bytes=sizeof(a0);
+@@ -954,6 +1023,7 @@ static BOOL xm_win_IsWindowUnicode(HWND a0) {
+  return ret;
+ }
+ static HCURSOR xm_win_LoadCursorA(HINSTANCE a0, LPCSTR a1) {
++ if(xm_quiet)return LoadCursorA(a0,a1);   /* quiet profile: every record below is dropped (round 4) */
+  CPU*c=xm_current_cpu();XmRequest q={0};HCURSOR ret;
+  q.event=XM_BEGIN;q.domain=XM_NATIVE;q.name="WIN.LoadCursorA";q.count=2;
+  q.values[0].type=XM_OPAQUE;q.values[0].bytes=sizeof(a0);
+@@ -967,6 +1037,7 @@ static HCURSOR xm_win_LoadCursorA(HINSTANCE a0, LPCSTR a1) {
+  return ret;
+ }
+ static HCURSOR xm_win_LoadCursorW(HINSTANCE a0, LPCWSTR a1) {
++ if(xm_quiet)return LoadCursorW(a0,a1);   /* quiet profile: every record below is dropped (round 4) */
+  CPU*c=xm_current_cpu();XmRequest q={0};HCURSOR ret;
+  q.event=XM_BEGIN;q.domain=XM_NATIVE;q.name="WIN.LoadCursorW";q.count=2;
+  q.values[0].type=XM_OPAQUE;q.values[0].bytes=sizeof(a0);
+@@ -980,6 +1051,7 @@ static HCURSOR xm_win_LoadCursorW(HINSTANCE a0, LPCWSTR a1) {
+  return ret;
+ }
+ static HICON xm_win_LoadIconA(HINSTANCE a0, LPCSTR a1) {
++ if(xm_quiet)return LoadIconA(a0,a1);   /* quiet profile: every record below is dropped (round 4) */
+  CPU*c=xm_current_cpu();XmRequest q={0};HICON ret;
+  q.event=XM_BEGIN;q.domain=XM_NATIVE;q.name="WIN.LoadIconA";q.count=2;
+  q.values[0].type=XM_OPAQUE;q.values[0].bytes=sizeof(a0);
+@@ -993,6 +1065,7 @@ static HICON xm_win_LoadIconA(HINSTANCE a0, LPCSTR a1) {
+  return ret;
+ }
+ static HICON xm_win_LoadIconW(HINSTANCE a0, LPCWSTR a1) {
++ if(xm_quiet)return LoadIconW(a0,a1);   /* quiet profile: every record below is dropped (round 4) */
+  CPU*c=xm_current_cpu();XmRequest q={0};HICON ret;
+  q.event=XM_BEGIN;q.domain=XM_NATIVE;q.name="WIN.LoadIconW";q.count=2;
+  q.values[0].type=XM_OPAQUE;q.values[0].bytes=sizeof(a0);
+@@ -1006,6 +1079,7 @@ static HICON xm_win_LoadIconW(HINSTANCE a0, LPCWSTR a1) {
+  return ret;
+ }
+ static HMODULE xm_win_LoadLibraryExW(LPCWSTR a0, HANDLE a1, DWORD a2) {
++ if(xm_quiet)return LoadLibraryExW(a0,a1,a2);   /* quiet profile: every record below is dropped (round 4) */
+  CPU*c=xm_current_cpu();XmRequest q={0};HMODULE ret;
+  q.event=XM_BEGIN;q.domain=XM_NATIVE;q.name="WIN.LoadLibraryExW";q.count=3;
+  q.values[0].type=XM_OPAQUE;q.values[0].bytes=sizeof(a0);
+@@ -1021,6 +1095,7 @@ static HMODULE xm_win_LoadLibraryExW(LPCWSTR a0, HANDLE a1, DWORD a2) {
+  return ret;
+ }
+ static int xm_win_MapWindowPoints(HWND a0, HWND a1, LPPOINT a2, UINT a3) {
++ if(xm_quiet)return MapWindowPoints(a0,a1,a2,a3);   /* quiet profile: every record below is dropped (round 4) */
+  CPU*c=xm_current_cpu();XmRequest q={0};int ret;
+  q.event=XM_BEGIN;q.domain=XM_NATIVE;q.name="WIN.MapWindowPoints";q.count=4;
+  q.values[0].type=XM_OPAQUE;q.values[0].bytes=sizeof(a0);
+@@ -1038,6 +1113,7 @@ static int xm_win_MapWindowPoints(HWND a0, HWND a1, LPPOINT a2, UINT a3) {
+  return ret;
+ }
+ static BOOL xm_win_MoveWindow(HWND a0, int a1, int a2, int a3, int a4, BOOL a5) {
++ if(xm_quiet)return MoveWindow(a0,a1,a2,a3,a4,a5);   /* quiet profile: every record below is dropped (round 4) */
+  CPU*c=xm_current_cpu();XmRequest q={0};BOOL ret;
+  q.event=XM_BEGIN;q.domain=XM_NATIVE;q.name="WIN.MoveWindow";q.count=6;
+  q.values[0].type=XM_OPAQUE;q.values[0].bytes=sizeof(a0);
+@@ -1059,6 +1135,7 @@ static BOOL xm_win_MoveWindow(HWND a0, int a1, int a2, int a3, int a4, BOOL a5)
+  return ret;
+ }
+ static int xm_win_MultiByteToWideChar(UINT a0, DWORD a1, LPCCH a2, int a3, LPWSTR a4, int a5) {
++ if(xm_quiet)return MultiByteToWideChar(a0,a1,a2,a3,a4,a5);   /* quiet profile: every record below is dropped (round 4) */
+  CPU*c=xm_current_cpu();XmRequest q={0};int ret;
+  q.event=XM_BEGIN;q.domain=XM_NATIVE;q.name="WIN.MultiByteToWideChar";q.count=6;
+  q.values[0].type=XM_OPAQUE;q.values[0].bytes=sizeof(a0);
+@@ -1080,6 +1157,7 @@ static int xm_win_MultiByteToWideChar(UINT a0, DWORD a1, LPCCH a2, int a3, LPWST
+  return ret;
+ }
+ static BOOL xm_win_PostMessageA(HWND a0, UINT a1, WPARAM a2, LPARAM a3) {
++ if(xm_quiet)return PostMessageA(a0,a1,a2,a3);   /* quiet profile: every record below is dropped (round 4) */
+  CPU*c=xm_current_cpu();XmRequest q={0};BOOL ret;
+  q.event=XM_BEGIN;q.domain=XM_NATIVE;q.name="WIN.PostMessageA";q.count=4;
+  q.values[0].type=XM_OPAQUE;q.values[0].bytes=sizeof(a0);
+@@ -1097,6 +1175,7 @@ static BOOL xm_win_PostMessageA(HWND a0, UINT a1, WPARAM a2, LPARAM a3) {
+  return ret;
+ }
+ static BOOL xm_win_PostMessageW(HWND a0, UINT a1, WPARAM a2, LPARAM a3) {
++ if(xm_quiet)return PostMessageW(a0,a1,a2,a3);   /* quiet profile: every record below is dropped (round 4) */
+  CPU*c=xm_current_cpu();XmRequest q={0};BOOL ret;
+  q.event=XM_BEGIN;q.domain=XM_NATIVE;q.name="WIN.PostMessageW";q.count=4;
+  q.values[0].type=XM_OPAQUE;q.values[0].bytes=sizeof(a0);
+@@ -1114,6 +1193,7 @@ static BOOL xm_win_PostMessageW(HWND a0, UINT a1, WPARAM a2, LPARAM a3) {
+  return ret;
+ }
+ static BOOL xm_win_QueryPerformanceCounter(LARGE_INTEGER* a0) {
++ if(xm_quiet)return QueryPerformanceCounter(a0);   /* quiet profile: every record below is dropped (round 4) */
+  CPU*c=xm_current_cpu();XmRequest q={0};BOOL ret;
+  q.event=XM_BEGIN;q.domain=XM_NATIVE;q.name="WIN.QueryPerformanceCounter";q.count=1;
+  q.values[0].type=XM_OPAQUE;q.values[0].bytes=sizeof(a0);
+@@ -1125,6 +1205,7 @@ static BOOL xm_win_QueryPerformanceCounter(LARGE_INTEGER* a0) {
+  return ret;
+ }
+ static BOOL xm_support_QueryPerformanceCounter(LARGE_INTEGER* a0) {
++ if(xm_quiet)return QueryPerformanceCounter(a0);   /* quiet profile: every record below is dropped (round 4) */
+  CPU*c=xm_current_cpu();XmRequest q={0};BOOL ret;
+  q.event=XM_BEGIN;q.domain=XM_SUPPORT;q.name="PROBE.QueryPerformanceCounter";q.count=1;
+  q.values[0].type=XM_OPAQUE;q.values[0].bytes=sizeof(a0);
+@@ -1136,6 +1217,7 @@ static BOOL xm_support_QueryPerformanceCounter(LARGE_INTEGER* a0) {
+  return ret;
+ }
+ static ATOM xm_win_RegisterClassExA(const WNDCLASSEXA * a0) {
++ if(xm_quiet)return RegisterClassExA(a0);   /* quiet profile: every record below is dropped (round 4) */
+  CPU*c=xm_current_cpu();XmRequest q={0};ATOM ret;
+  q.event=XM_BEGIN;q.domain=XM_NATIVE;q.name="WIN.RegisterClassExA";q.count=1;
+  q.values[0].type=XM_OPAQUE;q.values[0].bytes=sizeof(a0);
+@@ -1148,6 +1230,7 @@ static ATOM xm_win_RegisterClassExA(const WNDCLASSEXA * a0) {
+  return ret;
+ }
+ static ATOM xm_win_RegisterClassExW(const WNDCLASSEXW * a0) {
++ if(xm_quiet)return RegisterClassExW(a0);   /* quiet profile: every record below is dropped (round 4) */
+  CPU*c=xm_current_cpu();XmRequest q={0};ATOM ret;
+  q.event=XM_BEGIN;q.domain=XM_NATIVE;q.name="WIN.RegisterClassExW";q.count=1;
+  q.values[0].type=XM_OPAQUE;q.values[0].bytes=sizeof(a0);
+@@ -1160,6 +1243,7 @@ static ATOM xm_win_RegisterClassExW(const WNDCLASSEXW * a0) {
+  return ret;
+ }
+ static int xm_win_ReleaseDC(HWND a0, HDC a1) {
++ if(xm_quiet)return ReleaseDC(a0,a1);   /* quiet profile: every record below is dropped (round 4) */
+  CPU*c=xm_current_cpu();XmRequest q={0};int ret;
+  q.event=XM_BEGIN;q.domain=XM_NATIVE;q.name="WIN.ReleaseDC";q.count=2;
+  q.values[0].type=XM_OPAQUE;q.values[0].bytes=sizeof(a0);
+@@ -1173,6 +1257,7 @@ static int xm_win_ReleaseDC(HWND a0, HDC a1) {
+  return ret;
+ }
+ static HANDLE xm_win_RemovePropA(HWND a0, LPCSTR a1) {
++ if(xm_quiet)return RemovePropA(a0,a1);   /* quiet profile: every record below is dropped (round 4) */
+  CPU*c=xm_current_cpu();XmRequest q={0};HANDLE ret;
+  q.event=XM_BEGIN;q.domain=XM_NATIVE;q.name="WIN.RemovePropA";q.count=2;
+  q.values[0].type=XM_OPAQUE;q.values[0].bytes=sizeof(a0);
+@@ -1186,6 +1271,7 @@ static HANDLE xm_win_RemovePropA(HWND a0, LPCSTR a1) {
+  return ret;
+ }
+ static HANDLE xm_win_RemovePropW(HWND a0, LPCWSTR a1) {
++ if(xm_quiet)return RemovePropW(a0,a1);   /* quiet profile: every record below is dropped (round 4) */
+  CPU*c=xm_current_cpu();XmRequest q={0};HANDLE ret;
+  q.event=XM_BEGIN;q.domain=XM_NATIVE;q.name="WIN.RemovePropW";q.count=2;
+  q.values[0].type=XM_OPAQUE;q.values[0].bytes=sizeof(a0);
+@@ -1199,6 +1285,7 @@ static HANDLE xm_win_RemovePropW(HWND a0, LPCWSTR a1) {
+  return ret;
+ }
+ static LRESULT xm_win_SendMessageA(HWND a0, UINT a1, WPARAM a2, LPARAM a3) {
++ if(xm_quiet)return SendMessageA(a0,a1,a2,a3);   /* quiet profile: every record below is dropped (round 4) */
+  CPU*c=xm_current_cpu();XmRequest q={0};LRESULT ret;
+  q.event=XM_BEGIN;q.domain=XM_NATIVE;q.name="WIN.SendMessageA";q.count=4;
+  q.values[0].type=XM_OPAQUE;q.values[0].bytes=sizeof(a0);
+@@ -1216,6 +1303,7 @@ static LRESULT xm_win_SendMessageA(HWND a0, UINT a1, WPARAM a2, LPARAM a3) {
+  return ret;
+ }
+ static LRESULT xm_win_SendMessageW(HWND a0, UINT a1, WPARAM a2, LPARAM a3) {
++ if(xm_quiet)return SendMessageW(a0,a1,a2,a3);   /* quiet profile: every record below is dropped (round 4) */
+  CPU*c=xm_current_cpu();XmRequest q={0};LRESULT ret;
+  q.event=XM_BEGIN;q.domain=XM_NATIVE;q.name="WIN.SendMessageW";q.count=4;
+  q.values[0].type=XM_OPAQUE;q.values[0].bytes=sizeof(a0);
+@@ -1233,6 +1321,7 @@ static LRESULT xm_win_SendMessageW(HWND a0, UINT a1, WPARAM a2, LPARAM a3) {
+  return ret;
+ }
+ static HWND xm_win_SetActiveWindow(HWND a0) {
++ if(xm_quiet)return SetActiveWindow(a0);   /* quiet profile: every record below is dropped (round 4) */
+  CPU*c=xm_current_cpu();XmRequest q={0};HWND ret;
+  q.event=XM_BEGIN;q.domain=XM_NATIVE;q.name="WIN.SetActiveWindow";q.count=1;
+  q.values[0].type=XM_OPAQUE;q.values[0].bytes=sizeof(a0);
+@@ -1244,6 +1333,7 @@ static HWND xm_win_SetActiveWindow(HWND a0) {
+  return ret;
+ }
+ static HWND xm_win_SetCapture(HWND a0) {
++ if(xm_quiet)return SetCapture(a0);   /* quiet profile: every record below is dropped (round 4) */
+  CPU*c=xm_current_cpu();XmRequest q={0};HWND ret;
+  q.event=XM_BEGIN;q.domain=XM_NATIVE;q.name="WIN.SetCapture";q.count=1;
+  q.values[0].type=XM_OPAQUE;q.values[0].bytes=sizeof(a0);
+@@ -1255,6 +1345,7 @@ static HWND xm_win_SetCapture(HWND a0) {
+  return ret;
+ }
+ static HCURSOR xm_win_SetCursor(HCURSOR a0) {
++ if(xm_quiet)return SetCursor(a0);   /* quiet profile: every record below is dropped (round 4) */
+  CPU*c=xm_current_cpu();XmRequest q={0};HCURSOR ret;
+  q.event=XM_BEGIN;q.domain=XM_NATIVE;q.name="WIN.SetCursor";q.count=1;
+  q.values[0].type=XM_OPAQUE;q.values[0].bytes=sizeof(a0);
+@@ -1266,6 +1357,7 @@ static HCURSOR xm_win_SetCursor(HCURSOR a0) {
+  return ret;
+ }
+ static HWND xm_win_SetFocus(HWND a0) {
++ if(xm_quiet)return SetFocus(a0);   /* quiet profile: every record below is dropped (round 4) */
+  CPU*c=xm_current_cpu();XmRequest q={0};HWND ret;
+  q.event=XM_BEGIN;q.domain=XM_NATIVE;q.name="WIN.SetFocus";q.count=1;
+  q.values[0].type=XM_OPAQUE;q.values[0].bytes=sizeof(a0);
+@@ -1277,6 +1369,7 @@ static HWND xm_win_SetFocus(HWND a0) {
+  return ret;
+ }
+ static BOOL xm_win_SetForegroundWindow(HWND a0) {
++ if(xm_quiet)return SetForegroundWindow(a0);   /* quiet profile: every record below is dropped (round 4) */
+  CPU*c=xm_current_cpu();XmRequest q={0};BOOL ret;
+  q.event=XM_BEGIN;q.domain=XM_NATIVE;q.name="WIN.SetForegroundWindow";q.count=1;
+  q.values[0].type=XM_OPAQUE;q.values[0].bytes=sizeof(a0);
+@@ -1288,6 +1381,7 @@ static BOOL xm_win_SetForegroundWindow(HWND a0) {
+  return ret;
+ }
+ static BOOL xm_win_SetKeyboardState(LPBYTE a0) {
++ if(xm_quiet)return SetKeyboardState(a0);   /* quiet profile: every record below is dropped (round 4) */
+  CPU*c=xm_current_cpu();XmRequest q={0};BOOL ret;
+  q.event=XM_BEGIN;q.domain=XM_NATIVE;q.name="WIN.SetKeyboardState";q.count=1;
+  q.values[0].type=XM_OPAQUE;q.values[0].bytes=sizeof(a0);
+@@ -1299,6 +1393,7 @@ static BOOL xm_win_SetKeyboardState(LPBYTE a0) {
+  return ret;
+ }
+ static BOOL xm_win_SetMenu(HWND a0, HMENU a1) {
++ if(xm_quiet)return SetMenu(a0,a1);   /* quiet profile: every record below is dropped (round 4) */
+  CPU*c=xm_current_cpu();XmRequest q={0};BOOL ret;
+  q.event=XM_BEGIN;q.domain=XM_NATIVE;q.name="WIN.SetMenu";q.count=2;
+  q.values[0].type=XM_OPAQUE;q.values[0].bytes=sizeof(a0);
+@@ -1312,6 +1407,7 @@ static BOOL xm_win_SetMenu(HWND a0, HMENU a1) {
+  return ret;
+ }
+ static BOOL xm_win_SetPropA(HWND a0, LPCSTR a1, HANDLE a2) {
++ if(xm_quiet)return SetPropA(a0,a1,a2);   /* quiet profile: every record below is dropped (round 4) */
+  CPU*c=xm_current_cpu();XmRequest q={0};BOOL ret;
+  q.event=XM_BEGIN;q.domain=XM_NATIVE;q.name="WIN.SetPropA";q.count=3;
+  q.values[0].type=XM_OPAQUE;q.values[0].bytes=sizeof(a0);
+@@ -1327,6 +1423,7 @@ static BOOL xm_win_SetPropA(HWND a0, LPCSTR a1, HANDLE a2) {
+  return ret;
+ }
+ static BOOL xm_win_SetPropW(HWND a0, LPCWSTR a1, HANDLE a2) {
++ if(xm_quiet)return SetPropW(a0,a1,a2);   /* quiet profile: every record below is dropped (round 4) */
+  CPU*c=xm_current_cpu();XmRequest q={0};BOOL ret;
+  q.event=XM_BEGIN;q.domain=XM_NATIVE;q.name="WIN.SetPropW";q.count=3;
+  q.values[0].type=XM_OPAQUE;q.values[0].bytes=sizeof(a0);
+@@ -1342,6 +1439,7 @@ static BOOL xm_win_SetPropW(HWND a0, LPCWSTR a1, HANDLE a2) {
+  return ret;
+ }
+ static LONG xm_win_SetWindowLongA(HWND a0, int a1, LONG a2) {
++ if(xm_quiet)return SetWindowLongA(a0,a1,a2);   /* quiet profile: every record below is dropped (round 4) */
+  CPU*c=xm_current_cpu();XmRequest q={0};LONG ret;
+  q.event=XM_BEGIN;q.domain=XM_NATIVE;q.name="WIN.SetWindowLongA";q.count=3;
+  q.values[0].type=XM_OPAQUE;q.values[0].bytes=sizeof(a0);
+@@ -1357,6 +1455,7 @@ static LONG xm_win_SetWindowLongA(HWND a0, int a1, LONG a2) {
+  return ret;
+ }
+ static LONG xm_win_SetWindowLongW(HWND a0, int a1, LONG a2) {
++ if(xm_quiet)return SetWindowLongW(a0,a1,a2);   /* quiet profile: every record below is dropped (round 4) */
+  CPU*c=xm_current_cpu();XmRequest q={0};LONG ret;
+  q.event=XM_BEGIN;q.domain=XM_NATIVE;q.name="WIN.SetWindowLongW";q.count=3;
+  q.values[0].type=XM_OPAQUE;q.values[0].bytes=sizeof(a0);
+@@ -1372,6 +1471,7 @@ static LONG xm_win_SetWindowLongW(HWND a0, int a1, LONG a2) {
+  return ret;
+ }
+ static BOOL xm_win_SetWindowPos(HWND a0, HWND a1, int a2, int a3, int a4, int a5, UINT a6) {
++ if(xm_quiet)return SetWindowPos(a0,a1,a2,a3,a4,a5,a6);   /* quiet profile: every record below is dropped (round 4) */
+  CPU*c=xm_current_cpu();XmRequest q={0};BOOL ret;
+  q.event=XM_BEGIN;q.domain=XM_NATIVE;q.name="WIN.SetWindowPos";q.count=7;
+  q.values[0].type=XM_OPAQUE;q.values[0].bytes=sizeof(a0);
+@@ -1395,6 +1495,7 @@ static BOOL xm_win_SetWindowPos(HWND a0, HWND a1, int a2, int a3, int a4, int a5
+  return ret;
+ }
+ static BOOL xm_win_ShowWindow(HWND a0, int a1) {
++ if(xm_quiet)return ShowWindow(a0,a1);   /* quiet profile: every record below is dropped (round 4) */
+  CPU*c=xm_current_cpu();XmRequest q={0};BOOL ret;
+  q.event=XM_BEGIN;q.domain=XM_NATIVE;q.name="WIN.ShowWindow";q.count=2;
+  q.values[0].type=XM_OPAQUE;q.values[0].bytes=sizeof(a0);
+@@ -1408,6 +1509,7 @@ static BOOL xm_win_ShowWindow(HWND a0, int a1) {
+  return ret;
+ }
+ static BOOL xm_win_UnregisterClassA(LPCSTR a0, HINSTANCE a1) {
++ if(xm_quiet)return UnregisterClassA(a0,a1);   /* quiet profile: every record below is dropped (round 4) */
+  CPU*c=xm_current_cpu();XmRequest q={0};BOOL ret;
+  q.event=XM_BEGIN;q.domain=XM_NATIVE;q.name="WIN.UnregisterClassA";q.count=2;
+  q.values[0].type=XM_OPAQUE;q.values[0].bytes=sizeof(a0);
+@@ -1421,6 +1523,7 @@ static BOOL xm_win_UnregisterClassA(LPCSTR a0, HINSTANCE a1) {
+  return ret;
+ }
+ static BOOL xm_win_UnregisterClassW(LPCWSTR a0, HINSTANCE a1) {
++ if(xm_quiet)return UnregisterClassW(a0,a1);   /* quiet profile: every record below is dropped (round 4) */
+  CPU*c=xm_current_cpu();XmRequest q={0};BOOL ret;
+  q.event=XM_BEGIN;q.domain=XM_NATIVE;q.name="WIN.UnregisterClassW";q.count=2;
+  q.values[0].type=XM_OPAQUE;q.values[0].bytes=sizeof(a0);
+@@ -1434,6 +1537,7 @@ static BOOL xm_win_UnregisterClassW(LPCWSTR a0, HINSTANCE a1) {
+  return ret;
+ }
+ static BOOL xm_win_UpdateWindow(HWND a0) {
++ if(xm_quiet)return UpdateWindow(a0);   /* quiet profile: every record below is dropped (round 4) */
+  CPU*c=xm_current_cpu();XmRequest q={0};BOOL ret;
+  q.event=XM_BEGIN;q.domain=XM_NATIVE;q.name="WIN.UpdateWindow";q.count=1;
+  q.values[0].type=XM_OPAQUE;q.values[0].bytes=sizeof(a0);
+@@ -1445,6 +1549,7 @@ static BOOL xm_win_UpdateWindow(HWND a0) {
+  return ret;
+ }
+ static DWORD xm_win_WaitForSingleObject(HANDLE a0, DWORD a1) {
++ if(xm_quiet)return WaitForSingleObject(a0,a1);   /* quiet profile: every record below is dropped (round 4) */
+  CPU*c=xm_current_cpu();XmRequest q={0};DWORD ret;
+  q.event=XM_BEGIN;q.domain=XM_NATIVE;q.name="WIN.WaitForSingleObject";q.count=2;
+  q.values[0].type=XM_OPAQUE;q.values[0].bytes=sizeof(a0);
+@@ -1458,6 +1563,7 @@ static DWORD xm_win_WaitForSingleObject(HANDLE a0, DWORD a1) {
+  return ret;
+ }
+ static int xm_win_WideCharToMultiByte(UINT a0, DWORD a1, LPCWCH a2, int a3, LPSTR a4, int a5, LPCCH a6, LPBOOL a7) {
++ if(xm_quiet)return WideCharToMultiByte(a0,a1,a2,a3,a4,a5,a6,a7);   /* quiet profile: every record below is dropped (round 4) */
+  CPU*c=xm_current_cpu();XmRequest q={0};int ret;
+  q.event=XM_BEGIN;q.domain=XM_NATIVE;q.name="WIN.WideCharToMultiByte";q.count=8;
+  q.values[0].type=XM_OPAQUE;q.values[0].bytes=sizeof(a0);
+@@ -1483,6 +1589,7 @@ static int xm_win_WideCharToMultiByte(UINT a0, DWORD a1, LPCWCH a2, int a3, LPST
+  return ret;
+ }
+ static int xm_win_lstrcmpW(LPCWSTR a0, LPCWSTR a1) {
++ if(xm_quiet)return lstrcmpW(a0,a1);   /* quiet profile: every record below is dropped (round 4) */
+  CPU*c=xm_current_cpu();XmRequest q={0};int ret;
+  q.event=XM_BEGIN;q.domain=XM_NATIVE;q.name="WIN.lstrcmpW";q.count=2;
+  q.values[0].type=XM_OPAQUE;q.values[0].bytes=sizeof(a0);
+diff --git a/out/dev-init-savepoints/perf-r3-20261102/runtime/resources.inc b/out/dev-init/runtime/resources.inc
+index 85cee00..c58b358 100644
+--- a/out/dev-init-savepoints/perf-r3-20261102/runtime/resources.inc
++++ b/out/dev-init/runtime/resources.inc
+@@ -23,6 +23,7 @@ static D8Resource*d8_resource_free_slot(void) {
+  return d8_resource_used<D8_RESOURCE_LIMIT?&d8_resources[d8_resource_used]:NULL;
+ }
+ static void xm_d8_resource(CPU*c,D8Resource*r,const char*event) {
++ if(xm_quiet)return;   /* quiet profile: both records below are routine and dropped (round 4) */
+  xm_resource(c,100+r->kind,r->guest,(unsigned)(r-d8_resources)+1,
+    (uint64_t)(uintptr_t)r->host,r->refs,r->bindings,event);
+  /* Registry-owned scalars; locked/native pointers remain opaque. */
+diff --git a/out/dev-init-savepoints/perf-r3-20261102/runtime/xrt.h b/out/dev-init/runtime/xrt.h
+index f04da1d..d04a63b 100644
+--- a/out/dev-init-savepoints/perf-r3-20261102/runtime/xrt.h
++++ b/out/dev-init/runtime/xrt.h
+@@ -305,6 +305,26 @@ void xrt_pclines_register(const char* file, const XrtPcLine* lines, uint32_t n);
+  * keyed by the node, into the thread's landing stack and sets the host resume point; when the exception
+  * dispatcher completes a catch of this frame it longjmps here and xrt_eh_landed() runs the translated code at the
+  * catch's continuation address (the rest of the function). XRT_EH_POP() unlinks the pad on every exit. */
++#ifdef XRT_EH_FRAMES
++/* xlift --opt ehframe (the protos header defines XRT_EH_FRAMES; dev.py builds the runtime alike): no setjmp. The pad
++ * only links the frame; when a catch of this frame completes, the dispatcher unwinds the host stack to the frame that
++ * holds the pad (RtlUnwindEx, as longjmp does), runs the continuation there and returns from that frame with its result
++ * (runtime xrt_eh.c, xrt_eh_land.asm). XRT_EH_FN (noinline) keeps that frame the translated function's own. Round 4
++ * (2026-11-02): setjmp (~25 stores), the 256-byte jmp_buf per frame and the monitor marks cost 4-7% of gameplay frames
++ * and 18-24% of UI-heavy ones. */
++typedef struct XrtEhPad {
++    uint32_t node;                 /* guest address of the registered EH node */
++    uint32_t resume;               /* continuation address, set by the dispatcher before landing */
++    int active;
++    int kind;                      /* 0: function frame, 1: active catch block (dispatcher-internal) */
++    int host_calls;                /* thread's host->guest call depth when linked */
++    unsigned xm_depth;             /* monitor scope depth when linked (scopes above it are aborted at landing) */
++    struct XrtEhPad* prev;
++    uint64_t host_ret;             /* landing only: the frame's call-site return address (xrt_eh_land.asm reads it) */
++} XrtEhPad;
++#define XRT_EH_FN __declspec(noinline)
++#define XRT_EH_REGISTER() xrt_eh_register(c, &eh_)
++#else
+ #include <setjmp.h>
+ typedef struct XrtEhPad {
+     jmp_buf jb;
+@@ -315,11 +335,13 @@ typedef struct XrtEhPad {
+     int host_calls;                /* thread's host->guest call depth when linked */
+     struct XrtEhPad* prev;
+ } XrtEhPad;
++#define XRT_EH_FN
++#define XRT_EH_REGISTER() do { xrt_eh_register(c, &eh_); if (setjmp(eh_.jb)) { XRT_TAIL(xrt_eh_landed(c, &eh_)); } } while (0)
++#endif
+ void xrt_eh_register(CPU* c, XrtEhPad* pad);
+ XrtLiftedRet xrt_eh_landed(CPU* c, XrtEhPad* pad);
+ void xrt_eh_pop(CPU* c, XrtEhPad* pad);
+ #define XRT_EH_DECL XrtEhPad eh_; eh_.active = 0
+-#define XRT_EH_REGISTER() do { xrt_eh_register(c, &eh_); if (setjmp(eh_.jb)) { XRT_TAIL(xrt_eh_landed(c, &eh_)); } } while (0)
+ #define XRT_EH_POP() do { if (eh_.active) xrt_eh_pop(c, &eh_); } while (0)
+ 
+ /* ---------------------------------------------------------------- evidence instrumentation (tools/xrt/marks.json)
+diff --git a/out/dev-init-savepoints/perf-r3-20261102/runtime/xrt_eh.c b/out/dev-init/runtime/xrt_eh.c
+index f79704c..5ed731f 100644
+--- a/out/dev-init-savepoints/perf-r3-20261102/runtime/xrt_eh.c
++++ b/out/dev-init/runtime/xrt_eh.c
+@@ -48,10 +48,28 @@ typedef struct XrtEhCatch {        /* an active catch block (msvcr70 CallCatchBl
+     uint32_t node, funcinfo, funclet, guard, saved_prn_stack;
+     int depth, finalized;
+     XrtEhPad pad;                  /* kind 1: landing record for continuations inside this catch block */
++#ifdef XRT_EH_FRAMES
++    jmp_buf jb;                    /* the catch block's host resume point (dispatcher-internal, as before) */
++#endif
+ } XrtEhCatch;
+ 
+ static volatile long n_throws, n_rethrows, n_catches, n_unwinds, n_destroyed;
+ 
++#ifdef XRT_EH_FRAMES
++/* xlift --opt ehframe: the pad records the monitor scope depth itself; a landing aborts the scopes opened above it
++ * (what xm_restore did through the per-pad monitor marks, without a mark and a forget per guarded call) */
++int xrt_eh_abi_frames;                                    /* referenced by every ehframe protos header */
++#define CATCH_JB(k) ((k)->jb)
++#define PAD_MARK(pad) ((pad)->xm_depth = xm_depth())
++#define PAD_FORGET(pad) ((void)0)
++#define PAD_RESTORE(c, pad, reason) xm_unwind((c), (pad)->xm_depth, (reason))
++#else
++#define CATCH_JB(k) ((k)->pad.jb)
++#define PAD_MARK(pad) xm_mark(pad)
++#define PAD_FORGET(pad) xm_forget(pad)
++#define PAD_RESTORE(c, pad, reason) xm_restore((c), (pad), (reason))
++#endif
++
+ /* ---------------------------------------------------------------- landing stack */
+ static void pad_push(CPU* c, XrtEhPad* pad, uint32_t node, int kind) {
+     XrtThread* t = c->thread;
+@@ -62,7 +80,7 @@ static void pad_push(CPU* c, XrtEhPad* pad, uint32_t node, int kind) {
+     pad->node = node;
+     pad->kind = kind;
+     pad->host_calls = t->host_calls;
+-    xm_mark(pad);
++    PAD_MARK(pad);
+     pad->prev = t->eh_pads;
+     pad->active = 1;
+     t->eh_pads = pad;
+@@ -79,7 +97,7 @@ void xrt_eh_pop(CPU* c, XrtEhPad* pad) {
+                   pad->node, t->eh_pads ? t->eh_pads->node : 0);
+     t->eh_pads = pad->prev;
+     pad->active = 0;
+-    xm_forget(pad);
++    PAD_FORGET(pad);
+ }
+ 
+ /* a longjmp to `keep` abandons every landing record above it: their host frames are gone, so their monitor marks
+@@ -93,13 +111,14 @@ static void pad_abandon_above(CPU* c, XrtEhPad* keep) {
+         xrt_fatal(c, XRT_EXIT_UNSUPPORTED, "C++ EH: landing record for node %08x is not on the landing stack", keep->node);
+     for (q = t->eh_pads; q != keep; q = q->prev) {
+         q->active = 0;
+-        xm_forget(q);
++        PAD_FORGET(q);
+     }
+     t->eh_pads = keep;
+ }
+ 
+ /* in the translated function that owns the frame, after the dispatcher's longjmp: the rest of the function is
+- * the translated code at the continuation address (it ends with the function's own epilogue and ret) */
++ * the translated code at the continuation address (it ends with the function's own epilogue and ret).
++ * ehframe: called by xrt_eh_land_entry instead, one host frame below the function's own frame, with the same effect. */
+ XrtLiftedRet xrt_eh_landed(CPU* c, XrtEhPad* pad) {
+     xrt_event("cxx_resume", "\"node\": \"0x%08x\", \"continuation\": \"0x%08x\", \"in\": \"function\"", pad->node, pad->resume);
+ #ifdef XRT_RV_ABI
+@@ -114,6 +133,82 @@ XrtLiftedRet xrt_eh_landed(CPU* c, XrtEhPad* pad) {
+ #endif
+ }
+ 
++#ifdef XRT_EH_FRAMES
++/* ---------------------------------------------------------------- ehframe landing (no setjmp)
++ * A completed catch of a function frame resumes in that translated function's host frame F, the frame that holds its
++ * pad (XRT_EH_FN keeps it a frame of its own):
++ *   1. land_frame walks the host stack from the dispatcher (RtlVirtualUnwind) to the frame whose extent holds the pad:
++ *      F, its establisher frame, and the return address of F's call that is still in progress;
++ *   2. RtlUnwindEx to F, as longjmp does (termination handlers of the frames in between run; the runtime and the
++ *      translated code have none there), targeting xrt_eh_land_tramp (xrt_eh_land.asm): it starts in F's context at
++ *      that call site and enters xrt_eh_land_entry as if F had called it from there;
++ *   3. xrt_eh_land_entry runs the continuation (xrt_eh_landed: the rest of the function up to its ret, then the pad is
++ *      popped) and returns from F to F's caller with the continuation's result, F's saved registers restored by
++ *      unwinding F's frame: where the setjmp form's `return xrt_eh_landed(...)` inside F returns.
++ * Another catch of F during the continuation unwinds to F's frame again, so repeated catches use bounded host stack. */
++void xrt_eh_land_tramp(void);                                   /* xrt_eh_land.asm */
++typedef char xrt_eh_host_ret_at_32[offsetof(XrtEhPad, host_ret) == 32 ? 1 : -1];   /* xrt_eh_land.asm reads +32 */
++static __declspec(thread) CPU* land_cpu;
++
++static XRT_NORETURN void land_frame(CPU* c, XrtEhPad* p) {
++    CONTEXT ctx;
++    DWORD64 at = (DWORD64)(uintptr_t)p, base, est = 0, sp, rip;
++    int depth;
++    RtlCaptureContext(&ctx);
++    for (depth = 0; depth < 100000; depth++) {
++        PRUNTIME_FUNCTION fe = RtlLookupFunctionEntry(ctx.Rip, &base, NULL);
++        PVOID hd;
++        sp = ctx.Rsp;
++        rip = ctx.Rip;
++        if (fe) {
++            RtlVirtualUnwind(UNW_FLAG_NHANDLER, base, ctx.Rip, fe, &ctx, &hd, &est, NULL);
++        } else {                                                /* leaf: return address at [rsp] */
++            ctx.Rip = *(DWORD64*)ctx.Rsp;
++            ctx.Rsp += 8;
++            est = sp;
++        }
++        if (sp <= at && at < ctx.Rsp) {
++            if (!fe)
++                break;
++            p->host_ret = rip;
++            land_cpu = c;
++            RtlUnwindEx((PVOID)est, (PVOID)xrt_eh_land_tramp, NULL, p, &ctx, NULL);
++            xrt_fatal(c, XRT_EXIT_UNSUPPORTED, "C++ EH: host unwind to the frame of node %08x returned", p->node);
++        }
++        if (!ctx.Rip || ctx.Rsp <= sp)
++            break;
++    }
++    xrt_fatal(c, XRT_EXIT_UNSUPPORTED, "C++ EH: the host frame holding the landing pad of node %08x was not found on the "
++              "host stack", p->node);
++}
++
++/* entered from xrt_eh_land_tramp as if F called it at its call site in progress (see above) */
++__declspec(noinline) void xrt_eh_land_entry(XrtEhPad* p) {
++    CPU* c = land_cpu;
++    CONTEXT ctx;
++    DWORD64 base, est;
++    PVOID hd;
++    int i;
++#ifdef XRT_RV_ABI
++    uint32_t rv = xrt_eh_landed(c, p);
++#else
++    xrt_eh_landed(c, p);
++#endif
++    RtlCaptureContext(&ctx);
++    for (i = 0; i < 2; i++) {                                   /* this frame, then F: F's caller as F returns */
++        PRUNTIME_FUNCTION fe = RtlLookupFunctionEntry(ctx.Rip, &base, NULL);
++        if (!fe)
++            xrt_fatal(c, XRT_EXIT_UNSUPPORTED, "C++ EH: no unwind data to return from the frame of node %08x", p->node);
++        RtlVirtualUnwind(UNW_FLAG_NHANDLER, base, ctx.Rip, fe, &ctx, &hd, &est, NULL);
++    }
++#ifdef XRT_RV_ABI
++    ctx.Rax = rv;
++#endif
++    RtlRestoreContext(&ctx, NULL);
++    xrt_fatal(c, XRT_EXIT_UNSUPPORTED, "C++ EH: returning from the frame of node %08x failed", p->node);
++}
++#endif
++
+ /* ---------------------------------------------------------------- frame decoding */
+ static uint32_t funcinfo_of_handler(uint32_t h) {
+     uint32_t t;
+@@ -261,7 +356,7 @@ static void finalize_catch(CPU* c, XrtEhCatch* k, int destroy, uint32_t esp, con
+             break;
+         }
+     k->pad.active = 0;
+-    xm_forget(&k->pad);
++    PAD_FORGET(&k->pad);
+     wr32(k->node - 4, k->saved_prn_stack);
+     xrt_event("cxx_catch_end", "\"node\": \"0x%08x\", \"funclet\": \"0x%08x\", \"how\": \"%s\"", k->node, k->funclet, how);
+     if (destroy)
+@@ -310,8 +405,14 @@ static XRT_NORETURN void jump_to_continuation(CPU* c, uint32_t cont, uint32_t no
+     c->r[ESP] = rd32(node - 4);
+     p->resume = cont;
+     pad_abandon_above(c, p);                                /* records above belong to abandoned host frames */
+-    xm_restore(c,p,1);
++    PAD_RESTORE(c, p, 1);
++#ifdef XRT_EH_FRAMES
++    if (p->kind)                                            /* a catch block: its own resume point */
++        longjmp(CATCH_JB(CONTAINING_RECORD(p, XrtEhCatch, pad)), LJ_RESUME);
++    land_frame(c, p);
++#else
+     longjmp(p->jb, p->kind ? LJ_RESUME : 1);
++#endif
+ }
+ 
+ static uint32_t call_catch_block(CPU* c, EhExc ex, uint32_t node, uint32_t fi, uint32_t funclet, int depth, uint32_t work) {
+@@ -335,7 +436,7 @@ static uint32_t call_catch_block(CPU* c, EhExc ex, uint32_t node, uint32_t fi, u
+     k.prev = t->eh_catches;
+     t->eh_catches = &k;
+     pad_push(c, &k.pad, node, 1);
+-    how = setjmp(k.pad.jb);
++    how = setjmp(CATCH_JB(&k));
+     if (how == 0) {
+         call_funclet_at(c, funclet, node, k.guard);
+         cont = c->r[EAX];
+@@ -470,8 +571,8 @@ static XRT_NORETURN void dispatch(CPU* c, EhExc ex, int rethrow, uint32_t site)
+                 xrt_event("cxx_rethrow_leaves_catch", "\"node\": \"0x%08x\", \"funclet\": \"0x%08x\"", k->node, k->funclet);
+                 unwind_nested(c, node, work);
+                 pad_abandon_above(c, &k->pad);
+-                xm_restore(c,&k->pad,2);
+-                longjmp(k->pad.jb, LJ_RETHROW);
++                PAD_RESTORE(c, &k->pad, 2);
++                longjmp(CATCH_JB(k), LJ_RETHROW);
+             }
+             continue;
+         }
+diff --git a/out/dev-init/runtime/xrt_eh_land.asm b/out/dev-init/runtime/xrt_eh_land.asm
+new file mode 100644
+index 0000000..b181ae2
+--- /dev/null
++++ b/out/dev-init/runtime/xrt_eh_land.asm
+@@ -0,0 +1,16 @@
++; xrt_eh_land.asm - ehframe C++ EH landing trampoline (runtime xrt_eh.c land_frame, xlift --opt ehframe).
++; RtlUnwindEx ends here in the context of translated function F at its call site in progress (rsp = F's rsp, F's
++; registers), with rax = the landing pad. The trampoline puts that call's return address (pad->host_ret, +32) back as a
++; return address and jumps to xrt_eh_land_entry, which therefore runs as if F had called it from that site: stack walks
++; through it reach F and F's caller, and it returns from F by unwinding F's frame.
++option casemap:none
++EXTERN xrt_eh_land_entry:PROC
++.code
++xrt_eh_land_tramp PROC
++    mov rcx, rax
++    mov rdx, [rax+32]
++    sub rsp, 8
++    mov [rsp], rdx
++    jmp xrt_eh_land_entry
++xrt_eh_land_tramp ENDP
++END
+diff --git a/out/dev-init-savepoints/perf-r3-20261102/runtime/xrt_mem.c b/out/dev-init/runtime/xrt_mem.c
+index c062437..bc2a0c6 100644
+--- a/out/dev-init-savepoints/perf-r3-20261102/runtime/xrt_mem.c
++++ b/out/dev-init/runtime/xrt_mem.c
+@@ -81,6 +81,11 @@ int xrt_mem_hint_valid(uint64_t lo, uint64_t hi, long* gen) {
+  * blocks holding D3D8 arguments): the D3D8 argument checks call this for every device method. */
+ static __declspec(thread) struct { uint64_t lo, hi; long gen; } commit_hint[8];
+ static __declspec(thread) unsigned commit_next;
++/* Round 4: staging blocks the D3D8 HLE just committed are hinted in two slots of their own (xrt_hint_committed), so the
++ * 100-220 buffer Locks of a frame no longer evict the guest stack and heap hints from commit_hint (each eviction cost
++ * a VirtualQuery at the next D3D8 argument check). Same answers: every hint is validated against the decommit log. */
++static __declspec(thread) struct { uint64_t lo, hi; long gen; } staging_hint[2];
++static __declspec(thread) unsigned staging_next;
+ int xrt_is_committed(uint32_t a, uint32_t size) {
+     uint64_t p = a, end = (uint64_t)a + size;
+     long gen = xrt_mem_generation;
+@@ -89,10 +94,18 @@ int xrt_is_committed(uint32_t a, uint32_t size) {
+         if (p >= commit_hint[h].lo && end <= commit_hint[h].hi &&
+             xrt_mem_hint_valid(commit_hint[h].lo, commit_hint[h].hi, &commit_hint[h].gen))
+             return 1;
++    for (h = 0; h < 2; h++)
++        if (p >= staging_hint[h].lo && end <= staging_hint[h].hi &&
++            xrt_mem_hint_valid(staging_hint[h].lo, staging_hint[h].hi, &staging_hint[h].gen))
++            return 1;
+     while (p < end) {
+         MEMORY_BASIC_INFORMATION mbi;
+         uint64_t lo;
+-        if (!VirtualQuery(xrt_g + p, &mbi, sizeof mbi) || mbi.State != MEM_COMMIT)
++        /* committed but PAGE_NOACCESS / guard: only a guard-mode staging block between its Unlock and the next Lock of
++         * its size class (guest pages are otherwise never reprotected). Answered as strict mode answers for the
++         * decommitted block, so every adapter refuses a stale staging pointer exactly as in strict mode. */
++        if (!VirtualQuery(xrt_g + p, &mbi, sizeof mbi) || mbi.State != MEM_COMMIT ||
++            (mbi.Protect & (PAGE_NOACCESS | PAGE_GUARD)))
+             return 0;
+         lo = (uint64_t)((uint8_t*)mbi.BaseAddress - xrt_g);
+         p = lo + mbi.RegionSize;
+@@ -103,9 +116,9 @@ int xrt_is_committed(uint32_t a, uint32_t size) {
+ }
+ 
+ void xrt_hint_committed(uint32_t a, uint32_t size) {   /* [a, a+size) was just committed PAGE_READWRITE (xrt_commit) */
+-    commit_hint[commit_next].lo = a & ~0xFFFull; commit_hint[commit_next].hi = ((uint64_t)a + size + 0xFFF) & ~0xFFFull;
+-    commit_hint[commit_next].gen = xrt_mem_generation;
+-    commit_next = (commit_next + 1) & 7;
++    staging_hint[staging_next].lo = a & ~0xFFFull; staging_hint[staging_next].hi = ((uint64_t)a + size + 0xFFF) & ~0xFFFull;
++    staging_hint[staging_next].gen = xrt_mem_generation;
++    staging_next = (staging_next + 1) & 1;
+ }
+ 
+ int xrt_range_is_free(uint32_t a, uint32_t size) {   /* no page of [a, a+size) committed */
