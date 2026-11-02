@@ -19,7 +19,7 @@
  * engine already sub-steps the move and traces it against the world; triggers fire from the same touches). */
 #include "xrt_internal.h"
 
-void f_103e24d0_translated(CPU* c);
+XrtLiftedRet f_103e24d0_translated(CPU* c);   /* xrt.h: returns its return address under XRT_RV_ABI */
 
 enum { PHYS_WALKING_RETURN = 0xe61da, PLAYER_CONTROLLER_CLASS = 0x332148,   /* Engine.dll RVAs */
        PAWN_CONTROLLER = 0x3a0, PAWN_ACCELERATION = 0x148, PAWN_ACCEL_RATE = 0x470,
@@ -33,23 +33,32 @@ static int human_controlled(uint32_t engine, uint32_t pawn) {
     return 0;
 }
 
-void f_103e24d0(CPU* c) {
+XrtLiftedRet f_103e24d0(CPU* c) {
     static XrtModule* engine;
     uint32_t esp = c->r[ESP], pawn = c->r[ECX], acc = pawn + PAWN_ACCELERATION, i;
     float k = xrt_port_walking_speed(), a[3], scaled[3], rate;
+#ifdef XRT_RV_ABI
+    uint32_t rv;
+#endif
     if (!engine) engine = xrt_module_by_name("Engine.dll");
     if (k == 1.0f || !engine || rd32(esp) != engine->base + PHYS_WALKING_RETURN || !human_controlled(engine->base, pawn)) {
-        f_103e24d0_translated(c);
-        return;
+        XRT_TAIL(f_103e24d0_translated(c));
     }
     rate = rdf32(pawn + PAWN_ACCEL_RATE);
     for (i = 0; i < 3; i++) { a[i] = rdf32(acc + 4 * i); scaled[i] = a[i] * k; wrf32(acc + 4 * i, scaled[i]); }
     wrf32(esp + 0x14, rdf32(esp + 0x14) * k);      /* MaxSpeed (callee-owned argument slot) */
     wrf32(pawn + PAWN_ACCEL_RATE, rate * k);
+#ifdef XRT_RV_ABI
+    rv = f_103e24d0_translated(c);
+#else
     f_103e24d0_translated(c);
+#endif
     wrf32(pawn + PAWN_ACCEL_RATE, rate);
     for (i = 0; i < 3; i++) {
         float now = rdf32(acc + 4 * i);
         wrf32(acc + 4 * i, now == scaled[i] ? a[i] : now / k);
     }
+#ifdef XRT_RV_ABI
+    return rv;
+#endif
 }

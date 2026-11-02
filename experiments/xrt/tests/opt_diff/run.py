@@ -55,7 +55,9 @@ def lift(dst, opt, mutate=None):
 
 def build_lifted(dst):
     srcs = " ".join(f'"{os.path.join(OUT, dst, n)}"' for n in sorted(os.listdir(os.path.join(OUT, dst))) if n.endswith(".c"))
-    sh("x64", f'cl /nologo /O2 /fp:strict /W3 /wd4102 /wd4146 /wd4100 /D_CRT_SECURE_NO_WARNINGS /I"{RT}" /I"{HERE}" '
+    with open(os.path.join(OUT, dst, "OptCases_protos.h")) as f:
+        rv = "/DXRT_RV_ABI " if "XRT_RV_ABI" in f.read() else ""   # xlift --opt rv: lifted.c uses the same function type
+    sh("x64", f'cl /nologo /O2 /fp:strict {rv}/W3 /wd4102 /wd4146 /wd4100 /D_CRT_SECURE_NO_WARNINGS /I"{RT}" /I"{HERE}" '
               f'/FIsse_mutants.h /Fo"{os.path.join(OUT, dst)}\\\\" /Fe"{os.path.join(OUT, dst + ".exe")}" {srcs} "{os.path.join(HERE, "lifted.c")}"')
 
 
@@ -221,6 +223,44 @@ def mut_cflags_no_audit(x):
     x.Lifter.cflags_audit = False
 
 
+def mut_regcache_no_conflict_fix(x):
+    x.Lifter.regcache_conflict_fix = False
+
+
+def mut_regcache_reload_esp_only(x):
+    orig = x.Lifter.regcache_plan
+
+    def plan(self, fn, body):
+        spill, reload = orig(self, fn, body)
+        return spill, {va: frozenset({4}) for va in reload}
+    x.Lifter.regcache_plan = plan
+
+
+def mut_regcache_spill_live_only(x):
+    orig = x.Lifter.regcache_plan
+
+    def plan(self, fn, body):
+        spill, reload = orig(self, fn, body)
+        return {k: frozenset({4}) for k in spill}, reload   # stores ESP only: dirty results never reach the callee
+    x.Lifter.regcache_plan = plan
+
+
+def mut_regcache_fallthrough_no_spill(x):
+    x.Lifter.regcache_fallthrough_spill = False   # the 2026-11-02 defect: nothing stored before a fall-through into the next function
+
+
+def mut_regcache_spill_group_writes_lost(x):
+    x.Lifter.regcache_spill_group_writes = False   # the 2026-11-02 defect: a division's results counted as already stored
+
+
+# --opt regcache only
+REGCACHE_MUTATIONS = {"regcache-no-conflict-fix": mut_regcache_no_conflict_fix,
+                      "regcache-reload-esp-only": mut_regcache_reload_esp_only,
+                      "regcache-spill-esp-only": mut_regcache_spill_live_only,
+                      "regcache-fallthrough-no-spill": mut_regcache_fallthrough_no_spill,
+                      "regcache-spill-group-writes-lost": mut_regcache_spill_group_writes_lost}
+
+
 # --opt iflags only
 IFLAG_MUTATIONS = {"iflags-callee-reads-nothing": mut_iflags_reads_nothing,
                    "iflags-callee-preserves-nothing": mut_iflags_preserves_nothing,
@@ -371,6 +411,10 @@ def main():
             for name in ("call-not-a-boundary", "return-not-a-boundary"):
                 MUTATIONS.pop(name, None)
             MUTATIONS.update(IFLAG_MUTATIONS)
+        if "regcache" in OPT.split(","):
+            # regs-written-set-misses-esp patches REG_WRITE, which regcache does not use for its sets
+            MUTATIONS.pop("regs-written-set-misses-esp", None)
+            MUTATIONS.update(REGCACHE_MUTATIONS)
         if "cflags" in OPT.split(","):
             # cflags replaces the "indirect calls read everything" rule and the address-taken return rule by its audit;
             # the audit is tested by lifting the violating DLL (no --define CFLAGS_CLEAN) with the audit disabled

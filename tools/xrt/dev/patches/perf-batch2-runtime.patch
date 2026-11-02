@@ -1,0 +1,278 @@
+diff -ruN --strip-trailing-cr out/dev-init-savepoints/perf-c1-20261101/runtime/port_settings.c out/dev-init/runtime/port_settings.c
+--- out/dev-init-savepoints/perf-c1-20261101/runtime/port_settings.c	2026-11-01 22:12:28.128275100 -0500
++++ out/dev-init/runtime/port_settings.c	2026-11-02 01:46:44.800331800 -0500
+@@ -137,7 +137,7 @@
+ 
+ /* kind 1: UWindowsViewport::Exec(const TCHAR*, FOutputDevice&); kind 2: UUIConsole::PostRender(FSceneNode* Frame).
+  * Returns 1 when the call was completed here. */
+-int xrt_port_call(CPU* c, unsigned kind, XrtFn fn) {
++int xrt_port_call(CPU* c, unsigned kind, XrtLiftedFn fn) {
+     uint32_t esp = c->r[ESP];
+     if (kind == 1) {
+         uint32_t s = rd32(esp + 4);
+@@ -154,7 +154,7 @@
+         vw = (uint32_t)(w / s + 0.5f); vh = (uint32_t)(h / s + 0.5f);
+         if (logged++ < 8) xrt_log("port: UI drawn from a %ux%u frame on the %ux%u viewport (x%g)", vw, vh, w, h, s);
+         wr32(viewport + 0x74, vw); wr32(viewport + 0x78, vh);
+-        fn(c);
++        XRT_CALL_LIFTED(fn, c);
+         /* restore the real size unless the game itself changed it meanwhile */
+         if (rd32(viewport + 0x74) == vw && rd32(viewport + 0x78) == vh) { wr32(viewport + 0x74, w); wr32(viewport + 0x78, h); }
+         return 1;
+diff -ruN --strip-trailing-cr out/dev-init-savepoints/perf-c1-20261101/runtime/world_observer.h out/dev-init/runtime/world_observer.h
+--- out/dev-init-savepoints/perf-c1-20261101/runtime/world_observer.h	2026-10-31 18:37:28.541565000 -0400
++++ out/dev-init/runtime/world_observer.h	2026-11-02 02:03:53.798328200 -0500
+@@ -6,8 +6,15 @@
+ #undef XRT_ENTER
+ #define XRT_ENTER(va) do { c->hist[c->hpos++ & (XRT_HIST - 1)] = (va); xrt_world_enter(c,(va)); if (xrt_preempt_req) xrt_preempt(c); } while (0)
+ #undef CALL
+-#define CALL(fn,nxt,site) do { push32(c,(nxt)); fn(c); if(c->rv!=(nxt))xrt_badret(c,(site),(nxt)); xrt_world_return(c); } while (0)
+ #undef ICALL
++#ifdef XRT_RV_ABI
++/* xlift --opt rv: the callee returns its return address instead of storing c->rv; the observer's return check and
++ * xrt_world_return (which matches pending world calls by c->rv) get it from the return value. */
++#define CALL(fn,nxt,site) do { uint32_t rv__; push32(c,(nxt)); rv__=fn(c); c->rv=rv__; if(rv__!=(nxt))xrt_badret(c,(site),(nxt)); xrt_world_return(c); } while (0)
++#define ICALL(t,nxt,site) do { uint32_t t__=(t),rv__; push32(c,(nxt)); rv__=xrt_icall(c,t__,(site)); c->rv=rv__; if(rv__!=(nxt))xrt_badret(c,(site),(nxt)); xrt_world_return(c); } while (0)
++#else
++#define CALL(fn,nxt,site) do { push32(c,(nxt)); fn(c); if(c->rv!=(nxt))xrt_badret(c,(site),(nxt)); xrt_world_return(c); } while (0)
+ #define ICALL(t,nxt,site) do { uint32_t t__=(t); push32(c,(nxt)); xrt_icall(c,t__,(site)); if(c->rv!=(nxt))xrt_badret(c,(site),(nxt)); xrt_world_return(c); } while (0)
++#endif
+ #undef ICALLI
+ #define ICALLI(t,nxt,site) ICALL(t,nxt,site)   /* observed units keep the observer's return check after every call */
+diff -ruN --strip-trailing-cr out/dev-init-savepoints/perf-c1-20261101/runtime/xrt.h out/dev-init/runtime/xrt.h
+--- out/dev-init-savepoints/perf-c1-20261101/runtime/xrt.h	2026-11-01 23:45:38.066844300 -0500
++++ out/dev-init/runtime/xrt.h	2026-11-02 01:46:44.799332700 -0500
+@@ -53,7 +53,23 @@
+     XrtThread* thread;
+ } CPU;
+ 
+-typedef void (*XrtFn)(CPU*);
++typedef void (*XrtFn)(CPU*);          /* host adapters: they set c->rv themselves */
++/* Translated functions. xlift --opt rv (the protos header defines XRT_RV_ABI): they return the address they returned to
++ * instead of storing c->rv, so a call compares a register; the runtime stores the value into c->rv when it calls one
++ * (XRT_CALL_LIFTED), which keeps every reader of c->rv after a dispatched call unchanged. All modules of a build agree. */
++#ifdef XRT_RV_ABI
++typedef uint32_t XrtLiftedRet;
++typedef uint32_t (*XrtLiftedFn)(CPU*);
++#define XRT_CALL_LIFTED(fn, c) ((c)->rv = (fn)(c))
++#define XRT_LIFTED_RETURN(c) return (c)->rv
++#define XRT_TAIL(call) return (call)
++#else
++typedef void XrtLiftedRet;
++typedef void (*XrtLiftedFn)(CPU*);
++#define XRT_CALL_LIFTED(fn, c) ((fn)(c))
++#define XRT_LIFTED_RETURN(c) return
++#define XRT_TAIL(call) do { (call); return; } while (0)
++#endif
+ 
+ /* ---------------------------------------------------------------- guest memory */
+ #define XRT_GUEST_GUARD_BELOW 0x80000000ull   /* reserved, never committed: wrapped addr64 accesses fault here */
+@@ -204,8 +220,8 @@
+ #else
+ #define XRT_NORETURN __attribute__((noreturn))
+ #endif
+-void xrt_icall(CPU* c, uint32_t target, uint32_t site);           /* indirect call (return addr already pushed) */
+-void xrt_ijmp(CPU* c, uint32_t target, uint32_t site);            /* indirect tail jump */
++XrtLiftedRet xrt_icall(CPU* c, uint32_t target, uint32_t site);   /* indirect call (return addr already pushed) */
++XrtLiftedRet xrt_ijmp(CPU* c, uint32_t target, uint32_t site);    /* indirect tail jump */
+ XRT_NORETURN void xrt_trap(CPU* c, uint32_t site, const char* why);
+ XRT_NORETURN void xrt_badret(CPU* c, uint32_t site, uint32_t expected);
+ XRT_NORETURN void xrt_div0(CPU* c, uint32_t site);
+@@ -226,19 +242,35 @@
+ #else
+ #define P(va) (c->pc = (va))
+ #endif
++#ifdef XRT_RV_ABI
++#define CALL(fn, nxt, site) do { uint32_t rv__; push32(c, (nxt)); rv__ = fn(c); \
++                                 if (rv__ != (nxt)) { c->rv = rv__; xrt_badret(c, (site), (nxt)); } } while (0)
++#else
+ #define CALL(fn, nxt, site) do { push32(c, (nxt)); fn(c); if (c->rv != (nxt)) xrt_badret(c, (site), (nxt)); } while (0)
++#endif
+ /* Indirect calls. ICALL goes through xrt_icall/dispatch. ICALLI (xlift --opt icall) expands the hit path of the
+  * runtime's call-target cache (xrt_loader.c) at the call site, so each guest call site has its own host indirect call:
+  * through the single call in dispatch the branch predictor saw one site for all of them. Any module map/unmap advances
+  * xrt_call_cache_gen; misses, imports, observed targets (flags) and stale entries take xrt_icall as before. After a
+  * cached call the world-observer return check dispatch makes is made inline (c->world_floor; xrt_icall_after is the
+  * same check as a function, kept for older generated code). */
+-typedef struct { uint32_t va, gen; XrtFn fn; unsigned flags; } XrtCallCache;
++typedef struct { uint32_t va, gen; XrtLiftedFn fn; unsigned flags; } XrtCallCache;
+ extern XrtCallCache xrt_call_cache[65536];
+ extern uint32_t xrt_call_cache_gen;
+ #define XRT_CALL_CACHE_SLOT(t) ((((t) >> 2) ^ ((t) >> 18)) & 65535)
+ void xrt_icall_after(CPU* c);
+ void xrt_world_return(CPU* c);
++#ifdef XRT_RV_ABI
++#define ICALL(t, nxt, site) do { uint32_t t__ = (t), rv__; push32(c, (nxt)); rv__ = xrt_icall(c, t__, (site)); \
++                                 if (rv__ != (nxt)) { c->rv = rv__; xrt_badret(c, (site), (nxt)); } } while (0)
++#define ICALLI(t, nxt, site) do { uint32_t t__ = (t), rv__; const XrtCallCache* e__ = &xrt_call_cache[XRT_CALL_CACHE_SLOT(t__)]; \
++                                 push32(c, (nxt)); \
++                                 if (e__->va == t__ && e__->gen == xrt_call_cache_gen && !e__->flags) { rv__ = e__->fn(c); \
++                                     if (c->r[ESP] >= c->world_floor) { c->rv = rv__; xrt_world_return(c); } } \
++                                 else rv__ = xrt_icall(c, t__, (site)); \
++                                 if (rv__ != (nxt)) { c->rv = rv__; xrt_badret(c, (site), (nxt)); } } while (0)
++#define RET(n) do { uint32_t rv__ = pop32(c); c->r[ESP] += (n); return rv__; } while (0)
++#else
+ #define ICALL(t, nxt, site) do { uint32_t t__ = (t); push32(c, (nxt)); xrt_icall(c, t__, (site)); \
+                                  if (c->rv != (nxt)) xrt_badret(c, (site), (nxt)); } while (0)
+ #define ICALLI(t, nxt, site) do { uint32_t t__ = (t); const XrtCallCache* e__ = &xrt_call_cache[XRT_CALL_CACHE_SLOT(t__)]; \
+@@ -248,6 +280,7 @@
+                                  else xrt_icall(c, t__, (site)); \
+                                  if (c->rv != (nxt)) xrt_badret(c, (site), (nxt)); } while (0)
+ #define RET(n) do { c->rv = pop32(c); c->r[ESP] += (n); return; } while (0)
++#endif
+ 
+ /* ---------------------------------------------------------------- lazy guest pc (xlift --opt lazypc)
+  * Translated code then stores c->pc only before calls, traps, marks and the helpers that read it; the instruction of
+@@ -283,10 +316,10 @@
+     struct XrtEhPad* prev;
+ } XrtEhPad;
+ void xrt_eh_register(CPU* c, XrtEhPad* pad);
+-void xrt_eh_landed(CPU* c, XrtEhPad* pad);
++XrtLiftedRet xrt_eh_landed(CPU* c, XrtEhPad* pad);
+ void xrt_eh_pop(CPU* c, XrtEhPad* pad);
+ #define XRT_EH_DECL XrtEhPad eh_; eh_.active = 0
+-#define XRT_EH_REGISTER() do { xrt_eh_register(c, &eh_); if (setjmp(eh_.jb)) { xrt_eh_landed(c, &eh_); return; } } while (0)
++#define XRT_EH_REGISTER() do { xrt_eh_register(c, &eh_); if (setjmp(eh_.jb)) { XRT_TAIL(xrt_eh_landed(c, &eh_)); } } while (0)
+ #define XRT_EH_POP() do { if (eh_.active) xrt_eh_pop(c, &eh_); } while (0)
+ 
+ /* ---------------------------------------------------------------- evidence instrumentation (tools/xrt/marks.json)
+@@ -312,7 +345,7 @@
+ #define XRT_MARK(m) xrt_mark(c, (m))
+ 
+ /* ---------------------------------------------------------------- generated module descriptors */
+-typedef struct XrtFuncEntry { uint32_t va; XrtFn fn; } XrtFuncEntry;
++typedef struct XrtFuncEntry { uint32_t va; XrtLiftedFn fn; } XrtFuncEntry;
+ typedef struct XrtLiftedModule {
+     const char* name;              /* file name, e.g. "Core.dll" */
+     uint32_t base;                 /* image base the code was lifted for */
+diff -ruN --strip-trailing-cr out/dev-init-savepoints/perf-c1-20261101/runtime/xrt_eh.c out/dev-init/runtime/xrt_eh.c
+--- out/dev-init-savepoints/perf-c1-20261101/runtime/xrt_eh.c	2026-10-30 23:08:09.938444700 -0400
++++ out/dev-init/runtime/xrt_eh.c	2026-11-02 01:46:44.799332700 -0500
+@@ -100,10 +100,18 @@
+ 
+ /* in the translated function that owns the frame, after the dispatcher's longjmp: the rest of the function is
+  * the translated code at the continuation address (it ends with the function's own epilogue and ret) */
+-void xrt_eh_landed(CPU* c, XrtEhPad* pad) {
++XrtLiftedRet xrt_eh_landed(CPU* c, XrtEhPad* pad) {
+     xrt_event("cxx_resume", "\"node\": \"0x%08x\", \"continuation\": \"0x%08x\", \"in\": \"function\"", pad->node, pad->resume);
++#ifdef XRT_RV_ABI
++    {
++        uint32_t rv = xrt_ijmp(c, pad->resume, pad->node);
++        xrt_eh_pop(c, pad);
++        return rv;
++    }
++#else
+     xrt_ijmp(c, pad->resume, pad->node);
+     xrt_eh_pop(c, pad);
++#endif
+ }
+ 
+ /* ---------------------------------------------------------------- frame decoding */
+diff -ruN --strip-trailing-cr out/dev-init-savepoints/perf-c1-20261101/runtime/xrt_internal.h out/dev-init/runtime/xrt_internal.h
+--- out/dev-init-savepoints/perf-c1-20261101/runtime/xrt_internal.h	2026-11-01 22:56:55.988991900 -0500
++++ out/dev-init/runtime/xrt_internal.h	2026-11-02 01:46:44.800331800 -0500
+@@ -148,7 +148,7 @@
+ uint32_t xrt_lookup_containing(uint32_t va);                /* lifted function entry at or below va */
+ uint32_t xrt_call_guest(CPU* c, uint32_t va, int nargs, const uint32_t* args, int stdcall);
+ /* port_settings.c: walking speed / UI scale; dispatch hands it the calls flagged CALL_PORT_* (1 = completed there) */
+-int xrt_port_call(CPU* c, unsigned kind, XrtFn fn);
++int xrt_port_call(CPU* c, unsigned kind, XrtLiftedFn fn);
+ int xrt_d3d8_borderless_window(void* hwnd);   /* d3d8_borderless.inc: this window shows borderless fullscreen now */
+ float xrt_port_walking_speed(void);
+ void xrt_world_enter(CPU* c, uint32_t target);
+diff -ruN --strip-trailing-cr out/dev-init-savepoints/perf-c1-20261101/runtime/xrt_loader.c out/dev-init/runtime/xrt_loader.c
+--- out/dev-init-savepoints/perf-c1-20261101/runtime/xrt_loader.c	2026-11-01 22:56:55.988991900 -0500
++++ out/dev-init/runtime/xrt_loader.c	2026-11-02 02:03:53.798849500 -0500
+@@ -42,11 +42,18 @@
+ int xrt_module_count(void) { return nmods; }
+ XrtModule* xrt_module_get(int i) { return i >= 0 && i < nmods ? &mods[i] : NULL; }
+ 
++/* Every import call (dispatch) and call-cache fill asks for the caller's or target's module: the last answer is tried
++ * first. mods[] entries never move and a slot is only reused for the same image (see xrt_module_register), so a stale
++ * cached pointer fails the range/unloaded test and falls back to the scan; the scan result is unchanged. */
+ XrtModule* xrt_module_by_addr(uint32_t va) {
++    static XrtModule* last;
++    XrtModule* m = last;
+     int i;
++    if (m && !m->unloaded && va - m->base < m->size)
++        return m;
+     for (i = 0; i < nmods; i++)
+         if (!mods[i].unloaded && va - mods[i].base < mods[i].size)
+-            return &mods[i];
++            return last = &mods[i];
+     return NULL;
+ }
+ 
+@@ -467,7 +474,7 @@
+         }
+     }
+ }
+-static XrtFn lookup_lifted(uint32_t va) {
++static XrtLiftedFn lookup_lifted(uint32_t va) {
+     XrtModule* m = xrt_module_by_addr(va);
+     const XrtFuncEntry* f;
+     int lo, hi;
+@@ -520,14 +527,14 @@
+             *stub_name = stubs[i].name;
+         return stubs[i].fn;
+     }
+-    return lookup_lifted(va);
++    return (XrtFn)lookup_lifted(va);   /* its caller only tests for NULL (a lifted function, not a stub) */
+ }
+ 
+ /* Routine tracing is centralized in the developer monitor. */
+ static __declspec(noinline) const CallCache*call_target_fill(uint32_t target) {
+     CallCache*e=&call_cache[CALL_CACHE_SLOT(target)];
+     {
+-        XrtModule*m=xrt_module_by_addr(target);XrtFn fn=lookup_lifted(target);unsigned flags=0;
++        XrtModule*m=xrt_module_by_addr(target);XrtLiftedFn fn=lookup_lifted(target);unsigned flags=0;
+         if(!fn)return NULL;
+         if(m&&!_stricmp(m->name,"WinDrv.dll"))flags=target-m->base==0x17c0?CALL_INPUT_INIT:target-m->base==0x3390?CALL_VIEWPORT_OPEN:target-m->base==0x49b0?CALL_VIEWPORT_TRY:
+                                                      target-m->base==0x5760?CALL_PORT_EXEC:0;   /* UWindowsViewport::Exec */
+@@ -546,7 +553,7 @@
+ }
+ 
+ static void dispatch(CPU* c, uint32_t target, uint32_t site, const char* what) {
+-    XrtFn fn;
++    XrtLiftedFn fn;
+     if (target - XRT_STUB_BASE < XRT_STUB_END - XRT_STUB_BASE) {
+         uint32_t i = (target - XRT_STUB_BASE) / XRT_STUB_SIZE;
+         XrtModule* caller = xrt_module_by_addr(site);
+@@ -600,7 +607,7 @@
+             if(c->r[ESP]>=c->world_floor)xrt_world_return(c);
+             return;
+         }
+-        if(!(e->flags&~(CALL_SETRES|CALL_PORT_EXEC|CALL_PORT_UI_ROOT|CALL_PORT_UI_SCALE))){fn(c);if(c->r[ESP]>=c->world_floor)xrt_world_return(c);return;}
++        if(!(e->flags&~(CALL_SETRES|CALL_PORT_EXEC|CALL_PORT_UI_ROOT|CALL_PORT_UI_SCALE))){XRT_CALL_LIFTED(fn,c);if(c->r[ESP]>=c->world_floor)xrt_world_return(c);return;}
+     }
+     {
+         const CallCache*e=call_target(target);
+@@ -620,7 +627,7 @@
+         if(loadmap) xrt_event("engine_loadmap_call","\"target\": %u, \"esp\": %u, \"return\": %u, \"this\": %u, \"arg0\": %u",
+             target,c->r[ESP],rd32(c->r[ESP]),c->r[ECX],rd32(c->r[ESP]+4));
+         if(postload) xrt_event("level_postload_call","\"target\":%u,\"esp\":%u,\"return\":%u,\"this\":%u",target,esp,ret,self);
+-        fn(c);
++        XRT_CALL_LIFTED(fn,c);
+         xrt_world_return(c);
+         if(viewport_try) xrt_event("viewport_try_render_return","\"target\":%u,\"esp_before\":%u,\"esp_after\":%u,\"return\":%u,\"actual_return\":%u,\"this\":%u",target,esp,c->r[ESP],ret,c->rv,self);
+         if(viewport_open) xrt_event("viewport_open_return","\"target\":%u,\"esp_before\":%u,\"esp_after\":%u,\"return\":%u,\"actual_return\":%u,\"this\":%u",target,esp,c->r[ESP],ret,c->rv,self);
+@@ -631,7 +638,7 @@
+ }
+ 
+ #include "setres_evidence.inc"
+-void xrt_icall(CPU* c, uint32_t target, uint32_t site) {
++XrtLiftedRet xrt_icall(CPU* c, uint32_t target, uint32_t site) {
+     const CallCache*cached=target - XRT_STUB_BASE < XRT_STUB_END - XRT_STUB_BASE ? NULL : call_target(target);
+     int observed=cached && (cached->flags&CALL_SETRES);
+     LONG id=0;uint32_t esp=0,ret=0;
+@@ -643,8 +650,9 @@
+     }
+     dispatch(c,target,site,"indirect call");
+     if(observed)setres_evidence(c,id,"return",target,site,esp,ret);
++    XRT_LIFTED_RETURN(c);
+ }
+-void xrt_ijmp(CPU* c, uint32_t target, uint32_t site) { dispatch(c, target, site, "indirect jump"); }
++XrtLiftedRet xrt_ijmp(CPU* c, uint32_t target, uint32_t site) { dispatch(c, target, site, "indirect jump"); XRT_LIFTED_RETURN(c); }
+ /* After a cached indirect call made inline by ICALL (xrt.h): the check dispatch makes after its cached call. */
+ void xrt_icall_after(CPU* c) { if(c->r[ESP]>=c->world_floor)xrt_world_return(c); }
+ 

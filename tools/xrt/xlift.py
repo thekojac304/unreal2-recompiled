@@ -88,6 +88,21 @@ Optional optimizations (--opt LIST; default none, which keeps the output byte-id
          xrt_commit) and the runtime reserves a 2 GB guard below the 4 GB window: an access whose guest address wraps
          faults in both models (the fault report shows the wrapped guest address). Indexed and far forms keep the exact
          32-bit computation. lea stays 32-bit (it produces a guest value, not an access).
+  regcache (needs regs) register-cache dataflow per function instead of the uniform spill/reload: a spill point (call,
+         return, tail jump, trap, mark, watch, EH registration) stores only the locals written since their last store
+         (may-dirty, forward), and a call reloads only the locals this function reads before redefining them (live,
+         backward; ESP always, the callee's ret changed it). A local that is neither reloaded nor rewritten is
+         undefined: liveness guarantees it is never read, and the conflict fix reloads it after the calls that reach a
+         spill point where another path could have made it dirty (so an undefined local is never stored). c->r is
+         therefore exact at every spill point as before: dirty locals are stored, clean ones already match, undefined
+         ones hold whatever the last callee left, which is the architectural value. Tested by opt_diff t_asm_regcache.
+  rv     a translated function returns the return address it popped (uint32_t f_X(CPU*)) instead of storing c->rv; the
+         caller compares the return value (CALL/ICALL/ICALLI in xrt.h), tail jumps and fall-throughs return the callee's
+         value. One store and one dependent load fewer per call, and the check is a register compare. The protos header
+         defines XRT_RV_ABI, which switches xrt.h's lifted-function type and macros; the runtime assigns c->rv from the
+         value when it calls translated code (XRT_CALL_LIFTED), so every consumer of c->rv after a dispatched call is
+         unchanged, and the cold paths (bad return, world-observer return) store it before they read it. Host adapters
+         keep the void XrtFn type and set c->rv themselves. Every module of a build must be lifted alike.
   lazypc (needs pc) the c->pc store is kept only before statements that reach code reading it: calls (direct,
          indirect, import), traps, marks, watches, EH registration, cpuid/rdtsc, fldcw, divide checks. Plain guest
          memory accesses and x87 helpers no longer store it. A guest memory fault's instruction is recovered from the
@@ -198,6 +213,9 @@ def called(s):
 
 
 REG_WRITE = re.compile(r"\br(?P<r>[0-7])_\s*(=[^=]|[-+&|^]=|<<=|>>=|\+\+|--)|(\+\+|--)\s*r(?P<p>[0-7])_")
+# --opt regcache: every use of a promoted local with what follows/precedes it (plain assignment = write only, compound
+# assignment or ++/-- = read and write, anything else = read)
+REG_TOKEN = re.compile(r"(\+\+|--)?\br([0-7])_\b(\s*(?:\+\+|--|(?:[-+&|^]|<<|>>)?=(?!=)))?")
 
 
 class Unsupported(Exception):
@@ -230,6 +248,8 @@ class Lifter:
         self.cflags_active = True         # --opt cflags: cleared by the audit (iflag_analysis) when the module violates it
         self.cflags_violations = []       # the audit's findings (meta file), whether or not the fallback was taken
         self.cflags_allow = {}            # entry va -> reason: address-taken data lifted as code (trap-guarded, see main)
+        self.ret_type = "uint32_t" if "rv" in self.opt else "void"   # --opt rv: the popped return address is the result
+        self.tail = (lambda call: f"return {call};") if "rv" in self.opt else (lambda call: f"{call}; return;")
         self.live = None                  # flags live after the instruction being lifted (None: all)
         self.opt_stats = collections.Counter()
         self.img = mod.img
@@ -684,6 +704,166 @@ class Lifter:
         if X87_REF.search(" ".join(t for t in out if t not in (SPILL, RELOAD))):
             raise AssertionError(f"x87 state access left in CPU form: {out}")
         return out
+
+    # ------------------------------------------------------------------ register cache (--opt regcache)
+    regcache_conflict_fix = True          # test hook (opt_diff mutation)
+    regcache_fallthrough_spill = True     # test hook (opt_diff mutation): False re-creates the 2026-11-02 fall-through defect
+    regcache_spill_group_writes = True    # test hook (opt_diff mutation): False re-creates the 2026-11-02 division defect
+
+    @staticmethod
+    def reg_rw(stmts):
+        """(reads, writes) of the promoted locals r0_..r7_ in one instruction's statements (markers skipped)."""
+        R, W = set(), set()
+        text = COMMENT.sub("", " ".join(s for s in stmts if s not in (SPILL, RELOAD)))
+        for m in REG_TOKEN.finditer(text):
+            r, pre, post = int(m.group(2)), m.group(1), m.group(3)
+            if post is not None and re.fullmatch(r"\s*=", post):
+                W.add(r)                                  # plain assignment
+            elif pre or post:
+                R.add(r)
+                W.add(r)                                  # ++/--, compound assignment
+            else:
+                R.add(r)
+        return R, W
+
+    def regcache_plan(self, fn, body):
+        """Per instruction va: (spill set, reload set); spill sets also for the synthetic statements that follow an
+        instruction (keyed by the instruction's va with the flag True). See the module docstring (regcache)."""
+        ALL, ESP = frozenset(range(8)), 4
+        insns = fn.insns
+        if not insns:                                     # a trap-only entry: nothing written, nothing to plan
+            return {}, {}
+        # An instruction's own statements decide its kind. The synthetic statements that follow it (a goto, or the
+        # spill and tail call of a fall-through into the next function) are kept apart: they run after the
+        # instruction's own effects and only on its fall-through path, so their spill set is the dirty set after the
+        # instruction (spill[(va, True)]), never the "everything stored" state of an instruction that spills itself.
+        stm, syn, prev = {}, {}, None
+        for va, stmts in body:
+            if va is None:
+                if prev is not None:
+                    syn[prev] = syn.get(prev, []) + stmts  # goto / fall-through statements after the instruction
+                continue
+            stm[va] = stm.get(va, []) + stmts
+            prev = va
+        kind, R, W, succ = {}, {}, {}, {}
+        for va, ins in insns.items():
+            m, ops, nxt = ins.mnemonic, ins.operands, va + ins.size
+            s = stm.get(va, [])
+            text = " ".join(x for x in s if x not in (SPILL, RELOAD))
+            calls = called(text)
+            r, w = self.reg_rw(s + syn.get(va, []))
+            if m.startswith("cmov") and ops and ops[0].type == X.X86_OP_REG and self.rn(ops[0]) in REG32:
+                r.add(REG32[self.rn(ops[0])])             # written only when the condition holds: the old value survives
+            if calls & RELOAD_CALLS or "ICALLI" in calls:
+                k = "call"                                # locals invalid afterwards; the live ones are reloaded
+            elif SPILL in s:
+                k = "spill"                               # return, tail, trap, mark, watch, EH registration: dirty stored
+            else:
+                k = "plain"
+            kind[va], R[va], W[va] = k, r, w
+            if m in JCC or m in ("loop", "loope", "loopne", "jecxz"):
+                t = ops[0].imm & 0xFFFFFFFF
+                sc = ([t] if t in insns else []) + [nxt]
+            elif m == "jmp":
+                if va in fn.jumptables:
+                    sc = sorted({t for t in fn.jumptables[va] if t in insns})
+                elif ops[0].type == X.X86_OP_IMM:
+                    t = ops[0].imm & 0xFFFFFFFF
+                    sc = [t] if t in insns and t not in fn.tails else []
+                else:
+                    sc = []
+            elif m in ("ret", "retn", "int3", "hlt", "ud2"):
+                sc = []
+            else:
+                sc = [nxt]
+            succ[va] = [t for t in sc if t in insns]
+        pred = {va: [] for va in insns}
+        for va, ts in succ.items():
+            for t in ts:
+                pred[t].append(va)
+        order = sorted(insns)
+        # backward liveness of the locals: after an exit nothing of this function reads them (c->r is exact there)
+        live_in = {va: frozenset() for va in insns}
+        changed = True
+        while changed:
+            changed = False
+            for va in reversed(order):
+                out = frozenset().union(*(live_in[t] for t in succ[va])) if succ[va] else frozenset()
+                kill = ALL if kind[va] == "call" else W[va]
+                li = frozenset(R[va]) | (out - kill)
+                if li != live_in[va]:
+                    live_in[va] = li
+                    changed = True
+            # (a second sweep direction is not needed: the loop runs until stable)
+        reload = {va: (frozenset().union(*(live_in[t] for t in succ[va])) if succ[va] else frozenset()) | {ESP}
+                  for va in insns if kind[va] == "call"}
+        entry = fn.entry if fn.entry in insns else order[0]
+
+        def forward():
+            dirty_in = {va: frozenset() for va in insns}
+            valid_in = {va: ALL for va in insns}
+            seen = {entry}
+            work = [entry]
+            while work:
+                va = work.pop()
+                if kind[va] == "call":
+                    d_out, v_out = frozenset(), reload[va]
+                elif kind[va] == "spill":
+                    # the spill is the group's first statement (promote); registers the group writes after it (a
+                    # division's quotient and remainder, a marked instruction's own effect) are dirty afterwards
+                    d_out = frozenset(W[va]) if self.regcache_spill_group_writes else frozenset()
+                    v_out = valid_in[va] | frozenset(W[va])
+                else:
+                    d_out, v_out = dirty_in[va] | frozenset(W[va]), valid_in[va] | frozenset(W[va])
+                for t in succ[va]:
+                    nd, nv = dirty_in[t] | d_out, (valid_in[t] & v_out) if t in seen else v_out
+                    if t not in seen or nd != dirty_in[t] or nv != valid_in[t]:
+                        seen.add(t)
+                        dirty_in[t], valid_in[t] = nd, nv
+                        work.append(t)
+            return dirty_in, valid_in, seen
+
+        for _ in range(64):
+            dirty_in, valid_in, seen = forward()
+            conflicts = []
+            for va in seen:
+                bad = (R[va] - valid_in[va]) if kind[va] != "call" else (R[va] - valid_in[va])
+                if kind[va] in ("call", "spill"):
+                    bad |= dirty_in[va] - valid_in[va]
+                if bad:
+                    conflicts.append((va, frozenset(bad)))
+            if not conflicts or not self.regcache_conflict_fix:
+                break
+            # reload the conflicting locals after every call from which the conflict point is reachable
+            for va, bad in conflicts:
+                stack, visited = list(pred[va]), set()
+                while stack:
+                    p = stack.pop()
+                    if p in visited:
+                        continue
+                    visited.add(p)
+                    if kind[p] == "call":
+                        reload[p] = reload[p] | bad
+                    stack.extend(pred[p])
+            self.opt_stats["regcache_conflict_rounds"] += 1
+        else:
+            raise AssertionError(f"regcache: conflicts did not converge in f_{fn.entry:x}")
+        spill = {}
+        for va in insns:
+            if kind[va] in ("call", "spill"):
+                spill[va] = dirty_in[va]
+            d_after = (frozenset() if kind[va] == "call" else
+                       (frozenset(W[va]) if self.regcache_spill_group_writes else frozenset()) if kind[va] == "spill" else
+                       dirty_in[va] | frozenset(W[va]))
+            if not self.regcache_fallthrough_spill and SPILL in syn.get(va, []):
+                d_after = frozenset()                     # mutation: the synthetic tail stores nothing
+            spill[(va, True)] = d_after                   # synthetic statements after the instruction (goto, fall-through)
+        self.opt_stats["regcache_spill_stores"] += sum(len(spill[va]) for va in insns if kind[va] in ("call", "spill"))
+        self.opt_stats["regcache_spill_stores"] += sum(len(spill[(va, True)]) for va in insns if SPILL in syn.get(va, []))
+        self.opt_stats["regcache_fallthrough_spills"] += sum(1 for va in insns if SPILL in syn.get(va, []))
+        self.opt_stats["regcache_reload_loads"] += sum(len(v) for v in reload.values())
+        self.opt_stats["regcache_call_sites"] += len(reload)
+        return spill, reload
 
     @staticmethod
     def x87v_ends(x):
@@ -1448,7 +1628,7 @@ class Lifter:
             # --cflags-allow: an address-taken data table that discovery lifted as code. Its decoded "entry" reads
             # flags, which no caller can be made to provide under cflags, so the assumption that it never executes
             # is enforced: reaching it is a fatal trap with the recorded reason.
-            lines = [f"void f_{fn.entry:x}(CPU* c) {{", f"    XRT_ENTER(0x{fn.entry:x}u);"]
+            lines = [f"{self.ret_type} f_{fn.entry:x}({'CPU* __restrict c' if 'restrict' in self.opt else 'CPU* c'}) {{", f"    XRT_ENTER(0x{fn.entry:x}u);"]
             if hit_index is not None:
                 lines.append(f"    xrt_hits_{stem}[{hit_index}] = 1;")
             lines.append("    " + self.trap(fn.entry, f"cflags allow-list: assumed never executed: {self.cflags_allow[fn.entry]}"))
@@ -1491,7 +1671,7 @@ class Lifter:
                     if ops[0].type == X.X86_OP_IMM:
                         t = ops[0].imm & 0xFFFFFFFF
                         if t in fn.tails or (t not in fn.insns and t in mod.functions):
-                            stmts.append(f"{pop}f_{t:x}(c); return;   /* tail call */")
+                            stmts.append(f"{pop}{self.tail(f'f_{t:x}(c)')}   /* tail call */")
                         elif t in fn.insns:
                             labels.add(t)
                             stmts.append(f"goto L_{t:x};")
@@ -1516,9 +1696,9 @@ class Lifter:
                             labels.update(known)
                             cases = " ".join(f"case 0x{t:x}u: goto L_{t:x};" for t in known)
                             stmts.append(f"{{ uint32_t t_ = {self.read(ops[0])}; switch (t_) {{ {cases} default: "
-                                         f"{pop}xrt_ijmp(c, t_, 0x{va:x}u); return; }} }}")
+                                         f"{pop}{self.tail(f'xrt_ijmp(c, t_, 0x{va:x}u)')} }} }}")
                         else:
-                            stmts.append(f"{pop}xrt_ijmp(c, {self.read(ops[0])}, 0x{va:x}u); return;{note}")
+                            stmts.append(f"{pop}{self.tail(f'xrt_ijmp(c, {self.read(ops[0])}, 0x{va:x}u)')}{note}")
                 elif m == "call":
                     if ops[0].type == X.X86_OP_IMM:
                         t = ops[0].imm & 0xFFFFFFFF
@@ -1563,10 +1743,14 @@ class Lifter:
                     labels.add(nxt)
                     body.append((None, [f"goto L_{nxt:x};"]))
                 elif nxt in fn.fallthrough_into or nxt in mod.functions:
-                    body.append((None, [f"{pop}f_{nxt:x}(c); return;   /* falls through into the next function */"]))
+                    body.append((None, [f"{pop}{self.tail(f'f_{nxt:x}(c)')}   /* falls through into the next function */"]))
                 else:
                     body.append((None, [self.trap(nxt, "execution continued past decoded code")]))
-        lines = [f"void f_{fn.entry:x}(CPU* c) {{", f"    XRT_ENTER(0x{fn.entry:x}u);"]
+        # --opt restrict: the CPU state is reached only through c in a translated function (guest memory is a disjoint
+        # host allocation, runtime helpers receive c): the qualifier lets the compiler keep CPU fields in registers across
+        # guest stores and forward guest stores to guest loads across CPU stores (see the module docstring)
+        cq = "CPU* __restrict c" if "restrict" in self.opt else "CPU* c"
+        lines = [f"{self.ret_type} f_{fn.entry:x}({cq}) {{", f"    XRT_ENTER(0x{fn.entry:x}u);"]
         if "base" in self.opt:
             lines.append("    uint8_t* const xg_ = xrt_g;   /* guest memory base, see xrt.h rd32b */")
         if "regs" in self.opt and len(fn.insns) <= REGS_MAX_INSNS:
@@ -1578,6 +1762,7 @@ class Lifter:
             spill = " ".join(f"c->r[{i}] = r{i}_;" for i in sorted(written)) or "/* no register written */"
             reload = RELOAD
             spills = sum(s == SPILL for _, stmts in body for s in stmts)
+            plan = self.regcache_plan(fn, body) if "regcache" in self.opt else None
             small = len(fn.insns) <= LOCAL_MAX_INSNS or (len(fn.insns) <= LOCAL_LARGE_INSNS and spills <= LOCAL_LARGE_SPILLS)
             if "icall" in self.opt and small:
                 # indirect calls expand the call-target cache hit path at the call site (xrt.h ICALLI)
@@ -1589,7 +1774,24 @@ class Lifter:
                 spill, reload = spill + " " + X87_SPILL, RELOAD + " " + X87_RELOAD
                 self.opt_stats["x87_functions"] += 1
                 lines.append("    uint32_t ft_ = c->top; uint16_t fsw_ = c->fsw;   /* --opt x87 */")
-            body = [(va, [spill if s == SPILL else reload if s == RELOAD else s for s in stmts]) for va, stmts in body]
+            if plan is None:
+                body = [(va, [spill if s == SPILL else reload if s == RELOAD else s for s in stmts]) for va, stmts in body]
+            else:
+                # --opt regcache: per-site store and load sets (x87 locals as before at every point)
+                sp, rl = plan
+                x87s = (" " + X87_SPILL) if spill.endswith(X87_SPILL) else ""
+                x87r = (" " + X87_RELOAD) if reload.endswith(X87_RELOAD) else ""
+                out, prev = [], None
+                for va, stmts in body:
+                    key = va if va is not None else (prev, True)
+                    sset = sp.get(key, frozenset()) if va is not None else sp.get(key, frozenset())
+                    rset = rl.get(va, frozenset(range(8))) if va is not None else frozenset(range(8))
+                    st = " ".join(f"c->r[{i}] = r{i}_;" for i in sorted(sset)) or "/* nothing dirty */"
+                    ld = " ".join(f"r{i}_ = c->r[{i}];" for i in sorted(rset)) or "/* nothing live */"
+                    out.append((va, [(st + x87s) if s == SPILL else (ld + x87r) if s == RELOAD else s for s in stmts]))
+                    if va is not None:
+                        prev = va
+                body = out
             if "x87v" in self.opt and any(l.endswith("/* --opt x87 */") for l in lines):
                 body, used = self.x87_values(body, labels | {fn.entry})
                 if used:
@@ -1681,7 +1883,8 @@ def main():
     # loader applies the same relocations when it maps the module there)
     base = int(args[args.index("--base") + 1], 16) if "--base" in args else None
     opt = set(args[args.index("--opt") + 1].split(",")) if "--opt" in args else set()
-    known = {"flags", "pc", "base", "regs", "x87", "x87v", "x87w", "icall", "iflags", "sse", "cflags", "rdtsc", "lazypc", "addr64"}
+    known = {"flags", "pc", "base", "regs", "x87", "x87v", "x87w", "icall", "iflags", "sse", "cflags", "rdtsc", "lazypc", "addr64",
+             "restrict", "rv", "regcache"}
     if opt - known:
         sys.exit(f"unknown --opt {sorted(opt - known)} (known: {', '.join(sorted(known))})")
     if "sse" in opt and "base" not in opt:
@@ -1694,6 +1897,8 @@ def main():
         sys.exit("--opt lazypc needs pc (it extends the pc-store elision to guest memory accesses)")
     if "addr64" in opt and "base" not in opt:
         sys.exit("--opt addr64 needs base (the 64-bit sums index the function's local guest-memory base)")
+    if "regcache" in opt and "regs" not in opt:
+        sys.exit("--opt regcache needs regs (it refines the spill and reload sets of the promoted registers)")
     allow_path = args[args.index("--cflags-allow") + 1] if "--cflags-allow" in args else \
         (DEFAULT_CFLAGS_ALLOW if os.path.exists(DEFAULT_CFLAGS_ALLOW) else None)
     if "x87v" in opt and "x87" not in opt:
@@ -1736,10 +1941,12 @@ def main():
         for e in entries:
             if a <= e < b:
                 sys.exit(f"refusing: function entry {e:#x} lies inside .text data {a:#x}-{b:#x}")
-    protos = [f"void f_{e:x}(CPU* c);" for e in sorted(mod.functions)]
+    protos = [f"{lifter.ret_type} f_{e:x}(CPU* c);" for e in sorted(mod.functions)]
     hdr = f"{stem}_protos.h"
     with open(os.path.join(out, hdr), "w", encoding="utf-8") as f:
         f.write(f"/* GENERATED by tools/xrt/xlift.py from {mod.img.name} - do not edit, do not distribute. */\n")
+        if "rv" in opt:
+            f.write("#define XRT_RV_ABI 1   /* xlift --opt rv: translated functions return their return address */\n")
         f.write('#include "xrt.h"\n')
         f.write("\n".join(protos) + "\n")
         f.write(f"extern uint8_t xrt_hits_{stem}[];\n")

@@ -73,6 +73,9 @@ def build_bench(lifted, exe, flags):
     objdir = os.path.join(OUT, exe + ".obj")
     os.makedirs(objdir, exist_ok=True)
     quiet = "/W3 /wd4102 /wd4146 /wd4100" if cc == "cl" else "/W0"
+    with open(os.path.join(OUT, lifted, "PerfKernels_protos.h")) as f:
+        if "XRT_RV_ABI" in f.read():
+            flags += " /DXRT_RV_ABI"      # xlift --opt rv: bench.c must use the same lifted-function type
     sh("x64", f'{COMPILERS[cc]} /nologo {flags} {quiet} /D_CRT_SECURE_NO_WARNINGS /I"{RT}" /I"{HERE}" '
               f'/Fo"{objdir}\\\\" /Fe"{os.path.join(OUT, exe + ".exe")}" {srcs} "{os.path.join(HERE, "bench.c")}" /link /STACK:0x1000000')
 

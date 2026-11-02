@@ -58,3 +58,24 @@ aarch64 gcc 8.3 static cross build (`ghcr.io/loveretro/tg5040-toolchain`) run un
 reproduced all five checksums (AArch64 timings under emulation are not meaningful). clang 23 `-S` for the full-set lift:
 AArch64 needs 0.94x the instructions of x86-64 (5324 vs 5635 for the 17 functions), dominated by CPU-struct loads/stores
 and float/double conversions.
+
+### 2026-11-02: call/return protocol options (`restrict`, `rv`, `regcache`) and whole-program optimization
+
+Same harness, 9 repetitions, measured under the owner's background host load (absolute ratios are a few percent above the
+quiet-host table; compare rows within this table). "C1 set" is the 2026-11-01 game build's option list
+(`base,flags,icall,iflags,pc,regs,sse,x87,x87v,x87w,cflags,rdtsc,lazypc,addr64`), "C3 set" adds `restrict,rv,regcache`.
+
+| variant | actors | bones | bsp | strings | verts | geomean |
+|---|---|---|---|---|---|---|
+| plain lift, cl /O2 /fp:strict | 6.24 | 7.05 | 4.24 | 12.05 | 6.31 | 6.77 |
+| plain lift, cl /O2 /fp:strict /GL | 6.06 | 7.08 | 4.02 | 11.94 | 6.52 | 6.69 |
+| C1 set, cl /O2 /fp:strict | 1.90 | 1.61 | 1.01 | 1.50 | 1.61 | 1.49 |
+| C1 set, cl /O2 /fp:strict /GL | 1.89 | 1.65 | 1.04 | 1.33 | 1.38 | 1.43 |
+| C3 set, cl /O2 /fp:strict | 1.91 | 1.62 | 1.07 | 1.58 | 1.44 | 1.50 |
+| C3 set, cl /O2 /fp:strict /GL | 1.85 | 1.72 | 1.05 | 1.04 | 1.43 | 1.38 |
+
+Every variant reproduced the native checksums. The kernels contain only 10 translated call sites, so the per-call
+savings of `rv` (no `c->rv` store/load per call) and `regcache` (reloads of the live registers only) cannot show here:
+C1 and C3 are equal within noise. The call-heavy kernel is `strings` (`k_strlen`/`k_hash` through translated calls): with
+the C3 set under `/GL` the compiler can inline the small translated callees (their return value is now a plain `uint32_t`
+and `c` is `__restrict`), 1.58x -> 1.04x native. The game decides (`tools/xrt/dev/PERF_REPORT_20261102.md`).

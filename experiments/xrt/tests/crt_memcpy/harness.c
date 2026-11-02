@@ -23,7 +23,7 @@ static jmp_buf jb;
 static const char* why = "";
 static uint32_t why_site;
 
-static XrtFn lookup(uint32_t va) {
+static XrtLiftedFn lookup(uint32_t va) {
     const XrtLiftedModule* m = &xrt_mod_ogg;
     uint32_t lo = 0, hi = m->nfuncs;
     while (lo < hi) { uint32_t mid = (lo + hi) / 2; if (m->funcs[mid].va < va) lo = mid + 1; else hi = mid; }
@@ -34,12 +34,13 @@ XrtCallCache xrt_call_cache[65536];
 uint32_t xrt_call_cache_gen = 1;
 void xrt_icall_after(CPU* c) { (void)c; }
 void xrt_world_return(CPU* c) { (void)c; }
-void xrt_icall(CPU* c, uint32_t target, uint32_t site) {
-    XrtFn fn = lookup(target);
+XrtLiftedRet xrt_icall(CPU* c, uint32_t target, uint32_t site) {
+    XrtLiftedFn fn = lookup(target);
     if (!fn) { why = "indirect transfer to a non-entry"; why_site = site; longjmp(jb, 4); }
-    fn(c);
+    XRT_CALL_LIFTED(fn, c);
+    XRT_LIFTED_RETURN(c);
 }
-void xrt_ijmp(CPU* c, uint32_t target, uint32_t site) { xrt_icall(c, target, site); }
+XrtLiftedRet xrt_ijmp(CPU* c, uint32_t target, uint32_t site) { XRT_TAIL(xrt_icall(c, target, site)); }
 XRT_NORETURN void xrt_trap(CPU* c, uint32_t site, const char* w) { (void)c; why = w; why_site = site; longjmp(jb, 1); }
 XRT_NORETURN void xrt_badret(CPU* c, uint32_t site, uint32_t expected) { (void)c; (void)expected; why = "bad return"; why_site = site; longjmp(jb, 3); }
 XRT_NORETURN void xrt_div0(CPU* c, uint32_t site) { (void)c; why = "div0"; why_site = site; longjmp(jb, 2); }
@@ -67,7 +68,7 @@ static void fill(uint32_t seed) {
     uint32_t i, x = seed * 2654435761u + 1;
     for (i = 0; i < WINSZ; i++) { x = x * 1103515245u + 12345u; xrt_g[WIN + i] = (uint8_t)(x >> 16); }
 }
-static void one(XrtFn fn, uint32_t dst, uint32_t src, uint32_t n) {
+static void one(XrtLiftedFn fn, uint32_t dst, uint32_t src, uint32_t n) {
     static CPU c;
     uint32_t i, esp = STACK - 64;
     int st;
@@ -99,7 +100,7 @@ int main(int argc, char** argv) {
     FILE* fi;
     uint32_t base, va, da, sa, n, d;
     size_t got;
-    XrtFn fn;
+    XrtLiftedFn fn;
     static uint8_t image[1 << 20];
     if (argc < 4) return 2;
     base = (uint32_t)strtoul(argv[2], NULL, 0);

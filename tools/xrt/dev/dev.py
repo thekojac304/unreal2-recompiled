@@ -70,7 +70,7 @@ def replace_once(path, old, new):
 # xlift --opt lazypc: a chunk ends with its source-line -> guest-address table (xrt.h XrtPcLine). The endpoint hooks
 # inserted above add lines to Unreal2_001.c, so the table is regenerated from the instruction header lines afterwards
 # (the same pattern xlift uses: a pc store, or the comment that replaced it).
-PCLINE = re.compile(r'^\s+(?:P\(0x([0-9a-f]+)u\);|/\* 0x([0-9a-f]+): )|^void f_([0-9a-f]+)\(CPU\* c\) \{')
+PCLINE = re.compile(r'^\s+(?:P\(0x([0-9a-f]+)u\);|/\* 0x([0-9a-f]+): )|^(?:void|uint32_t) f_([0-9a-f]+)\(CPU\*(?: __restrict)? c\) \{')
 PCLINE_ENTRY = re.compile(r'^\s+\{\d+u, 0x[0-9a-f]+u\},$')
 
 def renumber_pclines(path):
@@ -188,7 +188,7 @@ def lift(names, opt):
                     # as a pair with the chunks (build compiles any lineage source that has a copy here, and a chunk's
                     # quoted #include finds the protos in its own directory first); the delta is reported. A function
                     # that is still called by translated code but missing from the table would fail at link time.
-                    fnset = lambda b: set(re.findall(rb'void (f_[0-9a-f]+)\(CPU', b))
+                    fnset = lambda b: set(re.findall(rb'(?:void|uint32_t) (f_[0-9a-f]+)\(CPU', b))   # rv lifts return uint32_t
                     if path.name.endswith('_protos.h'):
                         old_set, new_set = fnset((shared / path.name).read_bytes()), fnset(path.read_bytes())
                         print(f'  {name}: function set changed vs the shared lift: {len(old_set)} -> {len(new_set)}; dropped '
@@ -237,7 +237,14 @@ def compile_one(src, obj, env, includes=(), flags=(), timeout=600, cc='cl'):
     command([COMPILERS[cc], '/nologo', '/c', '/Z7', '/fp:strict', warn, '/D_CRT_SECURE_NO_WARNINGS',
              '/DXRT_WITH_UNREAL2', *flags, *[f'/I{x}' for x in includes], f'/Fo{obj}', src], env, obj.stem, timeout)
 
-def build(full=False, fixtures_only=False, native=False, diag_move=False, lean=False, cc='cl'):
+def lift_options():
+    """The xlift --opt list the developer copies were lifted with (the header of Unreal2_001.c), or []."""
+    head = (DEV / 'generated' / 'Unreal2_001.c').read_text(encoding='latin-1', errors='replace')[:400]
+    m = re.search(r'\(--opt ([a-z0-9,]+)\)', head)
+    return m.group(1).split(',') if m else []
+
+
+def build(full=False, fixtures_only=False, native=False, diag_move=False, lean=False, cc='cl', ltcg=False):
     independent(DEV)
     BUILD.mkdir(parents=True, exist_ok=True)
     env = compiler_environment()
@@ -265,6 +272,10 @@ def build(full=False, fixtures_only=False, native=False, diag_move=False, lean=F
         raise RuntimeError('xrt.h differs from object baseline: build --full required')
     objects = []
     jobs = []
+    # xlift --opt rv: every unit that sees xrt.h must agree on the lifted-function type. The protos header defines
+    # XRT_RV_ABI before including xrt.h, but a forced include (world_observer.h) reads xrt.h first, so the define
+    # goes on the command line of the generated units as well as the runtime's and the natives'.
+    rv_abi = 'rv' in lift_options()
     for rel, row in lineage.items():
         if rel.startswith('obj/rt/'):
             continue
@@ -286,6 +297,8 @@ def build(full=False, fixtures_only=False, native=False, diag_move=False, lean=F
         opt_text = GEN_OPT + (' /DXRT_NO_FORCE_INLINE' if src.name in GEN_NO_FORCE_INLINE else '') + ''.join(' ' + r for r in renames)
         opt_text += ' /DXRT_LEAN_ENTER' if lean else ''   # build --lean: no per-entry history ring (xrt.h XRT_ENTER)
         opt_text += f' cc={cc}' if cc != 'cl' else ''        # build --cc: a compiler switch recompiles every unit
+        opt_text += ' /GL' if ltcg else ''                   # build --ltcg: whole-program optimization of the generated units
+        opt_text += ' /DXRT_RV_ABI' if rv_abi else ''
         opt_text += ''.join(f' port:{fn}' for fn, _ in PORT.get(src.name, []))
         if observed and src.name in DIAG_MOVE_UNITS:
             opt_text += ' /FIworld_observer.h'   # recompiles the unit again when a later build drops --diag-move
@@ -300,6 +313,10 @@ def build(full=False, fixtures_only=False, native=False, diag_move=False, lean=F
             flags = [GEN_OPT, '/wd4102', '/wd4146', '/DXRT_PCLINES']   # XRT_PCLINES: lazypc line tables register (xrt.h)
             if lean:
                 flags.append('/DXRT_LEAN_ENTER')
+            if ltcg:
+                flags.append('/GL')
+            if rv_abi:
+                flags.append('/DXRT_RV_ABI')
             if src.name in GEN_NO_FORCE_INLINE:
                 flags.append('/DXRT_NO_FORCE_INLINE')
             flags += renames
@@ -307,7 +324,9 @@ def build(full=False, fixtures_only=False, native=False, diag_move=False, lean=F
                 flags.append('/FIworld_observer.h')
             # Shared generated sources must be the ones the baseline objects came from.
             expected = None if endpoint else row.get('source_sha256')
-            jobs.append((src, obj, [RT, Path(row['source']).parent], flags, observed, marker, opt, expected, origin,
+            # Include path: the unit's own directory, so a developer copy (and the port-src copy of one, which has no
+            # protos header beside it) sees the developer lift's protos header, not the shared lift's (--opt rv changes it).
+            jobs.append((src, obj, [RT, src.parent], flags, observed, marker, opt, expected, origin,
                          opt_text, cc))
         objects.append(obj)
     def compile_job(job):
@@ -320,10 +339,11 @@ def build(full=False, fixtures_only=False, native=False, diag_move=False, lean=F
         if src.name in PORT:
             text = src.read_text(encoding='latin-1')
             for fn, _ in PORT[src.name]:
-                head = f'void {fn}(CPU* c) {{'
-                if text.count(head) != 1:
-                    raise RuntimeError(f'{src.name}: definition {head!r} found {text.count(head)} times')
-                text = text.replace(head, f'void {fn}_translated(CPU* c) {{')
+                # the definition's header as xlift writes it: void or (--opt rv) uint32_t, CPU* or (--opt restrict) CPU* __restrict
+                head = re.compile(r'^(void|uint32_t) ' + fn + r'\((CPU\*(?: __restrict)?) c\) \{$', re.M)
+                if len(head.findall(text)) != 1:
+                    raise RuntimeError(f'{src.name}: definition of {fn} found {len(head.findall(text))} times')
+                text = head.sub(lambda m: f'{m.group(1)} {fn}_translated({m.group(2)} c) {{', text)
             unit = BUILD / 'obj' / 'port-src' / src.name
             unit.parent.mkdir(parents=True, exist_ok=True)
             unit.write_text(text, encoding='latin-1')
@@ -340,7 +360,7 @@ def build(full=False, fixtures_only=False, native=False, diag_move=False, lean=F
     audio = sorted(AUDIO_LIFT.glob('*/*.c')) if AUDIO_LIFT.is_dir() else []
     audio_jobs = []
     audio_stamp = BUILD / 'obj/audio/compiler.txt'
-    audio_cc_changed = audio and (not audio_stamp.exists() or audio_stamp.read_text() != cc)
+    audio_cc_changed = audio and (not audio_stamp.exists() or audio_stamp.read_text() != cc + (' /GL' if ltcg else '') + (' /DXRT_RV_ABI' if rv_abi else ''))
     for src in audio:
         obj = BUILD / 'obj/audio' / (src.stem + '.obj')
         if full or audio_cc_changed or not obj.exists() or obj.stat().st_mtime < max(src.stat().st_mtime, (RT / 'xrt.h').stat().st_mtime):
@@ -350,10 +370,10 @@ def build(full=False, fixtures_only=False, native=False, diag_move=False, lean=F
         print(f'Compiling {len(audio_jobs)} sound units {GEN_OPT} ({cc})', flush=True)
         from concurrent.futures import ThreadPoolExecutor
         with ThreadPoolExecutor(max_workers=max(1, (os.cpu_count() or 2) - 2)) as pool:
-            list(pool.map(lambda j: compile_one(j[0], j[1], env, [RT, j[0].parent], [GEN_OPT, '/wd4102', '/wd4146', '/DXRT_PCLINES'], 600, cc), audio_jobs))
+            list(pool.map(lambda j: compile_one(j[0], j[1], env, [RT, j[0].parent], [GEN_OPT, '/wd4102', '/wd4146', '/DXRT_PCLINES'] + (['/GL'] if ltcg else []) + (['/DXRT_RV_ABI'] if rv_abi else []), 600, cc), audio_jobs))
         audio_stamp.parent.mkdir(parents=True, exist_ok=True)
-        audio_stamp.write_text(cc)
-    rt_flags = ['/O2', '/std:c11'] + (['/DXRT_WITH_AUDIO'] if audio else [])
+        audio_stamp.write_text(cc + (' /GL' if ltcg else '') + (' /DXRT_RV_ABI' if rv_abi else ''))
+    rt_flags = ['/O2', '/std:c11'] + (['/DXRT_WITH_AUDIO'] if audio else []) + (['/DXRT_RV_ABI'] if rv_abi else [])
     rt_stamp = BUILD / 'rt-flags.txt'
     rt_flags_changed = not rt_stamp.exists() or rt_stamp.read_text() != ' '.join(rt_flags)
     headers = [*RT.glob('*.h'), *RT.glob('*.inc'), *HERE.glob('*.inc'), HERE / 'dev_support.h']
@@ -367,12 +387,17 @@ def build(full=False, fixtures_only=False, native=False, diag_move=False, lean=F
         objects.append(obj)
     natives = [src for units in NATIVE.values() for _, src in units] if native else []
     natives += [src for units in PORT.values() for _, src in units]
+    native_stamp = BUILD / 'obj/native/flags.txt'
+    native_flags = ['/O2', '/std:c11'] + (['/DXRT_RV_ABI'] if rv_abi else []) + (['/GL'] if ltcg else [])
+    native_changed = not native_stamp.exists() or native_stamp.read_text() != ' '.join(native_flags)
     for src in natives:
         obj = BUILD / 'obj/native' / (src.stem + '.obj')
-        if full or not obj.exists() or obj.stat().st_mtime < max(src.stat().st_mtime, (RT / 'xrt.h').stat().st_mtime):
+        if full or native_changed or not obj.exists() or obj.stat().st_mtime < max(src.stat().st_mtime, (RT / 'xrt.h').stat().st_mtime):
             print('Compiling native', src.name, flush=True)
-            compile_one(src, obj, env, [RT], ['/O2', '/std:c11'])
+            compile_one(src, obj, env, [RT], native_flags)
         objects.append(obj)
+    native_stamp.parent.mkdir(parents=True, exist_ok=True)
+    native_stamp.write_text(' '.join(native_flags))
     asm = BUILD / 'obj/rt/monitor_asm.obj'
     if full or not asm.exists() or asm.stat().st_mtime < (RT / 'monitor.asm').stat().st_mtime:
         command(['ml64', '/nologo', '/c', '/Zi', f'/Fo{asm}', RT / 'monitor.asm'], env, 'monitor-asm')
@@ -381,16 +406,18 @@ def build(full=False, fixtures_only=False, native=False, diag_move=False, lean=F
     rsp = BUILD / 'objects.rsp'
     rsp.write_text('\n'.join('"' + str(p) + '"' for p in objects))
     # Inherited generated objects may refer to their existing compiler PDBs.
-    command(['link', '/nologo', '/DEBUG', '/INCREMENTAL:NO', '/STACK:0x10000000',
+    command(['link', '/nologo', '/DEBUG', '/INCREMENTAL:NO', '/STACK:0x10000000', *(['/LTCG'] if ltcg else []),
              f'/OUT:{BUILD / "unreal2-dev.exe"}', f'/PDB:{BUILD / "unreal2-dev.pdb"}', '@' + str(rsp),
-             'winmm.lib', 'advapi32.lib', 'ole32.lib', 'bcrypt.lib', 'user32.lib', 'gdi32.lib', 'dbghelp.lib', 'xaudio2.lib'], env, 'link')
+             'winmm.lib', 'advapi32.lib', 'ole32.lib', 'bcrypt.lib', 'user32.lib', 'gdi32.lib', 'dbghelp.lib', 'xaudio2.lib'], env, 'link',
+            timeout=7200 if ltcg else 600)
     stamp.write_bytes(abi)
     write(BUILD / 'build-state.json', {'ok': True, 'executable': str(BUILD / 'unreal2-dev.exe'),
                                       'generated_optimization': GEN_OPT, 'generated_units': len(lineage) - sum(
                                           1 for rel in lineage if rel.startswith('obj/rt/')),
                                       'native': [fn for units in NATIVE.values() for fn, _ in units] if native else [],
                                       'port': [fn for units in PORT.values() for fn, _ in units],
-                                      'audio_units': len(audio), 'lean': bool(lean), 'generated_compiler': cc})
+                                      'audio_units': len(audio), 'lean': bool(lean), 'generated_compiler': cc,
+                                      'ltcg': bool(ltcg), 'rv_abi': rv_abi, 'lift_options': lift_options()})
     print('Built (not executed):', BUILD / 'unreal2-dev.exe')
 
 def fresh_run():
@@ -801,6 +828,8 @@ def main():
     b.add_argument('--lean', action='store_true', help='generated code without the per-entry function history ring (xrt.h XRT_LEAN_ENTER); '
                                                        'fatal dumps keep the guest-stack scan, the preemption check stays')
     b.add_argument('--cc', choices=sorted(COMPILERS), default='cl', help='compiler for the generated and sound units (the runtime stays cl)')
+    b.add_argument('--ltcg', action='store_true', help='generated and native units /GL, link /LTCG (whole-program optimization across the '
+                                                       'translated units; long link); the runtime units stay as they are')
     lp = sub.add_parser('lift', help='re-lift shared generated modules into developer copies (then build)')
     lp.add_argument('--opt', default='', help='xlift --opt list (flags,pc); empty = plain lift')
     lp.add_argument('modules', nargs='+', help='gen/ directory names, e.g. fire engine core')
@@ -876,7 +905,7 @@ def main():
     args = parser.parse_args()
     independent(DEV)
     if args.action == 'setup': setup()
-    elif args.action == 'build': build(args.full, native=args.native, diag_move=args.diag_move, lean=args.lean, cc=args.cc)
+    elif args.action == 'build': build(args.full, native=args.native, diag_move=args.diag_move, lean=args.lean, cc=args.cc, ltcg=args.ltcg)
     elif args.action == 'lift': lift(args.modules, {x for x in args.opt.split(',') if x})
     elif args.action == 'lift-audio': lift_audio({x for x in args.opt.split(',') if x})
     elif args.action == 'port-build':

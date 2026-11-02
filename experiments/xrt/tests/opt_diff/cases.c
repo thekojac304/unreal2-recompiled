@@ -401,6 +401,110 @@ static __declspec(naked) void if_tail(void) { __asm { and edx, 1
                                                       jmp if_cmp0 } }
 static __declspec(naked) void if_sub_ind(void) { __asm { sub eax, edx
                                                          ret } }
+/* --opt regcache: rc_set leaves ECX/EDX changed; the caller rewrites ECX on one path only and then calls rc_read, which
+ * reads both from c->r: at the merge ECX is dirty on one path and undefined on the other (the conflict fix must reload it
+ * after rc_set), EDX is dead for the caller but must reach rc_read unchanged, and EAX/EDX are dead after rc_read (no
+ * reload) and rewritten. */
+static __declspec(naked) void rc_set(void) { __asm { mov ecx, 7
+                                                     mov edx, 9
+                                                     ret } }
+static __declspec(naked) void rc_read(void) { __asm { lea eax, [ecx + edx]
+                                                      ret } }
+EXPORT __declspec(naked) uint64_t __cdecl t_asm_regcache(const uint8_t* in, uint8_t* out, uint32_t n, uint32_t seed) {
+    __asm {
+        push ebx
+        push esi
+        mov esi, [esp + 12]
+        mov ebx, [esp + 20]
+        mov ecx, 100
+        mov edx, 200
+        call rc_set
+        test ebx, 1
+        jz rc_skip
+        mov ecx, 5
+    rc_skip:
+        call rc_read
+        mov edx, eax
+        xor eax, eax
+        mov al, byte ptr [esi]
+        add eax, edx
+        mov byte ptr [esi], al
+        pop esi
+        pop ebx
+        ret
+    }
+}
+
+/* --opt regcache, fall-through into the next function: ft_first has no ret and is exactly 16 bytes long, so ft_second
+ * follows it without alignment padding; discovery lifts the end of ft_first as a tail call into ft_second (a function
+ * entry of its own: t_asm_fallthrough also calls it directly). The registers ft_first wrote (eax, edx) must be stored
+ * before that tail. Both are exported (not as tests) so run.py can check the layout from the export table. */
+EXPORT __declspec(naked) void ft_first(void) {
+    __asm {
+        mov eax, ecx
+        add eax, 7
+        mov edx, 3
+        nop
+        nop
+        nop
+        nop
+        nop
+        nop
+    }
+}
+EXPORT __declspec(naked) void ft_second(void) {
+    __asm {
+        add eax, edx
+        ret
+    }
+}
+EXPORT __declspec(naked) uint64_t __cdecl t_asm_fallthrough(const uint8_t* in, uint8_t* out, uint32_t n, uint32_t seed) {
+    __asm {
+        push esi
+        mov esi, [esp + 8]
+        movzx ecx, byte ptr [esi]
+        call ft_first
+        mov ecx, [esp + 16]
+        test ecx, 1
+        jnz ft_direct
+        mov edx, 5
+        call ft_second
+    ft_direct:
+        mov esi, [esp + 12]
+        mov byte ptr [esi], al
+        xor edx, edx
+        pop esi
+        ret
+    }
+}
+
+/* --opt regcache, a register written by an instruction whose statement group starts with a spill (idiv: the divide
+ * error trap needs the registers stored first): the quotient in eax and the remainder in edx must still be stored at the
+ * following ret, where nothing else touches them. */
+static __declspec(naked) void div_ret(void) {
+    __asm {
+        cdq
+        idiv ecx
+        ret
+    }
+}
+EXPORT __declspec(naked) uint64_t __cdecl t_asm_divret(const uint8_t* in, uint8_t* out, uint32_t n, uint32_t seed) {
+    __asm {
+        push esi
+        mov esi, [esp + 8]
+        movzx eax, byte ptr [esi]
+        add eax, [esp + 16]
+        mov ecx, 7
+        call div_ret
+        mov esi, [esp + 12]
+        mov byte ptr [esi], al
+        mov byte ptr [esi + 1], dl
+        xor edx, edx
+        pop esi
+        ret
+    }
+}
+
 #ifdef CFLAGS_CLEAN
 /* --opt cflags variant (run.py --define CFLAGS_CLEAN): the two sequences no compiler emits - an indirectly called
  * callee reading its caller's CF (here), a caller reading ZF right after an indirect call (t_asm_iflags) - are

@@ -748,3 +748,32 @@ perf-c1-20261101 (recommended), perf-c2-20261101 (clang-cl), perf-final-20261102
     PowerShell Out-File writes UTF-16 logs; the perf_kernels output dir is shared (one job at a time); Bash heredocs mangle backslashes
     (write patch scripts with the editor); sizeof(CPU) must stay 416 (monitor record image); Unreal2_001.c's line table is renumbered
     after the endpoint hooks (dev.py renumber_pclines).
+
+Performance round 2 (2026-11-02, call/return protocol; PERF_REPORT_20261102.md, save point perf-c3c-20261102 recommended):
+  - xlift --opt rv (lifted functions return their return address; protos define XRT_RV_ABI, xrt.h switches the lifted-function
+    type and CALL/ICALL/ICALLI/RET; runtime dispatch, EH landing, port wrapper and world observer use XRT_CALL_LIFTED/XRT_TAIL),
+    --opt regcache (per-call reload of the live registers only, dirty-only spills; liveness + may-dirty/must-valid passes with a
+    conflict fix), --opt restrict (CPU* __restrict). Static: reload loads after calls 1.24 M -> 0.63 M (50.9%), .text 61.8 -> 54.7 MB.
+    dev.py: --ltcg, /DXRT_RV_ABI on every unit (a forced include reads xrt.h before the protos header), rv/restrict-aware port
+    rename and line-table renumbering, developer-copy units include their own directory (the port-src copy saw the shared protos).
+  - Two regcache defects reached the game although opt_diff was green (both fixed, both now owned cases + mutations):
+    (1) the synthetic "falls through into the next function" tail got an empty spill set (all 31 such tails stored nothing);
+    (2) self-spilling groups (idiv with xrt_div0, marked instructions) write registers after their spill and were treated as
+    "nothing dirty afterwards", so a quotient/remainder reaching a call or ret unchanged was never stored. Both showed as
+    "D3D8 draw: buffer range outside owned upload" at the first UI label draw. Structural check over UI/D3DDrv/Core (13,666
+    functions): spill always first in its group, reload always last, no stray program points. Final suite: 43 functions,
+    57,000 cases per DLL variant, 0 mismatches, 28 mutations per variant detected.
+  - Game A/B (same method as round 1, uncapped 4K, 2 C1 + 2 C3c + 1 C3Lc runs): matched host load C3c = +3-6% FPS over C1
+    (slow subsection 116.2 -> 122.9, p95 10.6 -> 10.1 ms; pause menu +8%); the loaded first C1 run inflates group medians to
+    +7-14%. C3Lc (LTCG) = C3c within noise -> LTCG rejected. Kernels: C1 = C3 within noise; call-heavy strings 1.58x -> 1.04x
+    native only under /GL (cross-function inlining is the lever; the game's dispatch structure defeats the compiler's).
+  - Smoke test of C3c with --affinity 0xFFFF (2 launches): affinity, load, movement, port settings, sound (audible OpenAL mix),
+    quicksave (Save0.usa rotation), quickload all pass; the scripted QUIT clicks in the in-game menu did not register twice,
+    so a normal shutdown is NOT verified this round. Combat route not re-exercised (budget); v2 route prepared.
+  - Launch ledger: owner granted 10 launches / 4,500 s; used 10, 1,846 s (2 fatals of defective builds, 1 bisection, 5 A/B,
+    2 smoke). Save points perf-c3-20261102, perf-c3l, perf-c3b, perf-c3lb (defective, marked), perf-c3c (recommended, with an
+    evidence/ folder: kernel JSON, suite logs, perf JSONs, ledger, scripts, smoke shots), perf-c3lc. Generated sources in
+    C:\Users\lawma\Unreal2-dev-sandbox-overflow\generated-perf-c3*-20261102 (SHA256SUMS). Runtime patch patches/perf-batch2-runtime.patch.
+  - Gotchas: a play profile's WindowsClient.ini forces a 2560x1440 viewport (recorded 4K cursor paths miss); a non-default UIScale
+    changes the menu geometry; the tutb-farewell save opens with a ~90 s cinematic (use the lift-corridor save for smoke tests);
+    Start-Process powershell sessions wrote empty Get-FileHash results (hash in pwsh or Python); PowerShell *> logs are UTF-16.

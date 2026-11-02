@@ -18,7 +18,7 @@ uint8_t* xrt_g;
 volatile long xrt_preempt_req = 0;
 static jmp_buf jb;
 
-static XrtFn lookup(uint32_t va) {
+static XrtLiftedFn lookup(uint32_t va) {
     const XrtLiftedModule* m = &xrt_mod_OptCases;
     uint32_t lo = 0, hi = m->nfuncs;
     while (lo < hi) {
@@ -34,16 +34,17 @@ XrtCallCache xrt_call_cache[65536];
 uint32_t xrt_call_cache_gen = 1;
 void xrt_icall_after(CPU* c) { (void)c; }
 void xrt_world_return(CPU* c) { (void)c; }
-void xrt_icall(CPU* c, uint32_t target, uint32_t site) {
-    XrtFn fn = lookup(target);
+XrtLiftedRet xrt_icall(CPU* c, uint32_t target, uint32_t site) {
+    XrtLiftedFn fn = lookup(target);
     XrtCallCache* e = &xrt_call_cache[XRT_CALL_CACHE_SLOT(target)];
     (void)site;
     if (!fn)
         longjmp(jb, 4);
     e->va = target; e->gen = xrt_call_cache_gen; e->fn = fn; e->flags = 0;
-    fn(c);
+    XRT_CALL_LIFTED(fn, c);
+    XRT_LIFTED_RETURN(c);
 }
-void xrt_ijmp(CPU* c, uint32_t target, uint32_t site) { xrt_icall(c, target, site); }
+XrtLiftedRet xrt_ijmp(CPU* c, uint32_t target, uint32_t site) { XRT_TAIL(xrt_icall(c, target, site)); }
 XRT_NORETURN void xrt_trap(CPU* c, uint32_t site, const char* why) { (void)c; (void)site; (void)why; longjmp(jb, 1); }
 XRT_NORETURN void xrt_badret(CPU* c, uint32_t site, uint32_t expected) { (void)c; (void)site; (void)expected; longjmp(jb, 3); }
 XRT_NORETURN void xrt_div0(CPU* c, uint32_t site) { (void)c; (void)site; longjmp(jb, 2); }
@@ -95,7 +96,7 @@ int main(int argc, char** argv) {
     commit(OD_STACK_LO, OD_STACK_TOP - OD_STACK_LO);
     for (f = 0; f < (uint32_t)argc - 5; f++) {
         uint32_t va = (uint32_t)strtoul(argv[5 + f], NULL, 0);
-        XrtFn fn = lookup(va);
+        XrtLiftedFn fn = lookup(va);
         if (!fn) {
             fprintf(stderr, "lifted: %08x is not a lifted function\n", va);
             return 2;
@@ -126,7 +127,7 @@ int main(int argc, char** argv) {
             st = setjmp(jb);
             if (st == 0) {
                 __try {
-                    fn(c);
+                    XRT_CALL_LIFTED(fn, c);
                     if (c->rv != OD_SENTINEL)
                         st = 3;
                 } __except (EXCEPTION_EXECUTE_HANDLER) {
