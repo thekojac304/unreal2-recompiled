@@ -70,7 +70,7 @@ def replace_once(path, old, new):
 # xlift --opt lazypc: a chunk ends with its source-line -> guest-address table (xrt.h XrtPcLine). The endpoint hooks
 # inserted above add lines to Unreal2_001.c, so the table is regenerated from the instruction header lines afterwards
 # (the same pattern xlift uses: a pc store, or the comment that replaced it).
-PCLINE = re.compile(r'^\s+(?:P\(0x([0-9a-f]+)u\);|/\* 0x([0-9a-f]+): )')
+PCLINE = re.compile(r'^\s+(?:P\(0x([0-9a-f]+)u\);|/\* 0x([0-9a-f]+): )|^void f_([0-9a-f]+)\(CPU\* c\) \{')
 PCLINE_ENTRY = re.compile(r'^\s+\{\d+u, 0x[0-9a-f]+u\},$')
 
 def renumber_pclines(path):
@@ -79,7 +79,7 @@ def renumber_pclines(path):
     if first is None:
         return
     last = max(i for i, l in enumerate(lines) if PCLINE_ENTRY.match(l))
-    table = [f'    {{{i + 1}u, 0x{int(m.group(1) or m.group(2), 16):x}u}},' for i, l in enumerate(lines[:first]) for m in [PCLINE.match(l)] if m]
+    table = [f'    {{{i + 1}u, 0x{int(m.group(1) or m.group(2) or m.group(3), 16):x}u}},' for i, l in enumerate(lines[:first]) for m in [PCLINE.match(l)] if m]
     if len(table) != last - first + 1:
         raise RuntimeError(f'{path.name}: {len(table)} instruction lines but {last - first + 1} line-table entries')
     path.write_text('\n'.join(lines[:first] + table + lines[last + 1:]))
@@ -737,6 +737,8 @@ def run(args):
             env['XRT_DEV_CAPTURE'] = 'shots'   # no periodic/cue/startup readbacks (dev_support.c)
         if args.fps_cap:
             env['XRT_DEV_FPS_CAP'] = str(args.fps_cap)
+        if args.affinity:
+            env['XRT_DEV_AFFINITY'] = hex(args.affinity)   # dev_support.c dev_start: SetProcessAffinityMask at start-up
         if args.borderless:
             env['XRT_DEV_BORDERLESS'] = '1'   # opt-in borderless viewport window (runtime hle_gui_classes.inc create_window)   # development frame limiter (dev_support.c perf_cap_wait)
         if args.native_verify:
@@ -751,6 +753,7 @@ def run(args):
                                      'campaign_assets': args.campaign_assets, 'sample_hz': args.sample_hz,
                                      'windowed_res': args.windowed_res, 'capture': args.capture,
                                      'staging': args.staging, 'fps_cap': args.fps_cap, 'background': args.background, 'seed_save': args.seed_save, 'native_verify': args.native_verify,
+                                     'affinity': hex(args.affinity) if args.affinity else None,
                                      'native': read(BUILD / 'build-state.json').get('native', []), 'sound': args.sound})
     if args.attach:
         env['XRT_DEV_ATTACH'] = '1'
@@ -844,6 +847,9 @@ def main():
                         'whole path running with the mastering volume at 0 (mix levels are still measured)')
     r.add_argument('--fps-cap', type=int, choices=range(0, 1001), default=0, metavar='0..1000',
                    help='first-scene: development frame limiter after each post-Init Present (waitable timer, baton released; 0 = uncapped)')
+    r.add_argument('--affinity', type=lambda v: int(v, 0), default=0, metavar='MASK',
+                   help='first-scene: pin the game process (and the helpers it starts) to these logical CPUs, e.g. 0xFFFF for '
+                        'the first 16 (the 9950X3D V-cache CCD: 15-23%% faster than unpinned, measured 2026-11-02); per-process only')
     r.add_argument('--native-verify', type=int, default=0, metavar='N',
                    help='with a build --native executable: compare every Nth native call against its translation (xrt.log)')
     r.add_argument('--windowed-res', type=lambda v: tuple(int(x) for x in v.lower().split('x')), metavar='WxH',

@@ -1759,6 +1759,7 @@ def main():
                 ninsns += len(fn.insns)
                 lines = lifter.lift_function(fn, k + j, stem)
                 if "lazypc" in opt:
+                    table.append((lineno, e))               # the header and prologue lines map to the entry itself
                     for line in lines:
                         mm = PCLINE.match(line)
                         if mm:

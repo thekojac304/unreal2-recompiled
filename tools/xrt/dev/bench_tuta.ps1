@@ -19,7 +19,7 @@
 param([Parameter(Mandatory)][string]$Question, [Parameter(Mandatory)][string]$Change,
       [string]$Profile = 'development', [int]$SampleHz = 250, [switch]$TimingProbe, [string]$Res = '', [int]$Delay = 0, [switch]$NoCapture, [string]$Staging = 'strict',
       [int]$FpsCap = 0, [switch]$PauseProbe, [switch]$Monitor, [int]$NativeVerify = 0, [switch]$Background, [string]$Play = '', [int]$StopAt = 0, [string[]]$SeedSave = @(), [switch]$NoMenu, [switch]$DiagMove,
-      [string]$Sound = 'off')
+      [string]$Sound = 'off', [string]$Affinity = '')
 if ($TimingProbe -and $PauseProbe) { throw '-TimingProbe and -PauseProbe both use the time after 247 s' }
 if ($Play -and ($TimingProbe -or $PauseProbe -or -not $StopAt)) { throw '-Play needs -StopAt and excludes the benchmark probes' }
 # Menu cursor: 1.5 px per DirectInput unit ([WinDrv.WindowsClient] MouseSpeed) from the top-left slam. The menus keep
@@ -90,6 +90,7 @@ if ($FpsCap) { $extra += '--fps-cap', $FpsCap }
 if ($NativeVerify) { $extra += '--native-verify', $NativeVerify }   # needs a dev.py build --native executable
 $extra += '--staging', $Staging   # strict (default) or reuse: see dev.py --staging   # e.g. 3840x2160; empty = the snapshot's 1540x945
 $extra += '--sound', $Sound       # off (default, -nosound) | muted (whole audio path, mastering volume 0) | on: see dev.py --sound
+if ($Affinity) { $extra += '--affinity', $Affinity }   # e.g. 0xFFFF: keep the process on the V-cache CCD (dev.py --affinity)
 $maps = 'CS_Titles.un2','Atlantis.un2','m01a.un2','TutA.un2','TutB.un2','Entry.un2' | ForEach-Object { '--allow-map', $_ }
 Set-Location (Split-Path -Parent (Split-Path -Parent (Split-Path -Parent $PSScriptRoot)))
 $runs = 'out/dev-init/runs'; $before = @(Get-ChildItem $runs -Directory | ForEach-Object Name)

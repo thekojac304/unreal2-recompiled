@@ -698,3 +698,53 @@ selftest uses owned native code only: actual high-volume I/O, ring wrap, selecte
 names/addresses/subtrees, first failure/unsupported/fatal, ambiguous seek results,
 unknown returns, table overflow, close/endpoint, abrupt/torn history, state
 invariance, strict baseline comparison and existing launcher safeguards.
+
+Performance / portability batch (2026-11-01 late evening to 2026-11-02 early morning; commits 7143ee5 and the commit of this note;
+owner authorized 20 launches, 600 s each, 9000 s total; used 19 launches / 5421 s, all background-mode scene stops, no fatal).
+The owner's other tasks kept 12-27% of the machine busy throughout (package 65-88 W vs 62 W idle in the earlier batches), so every
+comparison is an interleaved A/B on the same host state and absolute numbers are 20-30% below the earlier batches'. Full report:
+PERF_REPORT_20261101.md. Save points: perf-baseline-20261101 (= the owner-played interactive-20261101 exe, sha256 1f25c656...),
+perf-c1-20261101 (recommended), perf-c2-20261101 (clang-cl), perf-final-20261102 (C1 + the --affinity hook).
+  - Translation overhead in isolation: experiments/xrt/tests/perf_kernels (five owned kernels shaped like the hot paths, x87 code
+    from the x86 compiler, native vs lifted, checksums must match): plain lift 6.5x native, the 2026-10-31 set 1.8x, the new full
+    set 1.3x (cl) / 1.3x (clang-cl /fp:strict) / 1.2x (clang-cl /fp:precise, admits FMA on FMA targets: not for the game). Call-heavy
+    kernels 1.7-1.9x, loop-heavy 1.0-1.4x: the call protocol is the floor now.
+  - xlift --opt cflags (flags dead at indirect/import calls and at returns of address-taken functions; per-module audit with a sound
+    fallback; marks/watches and fatal traps are not flag reads; tools/xrt/cflags_allow.json: GlmLib data table at rva 0x1c9790 lifted
+    as a trap, 0 executions in 197 runs), rdtsc (inline), lazypc (c->pc stored only before calls/traps/marks/pc-reading helpers; chunk
+    source-line tables + xrt_pc_from_host recover a fault's guest pc through the PDB; 1.97 M of 2.6 M stores gone), addr64 ([reg+disp]
+    as 64-bit sums, 2 GB guard below the window, xrt_commit asserts the 32-bit user layout). Runtime (patches/perf-batch1-runtime.patch):
+    world_floor as a 32-bit CPU field read inline after cached indirect calls (sizeof(CPU) stays 416), XRT_LEAN_ENTER, XRT_RDTSC,
+    line-table registration, 6 GB reservation. dev.py: build --lean, build --cc clang-cl, protos/table developer copies when discovery's
+    function set changed (Engine -3, UnrImp -30 never-executed memcpy jump-table slots since fb06f2a), run --affinity MASK; the audio
+    modules are lifted with the full set (they were plain). Tests: opt_diff full set, two DLL variants, 48000 cases each, 0 mismatches,
+    47/47 mutations; forms_equiv; unit tests; staging_reuse, quit_message, fps_cap.
+  - Game A/B (bench_tuta -NoCapture -SampleHz 0 -Profile quiet -Res 3840x2160 -Delay 50 -Staging reuse -Background -Monitor; exe swapped
+    by copying a save point's exe/pdb/build-state and refreshing its timestamp), group medians, FPS (p95 ms):
+      window           baseline (2)    C1 (3)          C1/B    C2 clang-cl (2)   C1 pinned to 2 LPs of CCD0 / of CCD1
+      CS_Intro 30-60   156.0 (9.50)    181.0 (8.25)    x1.16   179.0             185.8 / 170.3
+      cutscene 96-210  120.3 (13.37)   148.4 (10.89)   x1.23   140.8             173.5 / 143.2
+      slow 158-177      82.9 (14.88)    99.3 (12.70)   x1.20    92.3             119.7 / 90.9
+      spawn            130.6 (9.63)    147.7 (8.19)    x1.13   143.2             181.7 / 151.0
+      movement         180.9 (8.76)    206.7 (7.67)    x1.14   199.5             238.4 / 202.0
+      pause menu       297.5 (4.36)    366.4 (3.50)    x1.23   358.9             392.0 / 372.4
+    Presents in the 308 s script 58.4 k -> 70.7 k / 76.9 k. clang-cl: within noise in the game (its runs were under heavier host
+    load), code .text 75.2 (baseline) -> 61.8 (C1) -> 49.6 MB (C2), compile 95 -> 47 s. 1080p equals 4K within noise. 120 FPS still not
+    met in the slow subsection. Profile (sampled C2, slow subsection): translated code 92.6% of leaves (GlmLib animation, D3DDrv
+    submission path), runtime self memset 2.4 / dispatch 2.1 / memchr 1.9 / setjmp 1.6 / d8_semantic_checkpoint 1.5 / EH-pad marks 1.5%.
+  - CPU sensitivity: the whole process pinned from outside. One core (2 LPs) of the V-cache CCD: +15-23% over unpinned; 2 LPs of the
+    other CCD: -10-25%. The translated game is L3-bound and Windows' migration between the dies costs ~20%: dev.py run --affinity 0xFFFF
+    (per-process) keeps it on CCD0. For weaker CPUs code size and cache misses come on top of lower single-thread speed; no clock
+    reduction is possible here, so no midrange/mobile FPS is claimed.
+  - Regressions on C1 (strict staging, 90 FPS cap, sound path on and muted): TutB farewell -> PD_Avalon -> Atlantis -> quicksave OK;
+    M08A1 replays reproduce the original route to the millimetre until an NPC in the doorway (first replay) or a Use that misses the
+    seal-door panel by the route's 20-30 uu position spread (repeat); the baseline exe stalls identically (last launch): route-script
+    brittleness, not a build difference. Combat was therefore not re-exercised in this batch.
+  - ARM64/Linux: the exported kernel lift builds with gcc 13 (Linux x86-64, native run) and the local aarch64 gcc 8.3 cross image
+    (static), runs under QEMU in arm64 Alpine with all checksums identical to native x86; clang -S: AArch64 0.94x the x86-64
+    instruction count. Runtime inventory: 19.9 k lines, 991 Win32/intrinsic references; xrt.h/xrt_cpu.c/xrt_fmt.c/xrt_msvcr70img.c
+    portable, the rest Windows-bound (D3D8 HLE on DXVK, GUI/DirectInput/DirectMusic, kernel32/msvcr70, scheduler, memory, diagnostics).
+  - Gotchas: the game window becomes the foreground when no other window is active ("FOCUS TAKEN" in background mode, harmless here);
+    PowerShell Out-File writes UTF-16 logs; the perf_kernels output dir is shared (one job at a time); Bash heredocs mangle backslashes
+    (write patch scripts with the editor); sizeof(CPU) must stay 416 (monitor record image); Unreal2_001.c's line table is renumbered
+    after the endpoint hooks (dev.py renumber_pclines).

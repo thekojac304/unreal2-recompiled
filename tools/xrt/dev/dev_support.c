@@ -36,8 +36,24 @@ static LONG WINAPI unhandled(EXCEPTION_POINTERS *exception) {
     return EXCEPTION_EXECUTE_HANDLER;
 }
 void dev_start(void) {
+    const char *aff;
     SetErrorMode(SEM_FAILCRITICALERRORS | SEM_NOGPFAULTERRORBOX | SEM_NOOPENFILEERRORBOX);
     SetUnhandledExceptionFilter(unhandled);
+    /* dev.py run --affinity MASK: pin this process (every thread it creates, and the helper processes it starts,
+     * which inherit the mask) to the given logical CPUs. A per-process setting, nothing system-wide. The translated
+     * game is L3-sensitive: on the 9950X3D it runs 15-23% faster kept on the V-cache CCD than when Windows migrates it. */
+    aff = getenv("XRT_DEV_AFFINITY");
+    if (aff && *aff) {
+        DWORD_PTR mask = (DWORD_PTR)_strtoui64(aff, NULL, 0), process = 0, system = 0;
+        if (!mask || !SetProcessAffinityMask(GetCurrentProcess(), mask)) {
+            fprintf(stderr, "dev: affinity mask %s refused (error %lu)\n", aff, GetLastError());
+            fflush(stderr);
+            ExitProcess(125);
+        }
+        GetProcessAffinityMask(GetCurrentProcess(), &process, &system);
+        fprintf(stderr, "dev: process affinity %s (now %llx of system %llx)\n", aff, (unsigned long long)process, (unsigned long long)system);
+        fflush(stderr);
+    }
     if (getenv("XRT_DEV_ATTACH")) {
         fprintf(stderr, "dev: attach Visual Studio/WinDbg to PID %lu; timeout is still active\n", GetCurrentProcessId());
         fflush(stderr);
