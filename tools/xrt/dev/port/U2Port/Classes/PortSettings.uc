@@ -64,21 +64,31 @@ function SetUIScale(int P)
 	ConsoleCommand("PORTSET UIScale" @ P);
 }
 
-// Options > Video > Resolution (replaces CodeMonkey's GetRes/SetRes in the port's menu): the FULLSCREEN resolution.
-// Fullscreen is borderless in the port and renders at this size, scaled to the screen. A window always renders at
-// its own size, so in a window the choice is only stored and used the next time fullscreen is entered. The original
-// GetRes showed the UI root size (wrong with UI scaling) and SetRes resized the window.
+// Options > Video > Resolution (replaces CodeMonkey's GetRes/SetRes in the port's menu), for the current mode:
+//  - full screen (borderless in the port): the resolution the game renders at, scaled to the screen; stored as
+//    FullscreenViewportX/Y and applied at once (SETRES);
+//  - window: the window's client size; the runtime resizes the window to it (PORTSET WindowSize), leaving the
+//    maximized state, and the game re-renders at that size. The game keeps the current size as WindowedViewportX/Y.
+// The original GetRes showed the UI root size (wrong with UI scaling); its SetRes moved a maximized window while it
+// stayed maximized.
 function string IniGet(string Key)
 {
 	return GetPlayerOwner().ConsoleCommand("get ini:Engine.Engine.ViewportManager" @ Key);
 }
 
-function string GetFullscreenRes()
+function bool InFullscreen()
 {
-	return IniGet("FullscreenViewportX") $ "x" $ IniGet("FullscreenViewportY");
+	return bool(IniGet("StartupFullscreen"));
 }
 
-function SetFullscreenRes(string S)
+function string GetResolution()
+{
+	if (InFullscreen())
+		return IniGet("FullscreenViewportX") $ "x" $ IniGet("FullscreenViewportY");
+	return IniGet("WindowedViewportX") $ "x" $ IniGet("WindowedViewportY");
+}
+
+function SetResolution(string S)
 {
 	local int i, W, H;
 
@@ -93,10 +103,14 @@ function SetFullscreenRes(string S)
 	H = int(S);
 	if (W < 320 || H < 200)
 		return;
-	GetPlayerOwner().ConsoleCommand("set ini:Engine.Engine.ViewportManager FullscreenViewportX" @ W);
-	GetPlayerOwner().ConsoleCommand("set ini:Engine.Engine.ViewportManager FullscreenViewportY" @ H);
-	if (bool(IniGet("StartupFullscreen")))
+	if (InFullscreen())
+	{
+		GetPlayerOwner().ConsoleCommand("set ini:Engine.Engine.ViewportManager FullscreenViewportX" @ W);
+		GetPlayerOwner().ConsoleCommand("set ini:Engine.Engine.ViewportManager FullscreenViewportY" @ H);
 		GetPlayerOwner().ConsoleCommand("SETRES" @ W $ "x" $ H);
+	}
+	else
+		ConsoleCommand("PORTSET WindowSize" @ W @ H);
 }
 
 function SetUIScaleAuto() { SetUIScale(0); }

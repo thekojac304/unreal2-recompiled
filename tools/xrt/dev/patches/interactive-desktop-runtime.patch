@@ -485,10 +485,10 @@ index f49f534..14f4d2f 100644
  static void hle_TranslateMessage(CPU*c){translate_message(c);}
 diff --git a/out/dev-init/runtime/port_settings.c b/out/dev-init/runtime/port_settings.c
 new file mode 100644
-index 0000000..4db9aa9
+index 0000000..6d6da68
 --- /dev/null
 +++ b/out/dev-init/runtime/port_settings.c
-@@ -0,0 +1,116 @@
+@@ -0,0 +1,162 @@
 +/* Port settings: walking speed and UI scale.
 + *
 + * Persistence is the game's own: the settings helper U2Port.PortSettings (tools/xrt/dev/port/U2Port, registered by
@@ -555,27 +555,73 @@ index 0000000..4db9aa9
 + * proportion (768 of 1024 lines) - the largest offered scale with 768*S <= 0.75*height: 1080 lines -> 100%,
 + * 1369/1440 -> 125%, 1600 -> 150%, 2160 -> 200%. The executable is DPI-unaware, so on a high-DPI monitor Windows already
 + * presents it in logical pixels; the height here is the actual client (back buffer) height. */
-+static float ui_scale(uint32_t height) {
++static float ui_scale(uint32_t width, uint32_t height) {
 +    static const int choices[] = {200, 150, 125};
 +    int p = ui_choice, i;
++    float s, room;
 +    if (!loaded) load();
 +    if (!p) {
 +        p = 100;
 +        for (i = 0; i < 3; i++) if (768.0 * choices[i] / 100.0 <= 0.75 * height) { p = choices[i]; break; }
 +    }
-+    return (float)p / 100.0f;
++    /* The menus are laid out for at least 640x480: the scaled frame never gets smaller than that (720x480 at 150%
++     * cut the Video options off at the top and bottom - owner's screenshot), and never larger than the screen. */
++    s = (float)p / 100.0f;
++    room = width / 640.0f < height / 480.0f ? width / 640.0f : height / 480.0f;
++    if (s > room) s = room;
++    return s < 1.0f ? 1.0f : s;
 +}
 +
-+/* "PORTSET Key Value" (UTF-16, as UWindowsViewport::Exec receives it). Returns 1 when the command was ours. */
-+static int port_command(const uint16_t* s) {
++/* Video > Resolution in a window ("PORTSET WindowSize W H", PortSettings.SetResolution): the game window gets a W x H
++ * client area, centred on its monitor's work area (and no larger), leaving the maximized state in the same step. The
++ * game sees one ordinary WM_SIZE and re-creates its back buffer at that size, as for a drag-resize. (The game's own
++ * SETRES would move a maximized window while it stays maximized.) */
++static BOOL CALLBACK find_viewport(HWND h, LPARAM out) {
++    WCHAR name[64];
++    if ((GetWindowLongW(h, GWL_STYLE) & (WS_CHILD | WS_VISIBLE)) != WS_VISIBLE || GetClassNameW(h, name, 64) <= 0 ||
++        !wcsstr(name, L"ViewportWindow")) return TRUE;
++    *(HWND*)out = h;
++    return FALSE;
++}
++static void set_window_size(CPU* c, int w, int h) {
++    HWND win = NULL; RECT r; MONITORINFO mi; WINDOWPLACEMENT wp; LONG style, ex; int ww, wh, aw, ah; CPU* prev;
++    EnumThreadWindows(GetCurrentThreadId(), find_viewport, (LPARAM)&win);
++    if (!win || w < 320 || h < 200) { xrt_log("port: window size %dx%d not applied (no game window or too small)", w, h); return; }
++    style = GetWindowLongW(win, GWL_STYLE); ex = GetWindowLongW(win, GWL_EXSTYLE);
++    mi.cbSize = sizeof mi; GetMonitorInfoW(MonitorFromWindow(win, MONITOR_DEFAULTTONEAREST), &mi);
++    aw = mi.rcWork.right - mi.rcWork.left; ah = mi.rcWork.bottom - mi.rcWork.top;
++    SetRect(&r, 0, 0, w, h); AdjustWindowRectEx(&r, style, FALSE, ex);
++    ww = r.right - r.left; wh = r.bottom - r.top;
++    if (ww > aw) ww = aw;
++    if (wh > ah) wh = ah;
++    wp.length = sizeof wp; GetWindowPlacement(win, &wp);
++    wp.showCmd = SW_SHOWNORMAL; wp.flags = 0;
++    /* rcNormalPosition is in workspace coordinates: screen coordinates relative to the PRIMARY monitor's work area */
++    {
++        RECT primary; int x, y;
++        SystemParametersInfoW(SPI_GETWORKAREA, 0, &primary, 0);
++        x = mi.rcWork.left - primary.left + (aw - ww) / 2; y = mi.rcWork.top - primary.top + (ah - wh) / 2;
++        SetRect(&wp.rcNormalPosition, x, y, x + ww, y + wh);
++    }
++    prev = xrt_gui_callback_enter(c);
++    SetWindowPlacement(win, &wp);
++    xrt_gui_callback_leave(prev);
++    GetClientRect(win, &r);
++    xrt_log("port: window client %dx%d requested, now %ldx%ld", w, h, r.right, r.bottom);
++}
++
++/* "PORTSET Key Value [Value]" (UTF-16, as UWindowsViewport::Exec receives it). Returns 1 when the command was ours. */
++static int port_command(CPU* c, const uint16_t* s) {
 +    wchar_t text[96], key[32];
-+    int n, value;
++    int n, value, second = 0, fields;
 +    for (n = 0; n < 95 && s[n]; n++) text[n] = (wchar_t)s[n];
 +    text[n] = 0;
 +    if (_wcsnicmp(text, L"PORTSET ", 8)) return 0;
-+    if (swscanf(text + 8, L"%31ls %d", key, &value) != 2) { xrt_log("port: malformed command \"%ls\"", text); return 1; }
++    fields = swscanf(text + 8, L"%31ls %d %d", key, &value, &second);
++    if (fields < 2) { xrt_log("port: malformed command \"%ls\"", text); return 1; }
 +    if (!_wcsicmp(key, L"WalkingSpeed")) set_walk(value, "menu");
 +    else if (!_wcsicmp(key, L"UIScale")) set_ui(value, "menu");
++    else if (!_wcsicmp(key, L"WindowSize") && fields == 3) set_window_size(c, value, second);
 +    else xrt_log("port: unknown setting \"%ls\"", key);
 +    return 1;
 +}
@@ -586,7 +632,7 @@ index 0000000..4db9aa9
 +    uint32_t esp = c->r[ESP];
 +    if (kind == 1) {
 +        uint32_t s = rd32(esp + 4);
-+        if (!s || !port_command((const uint16_t*)G2H(s))) return 0;
++        if (!s || !port_command(c, (const uint16_t*)G2H(s))) return 0;
 +        c->r[EAX] = 1; c->rv = pop32(c); c->r[ESP] += 8;
 +        return 1;
 +    } else {
@@ -594,7 +640,7 @@ index 0000000..4db9aa9
 +        float s;
 +        if (!viewport) return 0;
 +        w = rd32(viewport + 0x74); h = rd32(viewport + 0x78);
-+        s = ui_scale(h);
++        s = ui_scale(w, h);
 +        if (s == 1.0f || !w || !h) return 0;
 +        vw = (uint32_t)(w / s + 0.5f); vh = (uint32_t)(h / s + 0.5f);
 +        if (logged++ < 8) xrt_log("port: UI drawn from a %ux%u frame on the %ux%u viewport (x%g)", vw, vh, w, h, s);
