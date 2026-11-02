@@ -476,6 +476,19 @@ Regressions run: dev.py selftest PASS, bg_input, openal_bridge, staging_reuse, q
 port_overlay, openal_churn, dmusic_heartbeat, dmusic_async_test. Save point out/dev-init-savepoints/interactive-20261101
 (build-before = the owner-played exe; build = this batch; runtime, runtime-base, dmusic_helper).
 
+Interactive follow-up (2026-11-01 late evening, owner playing; commits ea8349a..a0c5713, same save point):
+  - Confirmed by the owner in game: Maximize/Restore/drag-resize windowed; Alt+Enter and Video > Fullscreen enter and
+    leave BORDERLESS fullscreen (d3d8_borderless.inc: monitor-sized window and back buffer, the game's resolution in a
+    render-target texture, scaled with aspect kept; 2560x1440, 1920x1080, 720x480 seen); UI Scale through a virtual
+    viewport size during UUIConsole::PostRender (kept >= a 640x480 layout frame); Walking Speed; F1 (WM_KEYF1/WM_HELP
+    answered); X button (WM_CLOSE); system cursor hidden over the game; Video > Resolution follows the mode (window
+    size via PORTSET WindowSize, fullscreen render resolution; list keeps display-mode indices stable).
+  - Quit: PostQuitMessage, IsZoomed/IsIconic, WM_DESTROY forwarding, msvcr70 swprintf, DestroyWindow before the device
+    release and device/resource calls afterwards are handled; the game's full shutdown to ExitProcess is NOT yet seen.
+  - DXVK 3.1.1 presents through GDI whenever the back buffer differs from the window client (run 211738): every mode
+    keeps them equal. Open: one fullscreen entry asked 800x600 although 720x480 was stored (source unidentified);
+    one silent helper exit during a level load (exit code now reported).
+
 Background developer mode (2026-11-01, gameplay batch): dev.py run --background (bench_tuta.ps1 -Background), only with
 input isolation. The owner keeps using the desktop; the game window never takes focus and only the --input script reaches it.
   - GUI (hle_gui.c, xrt_dev_background): visible top-level windows are created hidden and shown SW_SHOWNOACTIVATE at
