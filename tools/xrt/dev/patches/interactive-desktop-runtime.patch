@@ -35,10 +35,20 @@ index 061098a..ed380f4 100644
    xrt_baton_acquire();
    if(xrt_exiting){xrt_baton_release();return;}
 diff --git a/out/dev-init-savepoints/interactive-20261101/runtime-base/hle_gui.c b/out/dev-init/runtime/hle_gui.c
-index 8794a2a..e7cb541 100644
+index 8794a2a..a8b371e 100644
 --- a/out/dev-init-savepoints/interactive-20261101/runtime-base/hle_gui.c
 +++ b/out/dev-init/runtime/hle_gui.c
-@@ -1189,6 +1189,16 @@ static void hle_IsWindow(CPU* c)
+@@ -938,6 +938,9 @@ static INT_PTR invoke_gui_proc(HWND h, UINT msg, WPARAM wp, LPARAM lp, uint32_t
+         /* Only measured scalar messages may cross unmodified. */
+         if (!((msg <= WM_ENABLE && msg != WM_GETTEXT) || msg == WM_PAINT || msg == WM_ERASEBKGND ||
+               msg == WM_SHOWWINDOW || msg == WM_NCPAINT || msg == WM_NCACTIVATE || msg == WM_DESTROY ||
++              /* The window's close button: WinDrv's viewport passes WM_CLOSE (no arguments) on to the game's main
++               * dialog window (runs 20261101-210939/-211024). */
++              (msg == WM_CLOSE && !wp && !lp) ||
+               msg == WM_NCDESTROY || msg == WM_CANCELMODE || msg == WM_GETDLGCODE || msg == WM_GETFONT ||
+               msg == WM_CHANGEUISTATE || msg == WM_UPDATEUISTATE || msg == WM_QUERYUISTATE ||
+               msg == WM_QUERYNEWPALETTE || msg == WM_PALETTECHANGED || msg == WM_DWMNCRENDERINGCHANGED ||
+@@ -1189,6 +1192,16 @@ static void hle_IsWindow(CPU* c)
  {
      BOOL ok;begin(c);ok=xm_win_IsWindow(window_host(ARG(0)));end(c);RET_STD(1,ok);
  }
@@ -55,7 +65,7 @@ index 8794a2a..e7cb541 100644
  static void hle_ShowWindow(CPU* c)
  {
      BOOL previous_visible;CPU* previous=callback_cpu;int cmd=(int)ARG(1);
-@@ -1397,6 +1407,7 @@ const XrtHle xrt_hle_gui[] = {{"comctl32.dll", "#17", hle_InitCommonControls},
+@@ -1397,6 +1410,7 @@ const XrtHle xrt_hle_gui[] = {{"comctl32.dll", "#17", hle_InitCommonControls},
                                {"user32.dll", "SetMenu", hle_SetMenu},
                                {"user32.dll", "PostMessageA", hle_PostMessageA},
                                {"user32.dll", "PostMessageW", hle_PostMessageW},
@@ -63,7 +73,7 @@ index 8794a2a..e7cb541 100644
                                {"user32.dll", "PeekMessageW", hle_PeekMessageW},
                                {"user32.dll", "PeekMessageA", hle_PeekMessageA},
                                {"user32.dll", "TranslateMessage", hle_TranslateMessage},
-@@ -1413,6 +1424,8 @@ const XrtHle xrt_hle_gui[] = {{"comctl32.dll", "#17", hle_InitCommonControls},
+@@ -1413,6 +1427,8 @@ const XrtHle xrt_hle_gui[] = {{"comctl32.dll", "#17", hle_InitCommonControls},
  
                                {"user32.dll", "GetWindowLongA", hle_GetWindowLongA},
                                {"user32.dll", "IsWindow", hle_IsWindow},
