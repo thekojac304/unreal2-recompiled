@@ -824,3 +824,6 @@ Performance round 4 (2026-11-02 evening; report tools/xrt/dev/PERF_REPORT_202611
     call; a scripted console exit means no samples.bin (use a scene stop for sampled runs); CCD1 run-to-run spread is up to
     12% - use group medians; one benchmark (A08) missed the scripted NEW GAME click and measured the menu (check contact
     sheets before comparing); after a pool reclaim the guest VirtualAlloc pool reuses whole blocks (no split) - see report G.
+
+Owner decision (2026-11-02, after round 4): guard staging is the play default - dev.py run --staging now defaults to guard;
+strict remains available as the reference/diagnostic mode, and bench_tuta.ps1 still passes --staging strict by default.

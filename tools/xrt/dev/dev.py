@@ -885,8 +885,13 @@ def main():
     r.add_argument('--input', default='', metavar='SCRIPT',
                    help='first-scene: short explicit input script "T:verb[:args];..." (key/move/click/rclick/shot/cpu/size), '
                         'T in ms after Init; delivered to the game window only, isolation stays on')
-    r.add_argument('--staging', choices=('strict', 'reuse', 'guard'), default='strict',
-                   help='D3D8 buffer Lock staging: strict (default; decommitted at Unlock, stale pointers fault) or reuse (per-buffer block, stale pointers into it not trapped)')
+    # guard is the play default since round 4 (owner decision 2026-11-02, after the strict-vs-guard differential test and the
+    # game regressions of PERF_REPORT_20261102_R4.md section B); strict stays available as the diagnostic/reference mode
+    # (bench_tuta.ps1 still passes --staging strict unless told otherwise, so benchmarks stay comparable with earlier rounds)
+    r.add_argument('--staging', choices=('strict', 'reuse', 'guard'), default='guard',
+                   help='D3D8 buffer Lock staging: guard (default; block PAGE_NOACCESS between uses, stale pointers fault as in '
+                        'strict), strict (reference: decommitted at Unlock, stale pointers fault) or reuse (diagnostics only: '
+                        'stale pointers into a warm block are not trapped)')
     r.add_argument('--capture', choices=('periodic', 'shots'), default='periodic',
                    help='first-scene back-buffer captures: periodic (default; powers of two, every 256th world frame, cues) or shots (scripted shots only)')
     r.add_argument('--diag-move', action='store_true',

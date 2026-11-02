@@ -187,7 +187,8 @@ the same diagnostic (the VEH reports by address, not by page state).
 re-creations, music and 18,699 OpenAL plays with 0 glitches) and the final verification run (load, walk, F5/F8,
 resize to 2560x1440 and back, UI scale 150 via the menu, in-game menu): no fatal, no refusal, no difference in behaviour.
 
-**Assessment: guard is ready to become the play-build default.** Externally observable behaviour and the protection
+**Assessment: guard is ready to become the play-build default.** *Owner decision after this report (2026-11-02):
+adopted — `dev.py run --staging` now defaults to guard; strict remains the reference mode and the benchmark default.* Externally observable behaviour and the protection
 guarantee are equivalent across every required case, with the one gap found (adapter commit checks) closed. Not
 changed automatically: `dev.py run` still defaults to strict, as decided after round 3; switching is one argument
 (`--staging guard`). Strict remains the diagnostic/reference mode. Missing evidence, stated plainly: no hours-long play
