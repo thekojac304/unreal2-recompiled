@@ -1,0 +1,156 @@
+diff --git a/out/dev-init-savepoints/beta-alloc-20261102/runtime/monitor.c b/out/dev-init/runtime/monitor.c
+index 21ccf86..8287f5f 100644
+--- a/out/dev-init-savepoints/beta-alloc-20261102/runtime/monitor.c
++++ b/out/dev-init/runtime/monitor.c
+@@ -51,7 +51,8 @@ static volatile LONG active, initialized;
+ volatile long xm_failed;
+ volatile uint64_t xm_committed;
+ XmRecord xm_pending;
+-static __declspec(thread) struct { unsigned depth, busy; uint64_t id[XM_DEPTH],parent[XM_DEPTH]; unsigned domain[XM_DEPTH]; const char*name[XM_DEPTH]; CPU*cpu[XM_DEPTH];
++__declspec(thread) unsigned xm_tls_depth;   /* scope depth; read inline by ehframe pads (xrt.h) */
++static __declspec(thread) struct { unsigned busy; uint64_t id[XM_DEPTH],parent[XM_DEPTH]; unsigned domain[XM_DEPTH]; const char*name[XM_DEPTH]; CPU*cpu[XM_DEPTH];
+  struct {const void*cookie;unsigned depth;} marks[8192];unsigned marks_used;
+ } tls;
+ typedef char cpu_fits[sizeof(CPU)<=416?1:-1];
+@@ -125,15 +126,15 @@ static int copy_guest(void*out,uint32_t address,unsigned size) {
+     return 1;
+ }
+ int xm_enabled(void){return initialized!=0;}
+-CPU* xm_current_cpu(void){return tls.depth?tls.cpu[tls.depth-1]:NULL;}
++CPU* xm_current_cpu(void){return xm_tls_depth?tls.cpu[xm_tls_depth-1]:NULL;}
+ /* Marks are kept in push order and searched newest-first: landing records are LIFO, so mark/forget are O(1) in
+  * deep guarded recursion. A duplicate cookie resolves to its newest (live) entry; leaks still end in failure 18. */
+-unsigned xm_depth(void){return initialized?tls.depth:0;}   /* ehframe landing pads record it (xrt_eh.c) */
++unsigned xm_depth(void){return initialized?xm_tls_depth:0;}   /* ehframe landing pads record it (xrt_eh.c) */
+ void xm_mark(const void*cookie){unsigned i;if(!initialized)return;
+  i=tls.marks_used;
+  if(i&&tls.marks[i-1].cookie==cookie)i--;
+  else {if(i==8192)xm_failure(18);tls.marks_used++;}
+- tls.marks[i].cookie=cookie;tls.marks[i].depth=tls.depth;
++ tls.marks[i].cookie=cookie;tls.marks[i].depth=xm_tls_depth;
+ }
+ void xm_forget(const void*cookie){unsigned i;if(!initialized)return;
+  for(i=tls.marks_used;i-->0;)if(tls.marks[i].cookie==cookie){
+@@ -141,8 +142,8 @@ void xm_forget(const void*cookie){unsigned i;if(!initialized)return;
+  xm_failure(19);
+ }
+ void xm_unwind(CPU*c,unsigned depth,unsigned reason){
+- if(!initialized)return;if(depth>tls.depth)xm_failure(20);
+- while(tls.depth>depth){unsigned d=tls.depth-1;
++ if(!initialized)return;if(depth>xm_tls_depth)xm_failure(20);
++ while(xm_tls_depth>depth){unsigned d=xm_tls_depth-1;
+   xm_scope(c,XM_ABORT,tls.domain[d],tls.name[d],reason);}
+ }
+ void xm_restore(CPU*c,const void*cookie,unsigned reason){unsigned i;
+@@ -209,15 +210,15 @@ void xm_emit(CPU*c,const XmRequest*q,const XmHost*host) {
+     }
+     if(!xm_profile && serial>=XM_LIMIT)bad=5;
+     if(q->event==XM_BEGIN){
+-        if(tls.depth>=XM_DEPTH)bad=6;
+-        else {unsigned d=tls.depth++;tls.parent[d]=d?tls.id[d-1]:0;
++        if(xm_tls_depth>=XM_DEPTH)bad=6;
++        else {unsigned d=xm_tls_depth++;tls.parent[d]=d?tls.id[d-1]:0;
+             tls.id[d]=++next_invocation;tls.domain[d]=q->domain;tls.name[d]=q->name;tls.cpu[d]=c;InterlockedIncrement(&active);}
+     }
+-    if(tls.depth){r.invocation=tls.id[tls.depth-1];r.parent=tls.parent[tls.depth-1];}
++    if(xm_tls_depth){r.invocation=tls.id[xm_tls_depth-1];r.parent=tls.parent[xm_tls_depth-1];}
+     else {r.invocation=++next_invocation;r.parent=0;}
+-    r.depth=tls.depth;
+-    if((q->event==XM_END||q->event==XM_ABORT) && (!tls.depth||tls.domain[tls.depth-1]!=q->domain||
+-       !q->name||!tls.name[tls.depth-1]||strcmp(q->name,tls.name[tls.depth-1])))bad=7;
++    r.depth=xm_tls_depth;
++    if((q->event==XM_END||q->event==XM_ABORT) && (!xm_tls_depth||tls.domain[xm_tls_depth-1]!=q->domain||
++       !q->name||!tls.name[xm_tls_depth-1]||strcmp(q->name,tls.name[xm_tls_depth-1])))bad=7;
+     if(q->event==XM_CLOSE&&active)bad=8;
+     if(bad){r.event=XM_GAP;r.result=bad;}
+     if(xm_profile){
+@@ -237,7 +238,7 @@ void xm_emit(CPU*c,const XmRequest*q,const XmHost*host) {
+        (q->event==XM_END && q->name && !strcmp(q->name,"UGameEngine.Init")))drain();
+     if(bad)xm_failure(bad);
+ finished:
+-    if(q->event==XM_END||q->event==XM_ABORT){tls.depth--;InterlockedDecrement(&active);}
++    if(q->event==XM_END||q->event==XM_ABORT){xm_tls_depth--;InterlockedDecrement(&active);}
+     ReleaseSRWLockExclusive(&lock);tls.busy=0;SetLastError(saved);
+ }
+ /* Quiet profile: a routine request is dropped by xm_probe_gated anyway; returning before the request is built saves its
+@@ -265,7 +266,7 @@ void xm_span(CPU*c,const char*name,const void*trusted,unsigned size) {
+     /* Only these two explicitly approved bulk evidence categories are omitted.
+      * Adapter range, ownership, pitch, transfer and COM checks stay upstream.
+      * No pointer is dereferenced here or forwarded to native code. */
+-    if(xm_profile && !xd_selected_name(name) && !(tls.depth&&xd_tls.frames[tls.depth-1].selected) && (!strcmp(name,"resource.map.download") || !strcmp(name,"resource.map.upload"))){
++    if(xm_profile && !xd_selected_name(name) && !(xm_tls_depth&&xd_tls.frames[xm_tls_depth-1].selected) && (!strcmp(name,"resource.map.download") || !strcmp(name,"resource.map.upload"))){
+         XmRequest q={0};q.event=XM_OMITTED;q.name=name;q.result=size;
+         q.count=1;q.values[0]=v[0];xm_probe(c,&q);return;
+     }
+diff --git a/out/dev-init-savepoints/beta-alloc-20261102/runtime/xrt.h b/out/dev-init/runtime/xrt.h
+index d04a63b..de411b1 100644
+--- a/out/dev-init-savepoints/beta-alloc-20261102/runtime/xrt.h
++++ b/out/dev-init/runtime/xrt.h
+@@ -323,7 +323,16 @@ typedef struct XrtEhPad {
+     uint64_t host_ret;             /* landing only: the frame's call-site return address (xrt_eh_land.asm reads it) */
+ } XrtEhPad;
+ #define XRT_EH_FN __declspec(noinline)
+-#define XRT_EH_REGISTER() xrt_eh_register(c, &eh_)
++/* Beta batch: the link/unlink is inline (R4: ~1.7 ns per guarded call in xrt_eh_register/xrt_eh_pop calls, ~9% of
++ * UI-heavy frames). The prefix of the runtime's XrtThread (static asserts in xrt_internal.h) and the monitor's scope
++ * depth are what pad_push used; an out-of-order unlink still goes to xrt_eh_pop for its fatal diagnostic. */
++typedef struct { CPU cpu; int host_calls; XrtEhPad* eh_pads; } XrtThreadEh;
++extern __declspec(thread) unsigned xm_tls_depth;
++#define XRT_EH_REGISTER() do { XrtThreadEh* t_ = (XrtThreadEh*)c->thread; eh_.node = c->r[ESP]; if (!eh_.active) { \
++        eh_.kind = 0; eh_.host_calls = t_->host_calls; eh_.xm_depth = xm_tls_depth; eh_.prev = t_->eh_pads; \
++        eh_.active = 1; t_->eh_pads = &eh_; } } while (0)
++#define XRT_EH_POP() do { if (eh_.active) { XrtThreadEh* t_ = (XrtThreadEh*)c->thread; \
++        if (t_->eh_pads == &eh_) { t_->eh_pads = eh_.prev; eh_.active = 0; } else xrt_eh_pop(c, &eh_); } } while (0)
+ #else
+ #include <setjmp.h>
+ typedef struct XrtEhPad {
+@@ -342,7 +351,9 @@ void xrt_eh_register(CPU* c, XrtEhPad* pad);
+ XrtLiftedRet xrt_eh_landed(CPU* c, XrtEhPad* pad);
+ void xrt_eh_pop(CPU* c, XrtEhPad* pad);
+ #define XRT_EH_DECL XrtEhPad eh_; eh_.active = 0
++#ifndef XRT_EH_FRAMES
+ #define XRT_EH_POP() do { if (eh_.active) xrt_eh_pop(c, &eh_); } while (0)
++#endif
+ 
+ /* ---------------------------------------------------------------- evidence instrumentation (tools/xrt/marks.json)
+  * Marks and watches only record events (xrt_events.c); they never change guest state. */
+diff --git a/out/dev-init-savepoints/beta-alloc-20261102/runtime/xrt_internal.h b/out/dev-init/runtime/xrt_internal.h
+index b3c8198..5ccf70f 100644
+--- a/out/dev-init-savepoints/beta-alloc-20261102/runtime/xrt_internal.h
++++ b/out/dev-init/runtime/xrt_internal.h
+@@ -3,6 +3,7 @@
+ #define XRT_INTERNAL_H
+ #include <setjmp.h>
+ #include <stdarg.h>
++#include <stddef.h>
+ #include <stdio.h>
+ #include "xrt.h"
+ #include "monitor.h"
+@@ -95,6 +96,8 @@ void xrt_events_report(FILE* f);
+ /* ---------------------------------------------------------------- threads (xrt_thread.c) */
+ struct XrtThread {
+     CPU cpu;
++    int host_calls;                /* nesting of host->guest calls (xrt_call_guest) on this thread */
++    XrtEhPad* eh_pads;             /* landing stack of the C++ exception dispatcher (innermost first) */
+     int index;                     /* 0 = main thread */
+     uint32_t guest_tid, host_tid;
+     void* host_handle;
+@@ -106,14 +109,16 @@ struct XrtThread {
+     uint32_t rand_seed;            /* msvcr70 per-thread rand() state */
+     uint64_t sleeps, preemptions, cs_waits;
+     uint32_t exit_via;             /* 1 ExitThread, 2 returned from entry */
+-    int host_calls;                /* nesting of host->guest calls (xrt_call_guest) on this thread */
+-    XrtEhPad* eh_pads;             /* landing stack of the C++ exception dispatcher (innermost first) */
+     struct XrtEhCatch* eh_catches; /* catch blocks currently executing (innermost first) */
+     int eh_unwinding;              /* > 0 while the dispatcher runs unwind actions (a throw then is terminate()) */
+     int loader_lock;               /* > 0 while this thread runs DllMain notifications (no baton hand-over) */
+     unsigned com_initializations;  /* successful guest COM initializations owned by this host thread */
+ };
+ extern __declspec(thread) XrtThread* xrt_cur;
++#ifdef XRT_EH_FRAMES   /* xrt.h XrtThreadEh mirrors this prefix for the inline pad link/unlink */
++_Static_assert(offsetof(XrtThread, host_calls) == offsetof(XrtThreadEh, host_calls) &&
++               offsetof(XrtThread, eh_pads) == offsetof(XrtThreadEh, eh_pads), "XrtThreadEh prefix");
++#endif
+ void xrt_com_thread_cleanup(CPU* c); /* owning thread only; Loader8 references before apartment balance */
+ extern volatile long xrt_exiting;          /* set when ExitProcess starts: no more baton hand-overs */
+ void xrt_baton_acquire(void);

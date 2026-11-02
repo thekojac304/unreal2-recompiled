@@ -658,6 +658,24 @@ def play_defaults(args):
     args.question = args.question or 'Personal play session (--play)'
     args.change = args.change or 'none (personal play)'
 
+def play_notice(args, out, code, outcome):
+    """--play: the game window simply vanishes when the contained session limit is reached or the runtime stops on an
+    unsupported call; tell the player why and where the evidence is (from this launcher process, after the game has
+    ended - nothing runs inside the dying game)."""
+    if 'first-scene stop' in str(outcome) or code in (11, 124):
+        title = 'Unreal II - session time limit'
+        text = (f'The contained session limit ({args.scene_seconds} s of play) was reached and the game was closed.\n\n'
+                'Quicksave (F5) regularly; F8 in the next session continues from it. Settings were saved to the profile.')
+    else:
+        title = 'Unreal II stopped'
+        text = (f'The game stopped unexpectedly (exit {code}).\n\n{outcome}\n\nLogs and report: {out}\n'
+                '(xrt.log, runtime-report.json, console.txt). Saves made before this point are kept in the run sandbox.')
+    print(f'dev: {title}: {text}', flush=True)
+    try:
+        ctypes.windll.user32.MessageBoxW(None, text, title, 0x40 | 0x10000)   # MB_ICONINFORMATION | MB_SETFOREGROUND
+    except Exception:
+        pass
+
 def run(args):
     if args.play:
         play_defaults(args)
@@ -757,6 +775,18 @@ def run(args):
                 body = re.sub(rb'(?m)^' + re.escape(line.split(b'=')[0]) + rb'=\d+\r?\n', line, body)
             ini.write_bytes(replace_ini_section(text, b'WinDrv.WindowsClient', body))
             print(f'dev: profile {args.profile}: display settings restored', flush=True)
+        # Saves (beta batch): the .usa files the translated game wrote in this profile's earlier sessions (copied back from
+        # their run sandboxes below), so F8/Load continue where the player stopped. An explicit --seed-save of the same
+        # name wins. Never the install's Save (a junction to personal saves): the sandbox Save must be a plain folder.
+        if (profile / 'Save').is_dir():
+            target = sandbox / 'Save'
+            if target.is_symlink() or target.is_junction():
+                raise RuntimeError('No launch: the sandbox Save folder is a link')
+            target.mkdir(exist_ok=True)
+            restored = [f.name for f in sorted((profile / 'Save').glob('*.usa')) if not (target / f.name).exists()]
+            for name in restored:
+                shutil.copy2(profile / 'Save' / name, target / name)
+            print(f'dev: profile {args.profile}: {len(restored)} saved game(s) restored', flush=True)
     # The game starts fullscreen (borderless) when the player left it so; otherwise -windowed, as always.
     startup_fullscreen = bool(profile) and re.search(rb'(?mi)^StartupFullscreen=true\r?$', ini_section(
         (sandbox / 'System' / 'Unreal2.ini').read_bytes(), b'WinDrv.WindowsClient')) is not None
@@ -858,8 +888,21 @@ def run(args):
             if section:
                 (profile / 'WindowsClient.ini').write_bytes(section)
             print(f'dev: profile {args.profile}: User.ini and display settings saved', flush=True)
+        session_saves = sorted((sandbox / 'Save').glob('*.usa')) if profile and (sandbox / 'Save').is_dir() \
+            and not (sandbox / 'Save').is_junction() else []
+        if session_saves:
+            # the previous set stays one session back in Save.prev (a session that ends badly cannot cost both)
+            if (profile / 'Save').is_dir():
+                shutil.rmtree(profile / 'Save.prev', ignore_errors=True)
+                shutil.copytree(profile / 'Save', profile / 'Save.prev')
+            (profile / 'Save').mkdir(parents=True, exist_ok=True)
+            for f in session_saves:
+                shutil.copy2(f, profile / 'Save' / f.name)
+            print(f'dev: profile {args.profile}: {len(session_saves)} saved game(s) kept for the next session', flush=True)
         if code == 0 and outcome == 'exited':
             print('dev: the game exited normally (its own shutdown, ExitProcess(0))', flush=True)
+        elif args.play:
+            play_notice(args, out, code, outcome)
         done = ('Init returned; world frames presented to the first-scene stop (console.txt names it; inspect scene-frame-*.bmp)'
                 if args.first_scene else 'Init returned; main loop not entered')
         report(out, args.change, args.question,

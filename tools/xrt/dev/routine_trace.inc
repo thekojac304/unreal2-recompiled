@@ -128,7 +128,7 @@ static int xd_milestone(const char*name) {
  return !strcmp(name,"UGameEngine.Init");
 }
 static int xd_route(XmRecord*r,int bad) {
- unsigned d=tls.depth?tls.depth-1:0,i,index=0,selected=0,keep=0,urgent=0;
+ unsigned d=xm_tls_depth?xm_tls_depth-1:0,i,index=0,selected=0,keep=0,urgent=0;
  /* Caught C++ exceptions (EH continuation 1 / rethrow 2) are routine control flow: retained, batched, not forced. */
  int eh_unwind=r->event==XM_ABORT&&(r->result==1||r->result==2);
  int failed=0,suspect=0;XdSummary*s=NULL;
@@ -140,7 +140,7 @@ static int xd_route(XmRecord*r,int bad) {
   xd_tls.frames[d].begin=*r;
   if(!s->begins)s->first_begin=*r;s->begins++;s->last_begin=*r;
   keep=selected||xd_milestone(r->name);urgent=xd_milestone(r->name);
- }else if((r->event==XM_END||r->event==XM_ABORT)&&tls.depth&&!bad){
+ }else if((r->event==XM_END||r->event==XM_ABORT)&&xm_tls_depth&&!bad){
   index=xd_tls.frames[d].index;s=&xd.imports[index];selected=xd_tls.frames[d].selected;
   failed=r->event==XM_ABORT?1:xd_failure(r);
   if(failed<0){
@@ -171,7 +171,7 @@ static int xd_route(XmRecord*r,int bad) {
   urgent=keep||(r->event==XM_ABORT&&!eh_unwind)||xd_milestone(r->name);
   keep|=selected||xd_tls.frames[d].emitted||xd_milestone(r->name);
  }else {
-  selected=xd_selected_name(r->name)||xd_selected_pc(r)||(tls.depth&&xd_tls.frames[d].selected);
+  selected=xd_selected_name(r->name)||xd_selected_pc(r)||(xm_tls_depth&&xd_tls.frames[d].selected);
   keep=selected;
  }
  if(s&&index==XD_SLOTS-1){r->flags|=XD_OVERFLOW;if(s->begins==1)keep=urgent=1;}
@@ -189,7 +189,7 @@ static int xd_route(XmRecord*r,int bad) {
  if(keep){
   /* Sparse durable stream still carries the active ancestry. Retained BEGINs
    * are emitted once; only selected scopes inherit full descendant tracing. */
-  for(i=0;i<tls.depth;i++)if(!xd_tls.frames[i].emitted){
+  for(i=0;i<xm_tls_depth;i++)if(!xd_tls.frames[i].emitted){
    if(r->event==XM_BEGIN&&i==d){xd_tls.frames[i].emitted=1;break;}
    xd_append(&xd_tls.frames[i].begin);xd_tls.frames[i].emitted=1;
   }
