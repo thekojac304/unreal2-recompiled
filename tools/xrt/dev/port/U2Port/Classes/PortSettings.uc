@@ -88,6 +88,25 @@ function string GetResolution()
 	return IniGet("WindowedViewportX") $ "x" $ IniGet("WindowedViewportY");
 }
 
+// The Resolution selector can only show an entry of its list: the display modes, plus - in a window - the window's
+// current size when that is not a display mode (a maximized window is 2560x1369 on a 2560x1440 screen; without it the
+// selector showed its first entry, 640x480).
+function array<string> GetDisplayModes()
+{
+	local array<string> Modes;
+	local string Current;
+	local int i;
+
+	StrArray(GetConsole().ConsoleCommandEx("DISPLAYMODES"), " ", Modes, true);
+	Current = GetResolution();
+	for (i = 0; i < Modes.Length; i++)
+		if (Modes[i] == Current)
+			return Modes;
+	Modes.Insert(0, 1);
+	Modes[0] = Current;
+	return Modes;
+}
+
 function SetResolution(string S)
 {
 	local int i, W, H;

@@ -48,7 +48,8 @@ with tempfile.TemporaryDirectory(dir=WS / 'sandbox_cmp') as tmp:
     check(u.count('PortSettings,SetUIScale') == 5 and 'CurrentAccess=PortSettings,GetUIScaleIndex' in u and
           'Component=U2Selector:286\r\n' in u and 'Component=OptionDescription:12/286/UIScale\r\n' in u,
           'Video row 12 UI Scale selector (5 items)')
-    check('\tModifier=PortSettings,SetResolution\r\n\tCurrentText=PortSettings,GetResolution\r\n' in u and
+    check('\tAccessor=PortSettings,GetDisplayModes\r\n\tModifier=PortSettings,SetResolution\r\n'
+          '\tCurrentText=PortSettings,GetResolution\r\n' in u and
           'CodeMonkey,SetRes' not in u, 'Video Resolution selector bound to PortSettings (current mode)')
     t = text.decode('latin-1')
     for key in ('OptionDescriptionWalkingSpeed=', 'OptionDescriptionUIScale=', 'UIScaleAuto=', 'UIScale200=', 'MouseOver_GAME_11=Adjust'):

@@ -284,10 +284,29 @@ index 061098a..ed380f4 100644
    xrt_baton_acquire();
    if(xrt_exiting){xrt_baton_release();return;}
 diff --git a/out/dev-init-savepoints/interactive-20261101/runtime-base/hle_gui.c b/out/dev-init/runtime/hle_gui.c
-index 8794a2a..a7fb740 100644
+index 8794a2a..dc33f00 100644
 --- a/out/dev-init-savepoints/interactive-20261101/runtime-base/hle_gui.c
 +++ b/out/dev-init/runtime/hle_gui.c
-@@ -657,6 +657,16 @@ static void dev_max_track(MINMAXINFO *m)
+@@ -208,6 +208,7 @@ typedef struct GuiWindow
+ } GuiWindow;
+ /* D3D8 pins are separate from guest ownership of the HWND itself. */
+ static unsigned device_window_pins[1024];
++static struct { uint32_t token; unsigned count; } destroyed_pins[16];   /* pins of windows destroyed before their device */
+ static GuiWindow windows[1024];
+ static __declspec(thread) CPU *callback_cpu;
+ CPU* xrt_gui_callback_enter(CPU* c) { CPU* previous=callback_cpu;callback_cpu=c;return previous; }
+@@ -335,6 +336,10 @@ void xrt_gui_window_pin(CPU* c,uint32_t token) {
+ void xrt_gui_window_unpin(uint32_t token) {
+     unsigned i;if(!token)return;
+     for(i=0;i<1024;i++)if(windows[i].token==token && windows[i].host && device_window_pins[i]) {device_window_pins[i]--;return;}
++    for(i=0;i<16;i++)if(destroyed_pins[i].token==token && destroyed_pins[i].count) {   /* window destroyed first (hle_DestroyWindow) */
++        if(!--destroyed_pins[i].count)destroyed_pins[i].token=0;
++        return;
++    }
+     xrt_fatal(NULL,77,"D3D8: window pin accounting mismatch %08x",token);
+ }
+ /* USER32 queries this calling thread's actual input queue. Never substitute the
+@@ -657,6 +662,16 @@ static void dev_max_track(MINMAXINFO *m)
  #include "message_pump.inc"
  static INT_PTR invoke_gui_proc(HWND h, UINT msg, WPARAM wp, LPARAM lp, uint32_t explicit_proc)
  {
@@ -304,7 +323,7 @@ index 8794a2a..a7fb740 100644
      xm_scope(callback_cpu,XM_BEGIN,XM_CALLBACK,"USER32.invoke_gui_proc",msg);
      CPU nested;
      uint32_t args[4], proc = explicit_proc, scratch = 0;
-@@ -938,6 +948,9 @@ static INT_PTR invoke_gui_proc(HWND h, UINT msg, WPARAM wp, LPARAM lp, uint32_t
+@@ -938,6 +953,9 @@ static INT_PTR invoke_gui_proc(HWND h, UINT msg, WPARAM wp, LPARAM lp, uint32_t
          /* Only measured scalar messages may cross unmodified. */
          if (!((msg <= WM_ENABLE && msg != WM_GETTEXT) || msg == WM_PAINT || msg == WM_ERASEBKGND ||
                msg == WM_SHOWWINDOW || msg == WM_NCPAINT || msg == WM_NCACTIVATE || msg == WM_DESTROY ||
@@ -314,7 +333,7 @@ index 8794a2a..a7fb740 100644
                msg == WM_NCDESTROY || msg == WM_CANCELMODE || msg == WM_GETDLGCODE || msg == WM_GETFONT ||
                msg == WM_CHANGEUISTATE || msg == WM_UPDATEUISTATE || msg == WM_QUERYUISTATE ||
                msg == WM_QUERYNEWPALETTE || msg == WM_PALETTECHANGED || msg == WM_DWMNCRENDERINGCHANGED ||
-@@ -1189,6 +1202,31 @@ static void hle_IsWindow(CPU* c)
+@@ -1189,6 +1207,31 @@ static void hle_IsWindow(CPU* c)
  {
      BOOL ok;begin(c);ok=xm_win_IsWindow(window_host(ARG(0)));end(c);RET_STD(1,ok);
  }
@@ -346,7 +365,7 @@ index 8794a2a..a7fb740 100644
  static void hle_ShowWindow(CPU* c)
  {
      BOOL previous_visible;CPU* previous=callback_cpu;int cmd=(int)ARG(1);
-@@ -1259,6 +1297,13 @@ static void send_message(CPU *c, int wide)
+@@ -1259,6 +1302,13 @@ static void send_message(CPU *c, int wide)
          result=wide?xm_win_SendMessageW(window_host(ARG(0)),msg,wp,(LPARAM)(int32_t)ARG(3)):xm_win_SendMessageA(window_host(ARG(0)),msg,wp,(LPARAM)(int32_t)ARG(3));
          end(c);callback_cpu=prev;RET_STD(4,(uint32_t)result);return;
      }
@@ -360,7 +379,27 @@ index 8794a2a..a7fb740 100644
      if(msg==WM_SETTEXT || msg==WM_GETTEXTLENGTH) {
          if(msg==WM_SETTEXT && ARG(3) && ARG(3)<0x10000)
              xrt_fatal(c,XRT_EXIT_UNSUPPORTED,"WM_SETTEXT invalid guest string");
-@@ -1395,8 +1440,10 @@ const XrtHle xrt_hle_gui[] = {{"comctl32.dll", "#17", hle_InitCommonControls},
+@@ -1323,8 +1373,17 @@ static void hle_DestroyWindow(CPU *c)
+     BOOL ok;
+     unsigned i;
+     CPU *prev = callback_cpu;
+-    for(i=0;i<1024;i++)if(windows[i].token==ARG(0) && device_window_pins[i])
+-        xrt_fatal(c,76,"DestroyWindow: live D3D8 device retains HWND token %08x",ARG(0));
++    /* At shutdown the game destroys its viewport window (UObject::StaticExit -> UViewport::Destroy -> CloseWindow)
++     * before its render device releases the D3D8 device (owner's run 20261101-221402) - legal in Windows. The device's
++     * pins on the window are dropped here and its later release finds them gone (xrt_gui_window_unpin); presenting to
++     * the destroyed window would still stop as a stale HWND token. */
++    for(i=0;i<1024;i++)if(windows[i].token==ARG(0) && device_window_pins[i]) {
++        unsigned k;
++        xrt_log("DestroyWindow %08x while a D3D8 device still holds it (%u pins): allowed, as on Windows",ARG(0),device_window_pins[i]);
++        for(k=0;k<16;k++)if(!destroyed_pins[k].token){destroyed_pins[k].token=ARG(0);destroyed_pins[k].count=device_window_pins[i];break;}
++        if(k==16)xrt_fatal(c,77,"DestroyWindow: pinned-window record full");
++        device_window_pins[i]=0;
++    }
+     callback_cpu = c;
+     begin(c);
+     ok = xm_win_DestroyWindow(window_host(ARG(0)));
+@@ -1395,8 +1454,10 @@ const XrtHle xrt_hle_gui[] = {{"comctl32.dll", "#17", hle_InitCommonControls},
                                {"user32.dll", "SetWindowLongA", hle_SetWindowLongA},
                                {"user32.dll", "SetWindowLongW", hle_SetWindowLongW},
                                {"user32.dll", "SetMenu", hle_SetMenu},
@@ -371,7 +410,7 @@ index 8794a2a..a7fb740 100644
                                {"user32.dll", "PeekMessageW", hle_PeekMessageW},
                                {"user32.dll", "PeekMessageA", hle_PeekMessageA},
                                {"user32.dll", "TranslateMessage", hle_TranslateMessage},
-@@ -1413,6 +1460,10 @@ const XrtHle xrt_hle_gui[] = {{"comctl32.dll", "#17", hle_InitCommonControls},
+@@ -1413,6 +1474,10 @@ const XrtHle xrt_hle_gui[] = {{"comctl32.dll", "#17", hle_InitCommonControls},
  
                                {"user32.dll", "GetWindowLongA", hle_GetWindowLongA},
                                {"user32.dll", "IsWindow", hle_IsWindow},

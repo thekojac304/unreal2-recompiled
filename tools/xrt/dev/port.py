@@ -90,8 +90,8 @@ MENU_EDITS = [
      ''.join(f'\tListItem=UIScale{v},PortSettings,SetUIScale{v}\n' for v in ('Auto', '100', '125', '150', '200')) +
      '\tCurrentAccess=PortSettings,GetUIScaleIndex\n'),
     # Resolution follows the current mode (PortSettings.uc): full screen = render resolution, window = window size.
-    ('\tModifier=CodeMonkey,SetRes\n\tCurrentText=CodeMonkey,GetRes\n',
-     '\tModifier=PortSettings,SetResolution\n\tCurrentText=PortSettings,GetResolution\n'),
+    ('\tAccessor=CodeMonkey,GetDisplayModes\n\tModifier=CodeMonkey,SetRes\n\tCurrentText=CodeMonkey,GetRes\n',
+     '\tAccessor=PortSettings,GetDisplayModes\n\tModifier=PortSettings,SetResolution\n\tCurrentText=PortSettings,GetResolution\n'),
 ]
 TEXT_EDITS = [
     ('OptionDescriptionDodging=Dodging:\n',
