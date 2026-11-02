@@ -484,7 +484,7 @@ Interactive follow-up (2026-11-01 late evening, owner playing; commits ea8349a..
     answered); X button (WM_CLOSE); system cursor hidden over the game; Video > Resolution follows the mode (window
     size via PORTSET WindowSize, fullscreen render resolution; list keeps display-mode indices stable).
   - Quit: PostQuitMessage, IsZoomed/IsIconic, WM_DESTROY forwarding, msvcr70 swprintf, DestroyWindow before the device
-    release and device/resource calls afterwards are handled; the game's full shutdown to ExitProcess is NOT yet seen.
+    release and device/resource calls afterwards are handled. Run 20261101-222923: menu Quit -> the game's complete shutdown (engine, viewport, device, audio, DirectMusic helper SHUTDOWN, every DLL_PROCESS_DETACH) -> ExitProcess(0), outcome "exited".
   - DXVK 3.1.1 presents through GDI whenever the back buffer differs from the window client (run 211738): every mode
     keeps them equal. Open: one fullscreen entry asked 800x600 although 720x480 was stored (source unidentified);
     one silent helper exit during a level load (exit code now reported).
