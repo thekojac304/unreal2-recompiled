@@ -3,17 +3,18 @@
  * Runs 20261101-191847-7aea43cf (Maximize button) and 20261101-191912-be757706 (Alt+Enter) died with fatal 76 because
  * WinDrv's viewport procedure turns both into UWindowsViewport::ToggleFullscreen (exclusive fullscreen CreateDevice).
  *
- * An owned "guest" procedure mimics WinDrv: SC_MAXIMIZE or Alt+Enter = ToggleFullscreen (counted, must stay 0); other
- * system commands and keys go to DefWindowProc; WM_SIZE records the client size it is given. The window class name ends in
- * ViewportWindow like WinDrv's. The window is placed on the LAST monitor (the secondary one when there are two), so the
- * maximized size is checked against that monitor's own work area. The test window is visible for about a second.
+ * An owned "guest" procedure mimics WinDrv: SC_MAXIMIZE, Alt+Enter and a SIZE_MAXIMIZED WM_SIZE count as ToggleFullscreen /
+ * fullscreen requests; other system commands and keys go to DefWindowProc; WM_SIZE records the client size it is given.
+ * The window class name ends in ViewportWindow like WinDrv's. The window is placed on the LAST monitor (the secondary one
+ * when there are two), so the maximized size is checked against that monitor's own work area. Visible about a second.
  *
- *   maximize  SC_MAXIMIZE never reaches the guest; the window is zoomed; the guest's WM_SIZE says SIZE_RESTORED (WinDrv
- *             turns SIZE_MAXIMIZED into SetRes(Fullscreen=1), run 20261101-205740) with the actual client, which lies within that monitor's work area; caption double-click code 0xF032 too
- *   restore   SC_RESTORE reaches the guest (DefWindowProc) and returns the exact previous client size
- *   alt       Alt+Enter (WM_SYSKEYDOWN VK_RETURN, Alt held) toggles maximize then restore; auto-repeat is ignored;
- *             plain Enter (no Alt) still reaches the guest
- *   scope     a child window of the same class and a top-level window of another class are not intercepted
+ *   maximize   SC_MAXIMIZE never reaches the guest; the window is zoomed; the guest's WM_SIZE says SIZE_RESTORED (WinDrv
+ *              turns SIZE_MAXIMIZED into SetRes(Fullscreen=1), run 20261101-205740) with the actual client, within that
+ *              monitor's work area; caption double-click code 0xF032 too
+ *   restore    SC_RESTORE reaches the guest (DefWindowProc) and returns the exact previous client size
+ *   alt        Alt+Enter reaches the game's own ToggleFullscreen (fullscreen is borderless); plain Enter reaches the guest
+ *   borderless while the borderless device window is frameless its WM_SIZE is held back; once the frame is back it flows
+ *   scope      a child window of the same class and a top-level window of another class are not intercepted
  * Exit 0 when every check passes. Build/run: experiments/xrt/tests/viewport_maximize/run.cmd */
 #include <windows.h>
 #include <imm.h>
@@ -30,6 +31,8 @@ void xm_probe(CPU* c, const XmRequest* q) { (void)c; (void)q; }
 #define xm_probe xm_probe_gated
 void xrt_event(const char* kind, const char* fmt, ...) { (void)kind; (void)fmt; }
 void xrt_log(const char* fmt, ...) { va_list a; va_start(a, fmt); printf("     log: "); vprintf(fmt, a); printf("\n"); va_end(a); }
+static HWND borderless;   /* stands in for d3d8_borderless.inc's device window */
+int xrt_d3d8_borderless_window(void* h) { return h && h == (void*)borderless; }
 #include "viewport_window.inc"
 
 static int failures;
@@ -54,6 +57,7 @@ static LRESULT CALLBACK host_thunk(HWND h, UINT m, WPARAM wp, LPARAM lp) {
     LRESULT r;
     if ((m == WM_SYSCOMMAND || m == WM_KEYDOWN || m == WM_SYSKEYDOWN) && viewport_windowed_maximize(h, m, wp, lp, 1, &r))
         return r;
+    if (m == WM_SIZE && viewport_fullscreen_size(h, m)) return 0;
     if (m == WM_SIZE) wp = viewport_size_type(h, m, wp);
     return guest_proc(h, m, wp, lp);
 }
@@ -105,27 +109,32 @@ int main(void) {
     CHECK(IsZoomed(h) && toggles == 0, "maximize: caption double-click code 0xF032 handled the same way");
     SendMessageW(h, WM_SYSCOMMAND, SC_RESTORE, 0); pump();
 
-    /* Alt+Enter */
+    /* Alt+Enter is the game's own fullscreen toggle again (borderless fullscreen) */
     alt(1);
     SendMessageW(h, WM_SYSKEYDOWN, VK_RETURN, 0x201C0001); pump();
-    CHECK(IsZoomed(h) && toggles == 0, "alt: Alt+Enter maximized the window without ToggleFullscreen");
-    SendMessageW(h, WM_SYSKEYDOWN, VK_RETURN, 0x601C0001); pump(); /* auto-repeat */
-    CHECK(IsZoomed(h) && toggles == 0, "alt: auto-repeated Alt+Enter ignored");
-    SendMessageW(h, WM_SYSKEYDOWN, VK_RETURN, 0x201C0001); pump();
-    after = client(h);
-    CHECK(!IsZoomed(h) && after.right == before.right && after.bottom == before.bottom, "alt: second Alt+Enter restored %ldx%ld", after.right, after.bottom);
+    CHECK(!IsZoomed(h) && toggles == 1, "alt: Alt+Enter reaches the game's ToggleFullscreen (%u)", toggles);
     alt(0);
     t0 = guest_enters; r = SendMessageW(h, WM_KEYDOWN, VK_RETURN, 0x001C0001);
     CHECK(guest_enters == t0 + 1 && !IsZoomed(h), "alt: plain Enter reaches the guest (%Id)", r);
 
+    /* borderless fullscreen: WM_SIZE held back while the device window is frameless, passed once the frame is back */
+    borderless = h;
+    SetWindowLongW(h, GWL_STYLE, GetWindowLongW(h, GWL_STYLE) & ~(WS_CAPTION | WS_THICKFRAME));
+    sizes = 0; SetWindowPos(h, NULL, last_monitor.rcMonitor.left, last_monitor.rcMonitor.top, 640, 480, SWP_NOZORDER | SWP_FRAMECHANGED | SWP_NOACTIVATE); pump();
+    CHECK(sizes == 0, "borderless: WM_SIZE held back while frameless (%u)", sizes);
+    SetWindowLongW(h, GWL_STYLE, GetWindowLongW(h, GWL_STYLE) | WS_CAPTION | WS_THICKFRAME);
+    SetWindowPos(h, NULL, last_monitor.rcWork.left + 80, last_monitor.rcWork.top + 80, 800, 600, SWP_NOZORDER | SWP_FRAMECHANGED | SWP_NOACTIVATE); pump();
+    CHECK(sizes > 0, "borderless: WM_SIZE flows again once the frame is restored (%u)", sizes);
+    borderless = NULL;
+
     /* scope */
     child = CreateWindowExW(0, wc.lpszClassName, L"", WS_CHILD | WS_VISIBLE, 0, 0, 50, 50, h, NULL, wc.hInstance, NULL);
     SendMessageW(child, WM_SYSCOMMAND, SC_MAXIMIZE, 0);
-    CHECK(toggles == 1, "scope: child viewport window not intercepted (%u)", toggles);
+    CHECK(toggles == 2, "scope: child viewport window not intercepted (%u)", toggles);
     plain = CreateWindowExW(0, other.lpszClassName, L"", WS_OVERLAPPEDWINDOW, last_monitor.rcWork.left, last_monitor.rcWork.top, 100, 100,
                             NULL, NULL, wc.hInstance, NULL);
-    alt(1); SendMessageW(plain, WM_SYSKEYDOWN, VK_RETURN, 0x201C0001); alt(0);
-    CHECK(toggles == 2 && !IsZoomed(plain), "scope: other window class not intercepted (%u)", toggles);
+    SendMessageW(plain, WM_SYSCOMMAND, SC_MAXIMIZE, 0);
+    CHECK(toggles == 3 && !IsZoomed(plain), "scope: other window class not intercepted (%u)", toggles);
     DestroyWindow(plain); DestroyWindow(h); pump();
     printf("%s (%d failure%s)\n", failures ? "FAIL" : "PASS", failures, failures == 1 ? "" : "s");
     return failures ? 1 : 0;

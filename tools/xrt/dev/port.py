@@ -7,9 +7,9 @@
   apply(sandbox)     adds U2Port.u to a run sandbox and edits that sandbox's own copies of UIScripts/U2Menus.ui and
                      System/U2Menus.int (never the install): every edit is anchored on text that must occur exactly once.
 
-Menu changes: Options > Game gets a Walking Speed slider (75..200, step 5, row 11); Options > Video replaces the
-Fullscreen checkbox (exclusive fullscreen, which this port does not provide; its SetFullscreen ran TOGGLEFULLSCREEN and
-stored StartupFullscreen=True) with a UI Scale selector (Auto, 100%, 125%, 150%, 200%) in the same row.
+Menu changes: Options > Game gets a Walking Speed slider (75..200, step 5, row 11); Options > Video gets a UI Scale
+selector (Auto, 100%, 125%, 150%, 200%, row 12). The game's own Fullscreen checkbox (row 10) stays: fullscreen is
+borderless in this port (runtime d3d8_borderless.inc), with the chosen resolution scaled to the monitor.
 """
 import re
 import shutil
@@ -71,9 +71,9 @@ SLIDER = """Component=U2Slider:234
 	Object=CodeMonkey
 	Variable=Dodging
 """
-FULLSCREEN = """Component=U2CheckBox:234
+VSYNC = """Component=U2CheckBox:260
 	Object=CodeMonkey
-	Variable=Fullscreen
+	Variable=UseVSync
 """
 MENU_EDITS = [
     ('Component=CodeMonkey\nComponent=Dispatcher\n', 'Component=CodeMonkey\nComponent=PortSettings\nComponent=Dispatcher\n'),
@@ -84,8 +84,9 @@ MENU_EDITS = [
      'Component=OptionDescription:10/234/Dodging\nComponent=OptionDescription:11/260/WalkingSpeed\n'),
     (SLIDER, SLIDER + 'Component=U2Slider:260\n\tRange=75,200\n\tStep=5\n\tFormat=ByteFormat\n'
                       '\tObject=PortSettings\n\tVariable=WalkingSpeed\n'),
-    ('Component=OptionDescription:10/234/Fullscreen\n', 'Component=OptionDescription:10/234/UIScale\n'),
-    (FULLSCREEN, 'Component=U2Selector:234\n\tGroup=OptionWidgets_VIDEO\n' +
+    ('Component=OptionDescription:11/260/VSync\n',
+     'Component=OptionDescription:11/260/VSync\nComponent=OptionDescription:12/286/UIScale\n'),
+    (VSYNC, VSYNC + 'Component=U2Selector:286\n\tGroup=OptionWidgets_VIDEO\n' +
      ''.join(f'\tListItem=UIScale{v},PortSettings,SetUIScale{v}\n' for v in ('Auto', '100', '125', '150', '200')) +
      '\tCurrentAccess=PortSettings,GetUIScaleIndex\n'),
 ]
@@ -96,8 +97,9 @@ TEXT_EDITS = [
     ('MouseOver_GAME_11=\n', 'MouseOver_GAME_11=Adjust your walking and running speed in percent of the original (100). '
                              'Other characters, cutscenes and jumping height are not changed.\n'),
     ('MouseOver_VIDEO_10=Check this box to run the game full screen.\n',
-     'MouseOver_VIDEO_10=Scale menus, HUD and subtitles. Auto picks a size for the window height. '
-     'Use the window Maximize button (or Alt+Enter) for a maximized window.\n'),
+     'MouseOver_VIDEO_10=Check this box to play full screen (borderless; the resolution above is scaled to fit the '
+     'screen). Alt+Enter switches too.\n'),
+    ('MouseOver_VIDEO_12=\n', 'MouseOver_VIDEO_12=Scale menus, HUD and subtitles. Auto picks a size for the screen height.\n'),
 ]
 
 

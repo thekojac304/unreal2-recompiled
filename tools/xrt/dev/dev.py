@@ -510,6 +510,24 @@ def scene_proven(out, code):
     return {b'dev.Init.return', b'dev.scene.present'} <= names
 
 
+def _ini_section_span(text, name):
+    m = re.search(rb'(?m)^\[' + re.escape(name) + rb'\]\r?\n', text)
+    if not m:
+        return None
+    end = re.search(rb'(?m)^\[', text[m.end():])
+    return m.end(), m.end() + end.start() if end else len(text)
+
+def ini_section(text, name):
+    """The body lines of [name] (bytes, line endings kept), or b'' when absent."""
+    span = _ini_section_span(text, name)
+    return text[span[0]:span[1]] if span else b''
+
+def replace_ini_section(text, name, body):
+    span = _ini_section_span(text, name)
+    if not span:
+        raise RuntimeError(f'Unreal2.ini: section [{name.decode()}] not found')
+    return text[:span[0]] + body + text[span[1]:]
+
 def run(args):
     if not args.authorize_init:
         raise RuntimeError('No launch: separate explicit owner authorization is required; then use --authorize-init')
@@ -587,8 +605,9 @@ def run(args):
     sys.path.insert(0, str(HERE))
     import port
     port.apply(sandbox)
-    # --profile NAME (interactive play): the player's User.ini (bindings, preferences, [U2Port.PortSettings]) carried
-    # from one run to the next in out/dev-init/profiles/NAME; copied back after the game ends.
+    # --profile NAME (interactive play): the player's User.ini (bindings, preferences, [U2Port.PortSettings]) and the
+    # display section of Unreal2.ini ([WinDrv.WindowsClient]: resolution, StartupFullscreen, brightness, detail) carried
+    # from one run to the next in out/dev-init/profiles/NAME; copied back after the game ends. --windowed-res still wins.
     profile = None
     if args.profile:
         if not re.fullmatch(r'[A-Za-z0-9_-]{1,40}', args.profile):
@@ -597,6 +616,15 @@ def run(args):
         if (profile / 'User.ini').is_file():
             shutil.copy2(profile / 'User.ini', sandbox / 'System' / 'User.ini')
             print(f'dev: profile {args.profile}: User.ini restored', flush=True)
+        if (profile / 'WindowsClient.ini').is_file():
+            ini = sandbox / 'System' / 'Unreal2.ini'
+            text = ini.read_bytes()
+            keep = re.findall(rb'(?m)^WindowedViewport[XY]=\d+\r?\n', ini_section(text, b'WinDrv.WindowsClient')) if args.windowed_res else []
+            body = (profile / 'WindowsClient.ini').read_bytes()
+            for line in keep:
+                body = re.sub(rb'(?m)^' + re.escape(line.split(b'=')[0]) + rb'=\d+\r?\n', line, body)
+            ini.write_bytes(replace_ini_section(text, b'WinDrv.WindowsClient', body))
+            print(f'dev: profile {args.profile}: display settings restored', flush=True)
     # Developer helper copy (out/dev-init/dmusic_helper, named CallRoutine admitted); else the shared build.
     helper = BUILD / 'dmusic_helper.exe'
     if not helper.is_file():
@@ -686,7 +714,10 @@ def run(args):
         if profile and (sandbox / 'System' / 'User.ini').is_file():
             profile.mkdir(parents=True, exist_ok=True)
             shutil.copy2(sandbox / 'System' / 'User.ini', profile / 'User.ini')
-            print(f'dev: profile {args.profile}: User.ini saved', flush=True)
+            section = ini_section((sandbox / 'System' / 'Unreal2.ini').read_bytes(), b'WinDrv.WindowsClient')
+            if section:
+                (profile / 'WindowsClient.ini').write_bytes(section)
+            print(f'dev: profile {args.profile}: User.ini and display settings saved', flush=True)
         if code == 0 and outcome == 'exited':
             print('dev: the game exited normally (its own shutdown, ExitProcess(0))', flush=True)
         done = ('Init returned; world frames presented to the first-scene stop (console.txt names it; inspect scene-frame-*.bmp)'
