@@ -634,7 +634,33 @@ def replace_ini_section(text, name, body):
         raise RuntimeError(f'Unreal2.ini: section [{name.decode()}] not found')
     return text[:span[0]] + body + text[span[1]:]
 
+def play_defaults(args):
+    """--play: the settings of the owner's interactive runs (e.g. 20261101-222923) as one switch. Only fills in what the
+    command line left at its developer default; the developer defaults themselves (benchmarks, scripted batches) are
+    unchanged."""
+    if args.background or args.input:
+        raise RuntimeError('No launch: --play is interactive (real input); it cannot be combined with --background/--input')
+    args.allow_input = True
+    args.profile = args.profile or 'owner'
+    if args.sound == 'off':
+        args.sound = 'on'
+    args.first_scene = args.first_scene or 100000
+    if args.timeout == 60:
+        args.timeout = 600
+    args.scene_seconds = args.scene_seconds or max(1, args.timeout - 10)
+    args.campaign_assets = True
+    if args.capture == 'periodic':
+        args.capture = 'shots'          # periodic 4K captures cost GB of disk per session and frame hitches
+    if args.trace_profile == 'development':
+        args.trace_profile = 'quiet'
+    maps = Path(GAME_INSTALL) / 'Maps'
+    args.allow_map = sorted(set(args.allow_map) | {m.name for m in maps.glob('*.un2')})
+    args.question = args.question or 'Personal play session (--play)'
+    args.change = args.change or 'none (personal play)'
+
 def run(args):
+    if args.play:
+        play_defaults(args)
     if not args.authorize_init:
         raise RuntimeError('No launch: separate explicit owner authorization is required; then use --authorize-init')
     if args.first_scene and not args.authorize_first_scene:
@@ -869,7 +895,13 @@ def main():
     sub.add_parser('observe')
     r = sub.add_parser('run')
     r.add_argument('--authorize-init', action='store_true', help='acknowledge separately granted owner authorization for this development Init run')
-    r.add_argument('--question', required=True); r.add_argument('--change', required=True)
+    r.add_argument('--question', default=''); r.add_argument('--change', default='')
+    r.add_argument('--play', action='store_true',
+                   help='personal play (owner): the interactive defaults of the owner\'s own runs - real keyboard/mouse '
+                        '(--allow-input), --profile owner, --sound on, past Init for the longest contained run (--first-scene, '
+                        '--timeout 600), every retail single-player map allowed, install campaign content, no periodic '
+                        'back-buffer captures, quiet trace; explicit options still win. The owner authorization flags stay '
+                        'explicit (--authorize-init --authorize-first-scene)')
     r.add_argument('--timeout', type=int, choices=range(1, 601), default=60, metavar='1..600')
     r.add_argument('--attach', action='store_true')
     r.add_argument('--authorize-first-scene', action='store_true',

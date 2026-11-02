@@ -27,6 +27,13 @@ int xrt_lifted_overlap(uint32_t a, uint32_t size, uint32_t* end) {
 }
 void xrt_log(const char* fmt, ...) { va_list a; va_start(a, fmt); printf("     log: "); vprintf(fmt, a); printf("\n"); va_end(a); }
 
+/* The bump region ends at the end of the last pool segment (two segments since the beta batch). */
+#ifdef XRT_POOL2_END
+#define POOL_LAST_END XRT_POOL2_END
+#else
+#define POOL_LAST_END 0x20000000u
+#endif
+
 static int failures;
 #define CHECK(cond, what) do { if (!(cond)) { printf("FAIL %s\n", what); failures++; } else printf("ok   %s\n", what); } while (0)
 
@@ -66,8 +73,8 @@ int main(void) {
     CHECK(xrt_virtual_free(NULL, c), "ordinary free still works");
     {   /* pressure: the bump region runs out while most of the pool is free (blocks of other sizes) - the level-transition
          * case of run 20261101-133834. Reclaim releases warm staging blocks, merges adjacent free blocks and best-fits. */
-        static uint32_t blocks[128]; unsigned n = 0, i, overlap = 0; uint32_t big, warm, lo, hi;
-        while (n < 128) { blocks[n] = xrt_virtual_alloc(NULL, 3u << 20); if (blocks[n] + (3u << 20) > 0x1F000000u) { n++; break; } n++; }
+        static uint32_t blocks[320]; unsigned n = 0, i, overlap = 0; uint32_t big, warm, lo, hi;
+        while (n < 320) { blocks[n] = xrt_virtual_alloc(NULL, 3u << 20); if (blocks[n] + (3u << 20) > POOL_LAST_END - (16u << 20)) { n++; break; } n++; }
         printf("     filled the pool with %u blocks of 3 MiB (last at %08x)\n", n, blocks[n - 1]);
         for (i = 0, overlap = 0; i < n; i++) if (blocks[i] < FAKE_IMAGE_HI && FAKE_IMAGE_LO < blocks[i] + (3u << 20)) overlap++;
         CHECK(!overlap && blocks[n - 1] > FAKE_IMAGE_HI, "lifted image: the bump region steps over a module image inside the pool");

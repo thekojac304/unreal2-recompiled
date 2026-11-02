@@ -1,0 +1,304 @@
+diff --git a/out/dev-init-savepoints/perf-r4d-20261102/runtime/xrt_internal.h b/out/dev-init/runtime/xrt_internal.h
+index 8e91705..b3c8198 100644
+--- a/out/dev-init-savepoints/perf-r4d-20261102/runtime/xrt_internal.h
++++ b/out/dev-init/runtime/xrt_internal.h
+@@ -22,8 +22,10 @@ struct XrtModule;
+  *                        of its runs loaded them)
+  * 0x10100000-...         Core.dll image (preferred base); Engine.dll at its preferred base 0x10300000;
+  *                        Window.dll at its preferred base 0x11000000
+- * 0x20000000-0x7FEFFFFF  guest heap (malloc/realloc/free, HeapAlloc); stays below 2 GB like the original
+- *                        (non large-address-aware) process
++ * 0x12000000-0x1FFFFFFF  guest VirtualAlloc pool, first segment (client; lifted images inside it are skipped)
++ * 0x20000000-0x5FFFFFFF  guest heap (malloc/realloc/free, HeapAlloc); the game peaks near 50 MB
++ * 0x60000000-0x7FEFFFFF  guest VirtualAlloc pool, second segment (beta batch: the 224 MB first segment fragmented
++ *                        in long sessions; the original non large-address-aware process had all of its 2 GB)
+  * System module handles are typed opaque tokens backed by owned host loader references. They are not images. */
+ #define XRT_RT_BASE 0x00010000u
+ #define XRT_RT_END 0x00300000u
+@@ -33,8 +35,12 @@ struct XrtModule;
+ #define XRT_HOST_RETURN (XRT_STUB_END - XRT_STUB_SIZE)   /* sentinel return address for host->guest calls */
+ #define XRT_STACK_BASE 0x01000000u
+ #define XRT_STACK_END 0x10000000u
++#define XRT_POOL_BASE 0x12000000u
++#define XRT_POOL_END 0x20000000u
+ #define XRT_HEAP_BASE 0x20000000u
+-#define XRT_HEAP_END 0x7FF00000u
++#define XRT_HEAP_END 0x60000000u
++#define XRT_POOL2_BASE 0x60000000u
++#define XRT_POOL2_END 0x7FF00000u
+ #define XRT_MAX_MODULES 32 /* Includes unloaded slots; client packages exceed the old eight-module limit. */
+ 
+ /* exit codes used by the runtime itself (guest exit codes are passed through unchanged) */
+@@ -57,6 +63,9 @@ uint32_t xrt_heap_msize(CPU* c, uint32_t p);
+ void xrt_heap_stats(uint64_t* allocs, uint64_t* frees, uint64_t* bytes_live, uint32_t* high_water);
+ uint32_t xrt_virtual_alloc(CPU* c, uint32_t size);
+ int xrt_virtual_free(CPU* c, uint32_t base);
++typedef struct { uint32_t blocks, live_blocks, bump_next, bump_high, reclaims, splits, largest_free;
++                 uint64_t live_reserved, free_reserved, staging_reserved; } XrtPoolStats;
++void xrt_virtual_stats(XrtPoolStats* s);                     /* guest VirtualAlloc pool, for the runtime report */
+ uint32_t xrt_guest_strdup_a(const char* s);                  /* into the runtime region */
+ uint32_t xrt_guest_strlen16(uint32_t p);
+ 
+diff --git a/out/dev-init-savepoints/perf-r4d-20261102/runtime/xrt_main.c b/out/dev-init/runtime/xrt_main.c
+index 941ec1e..0696631 100644
+--- a/out/dev-init-savepoints/perf-r4d-20261102/runtime/xrt_main.c
++++ b/out/dev-init/runtime/xrt_main.c
+@@ -130,8 +130,16 @@ void xrt_report_write(uint32_t exit_code, const char* outcome) {
+     xrt_events_report(f);
+     xrt_eh_report(f);
+     xrt_heap_stats(&a, &fr, &live, &hw);
+-    fprintf(f, ",\n \"guest_heap\": {\"allocs\": %llu, \"frees\": %llu, \"live_bytes\": %llu, \"high_water\": %u}\n}\n",
++    fprintf(f, ",\n \"guest_heap\": {\"allocs\": %llu, \"frees\": %llu, \"live_bytes\": %llu, \"high_water\": %u}",
+             a, fr, live, hw);
++    {
++        XrtPoolStats ps;
++        xrt_virtual_stats(&ps);
++        fprintf(f, ",\n \"guest_virtual_pool\": {\"blocks\": %u, \"live_blocks\": %u, \"live_reserved\": %llu, \"free_reserved\": %llu, "
++                   "\"staging_reserved\": %llu, \"largest_free\": %u, \"bump_next\": \"0x%08x\", \"bump_high\": \"0x%08x\", "
++                   "\"reclaims\": %u, \"splits\": %u}\n}\n", ps.blocks, ps.live_blocks, ps.live_reserved, ps.free_reserved,
++                ps.staging_reserved, ps.largest_free, ps.bump_next, ps.bump_high, ps.reclaims, ps.splits);
++    }
+     if (fclose(f) == 0)
+         MoveFileExA(tmp, xrt_report_path, MOVEFILE_REPLACE_EXISTING | MOVEFILE_WRITE_THROUGH);
+ }
+diff --git a/out/dev-init-savepoints/perf-r4d-20261102/runtime/xrt_mem.c b/out/dev-init/runtime/xrt_mem.c
+index bc2a0c6..ca5f4fa 100644
+--- a/out/dev-init-savepoints/perf-r4d-20261102/runtime/xrt_mem.c
++++ b/out/dev-init/runtime/xrt_mem.c
+@@ -172,9 +172,10 @@ uint32_t xrt_guest_strlen16(uint32_t p) {
+  * Only NULL-address, read/write reserve+commit and whole-block release are currently exposed by the HLE. */
+ typedef struct { uint32_t base, reserved, committed; int live, warm; } VirtualBlock;
+ static VirtualBlock virtual_blocks[4096];
+-static uint32_t virtual_next = 0x12000000u;
++static uint32_t virtual_next = XRT_POOL_BASE;
+ static int nvirtual;
+ static SRWLOCK virtual_lock = SRWLOCK_INIT;
++static uint32_t virtual_reclaims, virtual_splits, virtual_high = XRT_POOL_BASE;
+ /* Pool pressure (the bump region is used up): blocks were only ever re-used at their exact reserve size, so a level
+  * transition with many new sizes ran the 224 MB pool out while most of it was free (TutA -> TutB, run
+  * 20261101-133834). Reclaim, still under virtual_lock: decommit warm staging blocks, merge address-adjacent free
+@@ -194,7 +195,65 @@ static void virtual_reclaim(void) {
+         virtual_blocks[j++] = *b;
+     }
+     nvirtual = j;
+-    xrt_log("VirtualAlloc pool reclaim: %d warm staging blocks released, %d free blocks merged, %d blocks", warm, merged, nvirtual);
++    /* A free block that ends the bump region goes back to it (the table stays in address order: every later block is
++     * bumped above it). */
++    if (nvirtual && !virtual_blocks[nvirtual - 1].live && !virtual_blocks[nvirtual - 1].warm &&
++        virtual_blocks[nvirtual - 1].base + virtual_blocks[nvirtual - 1].reserved == virtual_next) {
++        virtual_next = virtual_blocks[--nvirtual].base;
++        merged++;
++    }
++    virtual_reclaims++;
++    if (warm || merged)
++        xrt_log("VirtualAlloc pool reclaim: %d warm staging blocks released, %d free blocks merged, %d blocks", warm, merged, nvirtual);
++}
++/* Pool pressure, part 2 (round-4 finding G, beta batch): a reused free block used to be taken whole, so after one
++ * reclaim a tail of new sizes consumed the large merged runs and exhausted the pool with most of it free. The smallest
++ * free block that fits is now split: the caller keeps the low `reserve` bytes and the rest stays a free block of its
++ * own, inserted right after it so the table keeps address order (virtual_reclaim merges it back once it and a
++ * neighbour are free). Free blocks hold no committed pages, so the remainder needs no memory operation. With a full
++ * table the block is taken whole, as before. */
++static VirtualBlock* virtual_best_fit(uint64_t reserve) {
++    VirtualBlock* b = NULL;
++    int i;
++    for (i = 0; i < nvirtual; i++)
++        if (!virtual_blocks[i].live && !virtual_blocks[i].warm && virtual_blocks[i].reserved >= reserve &&
++            (!b || virtual_blocks[i].reserved < b->reserved))
++            b = &virtual_blocks[i];
++    if (b && b->reserved > reserve && nvirtual < 4096) {
++        int k = (int)(b - virtual_blocks);
++        memmove(&virtual_blocks[k + 2], &virtual_blocks[k + 1], (size_t)(nvirtual - k - 1) * sizeof *b);
++        nvirtual++;
++        virtual_blocks[k + 1].base = b->base + (uint32_t)reserve;
++        virtual_blocks[k + 1].reserved = b->reserved - (uint32_t)reserve;
++        virtual_blocks[k + 1].committed = 0; virtual_blocks[k + 1].live = 0; virtual_blocks[k + 1].warm = 0;
++        b->reserved = (uint32_t)reserve;
++        virtual_splits++;
++    }
++    return b;
++}
++/* Room for `reserve` bytes at the bump pointer. A lifted module image inside the pool range (UI.dll at 0x19100000) is
++ * stepped over (TutB load, run 20261101-134219). When the first segment cannot hold the request, the bump pointer moves
++ * to the second segment; the unused tail of the first becomes a free block, so it is reused like any other. */
++static int virtual_bump_room(uint64_t reserve) {
++    for (;;) {
++        uint32_t seg_end = virtual_next < XRT_POOL2_BASE ? XRT_POOL_END : XRT_POOL2_END, end;
++        if (virtual_next + reserve <= seg_end) {
++            if (!xrt_lifted_overlap(virtual_next, (uint32_t)reserve, &end) || end <= virtual_next)
++                return 1;
++            xrt_log("VirtualAlloc pool: bump region %08x skips the lifted image ending at %08x", virtual_next, end);
++            virtual_next = (end + 0xFFFFu) & ~0xFFFFu;
++            continue;
++        }
++        if (seg_end != XRT_POOL_END)
++            return 0;
++        if (virtual_next < XRT_POOL_END && nvirtual < 4096 && !xrt_lifted_overlap(virtual_next, XRT_POOL_END - virtual_next, &end)) {
++            VirtualBlock* g = &virtual_blocks[nvirtual++];
++            g->base = virtual_next; g->reserved = XRT_POOL_END - virtual_next; g->committed = 0; g->live = 0; g->warm = 0;
++        }
++        xrt_log("VirtualAlloc pool: first segment used up at %08x, continuing in the second segment at %08x", virtual_next,
++                XRT_POOL2_BASE);
++        virtual_next = XRT_POOL2_BASE;
++    }
+ }
+ uint32_t xrt_virtual_alloc(CPU* c, uint32_t size) {
+     uint64_t reserve = ((uint64_t)size + 0xFFFFu) & ~0xFFFFull;
+@@ -204,32 +263,25 @@ uint32_t xrt_virtual_alloc(CPU* c, uint32_t size) {
+     AcquireSRWLockExclusive(&virtual_lock);
+     for (i = 0; i < nvirtual; i++)
+         if (!virtual_blocks[i].live && !virtual_blocks[i].warm && virtual_blocks[i].reserved == reserve) { b = &virtual_blocks[i]; break; }
+-    /* A lifted module image inside the pool range (UI.dll at 0x19100000) ends the bump region before XRT_HEAP_BASE: step
+-     * over the image instead of failing (TutB load, run 20261101-134219), then reclaim if the pool is still exhausted. */
+-    if (!b && size && reserve <= 0x0E000000u) {
+-        uint32_t end;
+-        while (virtual_next + reserve <= XRT_HEAP_BASE && xrt_lifted_overlap(virtual_next, (uint32_t)reserve, &end) &&
+-               end > virtual_next) {
+-            xrt_log("VirtualAlloc pool: bump region %08x skips the lifted image ending at %08x", virtual_next, end);
+-            virtual_next = (end + 0xFFFFu) & ~0xFFFFu;
++    /* Exact size first, then the bump region (both segments); only when that is used up (or the table is full), a
++     * split best fit, then a reclaim and a second best fit. */
++    if (!b && size && reserve <= 0x0E000000u && (nvirtual == 4096 || !virtual_bump_room(reserve))) {
++        b = virtual_best_fit(reserve);
++        if (!b) {
++            virtual_reclaim();
++            b = virtual_best_fit(reserve);
+         }
+     }
+-    if (!b && size && reserve <= 0x0E000000u && (nvirtual == 4096 || virtual_next + reserve > XRT_HEAP_BASE)) {
+-        virtual_reclaim();
+-        for (i = 0; i < nvirtual; i++)
+-            if (!virtual_blocks[i].live && virtual_blocks[i].reserved >= reserve && (!b || virtual_blocks[i].reserved < b->reserved))
+-                b = &virtual_blocks[i];
+-    }
+     if (!b) {
+-        uint32_t end;
+-        if (!size || reserve > 0x0E000000u || nvirtual == 4096 || virtual_next + reserve > XRT_HEAP_BASE ||
+-            xrt_lifted_overlap(virtual_next, (uint32_t)reserve, &end)) {
++        if (!size || reserve > 0x0E000000u || nvirtual == 4096 || !virtual_bump_room(reserve)) {
+             ReleaseSRWLockExclusive(&virtual_lock);
+             xrt_fatal(c, XRT_EXIT_UNSUPPORTED, "VirtualAlloc: bounded client pool exhausted or overlaps a lifted module (size %u)", size);
+         }
+         b = &virtual_blocks[nvirtual++];
+         b->base = virtual_next; b->reserved = (uint32_t)reserve;
+         virtual_next += (uint32_t)reserve;
++        if (virtual_next > virtual_high)
++            virtual_high = virtual_next;
+     }
+     xrt_commit(b->base, commit);
+     b->committed = commit; b->live = 1;
+@@ -237,6 +289,21 @@ uint32_t xrt_virtual_alloc(CPU* c, uint32_t size) {
+     ReleaseSRWLockExclusive(&virtual_lock);
+     return (uint32_t)i;
+ }
++/* Pool figures for the runtime report: live/free/staging bytes by block state, table size, bump high water. */
++void xrt_virtual_stats(XrtPoolStats* s) {
++    int i;
++    memset(s, 0, sizeof *s);
++    AcquireSRWLockShared(&virtual_lock);
++    for (i = 0; i < nvirtual; i++) {
++        const VirtualBlock* b = &virtual_blocks[i];
++        if (b->live) { s->live_blocks++; s->live_reserved += b->reserved; }
++        else if (b->warm) s->staging_reserved += b->reserved;
++        else { s->free_reserved += b->reserved; if (b->reserved > s->largest_free) s->largest_free = b->reserved; }
++    }
++    s->blocks = (uint32_t)nvirtual; s->bump_next = virtual_next; s->bump_high = virtual_high;
++    s->reclaims = virtual_reclaims; s->splits = virtual_splits;
++    ReleaseSRWLockShared(&virtual_lock);
++}
+ int xrt_virtual_free(CPU* c, uint32_t base) {
+     int i;
+     (void)c;
+@@ -346,6 +413,7 @@ typedef struct { uint32_t blk, cap; } LargeFree;
+ static LargeFree* large_free;
+ static uint32_t nlarge, large_cap;
+ static uint64_t st_allocs, st_frees, st_live;
++static uint32_t heap_pressure_allocs;
+ 
+ static uint32_t bump(uint32_t total) {
+     uint32_t b = heap_top;
+@@ -362,6 +430,54 @@ static uint32_t bump(uint32_t total) {
+     return b;
+ }
+ 
++/* Heap pressure (beta batch, defensive: the game's guest heap peaks near 50 MB of the 1.5 GB region): large free blocks
++ * are kept whole, unsorted, so a long session could end the bump region with most of it free. Only when bump fails:
++ * sort the large free list by address, merge address-adjacent blocks (header + payload contiguous), and give a free
++ * block that ends at heap_top back to the bump region. Small-class blocks stay on their lists. Normal allocation order
++ * and addresses are unchanged until the first such failure. */
++static int large_by_addr(const void* a, const void* b) {
++    uint32_t x = ((const LargeFree*)a)->blk, y = ((const LargeFree*)b)->blk;
++    return x < y ? -1 : x > y;
++}
++static void heap_coalesce(void) {
++    uint32_t i, j;
++    if (!nlarge)
++        return;
++    qsort(large_free, nlarge, sizeof *large_free, large_by_addr);
++    for (i = 1, j = 0; i < nlarge; i++) {
++        if (large_free[j].blk + HDR + large_free[j].cap == large_free[i].blk) {
++            large_free[j].cap += HDR + large_free[i].cap;
++            wr32(large_free[j].blk + 4, large_free[j].cap);
++        } else {
++            large_free[++j] = large_free[i];
++        }
++    }
++    nlarge = j + 1;
++    if (large_free[nlarge - 1].blk + HDR + large_free[nlarge - 1].cap == heap_top)
++        heap_top = large_free[--nlarge].blk;
++}
++/* Best fit from the large free list; under pressure a block with at least two pages to spare is split and the rest
++ * stays free (page-rounded, so it stays a large block). */
++static uint32_t large_take(uint32_t* cap, int split) {
++    uint32_t i, best = UINT32_MAX, blk;
++    for (i = 0; i < nlarge; i++)
++        if (large_free[i].cap >= *cap && (best == UINT32_MAX || large_free[i].cap < large_free[best].cap))
++            best = i;
++    if (best == UINT32_MAX)
++        return 0;
++    blk = large_free[best].blk;
++    if (split && large_free[best].cap - *cap >= 0x2000u) {
++        uint32_t rest = blk + HDR + *cap;
++        large_free[best].blk = rest;
++        large_free[best].cap -= HDR + *cap;
++        wr32(rest, 0); wr32(rest + 4, large_free[best].cap); wr32(rest + 8, MAGIC_FREE); wr32(rest + 12, 0);
++    } else {
++        *cap = large_free[best].cap;
++        large_free[best] = large_free[--nlarge];
++    }
++    return blk;
++}
++
+ uint32_t xrt_heap_alloc(uint32_t size) {
+     uint32_t cap, blk = 0;
+     if (size > 0x7FF00000u)
+@@ -375,19 +491,20 @@ uint32_t xrt_heap_alloc(uint32_t size) {
+             small_free[k] = rd32(blk + HDR);
+         } else {
+             blk = bump(HDR + cap);
++            if (!blk) { heap_coalesce(); blk = bump(HDR + cap); }
+         }
+     } else {
+-        uint32_t i, best = UINT32_MAX;
+         cap = ((cap + HDR + 0xFFFu) & ~0xFFFu) - HDR;
+-        for (i = 0; i < nlarge; i++)
+-            if (large_free[i].cap >= cap && (best == UINT32_MAX || large_free[i].cap < large_free[best].cap))
+-                best = i;
+-        if (best != UINT32_MAX) {
+-            blk = large_free[best].blk;
+-            cap = large_free[best].cap;
+-            large_free[best] = large_free[--nlarge];
+-        } else {
++        blk = large_take(&cap, 0);
++        if (!blk)
+             blk = bump(HDR + cap);
++        if (!blk) {
++            heap_coalesce();
++            blk = large_take(&cap, 1);
++            if (!blk)
++                blk = bump(HDR + cap);
++            if (blk && heap_pressure_allocs++ < 8)
++                xrt_log("guest heap pressure: coalesced to %u large free blocks, served %u bytes at %08x", nlarge, cap, blk);
+         }
+     }
+     if (blk) {

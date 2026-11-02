@@ -69,14 +69,27 @@ int main(void) {
     CHECK(zero, "newly committed bytes are zero");
     CHECK(xrt_staging_guard_put(NULL, e), "put of the larger block");
     {   /* pool pressure: fill the bump region exactly (8 MiB blocks, then the remainder), free one 8 MiB block, then ask
-         * for a 6 MiB block, a size class that exists nowhere: the allocator reclaims (warm and guarded blocks alike are
-         * decommitted) and best-fits into the freed block */
+         * for a 6 MiB block, a size class that exists nowhere: the allocator best-fits (splits) it; then a request only a merge
+         * can serve makes it reclaim (warm and guarded blocks alike are decommitted) */
         static uint32_t blocks[64]; unsigned n = 0; uint32_t fitted, end;
         do { blocks[n] = xrt_virtual_alloc(NULL, 8u << 20); end = blocks[n] + (8u << 20); n++; } while (n < 64 && end + (8u << 20) <= XRT_HEAP_BASE);
         if (end < XRT_HEAP_BASE) xrt_virtual_alloc(NULL, XRT_HEAP_BASE - end);   /* the bump region is now used up */
+#ifdef XRT_POOL2_BASE
+        {   /* and the second pool segment (beta batch), the same way */
+            uint32_t e2 = XRT_POOL2_BASE, b2;
+            while (e2 + (8u << 20) <= XRT_POOL2_END) { b2 = xrt_virtual_alloc(NULL, 8u << 20); e2 = b2 + (8u << 20); }
+            if (e2 < XRT_POOL2_END) xrt_virtual_alloc(NULL, XRT_POOL2_END - e2);
+        }
+#endif
         xrt_virtual_free(NULL, blocks[n / 2]);
         fitted = xrt_virtual_alloc(NULL, 6u << 20);
-        CHECK(fitted == blocks[n / 2], "pool pressure: the allocator reclaimed and best-fit the freed block");
+        CHECK(fitted == blocks[n / 2], "pool pressure: the allocator best-fit (and split) the freed block");
+        CHECK(protect(a) == PAGE_NOACCESS, "a free block fitted, so no reclaim: the guarded block is still closed");
+        /* beta batch: reclaim only when no free block fits. Free the next 8 MiB block and ask for 9 MiB: only the merge
+         * of the 2 MiB split remainder with it fits, so the allocator reclaims (decommitting the guarded block). */
+        xrt_virtual_free(NULL, blocks[n / 2 + 1]);
+        fitted = xrt_virtual_alloc(NULL, 9u << 20);
+        CHECK(fitted == blocks[n / 2] + (6u << 20), "pool pressure: the reclaim merged the remainder with its free neighbour");
         CHECK(!protect(a), "reclaim decommitted the guarded block");
     }
     printf(failures ? "FAIL: %d check(s)\n" : "PASS\n", failures);

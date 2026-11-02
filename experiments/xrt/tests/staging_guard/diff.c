@@ -150,9 +150,9 @@ static void ordinary(int k) {
     }
 }
 static void pressure(void) {   /* fill the pool with 2 MiB ordinary blocks until the allocator reclaims, then release them */
-    static uint32_t big[128];
+    static uint32_t big[512];
     unsigned n = 0, k, before = reclaims;
-    while (n < 100 && reclaims == before) { big[n] = xrt_virtual_alloc(NULL, 2u << 20); memset(G2H(big[n]), 1, 4096); n++; }
+    while (n < 512 && reclaims == before) { big[n] = xrt_virtual_alloc(NULL, 2u << 20); memset(G2H(big[n]), 1, 4096); n++; }
     for (k = 0; k < n; k++) xrt_virtual_free(NULL, big[k]);
     printf("P ok\n");   /* how many blocks fit before a reclaim depends on the mode's pool layout: not guest-visible */
 }
@@ -166,16 +166,15 @@ int main(int argc, char** argv) {
     QueryPerformanceFrequency(&f);
     xrt_mem_init();
     for (i = 0; i < NBUF; i++) create(i);
-    for (op = 0; op < ops + 400; op++) {
+    for (op = 0; op < ops + 4000; op++) {
         uint32_t r = rnd() % 1000, i = rnd() % NBUF;
-        /* the last 400 operations follow one pool-pressure phase: the allocator has reclaimed (guarded blocks decommitted
-         * like strict's), and Locks must get blocks again. They make no new ordinary allocations: once the bump region
-         * is used up the pool reuses whole blocks without splitting, which would test its capacity, not the modes. */
+        /* the last 4000 operations follow one pool-pressure phase: the allocator has reclaimed (guarded blocks decommitted
+         * like strict's), and Locks, ordinary allocations and buffer re-creations must get blocks again (beta batch: free
+         * blocks are split, so the tail no longer has to avoid new sizes; it was 400 operations without them before). */
         if (op == ops) pressure();
         if (r < 380) lock(i);
         else if (r < 560) write_some(i);
         else if (r < 940) unlock(i);
-        else if (op >= ops) continue;
         else if (r < 995) ordinary(rnd() % NORD);
         else { destroy(i); create(i); printf("R %d len %u\n", i, buf[i].length); }
     }

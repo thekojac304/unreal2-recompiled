@@ -487,6 +487,9 @@ int xrt_dev_background(void) {
  *                    it does not depend on the map's mouse scale) and holds W while facing it within 25 deg; ends within
  *                    R uu (default 48) or after 30 s, logged either way. A later goto replaces it.
  *   face:X:Y         turn only (same steering, no walking) until facing X,Y within 2.5 deg, or 3 s
+ *   sync[:MS]        while a goto/face is still running, hold the script clock (every later step shifts) until it ends,
+ *                    or for at most MS (default 30000); logged. Lets a route survive a blocked moment (an NPC in a
+ *                    corridor) instead of later gotos cutting corners on fixed times.
  *   ws:0 | ws:1      working-set probe: empty the working set | count the pages touched since (ws_probe)
  *   size:W:H         resize the game window to a W x H client area (SetWindowPos without activation or z-order
  *                    change, as a user's resize does; applied by xrt_dev_input_window_actions inside the guest's
@@ -525,6 +528,7 @@ static void input_parse(void) {
         else if (!strcmp(verb, "size")) s.verb = 'z';
         else if (!strcmp(verb, "goto")) s.verb = 'g';
         else if (!strcmp(verb, "face")) s.verb = 'f';
+        else if (!strcmp(verb, "sync")) s.verb = 'y';
         else if (!strcmp(verb, "ws")) s.verb = 'w';
         else { xrt_log("DEV input script: unknown verb '%s'; script ignored from here", verb); break; }
         if (*v == ':') s.a = (int)strtol(v + 1, (char **)&v, 0);
@@ -610,6 +614,7 @@ static void key_post(unsigned vk, int down) {
 static void view_log(const char *why);
 static void goto_tick(ULONGLONG now);
 static struct { int active, turn_only; double x, y, r; ULONGLONG deadline, next; } go;
+static struct { int on; ULONGLONG last, until, total; } in_sync;
 /* Called from the guest's message pump before each host PeekMessage. */
 void xrt_dev_input_tick(void) {
     ULONGLONG now; unsigned i; int ours;
@@ -670,6 +675,12 @@ void xrt_dev_input_tick(void) {
         if (f >= 1.0) in_moves[i].start = 0;
     }
     goto_tick(now);
+    if (in_sync.on) {
+        in_paused += now - in_sync.last; in_sync.total += now - in_sync.last; in_sync.last = now;
+        if (go.active && now < in_sync.until) return;
+        xrt_log("DEV sync %s at +%llu ms (script clock held %llu ms in all)", go.active ? "TIMEOUT" : "done", now - init_ms, in_sync.total);
+        in_sync.on = 0;
+    }
     while (in_next < in_count && now - init_ms - in_paused >= in_steps[in_next].t) {
         InputStep *s = &in_steps[in_next++];
         xrt_log("DEV input step %u at +%llu ms: %c %d %d %d", in_next, now - init_ms, s->verb, s->a, s->b, s->c);
@@ -695,6 +706,8 @@ void xrt_dev_input_tick(void) {
             go.active = 1; go.turn_only = 0; go.x = s->a; go.y = s->b; go.r = s->c > 0 ? s->c : 48; go.deadline = now + 30000; go.next = now;
         } else if (s->verb == 'f') {
             go.active = 1; go.turn_only = 1; go.x = s->a; go.y = s->b; go.r = 0; go.deadline = now + 3000; go.next = now;
+        } else if (s->verb == 'y') {
+            if (go.active) { in_sync.on = 1; in_sync.last = now; in_sync.until = now + (s->a > 0 ? (unsigned)s->a : 30000); break; }
         } else if (s->verb == 'z') {
             if (s->a < 160 || s->b < 120 || s->a > 8192 || s->b > 8192) { xrt_log("DEV input: size step refused"); continue; }
             in_resize_w = s->a; in_resize_h = s->b;
