@@ -126,10 +126,10 @@ index f49f534..14f4d2f 100644
  static void hle_TranslateMessage(CPU*c){translate_message(c);}
 diff --git a/out/dev-init/runtime/port_settings.c b/out/dev-init/runtime/port_settings.c
 new file mode 100644
-index 0000000..18e9a03
+index 0000000..4db9aa9
 --- /dev/null
 +++ b/out/dev-init/runtime/port_settings.c
-@@ -0,0 +1,156 @@
+@@ -0,0 +1,116 @@
 +/* Port settings: walking speed and UI scale.
 + *
 + * Persistence is the game's own: the settings helper U2Port.PortSettings (tools/xrt/dev/port/U2Port, registered by
@@ -141,11 +141,13 @@ index 0000000..18e9a03
 + *
 + * Walking speed: tools/xrt/dev/native/walk_speed.c wraps APawn::calcVelocity for the call from APawn::physWalking.
 + *
-+ * UI scale S: UUIConsole::PostRender sizes the UI root from the viewport and calls Root->Update(Frame, Renderer).
-+ * For that one call the root is laid out at 1/S of its size and location and the FUIRenderer's own scale stack
-+ * (PushScale/PopScale, vtable +0x18/+0x1c, as UScaleContainer uses it) draws it S times larger, so anchors, margins,
-+ * centring and the cursor/hit-testing all stay in one (virtual) coordinate space. UScaleContainer, which already
-+ * scales its children to the whole viewport, gets the inverse 1/S around its own update. */
++ * UI scale S: everything UUIConsole::PostRender draws takes its frame size from the viewport (SizeX +0x74, SizeY +0x78):
++ * the root's size and location, the FUIRenderer's orthographic projection and clip rectangle, UScaleContainer's scale,
++ * the console's FrameX/FrameY. For that one call the viewport reports W/S x H/S, so the whole UI is laid out in that
++ * virtual frame and the renderer's own projection maps it onto the full window: S times larger, aspect, anchors,
++ * margins and centring kept, the renderer setting and restoring its transforms as on every frame. The real size is
++ * restored right after. (A first attempt pushed an extra renderer scale around the root update: the UI stayed small
++ * and the transform leaked into the next frame's 3D view - owner's run of 2026-11-01 21:2x.) */
 +#define WIN32_LEAN_AND_MEAN
 +#include <windows.h>
 +#include <stdlib.h>
@@ -219,70 +221,28 @@ index 0000000..18e9a03
 +    return 1;
 +}
 +
-+/* Guest calls on the current thread (thiscall: ECX = object). */
-+static uint32_t guest_thiscall(CPU* c, uint32_t self, uint32_t fn, int nargs, const uint32_t* args) {
-+    c->r[ECX] = self;
-+    return xrt_call_guest(c, fn, nargs, args, 1);
-+}
-+static uint32_t scratch_dimension(CPU* c, float x, float y) {
-+    c->r[ESP] -= 16;
-+    wrf32(c->r[ESP], x); wrf32(c->r[ESP] + 4, y);
-+    return c->r[ESP];
-+}
-+static void push_scale(CPU* c, uint32_t renderer, float s) {
-+    uint32_t esp = c->r[ESP], dim = scratch_dimension(c, s, s);
-+    guest_thiscall(c, renderer, rd32(rd32(renderer) + 0x18), 1, &dim);
-+    c->r[ESP] = esp;
-+}
-+static void pop_scale(CPU* c, uint32_t renderer) { guest_thiscall(c, renderer, rd32(rd32(renderer) + 0x1c), 0, NULL); }
-+
-+/* UI.dll (preferred base 0x10000000) RVAs, from its exports and UUIConsole::PostRender. */
-+enum { UI_ROOT_UPDATE_RETURN = 0x7f82b, UI_GET_SIZE = 0x417e0, UI_GET_LOCATION = 0x41530, UI_SET_SIZE = 0x3e640,
-+       UI_SET_LOCATION = 0x3e430 };
-+
-+/* kind 1: UWindowsViewport::Exec(const TCHAR*, FOutputDevice&); 2: UComponentHandle::Update(FSceneNode*, FUIRenderer*);
-+ * 3: UScaleContainer::Update(FSceneNode*, FUIRenderer*). Returns 1 when the call was completed here. */
++/* kind 1: UWindowsViewport::Exec(const TCHAR*, FOutputDevice&); kind 2: UUIConsole::PostRender(FSceneNode* Frame).
++ * Returns 1 when the call was completed here. */
 +int xrt_port_call(CPU* c, unsigned kind, XrtFn fn) {
-+    uint32_t esp = c->r[ESP], ret = rd32(esp), self = c->r[ECX];
++    uint32_t esp = c->r[ESP];
 +    if (kind == 1) {
 +        uint32_t s = rd32(esp + 4);
 +        if (!s || !port_command((const uint16_t*)G2H(s))) return 0;
 +        c->r[EAX] = 1; c->rv = pop32(c); c->r[ESP] += 8;
 +        return 1;
 +    } else {
-+        /* kind 2 is flagged on every container update (hundreds per frame): only the root call site goes further */
-+        static XrtModule* ui;
-+        uint32_t frame, renderer, viewport;
++        uint32_t frame = rd32(esp + 4), viewport = frame ? rd32(frame + 4) : 0, w, h, vw, vh;
 +        float s;
-+        if (!ui && !(ui = xrt_module_by_name("UI.dll"))) return 0;
-+        if (kind == 2 && ret != ui->base + UI_ROOT_UPDATE_RETURN) return 0;
-+        if (!loaded) load();
-+        if (ui_choice == 100 && kind == 2) return 0;
-+        frame = rd32(esp + 4); renderer = rd32(esp + 8); viewport = frame ? rd32(frame + 4) : 0;
 +        if (!viewport) return 0;
-+        s = ui_scale(rd32(viewport + 0x78));
-+        if (s == 1.0f) return 0;
-+        if (kind == 2) {
-+            uint32_t out, args[1], dim;
-+            float w, h, x, y;
-+            /* layout at 1/S: root size and location as PostRender set them this frame, divided by S */
-+            c->r[ESP] -= 16; out = c->r[ESP];
-+            args[0] = out; guest_thiscall(c, self, ui->base + UI_GET_SIZE, 1, args);
-+            w = rdf32(out); h = rdf32(out + 4);
-+            guest_thiscall(c, self, ui->base + UI_GET_LOCATION, 1, args);
-+            x = rdf32(out); y = rdf32(out + 4);
-+            c->r[ESP] = esp;
-+            dim = scratch_dimension(c, w / s, h / s); guest_thiscall(c, self, ui->base + UI_SET_SIZE, 1, &dim); c->r[ESP] = esp;
-+            dim = scratch_dimension(c, x / s, y / s); guest_thiscall(c, self, ui->base + UI_SET_LOCATION, 1, &dim); c->r[ESP] = esp;
-+            if (logged++ < 8)
-+                xrt_log("port: UI root %gx%g at %g,%g laid out at 1/%g, drawn at x%g (viewport height %u)", w, h, x, y, s, s,
-+                        rd32(viewport + 0x78));
-+        }
-+        push_scale(c, renderer, kind == 2 ? s : 1.0f / s);
-+        c->r[ECX] = self;
-+        fn(c);                                   /* the update itself: pops its return address and two arguments */
-+        pop_scale(c, renderer);
-+        c->rv = ret;
++        w = rd32(viewport + 0x74); h = rd32(viewport + 0x78);
++        s = ui_scale(h);
++        if (s == 1.0f || !w || !h) return 0;
++        vw = (uint32_t)(w / s + 0.5f); vh = (uint32_t)(h / s + 0.5f);
++        if (logged++ < 8) xrt_log("port: UI drawn from a %ux%u frame on the %ux%u viewport (x%g)", vw, vh, w, h, s);
++        wr32(viewport + 0x74, vw); wr32(viewport + 0x78, vh);
++        fn(c);
++        /* restore the real size unless the game itself changed it meanwhile */
++        if (rd32(viewport + 0x74) == vw && rd32(viewport + 0x78) == vh) { wr32(viewport + 0x74, w); wr32(viewport + 0x78, h); }
 +        return 1;
 +    }
 +}
@@ -351,7 +311,7 @@ index 65e2b0b..c16635a 100644
  extern int xrt_scene_level_depth,xrt_scene_camera_depth;extern unsigned xrt_scene_level_renders,xrt_scene_camera_renders,xrt_scene_engine_ticks,xrt_scene_level_ticks;
  /* Developer first-scene mode (dev_support.c). */
 diff --git a/out/dev-init-savepoints/interactive-20261101/runtime-base/xrt_loader.c b/out/dev-init/runtime/xrt_loader.c
-index 475d976..7ddc583 100644
+index 475d976..03bff18 100644
 --- a/out/dev-init-savepoints/interactive-20261101/runtime-base/xrt_loader.c
 +++ b/out/dev-init/runtime/xrt_loader.c
 @@ -105,7 +105,8 @@ static uint32_t module_generation;
@@ -364,27 +324,25 @@ index 475d976..7ddc583 100644
  typedef XrtCallCache CallCache;   /* xrt.h: translated call sites read the hit path inline (ICALL) */
  /* Direct-mapped indirect-call target cache: 64K entries, indexed by a hash of the target that mixes in the
   * high bits (vtable targets of different modules otherwise collide in the low bits). */
-@@ -528,7 +529,12 @@ static __declspec(noinline) const CallCache*call_target_fill(uint32_t target) {
+@@ -528,7 +529,10 @@ static __declspec(noinline) const CallCache*call_target_fill(uint32_t target) {
      {
          XrtModule*m=xrt_module_by_addr(target);XrtFn fn=lookup_lifted(target);unsigned flags=0;
          if(!fn)return NULL;
 -        if(m&&!_stricmp(m->name,"WinDrv.dll"))flags=target-m->base==0x17c0?CALL_INPUT_INIT:target-m->base==0x3390?CALL_VIEWPORT_OPEN:target-m->base==0x49b0?CALL_VIEWPORT_TRY:0;
 +        if(m&&!_stricmp(m->name,"WinDrv.dll"))flags=target-m->base==0x17c0?CALL_INPUT_INIT:target-m->base==0x3390?CALL_VIEWPORT_OPEN:target-m->base==0x49b0?CALL_VIEWPORT_TRY:
 +                                                     target-m->base==0x5760?CALL_PORT_EXEC:0;   /* UWindowsViewport::Exec */
-+        /* Container Update functions (UUIConsole::PostRender's root is a UContainer; port_settings.c picks the root call
-+         * by its return address) and UScaleContainer::Update */
-+        if(m&&!_stricmp(m->name,"UI.dll")){unsigned r=target-m->base;
-+            flags=r==0x46ca0||r==0x5e0d0||r==0x63e90||r==0x6e9a0||r==0x64d30?CALL_PORT_UI_ROOT:r==0x5f270?CALL_PORT_UI_SCALE:0;}
++        /* UUIConsole::PostRender (UI scale) */
++        if(m&&!_stricmp(m->name,"UI.dll")&&target-m->base==0x7f460)flags=CALL_PORT_UI_ROOT;
          if(m&&!_stricmp(m->name,"Engine.dll"))flags=target-m->base==0x90f00?CALL_LOADMAP:target-m->base==0xb9160?CALL_POSTLOAD:0;
          if(m&&!_stricmp(m->name,"D3DDrv.dll")&&target-m->base==0xe890)flags=CALL_SETRES;
          e->va=target;e->gen=call_cache_gen;e->fn=fn;e->flags=flags;
-@@ -591,7 +597,12 @@ static void dispatch(CPU* c, uint32_t target, uint32_t site, const char* what) {
+@@ -591,7 +595,12 @@ static void dispatch(CPU* c, uint32_t target, uint32_t site, const char* what) {
              xrt_fatal(c, XRT_EXIT_TRAP, "%s at %s to %s, which is not a translated function entry or import", what, d, t);
          }
          fn=e->fn;
 -        if(!(e->flags&~CALL_SETRES)){fn(c);if(!c->thread||c->r[ESP]>=c->thread->world_floor)xrt_world_return(c);return;}
 +        if(e->flags&(CALL_PORT_EXEC|CALL_PORT_UI_ROOT|CALL_PORT_UI_SCALE) &&
-+           xrt_port_call(c,e->flags&CALL_PORT_EXEC?1:e->flags&CALL_PORT_UI_ROOT?2:3,fn)){
++           xrt_port_call(c,e->flags&CALL_PORT_EXEC?1:2,fn)){
 +            if(!c->thread||c->r[ESP]>=c->thread->world_floor)xrt_world_return(c);
 +            return;
 +        }
