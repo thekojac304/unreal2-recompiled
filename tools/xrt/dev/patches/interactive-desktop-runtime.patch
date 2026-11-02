@@ -716,6 +716,21 @@ index 0000000..6d6da68
 +        return 1;
 +    }
 +}
+diff --git a/out/dev-init-savepoints/interactive-20261101/runtime-base/resources.inc b/out/dev-init/runtime/resources.inc
+index 2e1f52c..c6a1cc5 100644
+--- a/out/dev-init-savepoints/interactive-20261101/runtime-base/resources.inc
++++ b/out/dev-init/runtime/resources.inc
+@@ -48,7 +48,9 @@ static const char* d8_cube_names[]={"D8R.QueryInterface","D8R.AddRef","D8R.Relea
+ static const char* d8_buffer_names[]={"D8R.QueryInterface","D8R.AddRef","D8R.Release","D8R.GetDevice","D8R.Unsupported","D8R.Unsupported","D8R.Unsupported","D8R.SetPriority","D8R.GetPriority","D8R.PreLoad","D8R.GetType","D8R.Lock","D8R.Unlock","D8R.GetDesc"};
+ static void d8_resource_guard(CPU*c) {
+  if(d8_rendering||d8_creating||d8_native_failed)xrt_fatal(c,76,"D3D8 resource: reentrant or failed native operation");
+- if(d8_device.host){xrt_gui_device_window(c,d8_device.focus);xrt_gui_device_window(c,d8_device.window);}
++ /* resources are released after the game destroyed the window at shutdown (d8_render_ready) */
++ if(d8_device.host){if(!xrt_gui_window_destroyed(d8_device.focus))xrt_gui_device_window(c,d8_device.focus);
++   if(!xrt_gui_window_destroyed(d8_device.window))xrt_gui_device_window(c,d8_device.window);}
+ }
+ /* Slot hint per guest token (index+1). Tokens are fresh xrt_rt_alloc cells, never reused, so at most one
+  * live slot holds a token; a hint is used only after the same live-slot test as the scan. */
 diff --git a/out/dev-init-savepoints/interactive-20261101/runtime-base/surface_transfer.inc b/out/dev-init/runtime/surface_transfer.inc
 index e1ae197..a1cd2a6 100644
 --- a/out/dev-init-savepoints/interactive-20261101/runtime-base/surface_transfer.inc
