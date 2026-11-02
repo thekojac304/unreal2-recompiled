@@ -804,3 +804,23 @@ perf-r3-20261102 recommended; owner granted 24 launches / 12,000 s, used 20 / 5,
     samples.bin/frames.csv are only written at a scene stop, not at a normal game exit; xrt.log fills with _controlfp lines;
     a single pointer-chase polluter cannot take L3 from a set re-touched every frame (use several small hot loops); powershell
     -File mangles string arrays; Git Bash rewrites >nul in written .cmd files; `small` is a Windows header macro.
+
+Performance round 4 (2026-11-02 evening; report tools/xrt/dev/PERF_REPORT_20261102_R4.md; 24 of 24 owner-authorized launches,
+6,454 s of 12,000; commit ba195ec + the report commit; recommended save point out/dev-init-savepoints/perf-r4d-20261102):
+  - xlift --opt ehframe: EH landing pads without setjmp (XRT_EH_FN noinline pad functions, xrt.h XRT_EH_FRAMES, runtime
+    xrt_eh.c land_frame -> RtlUnwindEx to the pad's frame -> xrt_eh_land.asm trampoline -> xrt_eh_land_entry returns from the
+    frame); dev.py adds /DXRT_EH_FRAMES and assembles the trampoline when the lift has the option and refuses mixed lifts.
+    Lift: dev.py lift --opt addr64,base,cflags,ehframe,flags,icall,iflags,lazypc,pc,rdtsc,regcache,regs,restrict,rv,sse,x87,x87v,x87w
+    <all 17 modules>, dev.py lift-audio --opt <same>, dev.py build --full --lean --order tools/xrt/dev/order-r4-multi.txt
+    (full generated rebuild now ~1 min 40 s). Test: tools/xrt/tests/ehprobe/build_and_run_dev.cmd frames|setjmp.
+  - Runtime (patch tools/xrt/dev/patches/perf-batch4-runtime.patch against R3): staging range hints in their own slots,
+    quiet-profile fast paths (monitor scope/native/resource/values and the generated wrappers), one window check per device
+    call, xrt_is_committed treats guard-mode PAGE_NOACCESS pages as uncommitted.
+  - Guard staging: strict-vs-guard differential test experiments/xrt/tests/staging_guard (run.cmd: test.c + diff.c) PASS;
+    recommended as the play default (owner decision; dev.py still defaults to strict).
+  - Measured (TutA, interleaved): CCD0 R3 -> R4c +11-14% gameplay, +34% CS_Intro, +32% pause; guard +1-5% more; CCD1 R3 ->
+    R4d +15-22% gameplay, +44% CS_Intro, +36% pause. Multi-scene order: fewer code pages per scene, FPS within noise.
+  - Gotchas: order_check.py mis-reports when several exes are checked in one process (dbghelp reuses the module): one exe per
+    call; a scripted console exit means no samples.bin (use a scene stop for sampled runs); CCD1 run-to-run spread is up to
+    12% - use group medians; one benchmark (A08) missed the scripted NEW GAME click and measured the menu (check contact
+    sheets before comparing); after a pool reclaim the guest VirtualAlloc pool reuses whole blocks (no split) - see report G.
