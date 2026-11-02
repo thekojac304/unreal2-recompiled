@@ -35,10 +35,26 @@ index 061098a..ed380f4 100644
    xrt_baton_acquire();
    if(xrt_exiting){xrt_baton_release();return;}
 diff --git a/out/dev-init-savepoints/interactive-20261101/runtime-base/hle_gui.c b/out/dev-init/runtime/hle_gui.c
-index 8794a2a..a8b371e 100644
+index 8794a2a..fa40189 100644
 --- a/out/dev-init-savepoints/interactive-20261101/runtime-base/hle_gui.c
 +++ b/out/dev-init/runtime/hle_gui.c
-@@ -938,6 +938,9 @@ static INT_PTR invoke_gui_proc(HWND h, UINT msg, WPARAM wp, LPARAM lp, uint32_t
+@@ -657,6 +657,15 @@ static void dev_max_track(MINMAXINFO *m)
+ #include "message_pump.inc"
+ static INT_PTR invoke_gui_proc(HWND h, UINT msg, WPARAM wp, LPARAM lp, uint32_t explicit_proc)
+ {
++    /* F1: Windows' help request (WM_HELP, lParam a HELPINFO pointer or 0) reached the game's main dialog and stopped the
++     * run (owner's run 20261101-211738). The game has no Windows help to offer; it is answered as handled here and
++     * never crosses to the guest. The F1 key itself still reaches the game as WM_KEYDOWN/DirectInput. */
++    if (msg == WM_HELP)
++    {
++        static unsigned logged;
++        if (logged++ < 4) xrt_log("WM_HELP (F1) answered as handled; not passed to the game");
++        return TRUE;
++    }
+     xm_scope(callback_cpu,XM_BEGIN,XM_CALLBACK,"USER32.invoke_gui_proc",msg);
+     CPU nested;
+     uint32_t args[4], proc = explicit_proc, scratch = 0;
+@@ -938,6 +947,9 @@ static INT_PTR invoke_gui_proc(HWND h, UINT msg, WPARAM wp, LPARAM lp, uint32_t
          /* Only measured scalar messages may cross unmodified. */
          if (!((msg <= WM_ENABLE && msg != WM_GETTEXT) || msg == WM_PAINT || msg == WM_ERASEBKGND ||
                msg == WM_SHOWWINDOW || msg == WM_NCPAINT || msg == WM_NCACTIVATE || msg == WM_DESTROY ||
@@ -48,7 +64,7 @@ index 8794a2a..a8b371e 100644
                msg == WM_NCDESTROY || msg == WM_CANCELMODE || msg == WM_GETDLGCODE || msg == WM_GETFONT ||
                msg == WM_CHANGEUISTATE || msg == WM_UPDATEUISTATE || msg == WM_QUERYUISTATE ||
                msg == WM_QUERYNEWPALETTE || msg == WM_PALETTECHANGED || msg == WM_DWMNCRENDERINGCHANGED ||
-@@ -1189,6 +1192,16 @@ static void hle_IsWindow(CPU* c)
+@@ -1189,6 +1201,16 @@ static void hle_IsWindow(CPU* c)
  {
      BOOL ok;begin(c);ok=xm_win_IsWindow(window_host(ARG(0)));end(c);RET_STD(1,ok);
  }
@@ -65,7 +81,7 @@ index 8794a2a..a8b371e 100644
  static void hle_ShowWindow(CPU* c)
  {
      BOOL previous_visible;CPU* previous=callback_cpu;int cmd=(int)ARG(1);
-@@ -1397,6 +1410,7 @@ const XrtHle xrt_hle_gui[] = {{"comctl32.dll", "#17", hle_InitCommonControls},
+@@ -1397,6 +1419,7 @@ const XrtHle xrt_hle_gui[] = {{"comctl32.dll", "#17", hle_InitCommonControls},
                                {"user32.dll", "SetMenu", hle_SetMenu},
                                {"user32.dll", "PostMessageA", hle_PostMessageA},
                                {"user32.dll", "PostMessageW", hle_PostMessageW},
@@ -73,7 +89,7 @@ index 8794a2a..a8b371e 100644
                                {"user32.dll", "PeekMessageW", hle_PeekMessageW},
                                {"user32.dll", "PeekMessageA", hle_PeekMessageA},
                                {"user32.dll", "TranslateMessage", hle_TranslateMessage},
-@@ -1413,6 +1427,8 @@ const XrtHle xrt_hle_gui[] = {{"comctl32.dll", "#17", hle_InitCommonControls},
+@@ -1413,6 +1436,8 @@ const XrtHle xrt_hle_gui[] = {{"comctl32.dll", "#17", hle_InitCommonControls},
  
                                {"user32.dll", "GetWindowLongA", hle_GetWindowLongA},
                                {"user32.dll", "IsWindow", hle_IsWindow},
@@ -83,10 +99,10 @@ index 8794a2a..a8b371e 100644
                                {"user32.dll", "SetPropW", hle_SetPropW},
                                {"user32.dll", "SetPropA", hle_SetPropA},
 diff --git a/out/dev-init-savepoints/interactive-20261101/runtime-base/hle_gui_classes.inc b/out/dev-init/runtime/hle_gui_classes.inc
-index 0df255b..79c73b9 100644
+index 0df255b..36f40e8 100644
 --- a/out/dev-init-savepoints/interactive-20261101/runtime-base/hle_gui_classes.inc
 +++ b/out/dev-init/runtime/hle_gui_classes.inc
-@@ -147,12 +147,16 @@ static void hle_CreatePatternBrush(CPU* c) {
+@@ -147,12 +147,18 @@ static void hle_CreatePatternBrush(CPU* c) {
      if(brush) for(i=0;i<class_object_count;i++) if(class_objects[i].token==token) class_objects[i].owned=1;
      RET_STD(1,token);
  }
@@ -100,10 +116,22 @@ index 0df255b..79c73b9 100644
          xrt_fatal(callback_cpu,XRT_EXIT_UNSUPPORTED,"class belongs to an earlier module mapping");
 +    if((msg==WM_SYSCOMMAND || msg==WM_KEYDOWN || msg==WM_SYSKEYDOWN) && viewport_windowed_maximize(h,msg,wp,lp,classes[i].wide,&handled))
 +        return handled;
++    if(msg==WM_SETCURSOR && viewport_set_cursor(h,msg,wp,lp,&handled))
++        return handled;
 +    if(msg==WM_SIZE)wp=viewport_size_type(h,msg,wp);
      prior=prior_find(callback_cpu,classes[i].proc);
      if(prior) return classes[i].wide?xm_win_CallWindowProcW(prior->host,h,msg,wp,lp):xm_win_CallWindowProcA(prior->host,h,msg,wp,lp);
      validate_guest_proc(callback_cpu,classes[i].proc);
+@@ -367,6 +373,9 @@ static LPARAM forward_message(CPU* c,HWND h,UINT msg,uint32_t wp,uint32_t lp,WPA
+         return f->host_lp;
+     }
+     if(msg==WM_NULL || msg==WM_USER+77) return (LPARAM)(int32_t)lp;
++    /* Argument-free notifications carry no host layout to validate: WLog's WM_DESTROY at shutdown is forwarded by
++     * WWindow::CallDefaultProc outside a matching frame (owner's run 20261101-211709, after Quit). */
++    if((msg==WM_DESTROY || msg==WM_NCDESTROY || msg==WM_CLOSE) && !wp && !lp) return 0;
+     xrt_fatal(c,XRT_EXIT_UNSUPPORTED,"window procedure message 0x%x has no validated callback frame",msg);
+ }
+ static void refresh_forwarded_message(UINT msg,uint32_t wp,uint32_t lp,LPARAM host_lp) {
 diff --git a/out/dev-init-savepoints/interactive-20261101/runtime-base/message_pump.inc b/out/dev-init/runtime/message_pump.inc
 index f49f534..14f4d2f 100644
 --- a/out/dev-init-savepoints/interactive-20261101/runtime-base/message_pump.inc
@@ -258,10 +286,10 @@ index 0000000..4db9aa9
 +}
 diff --git a/out/dev-init/runtime/viewport_window.inc b/out/dev-init/runtime/viewport_window.inc
 new file mode 100644
-index 0000000..53b1708
+index 0000000..af25b58
 --- /dev/null
 +++ b/out/dev-init/runtime/viewport_window.inc
-@@ -0,0 +1,44 @@
+@@ -0,0 +1,55 @@
 +/* Windowed maximize. WinDrv's viewport procedure maps SC_MAXIMIZE (Maximize button, caption double-click, window
 + * menu, Win+Up) and Alt+Enter to UWindowsViewport::ToggleFullscreen: TryRenderDevice(..., Fullscreen=1) - exclusive
 + * fullscreen, which this port does not implement (CreateDevice fatal 76, runs 20261101-191847/-191912) - followed by
@@ -295,6 +323,17 @@ index 0000000..53b1708
 +        return 1;
 +    }
 +    return 0;
++}
++/* The game draws its own menu cursor (moved by DirectInput, not by the system cursor). Over the viewport's client area
++ * Windows otherwise shows the window class cursor (a crosshair) on every mouse move whenever the game has not captured
++ * the mouse, i.e. in menus - a second cursor that does not follow the game's. While the viewport is the foreground
++ * window, WM_SETCURSOR for its client area hides the system cursor; title bar and borders keep the normal cursors, and
++ * an inactive window keeps the system cursor. */
++static int viewport_set_cursor(HWND h,UINT msg,WPARAM wp,LPARAM lp,LRESULT*result) {
++    if(msg!=WM_SETCURSOR || LOWORD(lp)!=HTCLIENT || (HWND)wp!=h || GetForegroundWindow()!=h || !viewport_top_window(h))return 0;
++    SetCursor(NULL);
++    *result=TRUE;
++    return 1;
 +}
 +/* WinDrv's WM_SIZE handler treats SIZE_MAXIMIZED as "go fullscreen": it captures the mouse and calls
 + * RenDev->SetRes(..., Fullscreen=1) at the maximized size (WinDrv+0x5f28/+0x5ff8; run 20261101-205740 died there right
