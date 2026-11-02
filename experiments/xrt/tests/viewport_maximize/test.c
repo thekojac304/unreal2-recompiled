@@ -8,8 +8,8 @@
  * ViewportWindow like WinDrv's. The window is placed on the LAST monitor (the secondary one when there are two), so the
  * maximized size is checked against that monitor's own work area. The test window is visible for about a second.
  *
- *   maximize  SC_MAXIMIZE never reaches the guest; the window is zoomed, its client equals the guest's last WM_SIZE
- *             (SIZE_MAXIMIZED) and lies within that monitor's work area; caption double-click code 0xF032 too
+ *   maximize  SC_MAXIMIZE never reaches the guest; the window is zoomed; the guest's WM_SIZE says SIZE_RESTORED (WinDrv
+ *             turns SIZE_MAXIMIZED into SetRes(Fullscreen=1), run 20261101-205740) with the actual client, which lies within that monitor's work area; caption double-click code 0xF032 too
  *   restore   SC_RESTORE reaches the guest (DefWindowProc) and returns the exact previous client size
  *   alt       Alt+Enter (WM_SYSKEYDOWN VK_RETURN, Alt held) toggles maximize then restore; auto-repeat is ignored;
  *             plain Enter (no Alt) still reaches the guest
@@ -45,7 +45,7 @@ static LRESULT CALLBACK guest_proc(HWND h, UINT m, WPARAM wp, LPARAM lp) {
     case WM_KEYDOWN: case WM_SYSKEYDOWN:
         if (wp == VK_RETURN) { if (GetKeyState(VK_MENU) < 0) { toggles++; return 0; } guest_enters++; return 0; }
         break;
-    case WM_SIZE: sizes++; size_type = (int)wp; size_x = LOWORD(lp); size_y = HIWORD(lp); return 0;
+    case WM_SIZE: sizes++; size_type = (int)wp; if (wp == SIZE_MAXIMIZED) toggles++; /* WinDrv: SetRes(Fullscreen=1) */ size_x = LOWORD(lp); size_y = HIWORD(lp); return 0;
     }
     return DefWindowProcW(h, m, wp, lp);
 }
@@ -54,6 +54,7 @@ static LRESULT CALLBACK host_thunk(HWND h, UINT m, WPARAM wp, LPARAM lp) {
     LRESULT r;
     if ((m == WM_SYSCOMMAND || m == WM_KEYDOWN || m == WM_SYSKEYDOWN) && viewport_windowed_maximize(h, m, wp, lp, 1, &r))
         return r;
+    if (m == WM_SIZE) wp = viewport_size_type(h, m, wp);
     return guest_proc(h, m, wp, lp);
 }
 static MONITORINFO last_monitor;
@@ -85,8 +86,8 @@ int main(void) {
     after = client(h); GetWindowRect(h, &w);
     CHECK(toggles == 0, "maximize: SC_MAXIMIZE did not reach the guest ToggleFullscreen path (%u)", toggles);
     CHECK(IsZoomed(h), "maximize: window is maximized (windowed)");
-    CHECK(sizes > 0 && size_type == SIZE_MAXIMIZED && size_x == after.right && size_y == after.bottom,
-          "maximize: guest WM_SIZE SIZE_MAXIMIZED %dx%d = actual client %ldx%ld", size_x, size_y, after.right, after.bottom);
+    CHECK(sizes > 0 && size_type == SIZE_RESTORED && size_x == after.right && size_y == after.bottom,
+          "maximize: guest WM_SIZE is SIZE_RESTORED (windowed SetRes) %dx%d = actual client %ldx%ld", size_x, size_y, after.right, after.bottom);
     {
         POINT tl = {0, 0}, br = {after.right, after.bottom}; ClientToScreen(h, &tl); ClientToScreen(h, &br);
         CHECK(tl.x >= last_monitor.rcWork.left && tl.y >= last_monitor.rcWork.top && br.x <= last_monitor.rcWork.right &&

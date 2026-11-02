@@ -1,8 +1,61 @@
+diff --git a/out/dev-init-savepoints/interactive-20261101/runtime-base/dmusic_backend_pipe.inc b/out/dev-init/runtime/dmusic_backend_pipe.inc
+index c55a9e2..8e8a8a6 100644
+--- a/out/dev-init-savepoints/interactive-20261101/runtime-base/dmusic_backend_pipe.inc
++++ b/out/dev-init/runtime/dmusic_backend_pipe.inc
+@@ -2,6 +2,7 @@
+  * DmbMessage, opaque IDs and these operations. Pipe/process details stay here. */
+ #include "dmusic_pipe.h"
+ static __declspec(thread) DmbConnection dm_backend_connection;
++static HANDLE dm_helper_process;   /* the same process handle, visible to the asynchronous-channel thread (diagnostics) */
+ static int dm_backend_selected(void){const char*s=getenv("XRT_DMUSIC_BACKEND");return s&&!strcmp(s,"ipc");}
+ static void dm_backend_invoke(CPU*c,DmbMessage*m){
+  dm_backend_connection.context=c;
+@@ -28,6 +29,7 @@ static void dm_backend_start(CPU*c,DmbCallback cb){
+  ok=dmb_connect(&dm_backend_connection,exe,root,0,cb,c);
+  xm_native(c,XM_END,"DirectMusic.IPC.connect",0,ok);
+  if(!ok)xrt_fatal(c,XRT_EXIT_UNSUPPORTED,"%s",dm_backend_connection.error);}
++ dm_helper_process=dm_backend_connection.process;
+  xrt_event("dmusic_backend_start","\"version\": %u, \"frame_bytes\": %u, \"child_pid\": %lu, \"timeout_ms\": %u",DMB_VERSION,DMB_LIMIT,xm_win_GetProcessId(dm_backend_connection.process),dm_backend_connection.timeout);
+ }
+ static int dm_backend_alive(void){return dm_backend_connection.process!=NULL;}
+diff --git a/out/dev-init-savepoints/interactive-20261101/runtime-base/hle_dmusic_guest.inc b/out/dev-init/runtime/hle_dmusic_guest.inc
+index 061098a..ed380f4 100644
+--- a/out/dev-init-savepoints/interactive-20261101/runtime-base/hle_dmusic_guest.inc
++++ b/out/dev-init/runtime/hle_dmusic_guest.inc
+@@ -161,7 +161,10 @@ static void dmi_async_body(CPU*c,void*arg){DmbMessage q,r;(void)arg;
+   if(!dmi_async_read(dmi_async.in,&q)){
+    /* Only an orderly backend shutdown or process exit may close it: a helper failure must stop the run. */
+    if(dmi_async_shutdown||xrt_exiting){xrt_log("DirectMusic asynchronous channel closed");return;}
+-   xrt_baton_acquire();xrt_fatal(c,XRT_EXIT_UNSUPPORTED,"DirectMusic helper ended outside shutdown (asynchronous channel closed)");}
++   /* The helper's exit code tells how it ended: 0 its request loop stopped, 80 die() (message on stderr), an NTSTATUS
++    * such as c0000005/c0000374/c0000409 a crash, including fail-fast exits that bypass its own crash reporter. */
++   {DWORD code=STILL_ACTIVE;if(dm_helper_process&&xm_win_WaitForSingleObject(dm_helper_process,2000)==WAIT_OBJECT_0)GetExitCodeProcess(dm_helper_process,&code);
++    xrt_baton_acquire();xrt_fatal(c,XRT_EXIT_UNSUPPORTED,"DirectMusic helper ended outside shutdown (asynchronous channel closed; helper exit code %08lx)",code);}}
+   if(xrt_exiting)return;
+   xrt_baton_acquire();
+   if(xrt_exiting){xrt_baton_release();return;}
 diff --git a/out/dev-init-savepoints/interactive-20261101/runtime-base/hle_gui.c b/out/dev-init/runtime/hle_gui.c
-index 8794a2a..ff1b8d3 100644
+index 8794a2a..e7cb541 100644
 --- a/out/dev-init-savepoints/interactive-20261101/runtime-base/hle_gui.c
 +++ b/out/dev-init/runtime/hle_gui.c
-@@ -1397,6 +1397,7 @@ const XrtHle xrt_hle_gui[] = {{"comctl32.dll", "#17", hle_InitCommonControls},
+@@ -1189,6 +1189,16 @@ static void hle_IsWindow(CPU* c)
+ {
+     BOOL ok;begin(c);ok=xm_win_IsWindow(window_host(ARG(0)));end(c);RET_STD(1,ok);
+ }
++/* WWindow::OnDestroy saves the window placement (IsZoomed) at shutdown (run 20261101-205936, fatal 75 after Quit).
++ * Scalar state queries of a registered window. */
++static void hle_IsZoomed(CPU* c)
++{
++    BOOL ok;HWND h=xrt_gui_device_window(c,ARG(0));begin(c);ok=IsZoomed(h);end(c);RET_STD(1,ok);
++}
++static void hle_IsIconic(CPU* c)
++{
++    BOOL ok;HWND h=xrt_gui_device_window(c,ARG(0));begin(c);ok=IsIconic(h);end(c);RET_STD(1,ok);
++}
+ static void hle_ShowWindow(CPU* c)
+ {
+     BOOL previous_visible;CPU* previous=callback_cpu;int cmd=(int)ARG(1);
+@@ -1397,6 +1407,7 @@ const XrtHle xrt_hle_gui[] = {{"comctl32.dll", "#17", hle_InitCommonControls},
                                {"user32.dll", "SetMenu", hle_SetMenu},
                                {"user32.dll", "PostMessageA", hle_PostMessageA},
                                {"user32.dll", "PostMessageW", hle_PostMessageW},
@@ -10,11 +63,20 @@ index 8794a2a..ff1b8d3 100644
                                {"user32.dll", "PeekMessageW", hle_PeekMessageW},
                                {"user32.dll", "PeekMessageA", hle_PeekMessageA},
                                {"user32.dll", "TranslateMessage", hle_TranslateMessage},
+@@ -1413,6 +1424,8 @@ const XrtHle xrt_hle_gui[] = {{"comctl32.dll", "#17", hle_InitCommonControls},
+ 
+                               {"user32.dll", "GetWindowLongA", hle_GetWindowLongA},
+                               {"user32.dll", "IsWindow", hle_IsWindow},
++                              {"user32.dll", "IsZoomed", hle_IsZoomed},
++                              {"user32.dll", "IsIconic", hle_IsIconic},
+                               {"user32.dll", "ShowWindow", hle_ShowWindow},
+                               {"user32.dll", "SetPropW", hle_SetPropW},
+                               {"user32.dll", "SetPropA", hle_SetPropA},
 diff --git a/out/dev-init-savepoints/interactive-20261101/runtime-base/hle_gui_classes.inc b/out/dev-init/runtime/hle_gui_classes.inc
-index 0df255b..820824f 100644
+index 0df255b..79c73b9 100644
 --- a/out/dev-init-savepoints/interactive-20261101/runtime-base/hle_gui_classes.inc
 +++ b/out/dev-init/runtime/hle_gui_classes.inc
-@@ -147,12 +147,15 @@ static void hle_CreatePatternBrush(CPU* c) {
+@@ -147,12 +147,16 @@ static void hle_CreatePatternBrush(CPU* c) {
      if(brush) for(i=0;i<class_object_count;i++) if(class_objects[i].token==token) class_objects[i].owned=1;
      RET_STD(1,token);
  }
@@ -28,6 +90,7 @@ index 0df255b..820824f 100644
          xrt_fatal(callback_cpu,XRT_EXIT_UNSUPPORTED,"class belongs to an earlier module mapping");
 +    if((msg==WM_SYSCOMMAND || msg==WM_KEYDOWN || msg==WM_SYSKEYDOWN) && viewport_windowed_maximize(h,msg,wp,lp,classes[i].wide,&handled))
 +        return handled;
++    if(msg==WM_SIZE)wp=viewport_size_type(h,msg,wp);
      prior=prior_find(callback_cpu,classes[i].proc);
      if(prior) return classes[i].wide?xm_win_CallWindowProcW(prior->host,h,msg,wp,lp):xm_win_CallWindowProcA(prior->host,h,msg,wp,lp);
      validate_guest_proc(callback_cpu,classes[i].proc);
@@ -63,10 +126,10 @@ index f49f534..14f4d2f 100644
  static void hle_TranslateMessage(CPU*c){translate_message(c);}
 diff --git a/out/dev-init/runtime/port_settings.c b/out/dev-init/runtime/port_settings.c
 new file mode 100644
-index 0000000..740530f
+index 0000000..18e9a03
 --- /dev/null
 +++ b/out/dev-init/runtime/port_settings.c
-@@ -0,0 +1,151 @@
+@@ -0,0 +1,156 @@
 +/* Port settings: walking speed and UI scale.
 + *
 + * Persistence is the game's own: the settings helper U2Port.PortSettings (tools/xrt/dev/port/U2Port, registered by
@@ -187,16 +250,21 @@ index 0000000..740530f
 +        c->r[EAX] = 1; c->rv = pop32(c); c->r[ESP] += 8;
 +        return 1;
 +    } else {
-+        XrtModule* ui = xrt_module_by_addr(ret);
-+        uint32_t frame = rd32(esp + 4), renderer = rd32(esp + 8), viewport = frame ? rd32(frame + 4) : 0;
++        /* kind 2 is flagged on every container update (hundreds per frame): only the root call site goes further */
++        static XrtModule* ui;
++        uint32_t frame, renderer, viewport;
 +        float s;
-+        if (!ui || !viewport) return 0;
++        if (!ui && !(ui = xrt_module_by_name("UI.dll"))) return 0;
++        if (kind == 2 && ret != ui->base + UI_ROOT_UPDATE_RETURN) return 0;
++        if (!loaded) load();
++        if (ui_choice == 100 && kind == 2) return 0;
++        frame = rd32(esp + 4); renderer = rd32(esp + 8); viewport = frame ? rd32(frame + 4) : 0;
++        if (!viewport) return 0;
 +        s = ui_scale(rd32(viewport + 0x78));
 +        if (s == 1.0f) return 0;
 +        if (kind == 2) {
 +            uint32_t out, args[1], dim;
 +            float w, h, x, y;
-+            if (ret - ui->base != UI_ROOT_UPDATE_RETURN) return 0;
 +            /* layout at 1/S: root size and location as PostRender set them this frame, divided by S */
 +            c->r[ESP] -= 16; out = c->r[ESP];
 +            args[0] = out; guest_thiscall(c, self, ui->base + UI_GET_SIZE, 1, args);
@@ -220,10 +288,10 @@ index 0000000..740530f
 +}
 diff --git a/out/dev-init/runtime/viewport_window.inc b/out/dev-init/runtime/viewport_window.inc
 new file mode 100644
-index 0000000..d7b6d5f
+index 0000000..53b1708
 --- /dev/null
 +++ b/out/dev-init/runtime/viewport_window.inc
-@@ -0,0 +1,34 @@
+@@ -0,0 +1,44 @@
 +/* Windowed maximize. WinDrv's viewport procedure maps SC_MAXIMIZE (Maximize button, caption double-click, window
 + * menu, Win+Up) and Alt+Enter to UWindowsViewport::ToggleFullscreen: TryRenderDevice(..., Fullscreen=1) - exclusive
 + * fullscreen, which this port does not implement (CreateDevice fatal 76, runs 20261101-191847/-191912) - followed by
@@ -258,6 +326,16 @@ index 0000000..d7b6d5f
 +    }
 +    return 0;
 +}
++/* WinDrv's WM_SIZE handler treats SIZE_MAXIMIZED as "go fullscreen": it captures the mouse and calls
++ * RenDev->SetRes(..., Fullscreen=1) at the maximized size (WinDrv+0x5f28/+0x5ff8; run 20261101-205740 died there right
++ * after the windowed maximize above). For the top-level viewport window a maximized size is reported to the game as an
++ * ordinary resize (SIZE_RESTORED), so it re-creates a windowed back buffer at the actual client size. */
++static WPARAM viewport_size_type(HWND h,UINT msg,WPARAM wp) {
++    static unsigned logged;
++    if(msg!=WM_SIZE || wp!=SIZE_MAXIMIZED || !viewport_top_window(h))return wp;
++    if(logged++<32)xrt_log("viewport WM_SIZE SIZE_MAXIMIZED reported to the game as SIZE_RESTORED (windowed back buffer)");
++    return SIZE_RESTORED;
++}
 diff --git a/out/dev-init-savepoints/interactive-20261101/runtime-base/xrt_internal.h b/out/dev-init/runtime/xrt_internal.h
 index 65e2b0b..c16635a 100644
 --- a/out/dev-init-savepoints/interactive-20261101/runtime-base/xrt_internal.h
@@ -273,7 +351,7 @@ index 65e2b0b..c16635a 100644
  extern int xrt_scene_level_depth,xrt_scene_camera_depth;extern unsigned xrt_scene_level_renders,xrt_scene_camera_renders,xrt_scene_engine_ticks,xrt_scene_level_ticks;
  /* Developer first-scene mode (dev_support.c). */
 diff --git a/out/dev-init-savepoints/interactive-20261101/runtime-base/xrt_loader.c b/out/dev-init/runtime/xrt_loader.c
-index 475d976..a924324 100644
+index 475d976..7ddc583 100644
 --- a/out/dev-init-savepoints/interactive-20261101/runtime-base/xrt_loader.c
 +++ b/out/dev-init/runtime/xrt_loader.c
 @@ -105,7 +105,8 @@ static uint32_t module_generation;
@@ -286,19 +364,21 @@ index 475d976..a924324 100644
  typedef XrtCallCache CallCache;   /* xrt.h: translated call sites read the hit path inline (ICALL) */
  /* Direct-mapped indirect-call target cache: 64K entries, indexed by a hash of the target that mixes in the
   * high bits (vtable targets of different modules otherwise collide in the low bits). */
-@@ -528,7 +529,10 @@ static __declspec(noinline) const CallCache*call_target_fill(uint32_t target) {
+@@ -528,7 +529,12 @@ static __declspec(noinline) const CallCache*call_target_fill(uint32_t target) {
      {
          XrtModule*m=xrt_module_by_addr(target);XrtFn fn=lookup_lifted(target);unsigned flags=0;
          if(!fn)return NULL;
 -        if(m&&!_stricmp(m->name,"WinDrv.dll"))flags=target-m->base==0x17c0?CALL_INPUT_INIT:target-m->base==0x3390?CALL_VIEWPORT_OPEN:target-m->base==0x49b0?CALL_VIEWPORT_TRY:0;
 +        if(m&&!_stricmp(m->name,"WinDrv.dll"))flags=target-m->base==0x17c0?CALL_INPUT_INIT:target-m->base==0x3390?CALL_VIEWPORT_OPEN:target-m->base==0x49b0?CALL_VIEWPORT_TRY:
 +                                                     target-m->base==0x5760?CALL_PORT_EXEC:0;   /* UWindowsViewport::Exec */
-+        /* UComponentHandle::Update (the UI root) and UScaleContainer::Update */
-+        if(m&&!_stricmp(m->name,"UI.dll"))flags=target-m->base==0x64d30?CALL_PORT_UI_ROOT:target-m->base==0x5f270?CALL_PORT_UI_SCALE:0;
++        /* Container Update functions (UUIConsole::PostRender's root is a UContainer; port_settings.c picks the root call
++         * by its return address) and UScaleContainer::Update */
++        if(m&&!_stricmp(m->name,"UI.dll")){unsigned r=target-m->base;
++            flags=r==0x46ca0||r==0x5e0d0||r==0x63e90||r==0x6e9a0||r==0x64d30?CALL_PORT_UI_ROOT:r==0x5f270?CALL_PORT_UI_SCALE:0;}
          if(m&&!_stricmp(m->name,"Engine.dll"))flags=target-m->base==0x90f00?CALL_LOADMAP:target-m->base==0xb9160?CALL_POSTLOAD:0;
          if(m&&!_stricmp(m->name,"D3DDrv.dll")&&target-m->base==0xe890)flags=CALL_SETRES;
          e->va=target;e->gen=call_cache_gen;e->fn=fn;e->flags=flags;
-@@ -591,7 +595,12 @@ static void dispatch(CPU* c, uint32_t target, uint32_t site, const char* what) {
+@@ -591,7 +597,12 @@ static void dispatch(CPU* c, uint32_t target, uint32_t site, const char* what) {
              xrt_fatal(c, XRT_EXIT_TRAP, "%s at %s to %s, which is not a translated function entry or import", what, d, t);
          }
          fn=e->fn;
