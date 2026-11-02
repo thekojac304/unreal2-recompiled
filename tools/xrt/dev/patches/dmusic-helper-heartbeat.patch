@@ -1,0 +1,93 @@
+diff --git a/out/dev-init-savepoints/interactive-20261101/dmusic_helper-main.c.before b/out/dev-init/dmusic_helper/main.c
+index e40dbc1..52c5711 100644
+--- a/out/dev-init-savepoints/interactive-20261101/dmusic_helper-main.c.before
++++ b/out/dev-init/dmusic_helper/main.c
+@@ -218,17 +218,35 @@ typedef HRESULT(WINAPI*ReleaseObject)(IUnknown*,IUnknown*);
+ typedef HRESULT(WINAPI*Stop)(IUnknown*,IUnknown*,IUnknown*,LONG,DWORD);
+ typedef HRESULT(WINAPI*CloseDown)(IUnknown*);
+ /* Developer heartbeat (diagnostic only): every 2 s, the performance clock and
+- * whether a primary segment state exists now. Read-only native queries. */
++ * whether a primary segment state exists now. Read-only native queries.
++ * One thread follows the CURRENT open performance: InitAudio sets it; CloseDown, the
++ * performance's last bridge release and shutdown clear it before the native call. The
++ * thread holds its own reference while it queries and never holds a lock across a
++ * DirectMusic call. (It used to keep the raw pointer of every performance it was started
++ * for: after a level change closed down and released the previous performance, it called
++ * into the freed object - the intermittent helper crash at M08A1 music initialization,
++ * reproduced by experiments/xrt/tests/dmusic_heartbeat.) */
+ typedef HRESULT(WINAPI*GetTimeFn)(IUnknown*,LONGLONG*,LONG*);
+ typedef HRESULT(WINAPI*GetStateFn)(IUnknown*,IUnknown**,LONG);
+-static DWORD WINAPI heartbeat(void*perf){IUnknown*p=(IUnknown*)perf,*state;LONGLONG rt;LONG mt;HRESULT h1,h2;unsigned n=0;
+- CoInitializeEx(NULL,COINIT_MULTITHREADED);
++static CRITICAL_SECTION heartbeat_cs;static IUnknown*heartbeat_perf;static int heartbeat_started;
++static DWORD WINAPI heartbeat(void*unused){IUnknown*p,*state;LONGLONG rt;LONG mt;HRESULT h1,h2;unsigned n=0;
++ (void)unused;CoInitializeEx(NULL,COINIT_MULTITHREADED);
+  while(!disconnected){Sleep(2000);rt=0;mt=0;state=NULL;
++  EnterCriticalSection(&heartbeat_cs);p=heartbeat_perf;if(p)IUnknown_AddRef(p);LeaveCriticalSection(&heartbeat_cs);
++  if(!p)continue;
+   h1=((GetTimeFn)method(p,15))(p,&rt,&mt);h2=((GetStateFn)method(p,6))(p,&state,mt);if(state)IUnknown_Release(state);
++  IUnknown_Release(p);
+   fprintf(stderr,"helper heartbeat %u: GetTime %08lx rt %lld ms mt %ld; primary segment state %08lx; async seq %u\n",
+           ++n,(unsigned long)h1,rt/10000,mt,(unsigned long)h2,async_seq);fflush(stderr);}
+  return 0;
+ }
++static void heartbeat_follow(IUnknown*p){
++ EnterCriticalSection(&heartbeat_cs);heartbeat_perf=p;LeaveCriticalSection(&heartbeat_cs);
++ if(!heartbeat_started){HANDLE th=CreateThread(NULL,0,heartbeat,NULL,0,NULL);if(th){CloseHandle(th);heartbeat_started=1;}}
++}
++static void heartbeat_forget(IUnknown*p){
++ EnterCriticalSection(&heartbeat_cs);if(!p||heartbeat_perf==p)heartbeat_perf=NULL;LeaveCriticalSection(&heartbeat_cs);
++}
+ /* Opt-in script-track fallback (XRT_DMUSIC_SCRIPT_TRACK=helper), developer only. */
+ #define ST_FAIL(m) die(m)
+ #define ST_LOG(...) (fprintf(stderr,__VA_ARGS__),fflush(stderr))
+@@ -253,7 +271,7 @@ static void dispatch(DmbMessage*q,DmbMessage*r){
+  if(q->op==DMB_TEST_PROCESS&&testing&&tool_count)tool_message(&tools[0],NULL,NULL);
+  if(q->op==DMB_TEST_CALLBACK&&testing&&tool_count){tool_callback(&tools[0],7,NULL,0);return;}
+  if(q->op==DMB_SHUTDOWN){
+-  st_release();
++  heartbeat_forget(NULL);st_release();
+   for(i=0;i<256;i++)if(pmsgs[i].native){Object*pf=get(pmsgs[i].perf,DMB_PERFORMANCE);if(pf)((FreePMsgFn)method(pf->p,17))(pf->p,pmsgs[i].native);memset(&pmsgs[i],0,sizeof pmsgs[i]);}
+   /* Release bridge-owned references in reverse acquisition order; native cached
+    * references remain native-owned. CloseDown is never synthesized here. */
+@@ -271,11 +289,11 @@ static void dispatch(DmbMessage*q,DmbMessage*r){
+   if(SUCCEEDED(hr)&&(!IsEqualGUID((GUID*)q->guid[0],&IID_IUnknown)&&!IsEqualGUID((GUID*)q->guid[0],&ids[o->type]))){if(p)IUnknown_Release(p);r->status=DMB_UNSUPPORTED;return;}
+   type=o->type;break;
+  case DMB_ADDREF:r->v[0]=IUnknown_AddRef(o->p);o->refs++;return;
+- case DMB_RELEASE:r->v[0]=IUnknown_Release(o->p);o->refs--;return;
++ case DMB_RELEASE:if(o->type==DMB_PERFORMANCE&&o->refs==1)heartbeat_forget(o->p);r->v[0]=IUnknown_Release(o->p);o->refs--;return;
+  case DMB_INIT_AUDIO:
+   REQUIRE(DMB_PERFORMANCE);if(q->v[0]!=8||q->v[1]!=128||q->v[2]!=0x3f){r->status=DMB_UNSUPPORTED;return;}
+   hr=((InitAudio)method(o->p,44))(o->p,NULL,&p,NULL,q->v[0],q->v[1],q->v[2],NULL);type=DMB_SOUND;
+-  if(SUCCEEDED(hr)&&!testing){HANDLE th=CreateThread(NULL,0,heartbeat,o->p,0,NULL);if(th)CloseHandle(th);}break;
++  if(SUCCEEDED(hr)&&!testing)heartbeat_follow(o->p);break;
+  case DMB_SEARCH:
+   REQUIRE(DMB_LOADER);swprintf(folder,600,L"%s\\Music",sandbox);
+   if(_wcsicmp((WCHAR*)q->text,folder)||q->v[0]||!IsEqualGUID((GUID*)q->guid[0],&all_types)){r->status=DMB_SANDBOX;return;}
+@@ -336,7 +354,7 @@ static void dispatch(DmbMessage*q,DmbMessage*r){
+   r->v[1]=(uint32_t)a.hr;r->v[2]=pmsg_next; /* handle of the delivered message when retained */
+   if(a.hr!=S_OK)hr=((FreePMsgFn)method(o->p,17))(o->p,pm);else hr=S_OK;break;}
+  case DMB_STOP:REQUIRE(DMB_PERFORMANCE);hr=((Stop)method(o->p,5))(o->p,NULL,NULL,0,0);break;
+- case DMB_CLOSE:REQUIRE(DMB_PERFORMANCE);hr=((CloseDown)method(o->p,38))(o->p);break;
++ case DMB_CLOSE:REQUIRE(DMB_PERFORMANCE);heartbeat_forget(o->p);hr=((CloseDown)method(o->p,38))(o->p);break;
+  default:r->status=DMB_UNSUPPORTED;return;
+  }
+ 
+@@ -379,7 +397,7 @@ int wmain(int argc,WCHAR**argv){
+  if(argc>=a+3&&!wcscmp(argv[a],L"--async")){async_in=(HANDLE)(uintptr_t)_wcstoui64(argv[a+1],NULL,10);async_out=(HANDLE)(uintptr_t)_wcstoui64(argv[a+2],NULL,10);a+=3;}
+  if(argc==a+1){if(wcscmp(argv[a],L"--test"))return 2;testing=1;a++;}
+  if(argc!=a)return 2;}
+- InitializeCriticalSection(&async_cs);InitializeCriticalSection(&pend_cs);InitializeCriticalSection(&pmsg_cs);InitializeCriticalSection(&objects_cs);
++ InitializeCriticalSection(&async_cs);InitializeCriticalSection(&pend_cs);InitializeCriticalSection(&pmsg_cs);InitializeCriticalSection(&objects_cs);InitializeCriticalSection(&heartbeat_cs);
+  input=(HANDLE)(uintptr_t)_wcstoui64(argv[2],NULL,10);output=(HANDLE)(uintptr_t)_wcstoui64(argv[3],NULL,10);
+  if(wcslen(argv[5])>=550||!GetFullPathNameW(argv[5],600,sandbox,NULL))return 2;
+  owner=GetCurrentThreadId();SetErrorMode(SEM_FAILCRITICALERRORS|SEM_NOGPFAULTERRORBOX);
+@@ -400,7 +418,7 @@ int wmain(int argc,WCHAR**argv){
+   if(!write_frame(&r))break;
+   sequence=0;if(q.op==DMB_SHUTDOWN||r.status)break;
+  }
+- disconnected=1;
++ disconnected=1;heartbeat_forget(NULL);
+  /* On a broken connection no callback may call the dead host. Native teardown
+   * still runs on the owner STA; the parent's Job bounds its duration. */
+  for(last=used;last;last--)while(objects[last-1].refs){IUnknown_Release(objects[last-1].p);objects[last-1].refs--;}

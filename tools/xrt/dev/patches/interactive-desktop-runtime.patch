@@ -1,0 +1,314 @@
+diff --git a/out/dev-init-savepoints/interactive-20261101/runtime-base/hle_gui.c b/out/dev-init/runtime/hle_gui.c
+index 8794a2a..ff1b8d3 100644
+--- a/out/dev-init-savepoints/interactive-20261101/runtime-base/hle_gui.c
++++ b/out/dev-init/runtime/hle_gui.c
+@@ -1397,6 +1397,7 @@ const XrtHle xrt_hle_gui[] = {{"comctl32.dll", "#17", hle_InitCommonControls},
+                               {"user32.dll", "SetMenu", hle_SetMenu},
+                               {"user32.dll", "PostMessageA", hle_PostMessageA},
+                               {"user32.dll", "PostMessageW", hle_PostMessageW},
++                              {"user32.dll", "PostQuitMessage", hle_PostQuitMessage},
+                               {"user32.dll", "PeekMessageW", hle_PeekMessageW},
+                               {"user32.dll", "PeekMessageA", hle_PeekMessageA},
+                               {"user32.dll", "TranslateMessage", hle_TranslateMessage},
+diff --git a/out/dev-init-savepoints/interactive-20261101/runtime-base/hle_gui_classes.inc b/out/dev-init/runtime/hle_gui_classes.inc
+index 0df255b..820824f 100644
+--- a/out/dev-init-savepoints/interactive-20261101/runtime-base/hle_gui_classes.inc
++++ b/out/dev-init/runtime/hle_gui_classes.inc
+@@ -147,12 +147,15 @@ static void hle_CreatePatternBrush(CPU* c) {
+     if(brush) for(i=0;i<class_object_count;i++) if(class_objects[i].token==token) class_objects[i].owned=1;
+     RET_STD(1,token);
+ }
++#include "viewport_window.inc"
+ static LRESULT class_dispatch(unsigned i, HWND h, UINT msg, WPARAM wp, LPARAM lp) {
+-    PriorProc* prior;
++    PriorProc* prior;LRESULT handled;
+     if (i>=class_count || !classes[i].live)
+         xrt_fatal(callback_cpu,XRT_EXIT_UNSUPPORTED,"callback for unregistered guest class");
+     if(classes[i].generation!=owner_generation(callback_cpu,classes[i].owner))
+         xrt_fatal(callback_cpu,XRT_EXIT_UNSUPPORTED,"class belongs to an earlier module mapping");
++    if((msg==WM_SYSCOMMAND || msg==WM_KEYDOWN || msg==WM_SYSKEYDOWN) && viewport_windowed_maximize(h,msg,wp,lp,classes[i].wide,&handled))
++        return handled;
+     prior=prior_find(callback_cpu,classes[i].proc);
+     if(prior) return classes[i].wide?xm_win_CallWindowProcW(prior->host,h,msg,wp,lp):xm_win_CallWindowProcA(prior->host,h,msg,wp,lp);
+     validate_guest_proc(callback_cpu,classes[i].proc);
+diff --git a/out/dev-init-savepoints/interactive-20261101/runtime-base/message_pump.inc b/out/dev-init/runtime/message_pump.inc
+index f49f534..14f4d2f 100644
+--- a/out/dev-init-savepoints/interactive-20261101/runtime-base/message_pump.inc
++++ b/out/dev-init/runtime/message_pump.inc
+@@ -87,6 +87,25 @@ static void dispatch_message(CPU*c,int wide) {
+     end(c);xrt_gui_callback_leave(prev);
+     RET_STD(1,(uint32_t)r);
+ }
++/* Core appRequestExit(0): PostQuitMessage, then GIsRequestingExit. Native WM_QUIT goes
++ * to the calling host thread's queue, which is the guest thread's own queue (one host
++ * thread per guest thread), so the guest main loop's PeekMessage sees it and the game
++ * runs its normal shutdown (appPreExit, engine/viewport/device/audio teardown, CRT exit,
++ * ExitProcess). Nothing is terminated here. */
++static void hle_PostQuitMessage(CPU*c) {
++    XmRequest q={0};uint32_t code;CPU*prev;
++    gui_transition_memory(c,c->r[ESP],8,0);code=ARG(0);
++    if(!c->thread || c->thread->state!=1 || c->thread->host_tid!=xm_win_GetCurrentThreadId())
++        xrt_fatal(c,76,"PostQuitMessage: caller is not a living guest thread on its own host thread");
++    xrt_event("gui_post_quit_message","\"code\":%u,\"guest_tid\":%u",code,c->thread->guest_tid);
++    xrt_log("PostQuitMessage(%d) on thread %d: WM_QUIT queued for the guest main loop",(int)code,c->thread->index);
++    prev=xrt_gui_callback_enter(c);begin(c);
++    pump_probe(&q,XM_BEGIN,"WIN.PostQuitMessage",code,0,0);
++    PostQuitMessage((int)code);
++    pump_probe(&q,XM_END,q.name,code,0,0);
++    end(c);xrt_gui_callback_leave(prev);
++    RET_STD(1,0);
++}
+ static void hle_PeekMessageW(CPU*c){peek_message(c,1);}
+ static void hle_PeekMessageA(CPU*c){peek_message(c,0);}
+ static void hle_TranslateMessage(CPU*c){translate_message(c);}
+diff --git a/out/dev-init/runtime/port_settings.c b/out/dev-init/runtime/port_settings.c
+new file mode 100644
+index 0000000..740530f
+--- /dev/null
++++ b/out/dev-init/runtime/port_settings.c
+@@ -0,0 +1,151 @@
++/* Port settings: walking speed and UI scale.
++ *
++ * Persistence is the game's own: the settings helper U2Port.PortSettings (tools/xrt/dev/port/U2Port, registered by
++ * the port's UIScripts/U2Menus.ui) keeps them as config(User) variables, i.e. User.ini [U2Port.PortSettings]
++ * WalkingSpeed=<percent 75..200> and UIScale=<0 Auto | 100 | 125 | 150 | 200>. This file reads that section once
++ * from the guest's System\User.ini (before the first use) and then follows changes the helper sends through the
++ * console command "PORTSET <Key> <Value>", which UWindowsViewport::Exec would otherwise reject as unknown. Missing or
++ * out-of-range values mean the original behaviour (100%, UI unscaled).
++ *
++ * Walking speed: tools/xrt/dev/native/walk_speed.c wraps APawn::calcVelocity for the call from APawn::physWalking.
++ *
++ * UI scale S: UUIConsole::PostRender sizes the UI root from the viewport and calls Root->Update(Frame, Renderer).
++ * For that one call the root is laid out at 1/S of its size and location and the FUIRenderer's own scale stack
++ * (PushScale/PopScale, vtable +0x18/+0x1c, as UScaleContainer uses it) draws it S times larger, so anchors, margins,
++ * centring and the cursor/hit-testing all stay in one (virtual) coordinate space. UScaleContainer, which already
++ * scales its children to the whole viewport, gets the inverse 1/S around its own update. */
++#define WIN32_LEAN_AND_MEAN
++#include <windows.h>
++#include <stdlib.h>
++#include <wchar.h>
++#include "xrt_internal.h"
++
++static int loaded, walk_percent = 100, ui_choice = 100;
++static volatile float walk_factor = 1.0f;
++static unsigned logged;
++
++static int valid_walk(int p) { return p >= 75 && p <= 200 && p % 5 == 0; }
++static int valid_ui(int p) { return p == 0 || p == 100 || p == 125 || p == 150 || p == 200; }
++static void set_walk(int p, const char* source) {
++    if (!valid_walk(p)) { xrt_log("port: WalkingSpeed %d ignored (%s; 75..200 in steps of 5)", p, source); return; }
++    walk_percent = p; walk_factor = (float)p / 100.0f;
++    xrt_log("port: walking speed %d%% (%s)", p, source);
++    xrt_event("port_setting", "\"key\":\"WalkingSpeed\",\"value\":%d,\"source\":\"%s\"", p, source);
++}
++static void set_ui(int p, const char* source) {
++    if (!valid_ui(p)) { xrt_log("port: UIScale %d ignored (%s; 0 Auto, 100, 125, 150, 200)", p, source); return; }
++    ui_choice = p;
++    xrt_log("port: UI scale %s%d (%s)", p ? "" : "Auto/", p, source);
++    xrt_event("port_setting", "\"key\":\"UIScale\",\"value\":%d,\"source\":\"%s\"", p, source);
++}
++static void load(void) {
++    XrtModule* exe;
++    char path[600], *slash;
++    if (loaded) return;
++    loaded = 1;
++    exe = xrt_module_by_name("Unreal2.exe");
++    if (!exe) return;
++    snprintf(path, sizeof path, "%s", exe->path);
++    slash = strrchr(path, '\\');
++    if (!slash) return;
++    snprintf(slash + 1, sizeof path - (size_t)(slash + 1 - path), "User.ini");
++    set_walk((int)GetPrivateProfileIntA("U2Port.PortSettings", "WalkingSpeed", 100, path), "User.ini");
++    set_ui((int)GetPrivateProfileIntA("U2Port.PortSettings", "UIScale", 100, path), "User.ini");
++}
++
++float xrt_port_walking_speed(void) {
++    if (!loaded) load();
++    return walk_factor;
++}
++
++/* Auto: the menus and HUD are laid out for about 1024x768 pixels; keep their height near the original 1024x768
++ * proportion (768 of 1024 lines) - the largest offered scale with 768*S <= 0.75*height: 1080 lines -> 100%,
++ * 1369/1440 -> 125%, 1600 -> 150%, 2160 -> 200%. The executable is DPI-unaware, so on a high-DPI monitor Windows already
++ * presents it in logical pixels; the height here is the actual client (back buffer) height. */
++static float ui_scale(uint32_t height) {
++    static const int choices[] = {200, 150, 125};
++    int p = ui_choice, i;
++    if (!loaded) load();
++    if (!p) {
++        p = 100;
++        for (i = 0; i < 3; i++) if (768.0 * choices[i] / 100.0 <= 0.75 * height) { p = choices[i]; break; }
++    }
++    return (float)p / 100.0f;
++}
++
++/* "PORTSET Key Value" (UTF-16, as UWindowsViewport::Exec receives it). Returns 1 when the command was ours. */
++static int port_command(const uint16_t* s) {
++    wchar_t text[96], key[32];
++    int n, value;
++    for (n = 0; n < 95 && s[n]; n++) text[n] = (wchar_t)s[n];
++    text[n] = 0;
++    if (_wcsnicmp(text, L"PORTSET ", 8)) return 0;
++    if (swscanf(text + 8, L"%31ls %d", key, &value) != 2) { xrt_log("port: malformed command \"%ls\"", text); return 1; }
++    if (!_wcsicmp(key, L"WalkingSpeed")) set_walk(value, "menu");
++    else if (!_wcsicmp(key, L"UIScale")) set_ui(value, "menu");
++    else xrt_log("port: unknown setting \"%ls\"", key);
++    return 1;
++}
++
++/* Guest calls on the current thread (thiscall: ECX = object). */
++static uint32_t guest_thiscall(CPU* c, uint32_t self, uint32_t fn, int nargs, const uint32_t* args) {
++    c->r[ECX] = self;
++    return xrt_call_guest(c, fn, nargs, args, 1);
++}
++static uint32_t scratch_dimension(CPU* c, float x, float y) {
++    c->r[ESP] -= 16;
++    wrf32(c->r[ESP], x); wrf32(c->r[ESP] + 4, y);
++    return c->r[ESP];
++}
++static void push_scale(CPU* c, uint32_t renderer, float s) {
++    uint32_t esp = c->r[ESP], dim = scratch_dimension(c, s, s);
++    guest_thiscall(c, renderer, rd32(rd32(renderer) + 0x18), 1, &dim);
++    c->r[ESP] = esp;
++}
++static void pop_scale(CPU* c, uint32_t renderer) { guest_thiscall(c, renderer, rd32(rd32(renderer) + 0x1c), 0, NULL); }
++
++/* UI.dll (preferred base 0x10000000) RVAs, from its exports and UUIConsole::PostRender. */
++enum { UI_ROOT_UPDATE_RETURN = 0x7f82b, UI_GET_SIZE = 0x417e0, UI_GET_LOCATION = 0x41530, UI_SET_SIZE = 0x3e640,
++       UI_SET_LOCATION = 0x3e430 };
++
++/* kind 1: UWindowsViewport::Exec(const TCHAR*, FOutputDevice&); 2: UComponentHandle::Update(FSceneNode*, FUIRenderer*);
++ * 3: UScaleContainer::Update(FSceneNode*, FUIRenderer*). Returns 1 when the call was completed here. */
++int xrt_port_call(CPU* c, unsigned kind, XrtFn fn) {
++    uint32_t esp = c->r[ESP], ret = rd32(esp), self = c->r[ECX];
++    if (kind == 1) {
++        uint32_t s = rd32(esp + 4);
++        if (!s || !port_command((const uint16_t*)G2H(s))) return 0;
++        c->r[EAX] = 1; c->rv = pop32(c); c->r[ESP] += 8;
++        return 1;
++    } else {
++        XrtModule* ui = xrt_module_by_addr(ret);
++        uint32_t frame = rd32(esp + 4), renderer = rd32(esp + 8), viewport = frame ? rd32(frame + 4) : 0;
++        float s;
++        if (!ui || !viewport) return 0;
++        s = ui_scale(rd32(viewport + 0x78));
++        if (s == 1.0f) return 0;
++        if (kind == 2) {
++            uint32_t out, args[1], dim;
++            float w, h, x, y;
++            if (ret - ui->base != UI_ROOT_UPDATE_RETURN) return 0;
++            /* layout at 1/S: root size and location as PostRender set them this frame, divided by S */
++            c->r[ESP] -= 16; out = c->r[ESP];
++            args[0] = out; guest_thiscall(c, self, ui->base + UI_GET_SIZE, 1, args);
++            w = rdf32(out); h = rdf32(out + 4);
++            guest_thiscall(c, self, ui->base + UI_GET_LOCATION, 1, args);
++            x = rdf32(out); y = rdf32(out + 4);
++            c->r[ESP] = esp;
++            dim = scratch_dimension(c, w / s, h / s); guest_thiscall(c, self, ui->base + UI_SET_SIZE, 1, &dim); c->r[ESP] = esp;
++            dim = scratch_dimension(c, x / s, y / s); guest_thiscall(c, self, ui->base + UI_SET_LOCATION, 1, &dim); c->r[ESP] = esp;
++            if (logged++ < 8)
++                xrt_log("port: UI root %gx%g at %g,%g laid out at 1/%g, drawn at x%g (viewport height %u)", w, h, x, y, s, s,
++                        rd32(viewport + 0x78));
++        }
++        push_scale(c, renderer, kind == 2 ? s : 1.0f / s);
++        c->r[ECX] = self;
++        fn(c);                                   /* the update itself: pops its return address and two arguments */
++        pop_scale(c, renderer);
++        c->rv = ret;
++        return 1;
++    }
++}
+diff --git a/out/dev-init/runtime/viewport_window.inc b/out/dev-init/runtime/viewport_window.inc
+new file mode 100644
+index 0000000..d7b6d5f
+--- /dev/null
++++ b/out/dev-init/runtime/viewport_window.inc
+@@ -0,0 +1,34 @@
++/* Windowed maximize. WinDrv's viewport procedure maps SC_MAXIMIZE (Maximize button, caption double-click, window
++ * menu, Win+Up) and Alt+Enter to UWindowsViewport::ToggleFullscreen: TryRenderDevice(..., Fullscreen=1) - exclusive
++ * fullscreen, which this port does not implement (CreateDevice fatal 76, runs 20261101-191847/-191912) - followed by
++ * "set ini:Engine.Engine.ViewportManager StartupFullscreen true". For the top-level viewport window those two requests
++ * are performed here as native WINDOWED maximize/restore and not passed on, so StartupFullscreen is not changed. The
++ * guest then receives the ordinary WM_GETMINMAXINFO/WM_WINDOWPOSCHANGED/WM_SIZE sequence (monitor work area, actual
++ * client size) and resizes its back buffer as for any other resize. SC_RESTORE, every other message, and explicit
++ * fullscreen requests (console TOGGLEFULLSCREEN, video options Fullscreen) still reach the game unchanged. */
++static int viewport_top_window(HWND h) {
++    WCHAR name[64];
++    if(xm_win_GetWindowLongW(h,GWL_STYLE)&WS_CHILD)return 0;
++    return GetClassNameW(h,name,64)>0 && wcsstr(name,L"ViewportWindow")!=NULL;
++}
++static int viewport_windowed_maximize(HWND h,UINT msg,WPARAM wp,LPARAM lp,int wide,LRESULT*result) {
++    static unsigned logged;
++    if(msg==WM_SYSCOMMAND && (wp&0xfff0)==SC_MAXIMIZE && viewport_top_window(h)) {
++        if(logged++<32)xrt_log("viewport SC_MAXIMIZE (%llx): windowed maximize to the monitor work area (not ToggleFullscreen)",(unsigned long long)wp);
++        xrt_event("viewport_windowed_maximize","\"source\":\"syscommand\",\"wparam\":%u",(unsigned)wp);
++        *result=wide?xm_win_DefWindowProcW(h,msg,wp,lp):xm_win_DefWindowProcA(h,msg,wp,lp);
++        return 1;
++    }
++    /* The guest's own test for Alt+Enter: VK_RETURN key-down while GetKeyState(VK_MENU) reports Alt held. */
++    if((msg==WM_KEYDOWN || msg==WM_SYSKEYDOWN) && wp==VK_RETURN && (xm_win_GetKeyState(VK_MENU)&0x8000) && viewport_top_window(h)) {
++        if(!(lp&0x40000000)) { /* first press only, not auto-repeat */
++            int zoomed=IsZoomed(h)!=0;
++            if(logged++<32)xrt_log("viewport Alt+Enter: windowed %s (exclusive fullscreen is not supported)",zoomed?"restore":"maximize");
++            xrt_event("viewport_windowed_maximize","\"source\":\"alt_enter\",\"restore\":%d",zoomed);
++            xm_win_ShowWindow(h,zoomed?SW_RESTORE:SW_MAXIMIZE);
++        }
++        *result=0;
++        return 1;
++    }
++    return 0;
++}
+diff --git a/out/dev-init-savepoints/interactive-20261101/runtime-base/xrt_internal.h b/out/dev-init/runtime/xrt_internal.h
+index 65e2b0b..c16635a 100644
+--- a/out/dev-init-savepoints/interactive-20261101/runtime-base/xrt_internal.h
++++ b/out/dev-init/runtime/xrt_internal.h
+@@ -148,6 +148,9 @@ uint32_t xrt_module_export(XrtModule* m, const char* name, uint32_t ordinal);
+ XrtFn xrt_lookup(uint32_t va, const char** stub_name);
+ uint32_t xrt_lookup_containing(uint32_t va);                /* lifted function entry at or below va */
+ uint32_t xrt_call_guest(CPU* c, uint32_t va, int nargs, const uint32_t* args, int stdcall);
++/* port_settings.c: walking speed / UI scale; dispatch hands it the calls flagged CALL_PORT_* (1 = completed there) */
++int xrt_port_call(CPU* c, unsigned kind, XrtFn fn);
++float xrt_port_walking_speed(void);
+ void xrt_world_enter(CPU* c, uint32_t target);
+ extern int xrt_scene_level_depth,xrt_scene_camera_depth;extern unsigned xrt_scene_level_renders,xrt_scene_camera_renders,xrt_scene_engine_ticks,xrt_scene_level_ticks;
+ /* Developer first-scene mode (dev_support.c). */
+diff --git a/out/dev-init-savepoints/interactive-20261101/runtime-base/xrt_loader.c b/out/dev-init/runtime/xrt_loader.c
+index 475d976..a924324 100644
+--- a/out/dev-init-savepoints/interactive-20261101/runtime-base/xrt_loader.c
++++ b/out/dev-init/runtime/xrt_loader.c
+@@ -105,7 +105,8 @@ static uint32_t module_generation;
+  * answers is the pure function of the loaded module set that lookup_lifted and
+  * the diagnostic-site checks below compute; any module map/unmap invalidates it.
+  * Guest execution is serialized by the baton. */
+-enum {CALL_INPUT_INIT=1,CALL_VIEWPORT_OPEN=2,CALL_VIEWPORT_TRY=4,CALL_LOADMAP=8,CALL_POSTLOAD=16,CALL_SETRES=32};
++enum {CALL_INPUT_INIT=1,CALL_VIEWPORT_OPEN=2,CALL_VIEWPORT_TRY=4,CALL_LOADMAP=8,CALL_POSTLOAD=16,CALL_SETRES=32,
++      CALL_PORT_EXEC=64,CALL_PORT_UI_ROOT=128,CALL_PORT_UI_SCALE=256};   /* CALL_PORT_*: port_settings.c xrt_port_call */
+ typedef XrtCallCache CallCache;   /* xrt.h: translated call sites read the hit path inline (ICALL) */
+ /* Direct-mapped indirect-call target cache: 64K entries, indexed by a hash of the target that mixes in the
+  * high bits (vtable targets of different modules otherwise collide in the low bits). */
+@@ -528,7 +529,10 @@ static __declspec(noinline) const CallCache*call_target_fill(uint32_t target) {
+     {
+         XrtModule*m=xrt_module_by_addr(target);XrtFn fn=lookup_lifted(target);unsigned flags=0;
+         if(!fn)return NULL;
+-        if(m&&!_stricmp(m->name,"WinDrv.dll"))flags=target-m->base==0x17c0?CALL_INPUT_INIT:target-m->base==0x3390?CALL_VIEWPORT_OPEN:target-m->base==0x49b0?CALL_VIEWPORT_TRY:0;
++        if(m&&!_stricmp(m->name,"WinDrv.dll"))flags=target-m->base==0x17c0?CALL_INPUT_INIT:target-m->base==0x3390?CALL_VIEWPORT_OPEN:target-m->base==0x49b0?CALL_VIEWPORT_TRY:
++                                                     target-m->base==0x5760?CALL_PORT_EXEC:0;   /* UWindowsViewport::Exec */
++        /* UComponentHandle::Update (the UI root) and UScaleContainer::Update */
++        if(m&&!_stricmp(m->name,"UI.dll"))flags=target-m->base==0x64d30?CALL_PORT_UI_ROOT:target-m->base==0x5f270?CALL_PORT_UI_SCALE:0;
+         if(m&&!_stricmp(m->name,"Engine.dll"))flags=target-m->base==0x90f00?CALL_LOADMAP:target-m->base==0xb9160?CALL_POSTLOAD:0;
+         if(m&&!_stricmp(m->name,"D3DDrv.dll")&&target-m->base==0xe890)flags=CALL_SETRES;
+         e->va=target;e->gen=call_cache_gen;e->fn=fn;e->flags=flags;
+@@ -591,7 +595,12 @@ static void dispatch(CPU* c, uint32_t target, uint32_t site, const char* what) {
+             xrt_fatal(c, XRT_EXIT_TRAP, "%s at %s to %s, which is not a translated function entry or import", what, d, t);
+         }
+         fn=e->fn;
+-        if(!(e->flags&~CALL_SETRES)){fn(c);if(!c->thread||c->r[ESP]>=c->thread->world_floor)xrt_world_return(c);return;}
++        if(e->flags&(CALL_PORT_EXEC|CALL_PORT_UI_ROOT|CALL_PORT_UI_SCALE) &&
++           xrt_port_call(c,e->flags&CALL_PORT_EXEC?1:e->flags&CALL_PORT_UI_ROOT?2:3,fn)){
++            if(!c->thread||c->r[ESP]>=c->thread->world_floor)xrt_world_return(c);
++            return;
++        }
++        if(!(e->flags&~(CALL_SETRES|CALL_PORT_EXEC|CALL_PORT_UI_ROOT|CALL_PORT_UI_SCALE))){fn(c);if(!c->thread||c->r[ESP]>=c->thread->world_floor)xrt_world_return(c);return;}
+     }
+     {
+         const CallCache*e=call_target(target);

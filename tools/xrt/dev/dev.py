@@ -30,6 +30,10 @@ GEN_SLOW_UNITS = {'GlmLib_020.c': 1800}
 # with the translated function renamed to <name>_translated, so the native definition is what the function table and
 # every call reach. Differential test: experiments/xrt/tests/native_glm_xform.
 NATIVE = {'GlmLib_008.c': [('f_2fd7d20', HERE / 'native/glm_xform.c')]}
+# Port behaviour wrappers, always linked: walking speed setting (native/walk_speed.c). Unlike NATIVE (a /D rename of
+# every use), only the DEFINITION is renamed to <name>_translated, in a build copy of the unit (obj/port-src), so
+# calls inside the same unit (physWalking -> calcVelocity in Engine_025.c) reach the wrapper too.
+PORT = {'Engine_025.c': [('f_103e24d0', HERE / 'native/walk_speed.c')]}
 DEV = WS / 'out/dev-init'
 RT = DEV / 'runtime'
 BUILD = DEV / 'build'
@@ -237,6 +241,7 @@ def build(full=False, fixtures_only=False, native=False, diag_move=False):
         opt = obj.with_suffix('.opt')
         renames = [f'/D{fn}={fn}_translated' for fn, _ in NATIVE.get(src.name, [])] if native else []
         opt_text = GEN_OPT + (' /DXRT_NO_FORCE_INLINE' if src.name in GEN_NO_FORCE_INLINE else '') + ''.join(' ' + r for r in renames)
+        opt_text += ''.join(f' port:{fn}' for fn, _ in PORT.get(src.name, []))
         if observed and src.name in DIAG_MOVE_UNITS:
             opt_text += ' /FIworld_observer.h'   # recompiles the unit again when a later build drops --diag-move
         # The object must come from this source: switching a unit between its developer copy and the shared
@@ -264,7 +269,18 @@ def build(full=False, fixtures_only=False, native=False, diag_move=False):
             raise RuntimeError(f'{src} differs from the lineage source hash; refusing to recompile it')
         opt.unlink(missing_ok=True)
         origin.unlink(missing_ok=True)
-        compile_one(src, obj, env, includes, flags, GEN_SLOW_UNITS.get(src.name, 600))
+        unit = src
+        if src.name in PORT:
+            text = src.read_text(encoding='latin-1')
+            for fn, _ in PORT[src.name]:
+                head = f'void {fn}(CPU* c) {{'
+                if text.count(head) != 1:
+                    raise RuntimeError(f'{src.name}: definition {head!r} found {text.count(head)} times')
+                text = text.replace(head, f'void {fn}_translated(CPU* c) {{')
+            unit = BUILD / 'obj' / 'port-src' / src.name
+            unit.parent.mkdir(parents=True, exist_ok=True)
+            unit.write_text(text, encoding='latin-1')
+        compile_one(unit, obj, env, includes, flags, GEN_SLOW_UNITS.get(src.name, 600))
         if observed:
             marker.write_text('compiled with /FIworld_observer.h\n')
         opt.write_text(opt_text)
@@ -299,6 +315,7 @@ def build(full=False, fixtures_only=False, native=False, diag_move=False):
             compile_one(src, obj, env, [RT, HERE], rt_flags)
         objects.append(obj)
     natives = [src for units in NATIVE.values() for _, src in units] if native else []
+    natives += [src for units in PORT.values() for _, src in units]
     for src in natives:
         obj = BUILD / 'obj/native' / (src.stem + '.obj')
         if full or not obj.exists() or obj.stat().st_mtime < max(src.stat().st_mtime, (RT / 'xrt.h').stat().st_mtime):
@@ -321,6 +338,7 @@ def build(full=False, fixtures_only=False, native=False, diag_move=False):
                                       'generated_optimization': GEN_OPT, 'generated_units': len(lineage) - sum(
                                           1 for rel in lineage if rel.startswith('obj/rt/')),
                                       'native': [fn for units in NATIVE.values() for fn, _ in units] if native else [],
+                                      'port': [fn for units in PORT.values() for fn, _ in units],
                                       'audio_units': len(audio)})
     print('Built (not executed):', BUILD / 'unreal2-dev.exe')
 
@@ -565,6 +583,20 @@ def run(args):
         for src in seeds:
             shutil.copy2(src, target / src.name)
             print(f'dev: seeded save {src} ({src.stat().st_size} bytes, sha256 {hashlib.sha256(src.read_bytes()).hexdigest()[:16]})', flush=True)
+    # Port settings (tools/xrt/dev/port.py): U2Port.u and this sandbox's own U2Menus.ui/.int edits (Walking Speed, UI Scale).
+    sys.path.insert(0, str(HERE))
+    import port
+    port.apply(sandbox)
+    # --profile NAME (interactive play): the player's User.ini (bindings, preferences, [U2Port.PortSettings]) carried
+    # from one run to the next in out/dev-init/profiles/NAME; copied back after the game ends.
+    profile = None
+    if args.profile:
+        if not re.fullmatch(r'[A-Za-z0-9_-]{1,40}', args.profile):
+            raise RuntimeError('--profile: letters, digits, _ and - only')
+        profile = DEV / 'profiles' / args.profile
+        if (profile / 'User.ini').is_file():
+            shutil.copy2(profile / 'User.ini', sandbox / 'System' / 'User.ini')
+            print(f'dev: profile {args.profile}: User.ini restored', flush=True)
     # Developer helper copy (out/dev-init/dmusic_helper, named CallRoutine admitted); else the shared build.
     helper = BUILD / 'dmusic_helper.exe'
     if not helper.is_file():
@@ -651,6 +683,12 @@ def run(args):
         code = launch(exe, command_args, out, sandbox / 'System', env, args.timeout)
         reached = scene_proven(out, code) if args.first_scene else endpoint_proven(out, code)
         outcome = read(out / 'runtime-report.json').get('outcome') if (out / 'runtime-report.json').exists() else 'No runtime report; inspect console.txt'
+        if profile and (sandbox / 'System' / 'User.ini').is_file():
+            profile.mkdir(parents=True, exist_ok=True)
+            shutil.copy2(sandbox / 'System' / 'User.ini', profile / 'User.ini')
+            print(f'dev: profile {args.profile}: User.ini saved', flush=True)
+        if code == 0 and outcome == 'exited':
+            print('dev: the game exited normally (its own shutdown, ExitProcess(0))', flush=True)
         done = ('Init returned; world frames presented to the first-scene stop (console.txt names it; inspect scene-frame-*.bmp)'
                 if args.first_scene else 'Init returned; main loop not entered')
         report(out, args.change, args.question,
@@ -660,6 +698,7 @@ def run(args):
         observe(out)
         return 0 if reached else 1
     finally:
+        print('dev: verifying the snapshot assets (read-only check, about a minute; the game has ended)', flush=True)
         assets.verify()
 
 def main():
@@ -674,6 +713,7 @@ def main():
     lp.add_argument('modules', nargs='+', help='gen/ directory names, e.g. fire engine core')
     la = sub.add_parser('lift-audio', help='lift ALAudio.dll and the Ogg Vorbis DLLs into out/dev-init/audio-lift')
     la.add_argument('--opt', default='', help='xlift --opt list; empty = plain lift')
+    sub.add_parser('port-build', help='compile the port settings package U2Port.u (original UCC make, staging copy)')
     sub.add_parser('selftest')
     sub.add_parser('observe')
     r = sub.add_parser('run')
@@ -705,6 +745,8 @@ def main():
     r.add_argument('--background', action='store_true',
                    help="developer background mode: the game runs behind the owner's foreground application and never "
                         'takes focus; only --input reaches it (needs isolation; dev_support.c xrt_dev_background)')
+    r.add_argument('--profile', default='', metavar='NAME',
+                   help="interactive play: keep the player's User.ini (settings, Walking Speed, UI Scale) between runs in out/dev-init/profiles/NAME")
     r.add_argument('--borderless', action='store_true',
                    help='opt-in borderless viewport window at the monitor origin (use --windowed-res = monitor size for borderless full screen)')
     r.add_argument('--sound', choices=('off', 'muted', 'on'), default='off',
@@ -741,6 +783,10 @@ def main():
     elif args.action == 'build': build(args.full, native=args.native, diag_move=args.diag_move)
     elif args.action == 'lift': lift(args.modules, {x for x in args.opt.split(',') if x})
     elif args.action == 'lift-audio': lift_audio({x for x in args.opt.split(',') if x})
+    elif args.action == 'port-build':
+        sys.path.insert(0, str(HERE)); sys.path.insert(0, str(HERE.parent))
+        import port, asset_boundary
+        print('Built', port.build(Path(asset_boundary.source()) / 'System'))
     elif args.action == 'selftest': selftest()
     elif args.action == 'observe': observe()
     else: return run(args)

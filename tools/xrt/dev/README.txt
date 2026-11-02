@@ -410,6 +410,72 @@ helpers and key images in out/dev-init/campaign-evidence-20261101):
     ~90 FPS median, p95 12.1-13.2 ms (p99 20 ms during rifle fire); least headroom in the briefing (2.5 ms limiter wait).
     No area below 60 FPS. Maxima ~100-128 ms are the scripted screenshot readbacks.
 
+Interactive desktop batch (2026-11-01 evening; code and owned tests only, no game launch): fixes for the owner's three
+interactive runs 20261101-191847-7aea43cf / -191912-be757706 / -192029-eed53121 (evidence kept in place), port settings.
+Runtime patch patches/interactive-desktop-runtime.patch (base: save point interactive-20261101/runtime-base = the
+audio-campaign runtime plus the committed WM_APPCOMMAND hunk); helper patch patches/dmusic-helper-heartbeat.patch.
+  - EXIT (run -192029, fatal 75): menu Quit -> ConsoleCommand EXIT -> UGameEngine::Exec -> Core appRequestExit(0) ->
+    user32 PostQuitMessage, which had no adapter. Now message_pump.inc hle_PostQuitMessage: the native call on the calling
+    guest thread's own host thread (refused, fatal 76, for any other pairing), so the next guest PeekMessage returns WM_QUIT
+    (hwnd 0, wParam = code) after the messages already queued; the game then runs its own shutdown (main loop ends,
+    appPreExit, engine/viewport/device/audio teardown, CRT exit, ExitProcess -> runtime DLL detach). dev.py prints "the game
+    exited normally" for exit 0 + outcome "exited". Static audit: PostQuitMessage was Core's only unbound import on that
+    path (the others are error dialogs, clipboard, editor UI). The shutdown after WM_QUIT has never run: UNTESTED in game.
+    Owned test experiments/xrt/tests/quit_message (9 checks: shape, WM_QUIT once with the code, ordering after posted
+    messages, per-thread queues, refused cross-thread use).
+  - MAXIMIZE (runs -191847 Maximize button, -191912 Alt+Enter; fatal 76 "CreateDevice fullscreen requires separate display
+    scope"): WinDrv's ViewportWndProc maps WM_SYSCOMMAND SC_MAXIMIZE (0xF030; also caption double-click 0xF032, window menu)
+    and VK_RETURN key-down with Alt held to UWindowsViewport::ToggleFullscreen = TryRenderDevice(RenderDevice,-1,-1,
+    Fullscreen=1) followed by "set ...ViewportManager StartupFullscreen true". viewport_window.inc (called first in
+    hle_gui_classes.inc class_dispatch) performs these two requests for the top-level viewport window as native WINDOWED
+    maximize/restore (DefWindowProc / ShowWindow) and does not pass them on: the guest sees the ordinary
+    WM_GETMINMAXINFO/WM_WINDOWPOSCHANGED/WM_SIZE sequence (monitor work area, actual client) and resizes its back buffer as
+    for any resize; StartupFullscreen is not touched. SC_RESTORE and dragging reach the game unchanged. Exclusive fullscreen
+    stays unsupported (the CreateDevice guard is unchanged): console TOGGLEFULLSCREEN still ends fatal 76; the video options
+    Fullscreen checkbox (SetFullscreen = TOGGLEFULLSCREEN + StartupFullscreen) is replaced by UI Scale (below).
+    Owned test experiments/xrt/tests/viewport_maximize (13 checks, window on the second monitor: client 2560x1369 inside that
+    monitor's work area, exact restore, caption double-click, Alt+Enter toggle, auto-repeat, child/other class untouched).
+    In-game maximize/restore/drag-resize, device and resource counts after resizing: UNTESTED.
+  - PORT SETTINGS (tools/xrt/dev/port.py; dev.py port-build, applied to every run sandbox): script package U2Port.u
+    (port/U2Port/Classes/PortSettings.uc, a UI.UIHelper compiled by the ORIGINAL UCC make in sandbox_cmp/u2port-make; 0
+    errors) holds config(User) WalkingSpeed (75..200, step 5) and UIScale (0 Auto, 100, 125, 150, 200) in User.ini
+    [U2Port.PortSettings]; anchored edits to the sandbox's own U2Menus.ui/.int add Options > Game > Walking Speed (slider,
+    row 11) and Options > Video > UI Scale (selector, row 10, in place of Fullscreen). The helper's Set functions SaveConfig
+    and send "PORTSET <Key> <Value>"; the runtime (port_settings.c) answers it in UWindowsViewport::Exec (dispatch flag
+    CALL_PORT_EXEC) and reads the same section from System\User.ini at startup. --profile NAME carries User.ini between
+    interactive runs (out/dev-init/profiles/NAME); without it every run starts from the snapshot's User.ini, as before.
+    Owned test experiments/xrt/tests/port_overlay (14 checks).
+  - WALKING SPEED: native/walk_speed.c wraps APawn::calcVelocity (f_103e24d0, dev.py PORT: only the definition is renamed,
+    so physWalking's call in the same unit reaches the wrapper; verified with dumpbin). Applied only for the call from
+    physWalking (return Engine+0xe61da) of a pawn whose Controller IsA PlayerController: MaxSpeed, AccelRate (+0x470) and
+    Acceleration (+0x148) are scaled for that one call, AccelRate restored and Acceleration returned unscaled - nothing is
+    stored, so respawn/save/load/script GroundSpeed changes cannot compound it. Falling/jumping, swimming, flying, ladders,
+    NPCs and scripted controllers are untouched; collision stays the engine's swept move. Owned test
+    experiments/xrt/tests/walk_speed (9 checks: exact x0.75/x1.5/x2 at every step, clamp path, scope, 1000-call compounding).
+    In game (100/150/200%, stairs, doors, triggers, transitions): UNTESTED.
+  - UI SCALE: UUIConsole::PostRender sizes the root from the viewport times the config UIConsole ScaleX/ScaleY and calls
+    Root->Update(Frame, FUIRenderer) (UComponentHandle::Update, return UI+0x7f82b). For that call (dispatch flag
+    CALL_PORT_UI_ROOT) the root is resized/moved to 1/S and the renderer's own PushScale(S)/PopScale (vtable +0x18/+0x1c, as
+    UScaleContainer uses) wraps it, so layout (parent-relative alignment, HardCenter, margins), cursor and hit-testing stay
+    in one virtual space; UScaleContainer::Update gets PushScale(1/S) (it already scales to the whole viewport). Auto =
+    largest offered S with 768*S <= 0.75*client height (1080 -> 100, 1369/1440 -> 125, 1600 -> 150, 2160 -> 200). Default
+    100% = original drawing (hooks pass through). Pivot of the renderer scale, cursor clamping and the HUD/subtitle
+    result: UNTESTED in game.
+  - AUDIO: (1) ambient churn still present (run -192029: 125871 plays / 125856 stops, ~1160/s): ORIGINAL ALAudio logic -
+    PlaySoundW stores the occlusion-reduced radius in the source (+0x20) when the line of sight is blocked, the Update stop
+    pass compares the distance with that reduced radius, the start pass with the actor's full SoundRadius, so every occluded
+    ambient sound inside its full radius is stopped and replayed each frame. Not a translation or adapter defect; not
+    changed. Adapter cost measured by experiments/xrt/tests/openal_churn: 11700 stop/play pairs, no measurable extra CPU
+    (0.7% vs 1.0% of a core steady). (2) DirectMusic helper exit at M08A1 music init: the helper's diagnostic heartbeat thread
+    kept the raw pointer of each performance it was started for and kept calling it after CloseDown + final Release (heartbeats
+    turn to GetTime 88781170 first, then an execute fault in freed memory). Reproduced deterministically by the owned test
+    experiments/xrt/tests/dmusic_heartbeat (old helper: exception c0000005 on cycle 1); fixed (one heartbeat following the
+    current open performance, cleared before CloseDown/last release/shutdown, own reference while querying): 4/4 cycles,
+    dmusic_async_test 11/11 + deadline.
+Regressions run: dev.py selftest PASS, bg_input, openal_bridge, staging_reuse, quit_message, viewport_maximize, walk_speed,
+port_overlay, openal_churn, dmusic_heartbeat, dmusic_async_test. Save point out/dev-init-savepoints/interactive-20261101
+(build-before = the owner-played exe; build = this batch; runtime, runtime-base, dmusic_helper).
+
 Background developer mode (2026-11-01, gameplay batch): dev.py run --background (bench_tuta.ps1 -Background), only with
 input isolation. The owner keeps using the desktop; the game window never takes focus and only the --input script reaches it.
   - GUI (hle_gui.c, xrt_dev_background): visible top-level windows are created hidden and shown SW_SHOWNOACTIVATE at
