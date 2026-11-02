@@ -90,7 +90,8 @@ function string GetResolution()
 
 // The Resolution selector can only show an entry of its list: the display modes, plus - in a window - the window's
 // current size when that is not a display mode (a maximized window is 2560x1369 on a 2560x1440 screen; without it the
-// selector showed its first entry, 640x480).
+// selector showed its first entry, 640x480). It is appended: the selector keeps an index into the list, and an entry
+// inserted in front shifted every display mode by one between window and full screen (2560x1440 became 1920x1440).
 function array<string> GetDisplayModes()
 {
 	local array<string> Modes;
@@ -102,8 +103,7 @@ function array<string> GetDisplayModes()
 	for (i = 0; i < Modes.Length; i++)
 		if (Modes[i] == Current)
 			return Modes;
-	Modes.Insert(0, 1);
-	Modes[0] = Current;
+	Modes[Modes.Length] = Current;
 	return Modes;
 }
 

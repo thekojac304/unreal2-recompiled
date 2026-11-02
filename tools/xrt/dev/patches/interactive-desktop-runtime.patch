@@ -155,7 +155,7 @@ index c55a9e2..8e8a8a6 100644
  }
  static int dm_backend_alive(void){return dm_backend_connection.process!=NULL;}
 diff --git a/out/dev-init-savepoints/interactive-20261101/runtime-base/hle_d3d8_device.inc b/out/dev-init/runtime/hle_d3d8_device.inc
-index ed9192a..9312421 100644
+index ed9192a..0c1eeaf 100644
 --- a/out/dev-init-savepoints/interactive-20261101/runtime-base/hle_d3d8_device.inc
 +++ b/out/dev-init/runtime/hle_d3d8_device.inc
 @@ -54,7 +54,9 @@ static void d8_declaration_device_dead(void);
@@ -185,9 +185,27 @@ index ed9192a..9312421 100644
      SetLastError(xrt_get_last_error(c));n=XM_Release(c,o->host);error=GetLastError();d8_rendering=0;xrt_gui_callback_leave(previous);
      if(!--o->refs && !o->children)d8_device_dead(o);xm_resource(c,2,o->guest,1,(uint64_t)(uintptr_t)o->host,o->refs,o->children,"released");
      xrt_event("d3d8_device_release","\"object\":%u,\"guest_refs\":%u,\"native_count\":%lu",o->guest,o->refs,n);
-@@ -183,6 +186,12 @@ static void d8_device_Present(CPU*c) {
+@@ -140,7 +143,10 @@ static void d8_render_ready(CPU*c,D8DeviceObject*o) {
+     if(d8_rendering||d8_native_failed)xrt_fatal(c,76,"Direct3DDevice8: reentrant or failed native operation");
+     if(!o->window)
+         xrt_fatal(c,76,"Direct3DDevice8: unsupported rendering window tuple (native call refused)");
+-    xrt_gui_device_window(c,o->focus);xrt_gui_device_window(c,o->window);
++    /* At shutdown the game destroys the window first and then flushes and releases the device (owner's run
++     * 20261101-222030): those calls need no window. Present to the destroyed window is refused in d8_device_Present. */
++    if(!xrt_gui_window_destroyed(o->focus))xrt_gui_device_window(c,o->focus);
++    if(!xrt_gui_window_destroyed(o->window))xrt_gui_device_window(c,o->window);
+ }
+ /* Developer first-scene evidence: successful native draws since the previous
+  * Present, and those issued inside FLevelSceneNode::Render. Never guest-visible. */
+@@ -182,7 +188,18 @@ static void d8_device_Present(CPU*c) {
+         xrt_fatal(c,76,"IDirect3DDevice8::Present: dirty region requires marshalling (native call refused)");
      for(i=0;i<2;i++)if(ARG(1+i)){d8_device_memory(c,ARG(1+i),16,0);memcpy(&rects[i],G2H(ARG(1+i)),16);}
      d8_render_ready(c,o);
++    if(xrt_gui_window_destroyed(o->window)) {
++        /* nothing to present to: D3D's own answer for an invalid presentation, without a native call */
++        xrt_log("D3D8 Present after the device window was destroyed: D3DERR_INVALIDCALL");
++        RET_STD(5,0x8876086Cu);return;
++    }
      if(ARG(3))override=(HWND)xrt_gui_device_window(c,ARG(3));
 +    if(d8_bl.active && d8_bl.tex) {
 +        /* Borderless fullscreen: the game's frame is the render-target texture; its source/destination RECTs describe
@@ -198,7 +216,7 @@ index ed9192a..9312421 100644
      {unsigned frame=xrt_dev_scene_capture(xrt_scene_level_renders+xrt_scene_camera_renders,d8_scene_draws);if(frame)d8_dev_readback(c,o,frame);}
      xrt_event("d3d8_render_call","\"method\":\"Present\",\"slot\":15,\"this\":%u,\"source\":%u,\"destination\":%u,\"override\":%u,\"dirty\":0,\"esp\":%u,\"return\":%u",o->guest,ARG(1),ARG(2),ARG(3),esp,ret);
      previous=xrt_gui_callback_enter(c);d8_rendering=1;SetLastError(xrt_get_last_error(c));before=_mm_getcsr();
-@@ -228,8 +237,14 @@ static void d8_dev_draw_log(HRESULT hr,unsigned primitives) {
+@@ -228,8 +245,14 @@ static void d8_dev_draw_log(HRESULT hr,unsigned primitives) {
   * with no stream/index/texture bindings: the runtime's binding records go as the native device dropped them. */
  static void d8_device_Reset(CPU*c) {
      LONG id=d8_api_entry(c,14,2);D8DeviceObject*o=d8_semantic_frame(c);uint32_t pp=ARG(1),window;D8Present n;CPU*prev;HRESULT hr;DWORD error;
@@ -213,7 +231,7 @@ index ed9192a..9312421 100644
      window=rd32(pp+24);memset(&n,0,sizeof n);
      n.width=rd32(pp);n.height=rd32(pp+4);n.format=rd32(pp+8);n.count=rd32(pp+12);n.multisample=rd32(pp+16);n.swap=rd32(pp+20);
      n.windowed=rd32(pp+28);n.depth=rd32(pp+32);n.depthformat=rd32(pp+36);n.flags=rd32(pp+40);n.refresh=rd32(pp+44);n.interval=rd32(pp+48);
-@@ -241,27 +256,38 @@ static void d8_device_Reset(CPU*c) {
+@@ -241,27 +264,38 @@ static void d8_device_Reset(CPU*c) {
              n.width,n.height,n.format,n.count,n.swap,n.depth,n.depthformat,n.flags,n.interval,o->width,o->height);
      prev=d8_native_enter(c,14,&n,sizeof n);hr=XM_Reset(c,o->host,&n);error=GetLastError();
      if(SUCCEEDED(hr)){o->width=n.width;o->height=n.height;o->depth=n.depth;o->depthformat=n.depthformat;d8_resource_device_dead();}
@@ -254,7 +272,7 @@ index ed9192a..9312421 100644
      d8_creation_domain(c,p,adapter,type,flags,pp);
      window=rd32(pp+24);memset(&n,0,sizeof n);
      n.width=rd32(pp);n.height=rd32(pp+4);n.format=rd32(pp+8);n.count=rd32(pp+12);n.multisample=rd32(pp+16);n.swap=rd32(pp+20);
-@@ -308,6 +334,12 @@ static void d8_CreateDevice(CPU*c) {
+@@ -308,6 +342,12 @@ static void d8_CreateDevice(CPU*c) {
      window=xrt_gui_window_identity(c,n.window);
      wr32(pp,n.width);wr32(pp+4,n.height);wr32(pp+8,n.format);wr32(pp+12,n.count);wr32(pp+16,n.multisample);wr32(pp+20,n.swap);
      wr32(pp+24,window);wr32(pp+28,n.windowed);wr32(pp+32,n.depth);wr32(pp+36,n.depthformat);wr32(pp+40,n.flags);wr32(pp+44,n.refresh);wr32(pp+48,n.interval);
@@ -284,7 +302,7 @@ index 061098a..ed380f4 100644
    xrt_baton_acquire();
    if(xrt_exiting){xrt_baton_release();return;}
 diff --git a/out/dev-init-savepoints/interactive-20261101/runtime-base/hle_gui.c b/out/dev-init/runtime/hle_gui.c
-index 8794a2a..dc33f00 100644
+index 8794a2a..70b82df 100644
 --- a/out/dev-init-savepoints/interactive-20261101/runtime-base/hle_gui.c
 +++ b/out/dev-init/runtime/hle_gui.c
 @@ -208,6 +208,7 @@ typedef struct GuiWindow
@@ -295,7 +313,15 @@ index 8794a2a..dc33f00 100644
  static GuiWindow windows[1024];
  static __declspec(thread) CPU *callback_cpu;
  CPU* xrt_gui_callback_enter(CPU* c) { CPU* previous=callback_cpu;callback_cpu=c;return previous; }
-@@ -335,6 +336,10 @@ void xrt_gui_window_pin(CPU* c,uint32_t token) {
+@@ -332,9 +333,18 @@ void xrt_gui_window_pin(CPU* c,uint32_t token) {
+     unsigned i;if(!token)return;xrt_gui_device_window(c,token);
+     for(i=0;i<1024;i++)if(windows[i].token==token && windows[i].host) {device_window_pins[i]++;return;}
+ }
++int xrt_gui_window_destroyed(uint32_t token) {
++    unsigned i;
++    for(i=0;token && i<16;i++)if(destroyed_pins[i].token==token)return 1;
++    return 0;
++}
  void xrt_gui_window_unpin(uint32_t token) {
      unsigned i;if(!token)return;
      for(i=0;i<1024;i++)if(windows[i].token==token && windows[i].host && device_window_pins[i]) {device_window_pins[i]--;return;}
@@ -306,7 +332,7 @@ index 8794a2a..dc33f00 100644
      xrt_fatal(NULL,77,"D3D8: window pin accounting mismatch %08x",token);
  }
  /* USER32 queries this calling thread's actual input queue. Never substitute the
-@@ -657,6 +662,16 @@ static void dev_max_track(MINMAXINFO *m)
+@@ -657,6 +667,16 @@ static void dev_max_track(MINMAXINFO *m)
  #include "message_pump.inc"
  static INT_PTR invoke_gui_proc(HWND h, UINT msg, WPARAM wp, LPARAM lp, uint32_t explicit_proc)
  {
@@ -323,7 +349,7 @@ index 8794a2a..dc33f00 100644
      xm_scope(callback_cpu,XM_BEGIN,XM_CALLBACK,"USER32.invoke_gui_proc",msg);
      CPU nested;
      uint32_t args[4], proc = explicit_proc, scratch = 0;
-@@ -938,6 +953,9 @@ static INT_PTR invoke_gui_proc(HWND h, UINT msg, WPARAM wp, LPARAM lp, uint32_t
+@@ -938,6 +958,9 @@ static INT_PTR invoke_gui_proc(HWND h, UINT msg, WPARAM wp, LPARAM lp, uint32_t
          /* Only measured scalar messages may cross unmodified. */
          if (!((msg <= WM_ENABLE && msg != WM_GETTEXT) || msg == WM_PAINT || msg == WM_ERASEBKGND ||
                msg == WM_SHOWWINDOW || msg == WM_NCPAINT || msg == WM_NCACTIVATE || msg == WM_DESTROY ||
@@ -333,7 +359,7 @@ index 8794a2a..dc33f00 100644
                msg == WM_NCDESTROY || msg == WM_CANCELMODE || msg == WM_GETDLGCODE || msg == WM_GETFONT ||
                msg == WM_CHANGEUISTATE || msg == WM_UPDATEUISTATE || msg == WM_QUERYUISTATE ||
                msg == WM_QUERYNEWPALETTE || msg == WM_PALETTECHANGED || msg == WM_DWMNCRENDERINGCHANGED ||
-@@ -1189,6 +1207,31 @@ static void hle_IsWindow(CPU* c)
+@@ -1189,6 +1212,31 @@ static void hle_IsWindow(CPU* c)
  {
      BOOL ok;begin(c);ok=xm_win_IsWindow(window_host(ARG(0)));end(c);RET_STD(1,ok);
  }
@@ -365,7 +391,7 @@ index 8794a2a..dc33f00 100644
  static void hle_ShowWindow(CPU* c)
  {
      BOOL previous_visible;CPU* previous=callback_cpu;int cmd=(int)ARG(1);
-@@ -1259,6 +1302,13 @@ static void send_message(CPU *c, int wide)
+@@ -1259,6 +1307,13 @@ static void send_message(CPU *c, int wide)
          result=wide?xm_win_SendMessageW(window_host(ARG(0)),msg,wp,(LPARAM)(int32_t)ARG(3)):xm_win_SendMessageA(window_host(ARG(0)),msg,wp,(LPARAM)(int32_t)ARG(3));
          end(c);callback_cpu=prev;RET_STD(4,(uint32_t)result);return;
      }
@@ -379,7 +405,7 @@ index 8794a2a..dc33f00 100644
      if(msg==WM_SETTEXT || msg==WM_GETTEXTLENGTH) {
          if(msg==WM_SETTEXT && ARG(3) && ARG(3)<0x10000)
              xrt_fatal(c,XRT_EXIT_UNSUPPORTED,"WM_SETTEXT invalid guest string");
-@@ -1323,8 +1373,17 @@ static void hle_DestroyWindow(CPU *c)
+@@ -1323,8 +1378,17 @@ static void hle_DestroyWindow(CPU *c)
      BOOL ok;
      unsigned i;
      CPU *prev = callback_cpu;
@@ -399,7 +425,7 @@ index 8794a2a..dc33f00 100644
      callback_cpu = c;
      begin(c);
      ok = xm_win_DestroyWindow(window_host(ARG(0)));
-@@ -1395,8 +1454,10 @@ const XrtHle xrt_hle_gui[] = {{"comctl32.dll", "#17", hle_InitCommonControls},
+@@ -1395,8 +1459,10 @@ const XrtHle xrt_hle_gui[] = {{"comctl32.dll", "#17", hle_InitCommonControls},
                                {"user32.dll", "SetWindowLongA", hle_SetWindowLongA},
                                {"user32.dll", "SetWindowLongW", hle_SetWindowLongW},
                                {"user32.dll", "SetMenu", hle_SetMenu},
@@ -410,7 +436,7 @@ index 8794a2a..dc33f00 100644
                                {"user32.dll", "PeekMessageW", hle_PeekMessageW},
                                {"user32.dll", "PeekMessageA", hle_PeekMessageA},
                                {"user32.dll", "TranslateMessage", hle_TranslateMessage},
-@@ -1413,6 +1474,10 @@ const XrtHle xrt_hle_gui[] = {{"comctl32.dll", "#17", hle_InitCommonControls},
+@@ -1413,6 +1479,10 @@ const XrtHle xrt_hle_gui[] = {{"comctl32.dll", "#17", hle_InitCommonControls},
  
                                {"user32.dll", "GetWindowLongA", hle_GetWindowLongA},
                                {"user32.dll", "IsWindow", hle_IsWindow},
@@ -791,7 +817,7 @@ index ef4e749..1fabcc2 100644
   HWND h,control=NULL;UINT msg;WPARAM wp;LPARAM lp;BOOL ok;CPU*prev;
   gui_transition_memory(c,c->r[ESP],20,0);msg=ARG(1);wp=ARG(2);lp=(LPARAM)(int32_t)ARG(3);
 diff --git a/out/dev-init-savepoints/interactive-20261101/runtime-base/xrt_internal.h b/out/dev-init/runtime/xrt_internal.h
-index 65e2b0b..12b26dc 100644
+index 65e2b0b..ab66b49 100644
 --- a/out/dev-init-savepoints/interactive-20261101/runtime-base/xrt_internal.h
 +++ b/out/dev-init/runtime/xrt_internal.h
 @@ -148,6 +148,10 @@ uint32_t xrt_module_export(XrtModule* m, const char* name, uint32_t ordinal);
@@ -805,6 +831,14 @@ index 65e2b0b..12b26dc 100644
  void xrt_world_enter(CPU* c, uint32_t target);
  extern int xrt_scene_level_depth,xrt_scene_camera_depth;extern unsigned xrt_scene_level_renders,xrt_scene_camera_renders,xrt_scene_engine_ticks,xrt_scene_level_ticks;
  /* Developer first-scene mode (dev_support.c). */
+@@ -218,6 +222,7 @@ void* xrt_gui_device_window(CPU* c,uint32_t token);
+ uint32_t xrt_gui_window_identity(CPU* c,void* host);
+ void xrt_gui_window_pin(CPU* c,uint32_t token);
+ void xrt_gui_window_unpin(uint32_t token);
++int xrt_gui_window_destroyed(uint32_t token);   /* destroyed by the guest while a D3D8 device still held it */
+ 
+ /* process */
+ extern char xrt_sandbox_root[520];         /* writes are only permitted below this directory */
 diff --git a/out/dev-init-savepoints/interactive-20261101/runtime-base/xrt_loader.c b/out/dev-init/runtime/xrt_loader.c
 index 475d976..03bff18 100644
 --- a/out/dev-init-savepoints/interactive-20261101/runtime-base/xrt_loader.c
