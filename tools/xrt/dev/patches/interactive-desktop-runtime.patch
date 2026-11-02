@@ -284,7 +284,7 @@ index 061098a..ed380f4 100644
    xrt_baton_acquire();
    if(xrt_exiting){xrt_baton_release();return;}
 diff --git a/out/dev-init-savepoints/interactive-20261101/runtime-base/hle_gui.c b/out/dev-init/runtime/hle_gui.c
-index 8794a2a..ea3da3e 100644
+index 8794a2a..a7fb740 100644
 --- a/out/dev-init-savepoints/interactive-20261101/runtime-base/hle_gui.c
 +++ b/out/dev-init/runtime/hle_gui.c
 @@ -657,6 +657,16 @@ static void dev_max_track(MINMAXINFO *m)
@@ -360,15 +360,18 @@ index 8794a2a..ea3da3e 100644
      if(msg==WM_SETTEXT || msg==WM_GETTEXTLENGTH) {
          if(msg==WM_SETTEXT && ARG(3) && ARG(3)<0x10000)
              xrt_fatal(c,XRT_EXIT_UNSUPPORTED,"WM_SETTEXT invalid guest string");
-@@ -1397,6 +1442,7 @@ const XrtHle xrt_hle_gui[] = {{"comctl32.dll", "#17", hle_InitCommonControls},
+@@ -1395,8 +1440,10 @@ const XrtHle xrt_hle_gui[] = {{"comctl32.dll", "#17", hle_InitCommonControls},
+                               {"user32.dll", "SetWindowLongA", hle_SetWindowLongA},
+                               {"user32.dll", "SetWindowLongW", hle_SetWindowLongW},
                                {"user32.dll", "SetMenu", hle_SetMenu},
++                              {"user32.dll", "GetMenu", hle_GetMenu},
                                {"user32.dll", "PostMessageA", hle_PostMessageA},
                                {"user32.dll", "PostMessageW", hle_PostMessageW},
 +                              {"user32.dll", "PostQuitMessage", hle_PostQuitMessage},
                                {"user32.dll", "PeekMessageW", hle_PeekMessageW},
                                {"user32.dll", "PeekMessageA", hle_PeekMessageA},
                                {"user32.dll", "TranslateMessage", hle_TranslateMessage},
-@@ -1413,6 +1459,10 @@ const XrtHle xrt_hle_gui[] = {{"comctl32.dll", "#17", hle_InitCommonControls},
+@@ -1413,6 +1460,10 @@ const XrtHle xrt_hle_gui[] = {{"comctl32.dll", "#17", hle_InitCommonControls},
  
                                {"user32.dll", "GetWindowLongA", hle_GetWindowLongA},
                                {"user32.dll", "IsWindow", hle_IsWindow},
@@ -681,6 +684,27 @@ index 0000000..f9939b5
 +    if(logged++<32)xrt_log("viewport WM_SIZE SIZE_MAXIMIZED reported to the game as SIZE_RESTORED (windowed back buffer)");
 +    return SIZE_RESTORED;
 +}
+diff --git a/out/dev-init-savepoints/interactive-20261101/runtime-base/window_transitions.inc b/out/dev-init/runtime/window_transitions.inc
+index ef4e749..1fabcc2 100644
+--- a/out/dev-init-savepoints/interactive-20261101/runtime-base/window_transitions.inc
++++ b/out/dev-init/runtime/window_transitions.inc
+@@ -30,6 +30,16 @@ static void hle_SetMenu(CPU*c) {
+  if(ARG(1))xrt_fatal(c,76,"SetMenu: non-NULL menu requires typed ownership");
+  h=xrt_gui_device_window(c,ARG(0));prev=xrt_gui_callback_enter(c);begin(c);ok=xm_win_SetMenu(h,NULL);end(c);xrt_gui_callback_leave(prev);RET_STD(2,ok);
+ }
++/* UWindowsViewport::SetTopness asks for the window's menu when it leaves fullscreen (owner's runs 20261101-220238,
++ * -220317): the game window has none (the game only ever sets NULL), and NULL means "not topmost". A real menu would
++ * need the typed ownership SetMenu refuses as well. */
++static void hle_GetMenu(CPU*c) {
++ HWND h;HMENU m;
++ gui_transition_memory(c,c->r[ESP],8,0);
++ h=xrt_gui_device_window(c,ARG(0));begin(c);m=GetMenu(h);end(c);
++ if(m)xrt_fatal(c,76,"GetMenu: a window menu requires typed ownership");
++ RET_STD(1,0);
++}
+ static void gui_post_message(CPU*c,int wide) {
+  HWND h,control=NULL;UINT msg;WPARAM wp;LPARAM lp;BOOL ok;CPU*prev;
+  gui_transition_memory(c,c->r[ESP],20,0);msg=ARG(1);wp=ARG(2);lp=(LPARAM)(int32_t)ARG(3);
 diff --git a/out/dev-init-savepoints/interactive-20261101/runtime-base/xrt_internal.h b/out/dev-init/runtime/xrt_internal.h
 index 65e2b0b..12b26dc 100644
 --- a/out/dev-init-savepoints/interactive-20261101/runtime-base/xrt_internal.h
