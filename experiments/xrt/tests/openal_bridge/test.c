@@ -40,6 +40,11 @@ void xrt_event(const char* kind, const char* fmt, ...) {
     else printf("     event %s {%s}\n", kind, body);
 }
 uint32_t xrt_hle_proc(const char* dll, const char* name) { (void)dll; (void)name; return 0x00300010u; }
+/* No modules are loaded here: the adapter's diagnostics (radius multiplier, stop-site description) find nothing. */
+XrtModule* xrt_module_by_name(const char* name) { (void)name; return NULL; }
+uint32_t xrt_module_export(XrtModule* m, const char* name, uint32_t ordinal) { (void)m; (void)name; (void)ordinal; return 0; }
+uint32_t xrt_lookup_containing(uint32_t va) { (void)va; return 0; }
+void xrt_describe(char* out, size_t n, uint32_t va) { snprintf(out, n, "%08x", va); }
 extern const XrtHle xrt_hle_openal[];
 
 static int failures;
