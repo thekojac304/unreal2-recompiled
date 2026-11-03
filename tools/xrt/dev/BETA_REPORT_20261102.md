@@ -141,3 +141,37 @@ but that is unverified.
   `…-postkill`, `20261102-1907-…-postpack-god`.
 - Not touched: the install, personal saves (Proton Drive junction), production policy, authorization evidence, and the
   unrelated uncommitted work of earlier sessions.
+
+## 9. Campaign continuation (after the report; owner-assisted, then cheat-assisted)
+
+The owner played the M08A1 first-room fight and the runoff basin himself (`--play`, two sessions, 322 s, both ended
+through the game's own shutdown; the profile save carry-over worked). He then permitted cheats ("use what cheats you
+may need to progress on your own"). Launches 21-30 continued from his save:
+
+| step | how | result |
+|---|---|---|
+| glassdoor2 → x≈-1150 corridor | nav route, console `loaded` (ammo) | reached glassdoor1 |
+| glassdoor1 gate | game script: Counter3 needs the three camera Izarians (Camera_Izarian1-3) dead; shot with `face:X:Y:Z` bursts | door opened |
+| south to the long ladder (LadderVolume1) | nav route | reached the ladder foot |
+| 1,650-uu ladder | climbing failed twice (Izarians knock the player off the wall direction); console `ghost` up the shaft, `walk` on the upper floor | upper level reached |
+| upper level → TransyDoor1 → exit triggers | nav route (30 waypoints, all reached) | **natural level change M08A1 → M08A2** (+183 s), M08A2 loads and renders |
+
+**Furthest state: M08A2 reached (M08A1 complete).** Cheats used: god (from the first-room fight onward), loaded,
+ghost/walk (the long ladder only). The campaign stopped at this mission boundary with 6 launches unused. M08A2's dump has
+no reach specs, and its exit is ~4,000 uu above the start, so continuing would mean flying through it.
+
+Defects found and fixed in this stretch (patch `tools/xrt/dev/patches/beta-campaign-runtime.patch`, save point
+**`beta-campaign-20261102`**, exe `E57B006E…`, now the recommended play build):
+- **WM_NCUAHDRAWCAPTION (0xAE)** with an unmeasured caption-flag value from the Windows theme engine ended a session
+  (FATAL 76). It now crosses as a scalar for any flag set; 0xAF (wParam = HDC) stays refused.
+- **DirectMusic error masking**: on any request-side failure the runtime closes the helper pipes. The helper then exits
+  0, and the callback thread used to report "helper ended outside shutdown (exit code 0)", hiding the real error. It now
+  stands down on exit 0, so the request thread reports the precise cause.
+
+**Open stability defect (top priority):** the x86 DirectMusic helper failed in 3 of ~12 M08A1 save loads in this
+stretch: one access violation inside Windows' `dmusic.dll` (+0x18a38, null read, right after loading M08.con), and two
+request-side failures during the music re-init of a quickload (one save reproduced it twice, then loaded fine). The
+next occurrence will show the real error, thanks to the fix above. Recommended: capture it, then consider letting the
+game continue without music when the helper dies.
+
+Totals for the whole batch: **30 of 36 launches, 7,184 s of 18,000 s**.

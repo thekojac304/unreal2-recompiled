@@ -844,3 +844,9 @@ Beta batch (2026-11-02 night; report tools/xrt/dev/BETA_REPORT_20261102.md; jour
   - Campaign: M08A1 stops at the first-room pack (its death -> Danny's broadcast -> runoff-basin hatches; game scripts in
     singleplayer/Scripts/M08A and Dialog/M08A are the reliable source). Console `god` (owner instruction) keeps the player
     alive, but the pack was not cleared by open-loop fire. Checkpoints saves/20261102-1816-*-prelos/-postkill, -1907-*-postpack-god.
+  - Campaign continuation (owner played the first-room fight and the basin, then allowed cheats): M08A1 completed, natural
+    level change to M08A2 (launch 30). Gates came from the game scripts (camera Izarians -> glassdoor1); the long ladder was
+    crossed with console ghost/walk. Runtime fixes (patches/beta-campaign-runtime.patch, save point beta-campaign-20261102):
+    WM_NCUAHDRAWCAPTION 0xae any scalar flags; the DirectMusic async thread no longer masks request-side errors (helper exit 0).
+    Open: intermittent DirectMusic helper failures at M08A1 save loads (3 of ~12). Ladder climbing: face the LadderVolume
+    WallDir from inside the volume; quicksave rotation: the checkpoint you want may be Save1, not Save0.

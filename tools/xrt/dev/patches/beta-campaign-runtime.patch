@@ -1,0 +1,33 @@
+diff --git a/out/dev-init-savepoints/beta-final-20261102/runtime/hle_dmusic_guest.inc b/out/dev-init/runtime/hle_dmusic_guest.inc
+index ed380f4..5c679fc 100644
+--- a/out/dev-init-savepoints/beta-final-20261102/runtime/hle_dmusic_guest.inc
++++ b/out/dev-init/runtime/hle_dmusic_guest.inc
+@@ -164,6 +164,11 @@ static void dmi_async_body(CPU*c,void*arg){DmbMessage q,r;(void)arg;
+    /* The helper's exit code tells how it ended: 0 its request loop stopped, 80 die() (message on stderr), an NTSTATUS
+     * such as c0000005/c0000374/c0000409 a crash, including fail-fast exits that bypass its own crash reporter. */
+    {DWORD code=STILL_ACTIVE;if(dm_helper_process&&xm_win_WaitForSingleObject(dm_helper_process,2000)==WAIT_OBJECT_0)GetExitCodeProcess(dm_helper_process,&code);
++    /* Exit 0: the helper's request loop saw its pipe close, which is what the runtime's dmb_failed (request deadline,
++     * rejected op, response mismatch ...) does on the request thread before that thread reports its own, precise error.
++     * Beta batch: this thread used to win the race to xrt_fatal and hid that error behind "exit code 0" (runs
++     * 20261102-203529/-203818). Stand down and leave the report to the request thread (its next exchange fails anyway). */
++    if(code==0){xrt_log("DirectMusic asynchronous channel closed after the helper's request loop stopped (exit 0): the request thread reports the cause");return;}
+     xrt_baton_acquire();xrt_fatal(c,XRT_EXIT_UNSUPPORTED,"DirectMusic helper ended outside shutdown (asynchronous channel closed; helper exit code %08lx)",code);}}
+   if(xrt_exiting)return;
+   xrt_baton_acquire();
+diff --git a/out/dev-init-savepoints/beta-final-20261102/runtime/hle_gui.c b/out/dev-init/runtime/hle_gui.c
+index 70b82df..3f6e6a8 100644
+--- a/out/dev-init-savepoints/beta-final-20261102/runtime/hle_gui.c
++++ b/out/dev-init/runtime/hle_gui.c
+@@ -764,8 +764,10 @@ static INT_PTR invoke_gui_proc(HWND h, UINT msg, WPARAM wp, LPARAM lp, uint32_t
+         if (h || wp > 100 || lp > 100)
+             xrt_fatal(&nested, XRT_EXIT_UNSUPPORTED, "class oracle scalar message outside measured range");
+         break;
+-    case 0xae: /* Observed (8,0)/(9,0) scalar notifications, measured with real default processing. */
+-        if((wp!=8 && wp!=9) || lp)
++    case 0xae: /* WM_NCUAHDRAWCAPTION (uxtheme caption redraw): wParam is a scalar set of caption-part flags, lParam 0.
++                * Measured (8,0)/(9,0) with real default processing; beta batch run 20261102-202449 got (0x1000,0) from the
++                * host theme and was refused. Any 32-bit flag set crosses as is; 0xaf (wParam = HDC) stays refused. */
++        if(wp>0xffffffffu || lp)
+             xrt_fatal(&nested,XRT_EXIT_UNSUPPORTED,"window callback 0xae: unmeasured arguments (wp=%llx lp=%llx)",(unsigned long long)wp,(unsigned long long)lp);
+         break;
+     case 0x90: /* Observed Windows theme destruction notification: both arguments zero. */
