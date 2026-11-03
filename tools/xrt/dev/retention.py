@@ -10,6 +10,8 @@ import os
 import re
 import shutil
 import stat
+import struct
+import zlib
 from pathlib import Path
 
 REPARSE = stat.FILE_ATTRIBUTE_REPARSE_POINT
@@ -110,19 +112,32 @@ def retire_sandbox(root, name, baseline, keep):
 
 
 def _png(bmp):
-    """Lossless PNG next to the BMP, kept only if the pixels are identical; without Pillow the BMP stays."""
-    try:
-        from PIL import Image
-    except ImportError:
-        return bmp
+    """Lossless PNG next to a 24-bit uncompressed bottom-up BMP (what dev_support.c writes), standard library only. The BMP
+    is removed only after the PNG decodes to the same pixels; any other BMP stays as it is."""
     png = bmp.with_suffix('.png')
     try:
-        with Image.open(bmp) as a:
-            a.load()
-            a.save(png, optimize=True)
-            with Image.open(png) as b:
-                same = (a.mode, a.size, a.tobytes()) == (b.mode, b.size, b.tobytes())
-    except Exception:
+        data = bmp.read_bytes()
+        off, = struct.unpack_from('<I', data, 10)
+        width, height, planes, bpp, comp = struct.unpack_from('<iiHHI', data, 18)
+        if data[:2] != b'BM' or bpp != 24 or comp != 0 or width <= 0 or height <= 0:
+            return bmp
+        stride = (width * 3 + 3) & ~3
+        if off + stride * height > len(data):
+            return bmp
+        raw = bytearray()
+        for y in range(height - 1, -1, -1):                       # BMP rows are bottom-up BGR; PNG rows top-down RGB
+            row = data[off + y * stride: off + y * stride + width * 3]
+            rgb = bytearray(width * 3)
+            rgb[0::3], rgb[1::3], rgb[2::3] = row[2::3], row[1::3], row[0::3]
+            raw += b'\0' + rgb                                      # filter type 0
+
+        def chunk(kind, body):
+            return struct.pack('>I', len(body)) + kind + body + struct.pack('>I', zlib.crc32(kind + body))
+        png.write_bytes(b'\x89PNG\r\n\x1a\n' + chunk(b'IHDR', struct.pack('>IIBBBBB', width, height, 8, 2, 0, 0, 0))
+                        + chunk(b'IDAT', zlib.compress(bytes(raw), 6)) + chunk(b'IEND', b''))
+        back = png.read_bytes()
+        same = back[:8] == b'\x89PNG\r\n\x1a\n' and zlib.decompress(back[back.index(b'IDAT') + 4:-16]) == raw
+    except (OSError, struct.error, ValueError, zlib.error):
         png.unlink(missing_ok=True)
         return bmp
     if same:

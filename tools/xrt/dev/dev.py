@@ -13,9 +13,10 @@ import sys
 import time
 import uuid
 
+HERE = Path(__file__).resolve().parent
+sys.path.insert(0, str(HERE))   # python -I does not put the script folder on sys.path
 import retention
 
-HERE = Path(__file__).resolve().parent
 WS = HERE.parents[2]
 BASE = WS / 'out/recovery/practical-init-20261031-01'
 DEV_OBSERVED_UNITS = {'Engine_026.c'}

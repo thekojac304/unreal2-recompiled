@@ -1,8 +1,10 @@
 """retention.py: python -m unittest test_retention (from tools/xrt/dev). Uses temporary folders only."""
 import os
+import struct
 import subprocess
 import tempfile
 import unittest
+import zlib
 from pathlib import Path
 from unittest import mock
 
@@ -17,6 +19,14 @@ def junction(link, target):
 
 def unlink_junction(link):
     os.rmdir(link)
+
+
+def bmp(width, height, pixel):
+    """24-bit bottom-up BMP like dev_support.c writes; pixel(x, y) = (r, g, b) with y counted from the top."""
+    stride = (width * 3 + 3) & ~3
+    rows = b''.join(b''.join(bytes(pixel(x, y)[::-1]) for x in range(width)).ljust(stride, b'\0') for y in range(height - 1, -1, -1))
+    return (b'BM' + struct.pack('<IHHI', 54 + len(rows), 0, 0, 54) + struct.pack('<IiiHHIIiiII', 40, width, height, 1, 24, 0, len(rows), 0, 0, 0, 0)
+            + rows)
 
 
 class Sandbox(unittest.TestCase):
@@ -185,10 +195,10 @@ class Frames(unittest.TestCase):
         self.run_dir = Path(self._tmp.name)
 
     def frames(self, n):
-        from PIL import Image
         for i in range(n):
-            Image.new('RGB', (64, 48), (i, 10, 20)).save(self.run_dir / f'scene-frame-{i:04d}.bmp')
-            os.utime(self.run_dir / f'scene-frame-{i:04d}.bmp', (1000 + i, 1000 + i))
+            path = self.run_dir / f'scene-frame-{i:04d}.bmp'
+            path.write_bytes(bmp(5, 3, lambda x, y: (i, 10 + y, 20 + x)))
+            os.utime(path, (1000 + i, 1000 + i))
 
     def test_routine_frames_are_thinned_to_png_and_the_rest_deleted(self):
         self.frames(40)
@@ -204,11 +214,18 @@ class Frames(unittest.TestCase):
         self.assertTrue((self.run_dir / 'frames.csv').exists() and (self.run_dir / 'xrt.log').exists())
 
     def test_pixels_survive_the_png_conversion(self):
-        from PIL import Image
         self.frames(1)
         retention.thin_frames(self.run_dir)
-        with Image.open(self.run_dir / 'scene-frame-0000.png') as im:
-            self.assertEqual(im.convert('RGB').getpixel((3, 3)), (0, 10, 20))
+        png = (self.run_dir / 'scene-frame-0000.png').read_bytes()
+        raw = zlib.decompress(png[png.index(b'IDAT') + 4:-16])
+        rows = [raw[y * 16 + 1: y * 16 + 16] for y in range(3)]       # filter byte + 5 RGB pixels per row
+        self.assertEqual(struct.unpack('>II', png[16:24]), (5, 3))
+        self.assertEqual(tuple(rows[2][3 * 4: 3 * 4 + 3]), (0, 12, 24))   # bottom row, x=4: bmp(...) returns (i, 10+y, 20+x)
+
+    def test_unusual_bmp_is_left_alone(self):
+        (self.run_dir / 'present-00001.bmp').write_bytes(b'BM' + bytes(60))
+        retention.thin_frames(self.run_dir)
+        self.assertTrue((self.run_dir / 'present-00001.bmp').exists())
 
     def test_failure_also_keeps_the_last_frames(self):
         self.frames(40)
