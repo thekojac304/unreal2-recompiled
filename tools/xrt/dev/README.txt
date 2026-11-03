@@ -827,3 +827,20 @@ Performance round 4 (2026-11-02 evening; report tools/xrt/dev/PERF_REPORT_202611
 
 Owner decision (2026-11-02, after round 4): guard staging is the play default - dev.py run --staging now defaults to guard;
 strict remains available as the reference/diagnostic mode, and bench_tuta.ps1 still passes --staging strict by default.
+
+Beta batch (2026-11-02 night; report tools/xrt/dev/BETA_REPORT_20261102.md; journal out/dev-init/beta-evidence-20261102;
+20 of 36 owner-authorized launches, 5,075 s of 18,000 s; recommended save point out/dev-init-savepoints/beta-final-20261102):
+  - Guest VirtualAlloc pool (patches/beta-batch-runtime.patch vs perf-r4d): best fit splits, reclaim/merge only when no
+    free block fits, second pool segment 0x60000000-0x7FEFFFFF (guest heap 0x20000000-0x5FFFFFFF), heap coalescing under
+    exhaustion only; runtime-report.json guest_virtual_pool. Test experiments/xrt/tests/pool_fragmentation (run.cmd
+    [reference]); staging_reuse / staging_guard updated.
+  - Inline ehframe pad link/unlink (patches/beta-eh-inline-runtime.patch vs beta-alloc): TutA +2.8-7.5% in every window.
+    xrt.h changed: dev.py build --full.
+  - Input script: sync[:MS] (hold the script clock while a goto runs), face:X:Y[:Z] (pitch steering), mouse moves no longer
+    use up the 96-line delivery log. The UI console stays open after Enter: close it with Escape (key 27), not VK 192.
+    Use panels that are not trigger-once toggle: press Use once.
+  - dev.py run --play (owner's interactive defaults), --profile carries Save/*.usa between sessions (Save.prev kept),
+    --play end-of-session message box. Sessions are still limited to 600 s (first-scene policy).
+  - Campaign: M08A1 stops at the first-room pack (its death -> Danny's broadcast -> runoff-basin hatches; game scripts in
+    singleplayer/Scripts/M08A and Dialog/M08A are the reliable source). Console `god` (owner instruction) keeps the player
+    alive, but the pack was not cleared by open-loop fire. Checkpoints saves/20261102-1816-*-prelos/-postkill, -1907-*-postpack-god.

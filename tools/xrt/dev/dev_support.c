@@ -486,7 +486,8 @@ int xrt_dev_background(void) {
  *                    transform as the camera log, turns with mouse motion toward the point (re-steered every 220 ms, so
  *                    it does not depend on the map's mouse scale) and holds W while facing it within 25 deg; ends within
  *                    R uu (default 48) or after 30 s, logged either way. A later goto replaces it.
- *   face:X:Y         turn only (same steering, no walking) until facing X,Y within 2.5 deg, or 3 s
+ *   face:X:Y[:Z]     turn only (same steering, no walking) until facing X,Y within 2.5 deg, or 3 s; with Z also pitch
+ *                    toward the world point (X,Y,Z) from the camera (mouse dy; +dy looks down), within 2.5 deg
  *   sync[:MS]        while a goto/face is still running, hold the script clock (every later step shifts) until it ends,
  *                    or for at most MS (default 30000); logged. Lets a route survive a blocked moment (an NPC in a
  *                    corridor) instead of later gotos cutting corners on fixed times.
@@ -561,7 +562,7 @@ int xrt_dev_input_allowed(void *hwnd, unsigned msg, unsigned long long wp, long 
         if (in_allow[i].expires < now) { xrt_log("DEV input: scripted message %x expired undelivered", in_allow[i].msg); in_allow[i].expires = 0; continue; }
         if (in_allow[i].msg == msg && (in_allow[i].any_wp || (in_allow[i].wp == wp && in_allow[i].lp == lp))) {
             in_allow[i].expires = 0;
-            if (in_delivered++ < 96) xrt_log("DEV input delivered msg %x wp %llx lp %llx at +%llu ms", msg, wp, lp, now - init_ms);
+            if (msg != WM_MOUSEMOVE && in_delivered++ < 96) xrt_log("DEV input delivered msg %x wp %llx lp %llx at +%llu ms", msg, wp, lp, now - init_ms);
             if (msg == WM_KEYDOWN) input_allow(WM_CHAR, 0, 0, 1); /* TranslateMessage's own WM_CHAR */
             return 1;
         }
@@ -613,7 +614,7 @@ static void key_post(unsigned vk, int down) {
 }
 static void view_log(const char *why);
 static void goto_tick(ULONGLONG now);
-static struct { int active, turn_only; double x, y, r; ULONGLONG deadline, next; } go;
+static struct { int active, turn_only, has_z; double x, y, z, r; ULONGLONG deadline, next; } go;
 static struct { int on; ULONGLONG last, until, total; } in_sync;
 /* Called from the guest's message pump before each host PeekMessage. */
 void xrt_dev_input_tick(void) {
@@ -703,9 +704,9 @@ void xrt_dev_input_tick(void) {
             in_rbutton = 1; in_rbutton_up = now + (s->a > 0 ? (unsigned)s->a : 100);
             di_push(13, 0x80); input_allow(WM_RBUTTONDOWN, MK_RBUTTON | (in_button ? MK_LBUTTON : 0), client_point(), 0);
         } else if (s->verb == 'g') {
-            go.active = 1; go.turn_only = 0; go.x = s->a; go.y = s->b; go.r = s->c > 0 ? s->c : 48; go.deadline = now + 30000; go.next = now;
+            go.active = 1; go.turn_only = 0; go.has_z = 0; go.x = s->a; go.y = s->b; go.r = s->c > 0 ? s->c : 48; go.deadline = now + 30000; go.next = now;
         } else if (s->verb == 'f') {
-            go.active = 1; go.turn_only = 1; go.x = s->a; go.y = s->b; go.r = 0; go.deadline = now + 3000; go.next = now;
+            go.active = 1; go.turn_only = 1; go.has_z = s->c != 0; go.z = s->c; go.x = s->a; go.y = s->b; go.r = 0; go.deadline = now + 3000; go.next = now;
         } else if (s->verb == 'y') {
             if (go.active) { in_sync.on = 1; in_sync.last = now; in_sync.until = now + (s->a > 0 ? (unsigned)s->a : 30000); break; }
         } else if (s->verb == 'z') {
@@ -740,7 +741,7 @@ static void view_log(const char *why) {
 }
 /* goto step: steer toward go.x/go.y from the current view transform (camera = -t R^T, forward = third column). */
 static void goto_tick(ULONGLONG now) {
-    double cx, cy, yaw, err, d;
+    double cx, cy, yaw, err, d, perr = 0;
     unsigned i, held = 8;
     int walk;
     if (!go.active || !view_valid) return;
@@ -752,12 +753,17 @@ static void goto_tick(ULONGLONG now) {
     while (err > 3.14159265) err -= 6.28318531;
     while (err < -3.14159265) err += 6.28318531;
     err *= 57.29578;
+    if (go.has_z) {   /* pitch toward (x, y, z): forward z component = view_m[10] */
+        double cz = -(view_m[12] * view_m[8] + view_m[13] * view_m[9] + view_m[14] * view_m[10]);
+        double pitch = atan2(view_m[10], sqrt(view_m[2] * view_m[2] + view_m[6] * view_m[6]));
+        perr = (atan2(go.z - cz, d > 1 ? d : 1) - pitch) * 57.29578;
+    }
     for (i = 0; i < 8; i++) if (in_keys[i].up && in_keys[i].vk == 'W') held = i;
-    if (go.turn_only && ((err < 2.5 && err > -2.5) || now >= go.deadline)) {
+    if (go.turn_only && ((err < 2.5 && err > -2.5 && perr < 2.5 && perr > -2.5) || now >= go.deadline)) {
         if (held < 8) in_keys[held].up = now;
         go.active = 0;
-        xrt_log("DEV face %s (%.0f,%.0f) at +%llu ms: camera (%.0f,%.0f) yaw %.1f, error %.1f deg", now >= go.deadline ? "TIMEOUT" : "done",
-                go.x, go.y, now - init_ms, cx, cy, yaw * 57.29578, err);
+        xrt_log("DEV face %s (%.0f,%.0f) at +%llu ms: camera (%.0f,%.0f) yaw %.1f, error %.1f deg, pitch error %.1f deg",
+                now >= go.deadline ? "TIMEOUT" : "done", go.x, go.y, now - init_ms, cx, cy, yaw * 57.29578, err, perr);
         return;
     }
     if (d <= go.r || now >= go.deadline) {
@@ -767,11 +773,12 @@ static void goto_tick(ULONGLONG now) {
                 go.x, go.y, now - init_ms, cx, cy, d);
         return;
     }
-    if (now >= go.next && (err > 2.0 || err < -2.0)) {
-        int dx = (int)(err * 3.0);              /* below either measured scale (4.2 / 5.2 units/deg): no overshoot */
+    if (now >= go.next && (err > 2.0 || err < -2.0 || perr > 2.0 || perr < -2.0)) {
+        int dx = (int)(err * 3.0), dy = (int)(-perr * 3.0);   /* below either measured scale (4.2 / 5.2 units/deg): no overshoot */
         if (dx > 300) dx = 300; else if (dx < -300) dx = -300;
+        if (dy > 300) dy = 300; else if (dy < -300) dy = -300;
         for (i = 0; i < 4 && in_moves[i].start; i++) {}
-        if (i < 4) { in_moves[i].start = now; in_moves[i].ms = 120; in_moves[i].dx = dx; in_moves[i].dy = 0; in_moves[i].done_x = in_moves[i].done_y = 0; }
+        if (i < 4) { in_moves[i].start = now; in_moves[i].ms = 120; in_moves[i].dx = dx; in_moves[i].dy = dy; in_moves[i].done_x = in_moves[i].done_y = 0; }
         go.next = now + 220;
     }
     walk = !go.turn_only && err < 25.0 && err > -25.0;
