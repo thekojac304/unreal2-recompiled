@@ -13,6 +13,8 @@ import sys
 import time
 import uuid
 
+import retention
+
 HERE = Path(__file__).resolve().parent
 WS = HERE.parents[2]
 BASE = WS / 'out/recovery/practical-init-20261031-01'
@@ -694,6 +696,41 @@ def play_notice(args, out, code, outcome):
         pass
 
 def run(args):
+    """One developer launch. Afterwards (success, failure, cancel) the run's asset sandbox and routine frames are retired."""
+    state = {}
+    try:
+        result = _run(args, state)
+        state['failed'] = result != 0
+        return result
+    except BaseException:
+        state['failed'] = True
+        raise
+    finally:
+        retire_run(args, state)
+
+def retire_run(args, state):
+    """retention.py policy; never replaces the run's own result or error."""
+    if 'out' not in state:
+        return
+    out = state['out']
+    try:
+        if 'sandbox' in state:
+            if args.keep_sandbox:
+                rec = {'action': 'kept', 'reason': '--keep-sandbox', 'sandbox': str(WS / 'sandbox_cmp' / state['sandbox'])}
+            else:
+                rec = retention.retire_sandbox(WS / 'sandbox_cmp', state['sandbox'], state.get('baseline'), out / 'sandbox-kept')
+            write(out / 'sandbox-retention.json', rec)
+            print('dev: sandbox', rec['action'], '-', rec.get('reason') or f"{rec['removed_files']} files removed, "
+                  f"{len(rec['preserved'])} game-written kept in {out.name}/sandbox-kept", flush=True)
+        if not args.keep_frames:
+            frames = retention.thin_frames(out, state.get('failed', True))
+            if frames['frames_seen']:
+                write(out / 'frames-retention.json', frames)
+                print(f"dev: frames kept {len(frames['frames_kept'])} of {frames['frames_seen']}", flush=True)
+    except Exception as error:
+        print(f'dev: retention skipped ({error}); the sandbox, if any, is left as it is', file=sys.stderr, flush=True)
+
+def _run(args, state):
     if args.session_minutes and not args.play:
         raise RuntimeError('--session-minutes is for --play only (developer launches stay within 600 s)')
     if args.play:
@@ -730,12 +767,15 @@ def run(args):
         src = independent(Path(spec))
         from_sandbox = any(src.is_relative_to(a) for a in (WS / 'sandbox_cmp', Path(os.environ.get('USERPROFILE', '')) / 'Unreal2-dev-sandbox-overflow')) \
             and any(part.startswith('dev-init-') for part in src.parts)
+        from_sandbox = from_sandbox or (src.is_relative_to(DEV / 'runs') and 'sandbox-kept' in src.parts)   # kept by retention.py
         if src.suffix.lower() != '.usa' or not src.is_file() or not (from_sandbox or src.is_relative_to(DEV / 'saves')):
             raise RuntimeError(f'No launch: --seed-save is not a .usa written by an earlier developer run: {src}')
         seeds.append(src)
     out = fresh_run()
+    state['out'] = out
     sandbox = WS / 'sandbox_cmp' / ('dev-init-' + out.name)
     assets.check_writable(sandbox)
+    state['sandbox'] = sandbox.name   # retired by run() when the launch is over
     shutil.copytree(assets.source(), sandbox)
     if args.windowed_res:
         # The run's own copy of System/Unreal2.ini (a mutable run input): the windowed viewport the game requests.
@@ -900,6 +940,7 @@ def run(args):
                     '--timeout-ms', str(args.timeout * 1000), '--', 'CS_Intro.un2',
                     *([] if startup_fullscreen else ['-windowed']), *([] if args.sound != 'off' else ['-nosound']), '-NOMMX', '-NOSSE']
     print('Run output:', out, flush=True)
+    state['baseline'] = retention.scan(sandbox)[0]   # what the game writes from here on is what the run keeps
     try:
         code = launch(exe, command_args, out, sandbox / 'System', env, args.timeout)
         reached = scene_proven(out, code) if args.first_scene else endpoint_proven(out, code)
@@ -993,8 +1034,10 @@ def main():
                    help='D3D8 buffer Lock staging: guard (default; block PAGE_NOACCESS between uses, stale pointers fault as in '
                         'strict), strict (reference: decommitted at Unlock, stale pointers fault) or reuse (diagnostics only: '
                         'stale pointers into a warm block are not trapped)')
-    r.add_argument('--capture', choices=('periodic', 'shots'), default='periodic',
-                   help='first-scene back-buffer captures: periodic (default; powers of two, every 256th world frame, cues) or shots (scripted shots only)')
+    r.add_argument('--capture', choices=('periodic', 'shots'), default='shots',
+                   help='first-scene back-buffer captures: shots (default; scripted shots only) or periodic (powers of two, every 256th world frame, cues; GBs at 4K)')
+    r.add_argument('--keep-sandbox', action='store_true', help='leave the run asset sandbox in place (default: game-written files are kept in <run>/sandbox-kept, the sandbox deleted)')
+    r.add_argument('--keep-frames', action='store_true', help='keep every captured frame as written (default: at most 12 per run, as PNG)')
     r.add_argument('--diag-move', action='store_true',
                    help='log what blocks the player (needs a build --diag-move executable)')
     r.add_argument('--seed-save', action='append', default=[], metavar='FILE.usa',
