@@ -33,7 +33,11 @@ NATIVE = {'GlmLib_008.c': [('f_2fd7d20', HERE / 'native/glm_xform.c')]}
 # Port behaviour wrappers, always linked: walking speed setting (native/walk_speed.c). Unlike NATIVE (a /D rename of
 # every use), only the DEFINITION is renamed to <name>_translated, in a build copy of the unit (obj/port-src), so
 # calls inside the same unit (physWalking -> calcVelocity in Engine_025.c) reach the wrapper too.
-PORT = {'Engine_025.c': [('f_103e24d0', HERE / 'native/walk_speed.c')]}
+PORT = {'Engine_025.c': [('f_103e24d0', HERE / 'native/walk_speed.c')],          # APawn::calcVelocity: Walking Speed
+        'Engine_026.c': [('f_103f8a40', HERE / 'native/view_fov.c')],            # FCameraSceneNode::UpdateMatrices: Hor+, FOV
+        'Engine_021.c': [('f_103b5be0', HERE / 'native/level_tick.c')],          # ULevel::Tick: frame timing probe
+        'UI_009.c': [('f_1917f270', HERE / 'native/ui_scale_container.c')],      # UScaleContainer::Update: Subtitle Size
+        'Core_006.c': [('f_10125320', HERE / 'native/script_tick.c')]}           # UObject::ProcessEvent: script Tick ceiling
 DEV = WS / 'out/dev-init'
 RT = DEV / 'runtime'
 BUILD = DEV / 'build'
@@ -644,9 +648,14 @@ def play_defaults(args):
     args.profile = args.profile or 'owner'
     if args.sound == 'off':
         args.sound = 'on'
+    # Session length (owner decision, enhanced batch 2026-11-02): personal play is not bound by the 600 s limit of
+    # developer launches. --session-minutes (default 720 = 12 h, at most 1440) sets the contained session's deadline;
+    # the game's own Quit ends it earlier as always. No world-frame stop (XRT_DEV_SCENE=0 below).
+    if args.session_minutes:
+        args.timeout = args.session_minutes * 60
+    elif args.timeout == 60:
+        args.timeout = 720 * 60
     args.first_scene = args.first_scene or 100000
-    if args.timeout == 60:
-        args.timeout = 600
     args.scene_seconds = args.scene_seconds or max(1, args.timeout - 10)
     args.campaign_assets = True
     if args.capture == 'periodic':
@@ -664,7 +673,8 @@ def play_notice(args, out, code, outcome):
     ended - nothing runs inside the dying game)."""
     if 'first-scene stop' in str(outcome) or code in (11, 124):
         title = 'Unreal II - session time limit'
-        text = (f'The contained session limit ({args.scene_seconds} s of play) was reached and the game was closed.\n\n'
+        text = (f'The session time limit ({args.scene_seconds // 60} min of play; dev.py --session-minutes) was reached '
+                'and the game was closed.\n\n'
                 'Quicksave (F5) regularly; F8 in the next session continues from it. Settings were saved to the profile.')
     else:
         title = 'Unreal II stopped'
@@ -677,14 +687,16 @@ def play_notice(args, out, code, outcome):
         pass
 
 def run(args):
+    if args.session_minutes and not args.play:
+        raise RuntimeError('--session-minutes is for --play only (developer launches stay within 600 s)')
     if args.play:
         play_defaults(args)
     if not args.authorize_init:
         raise RuntimeError('No launch: separate explicit owner authorization is required; then use --authorize-init')
     if args.first_scene and not args.authorize_first_scene:
         raise RuntimeError('No launch: --first-scene needs the separately granted --authorize-first-scene scope')
-    if args.first_scene and args.timeout > 600:
-        raise RuntimeError('First-scene runs are limited to 600 seconds')
+    if args.first_scene and args.timeout > (86400 if args.play else 600):
+        raise RuntimeError('First-scene runs are limited to 600 seconds (personal --play sessions to 24 hours)')
     if args.scene_seconds and (not args.first_scene or args.scene_seconds >= args.timeout):
         raise RuntimeError('--scene-seconds needs --first-scene and must end before --timeout')
     if not args.question.strip() or not args.change.strip():
@@ -817,7 +829,9 @@ def run(args):
     if args.first_scene:
         # Continue past Init and level ticks; the stop is after N presented world frames.
         del env['XRT_STOP_FIRST_LEVEL_TICK']
-        env['XRT_DEV_SCENE'] = str(args.first_scene)
+        env['XRT_DEV_SCENE'] = '0' if args.play else str(args.first_scene)   # --play: no world-frame stop
+        if args.play:
+            env['XRT_DEV_PLAY'] = '1'   # contain.c: the personal-play session limit (real input only)
         if args.scene_seconds:
             env['XRT_DEV_SCENE_MS'] = str(args.scene_seconds * 1000)
         if not args.allow_input:
@@ -852,6 +866,8 @@ def run(args):
             env['XRT_DEV_AFFINITY'] = hex(args.affinity)   # dev_support.c dev_start: SetProcessAffinityMask at start-up
         if args.borderless:
             env['XRT_DEV_BORDERLESS'] = '1'   # opt-in borderless viewport window (runtime hle_gui_classes.inc create_window)   # development frame limiter (dev_support.c perf_cap_wait)
+        if args.tick_extra:
+            env['XRT_DEV_TICK_EXTRA'] = args.tick_extra   # native/script_tick.c: developer test of the script tick ceiling
         if args.native_verify:
             env['XRT_NATIVE_VERIFY'] = str(args.native_verify)   # tools/xrt/dev/native: compare every Nth call
     graphics.environment(env, out)
@@ -941,11 +957,14 @@ def main():
     r.add_argument('--question', default=''); r.add_argument('--change', default='')
     r.add_argument('--play', action='store_true',
                    help='personal play (owner): the interactive defaults of the owner\'s own runs - real keyboard/mouse '
-                        '(--allow-input), --profile owner, --sound on, past Init for the longest contained run (--first-scene, '
-                        '--timeout 600), every retail single-player map allowed, install campaign content, no periodic '
+                        '(--allow-input), --profile owner, --sound on, a long contained session (--session-minutes, default '
+                        '12 h, no world-frame stop), every retail single-player map allowed, install campaign content, no periodic '
                         'back-buffer captures, quiet trace; explicit options still win. The owner authorization flags stay '
                         'explicit (--authorize-init --authorize-first-scene)')
     r.add_argument('--timeout', type=int, choices=range(1, 601), default=60, metavar='1..600')
+    r.add_argument('--session-minutes', type=int, choices=range(10, 1441), default=0, metavar='10..1440',
+                   help='--play only: time limit of the personal session in minutes (default 720 = 12 hours); developer '
+                        'and scripted launches keep the 600 s limit')
     r.add_argument('--attach', action='store_true')
     r.add_argument('--authorize-first-scene', action='store_true',
                    help='acknowledge separately granted owner authorization to continue past Init into world frames')
@@ -988,6 +1007,8 @@ def main():
     r.add_argument('--affinity', type=lambda v: int(v, 0), default=0, metavar='MASK',
                    help='first-scene: pin the game process (and the helpers it starts) to these logical CPUs, e.g. 0xFFFF for '
                         'the first 16 (the 9950X3D V-cache CCD: 15-23%% faster than unpinned, measured 2026-11-02); per-process only')
+    r.add_argument('--tick-extra', default='', metavar='CLASS',
+                   help='developer test: also apply the 60 Hz script tick ceiling (native/script_tick.c) to this class')
     r.add_argument('--native-verify', type=int, default=0, metavar='N',
                    help='with a build --native executable: compare every Nth native call against its translation (xrt.log)')
     r.add_argument('--windowed-res', type=lambda v: tuple(int(x) for x in v.lower().split('x')), metavar='WxH',

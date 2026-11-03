@@ -18,6 +18,11 @@ static BOOL interactive_desktop(void) {
     if (desktop) CloseDesktop(desktop);
     return ok;
 }
+static BOOL play_session(void) {
+    const wchar_t *play = _wgetenv(L"XRT_DEV_PLAY");
+    return play && !wcscmp(play, L"1") && !_wgetenv(L"XRT_DEV_NO_INPUT") && !_wgetenv(L"XRT_DEV_INPUT") &&
+           !_wgetenv(L"XRT_DEV_BACKGROUND");
+}
 int wmain(int argc, wchar_t **argv) {
     HANDLE job = NULL, log = INVALID_HANDLE_VALUE, exclusive = NULL;
     JOBOBJECT_EXTENDED_LIMIT_INFORMATION limits = {0};
@@ -31,7 +36,12 @@ int wmain(int argc, wchar_t **argv) {
     wchar_t logfile[1024], result[1024]; FILE *f;
     if (argc != 5) { fwprintf(stderr, L"contain TIMEOUT_SECONDS OUTPUT_DIR CWD COMMAND_LINE\n"); return 125; }
     ms = (DWORD)_wtoi(argv[1]);
-    if (ms < 1 || ms > 600) return 125;   /* owner-authorized per-launch maximum (2026-11-01 gameplay batch) */
+    /* Owner-authorized per-launch maximum (2026-11-01 gameplay batch): 600 s for every developer/automated launch.
+     * Personal play (dev.py run --play, owner decision 2026-11-02 enhanced batch): a deliberate, interactive session
+     * may last up to 24 h - only with XRT_DEV_PLAY=1 and real input (no XRT_DEV_NO_INPUT, no scripted input or
+     * background mode). The Job, kill-on-close, the deadline, Ctrl+C cancellation, the sandbox and save isolation are
+     * the same as for every launch. */
+    if (ms < 1 || ms > (play_session() ? 86400u : 600u)) return 125;
     ms *= 1000;
     SetConsoleCtrlHandler(control, TRUE);
     if (_wgetenv(L"XRT_DEV_GAME") && !interactive_desktop()) {

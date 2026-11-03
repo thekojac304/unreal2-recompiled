@@ -91,7 +91,10 @@ static int scene_mode(void) {
         const char *v = getenv("XRT_DEV_SCENE");
         scene = v && *v;
         scene_limit = scene ? (unsigned)strtoul(v, NULL, 10) : 0;
-        if (scene && (scene_limit < 1 || scene_limit > 100000)) scene_limit = 60;
+        /* 0: no world-frame stop (dev.py run --play: a long personal session ends by its time limit or the game's own
+         * Quit; 100000 frames used to end a --play session after ~11 minutes at 144 FPS) */
+        if (scene && !strcmp(v, "0")) scene_limit = 0xFFFFFFFFu;
+        else if (scene && (scene_limit < 1 || scene_limit > 100000)) scene_limit = 60;
         v = getenv("XRT_DEV_SCENE_MS");
         scene_ms = v && *v ? (unsigned)strtoul(v, NULL, 10) : 0;
     }
@@ -106,7 +109,7 @@ static int scene_capture_frame(unsigned n) { return (n & (n - 1)) == 0 || !(n % 
  * XRT_DEV_SAMPLE_HZ=N samples the game thread: suspend, copy the top of its stack and
  * context, resume, then unwind the copy (no lock is taken while it is suspended).
  * Samples (host stack + guest pc) go to samples.bin, loaded modules to modules.txt. */
-typedef struct { ULONGLONG qpc; unsigned draws, prims, world, wait_us; } FrameRow;
+typedef struct { ULONGLONG qpc; unsigned draws, prims, world, wait_us, cap, level_ticks; float dt, cam[5]; double game; } FrameRow;
 #define FRAME_ROWS 131072
 #define SAMPLE_DEPTH 128
 #define SAMPLE_STACK 65536
@@ -126,6 +129,27 @@ XrtPerfCounters xrt_perf; int xrt_perf_timing; static unsigned long long perf_ts
  * frame is not waited for and keeps the phase; a deadline more than one period behind is re-anchored to
  * now (no burst of catch-up frames). */
 static LONGLONG cap_period, cap_next; static HANDLE cap_timer; static unsigned cap_fps;
+/* Player setting (enhanced batch): the same limiter is the in-game Frame Rate Limit (User.ini [U2Port.PortSettings]
+ * FrameRateLimit, PORTSET from the Video menu, port_settings.c) and can change at any time (xrt_dev_frame_limit).
+ * dev.py --fps-cap (XRT_DEV_FPS_CAP) still sets the start value for benchmarks and wins over User.ini. "Unlimited"
+ * keeps a 1 ms floor between frames: ULevel::Tick clamps every actor's DeltaTime to at least 1 ms (level_tick.c), so
+ * frames shorter than that would run the simulation faster than real time; 1000 FPS is never reached in this port's
+ * game scenes (measured maxima ~510 FPS), so the floor only guards that boundary. */
+#define CAP_FLOOR_FPS 1000
+static void cap_set(unsigned fps) {
+    cap_fps = fps && fps < CAP_FLOOR_FPS ? fps : 0;
+    cap_period = qpc_freq.QuadPart / (cap_fps ? cap_fps : CAP_FLOOR_FPS);
+    cap_next = 0;
+    if (!cap_timer) cap_timer = CreateWaitableTimerExW(NULL, NULL, CREATE_WAITABLE_TIMER_HIGH_RESOLUTION, TIMER_ALL_ACCESS);
+}
+void xrt_dev_frame_limit(unsigned fps, const char *source) {
+    if (!qpc_freq.QuadPart) QueryPerformanceFrequency(&qpc_freq);
+    cap_set(fps);
+    xrt_log("DEV frame rate limit %s%u FPS (%s): %s waitable timer, baton released while waiting",
+            cap_fps ? "" : "unlimited, 1 ms engine floor = ", cap_fps ? cap_fps : CAP_FLOOR_FPS, source,
+            cap_timer ? "high-resolution" : "NO high-resolution (Sleep fallback)");
+    xrt_event("frame_limit", "\"fps\":%u,\"source\":\"%s\"", cap_fps, source);
+}
 static Sample *samples; static volatile LONG sample_count, sampler_stop; static unsigned sample_max;
 static HANDLE sampled, sampler; static CPU *sampled_cpu; static ULONG_PTR stack_lo, stack_hi;
 static unsigned char *stack_copy;
@@ -189,14 +213,9 @@ static void perf_start(CPU *c) {
         if ((counter_csv = fopen(path, "w"))) fprintf(counter_csv, "why,ms,counter,value\n");
     }
     v = getenv("XRT_DEV_FPS_CAP");
-    cap_fps = v && *v ? (unsigned)strtoul(v, NULL, 10) : 0;
-    if (cap_fps > 1000) cap_fps = 0;
-    if (cap_fps) {
-        cap_period = qpc_freq.QuadPart / cap_fps;
-        cap_timer = CreateWaitableTimerExW(NULL, NULL, CREATE_WAITABLE_TIMER_HIGH_RESOLUTION, TIMER_ALL_ACCESS);
-        xrt_log("DEV frame cap %u FPS: %s waitable timer, baton released while waiting", cap_fps,
-                cap_timer ? "high-resolution" : "NO high-resolution (Sleep fallback)");
-    }
+    if (v && *v) xrt_dev_frame_limit((unsigned)strtoul(v, NULL, 10), "dev.py --fps-cap");
+    else if (xrt_port_frame_limit() >= 0) xrt_dev_frame_limit((unsigned)xrt_port_frame_limit(), "User.ini FrameRateLimit");
+    else xrt_dev_frame_limit(0, "default");
     if (!hz || hz > 1000) return;
     xrt_perf_timing = 1;
     sample_max = hz * 400;
@@ -209,10 +228,15 @@ static void perf_start(CPU *c) {
     sampler = CreateThread(NULL, 0, sampler_main, (void *)(UINT_PTR)(1000 / hz ? 1000 / hz : 1), 0, NULL);
     xrt_log("DEV sampler: game thread %lu at %u Hz (stack %p-%p)", GetCurrentThreadId(), hz, (void *)stack_lo, (void *)stack_hi);
 }
+/* level_tick.c (frame timing probe): the last ULevel::Tick's frame time and level time */
+extern volatile double xrt_probe_level_time; extern volatile float xrt_probe_frame_dt; extern volatile uint32_t xrt_probe_level_ticks;
+static void view_pose(float out[5]);
 static void perf_frame(unsigned draws, unsigned prims, int world) {
     if (frame_rows && frame_count < FRAME_ROWS) {
         FrameRow *r = &frame_rows[frame_count++];
         QueryPerformanceCounter((LARGE_INTEGER *)&r->qpc); r->draws = draws; r->prims = prims; r->world = (unsigned)world;
+        r->cap = cap_fps; r->dt = xrt_probe_frame_dt; r->game = xrt_probe_level_time; r->level_ticks = xrt_probe_level_ticks;
+        view_pose(r->cam);
     }
 }
 static double ft_ms(FILETIME t) { return (double)(((ULONGLONG)t.dwHighDateTime << 32) | t.dwLowDateTime) / 1e4; }
@@ -386,10 +410,12 @@ static void perf_write(void) {
     if (counter_csv) { fclose(counter_csv); counter_csv = NULL; }
     snprintf(path, sizeof path, "%s\\frames.csv", root);
     if ((f = fopen(path, "w"))) {
-        fprintf(f, "present,ms,world,draws,prims,cap_wait_us\n");
+        fprintf(f, "present,ms,world,draws,prims,cap_wait_us,cap_fps,level_ticks,frame_dt,game_time,cam_x,cam_y,cam_z,yaw,pitch\n");
         for (i = 0; i < frame_count; i++)
-            fprintf(f, "%u,%.3f,%u,%u,%u,%u\n", i + 1, qpc_ms(frame_rows[i].qpc), frame_rows[i].world, frame_rows[i].draws,
-                    frame_rows[i].prims, frame_rows[i].wait_us);
+            fprintf(f, "%u,%.3f,%u,%u,%u,%u,%u,%u,%.6f,%.6f,%.2f,%.2f,%.2f,%.2f,%.2f\n", i + 1, qpc_ms(frame_rows[i].qpc),
+                    frame_rows[i].world, frame_rows[i].draws, frame_rows[i].prims, frame_rows[i].wait_us, frame_rows[i].cap,
+                    frame_rows[i].level_ticks, frame_rows[i].dt, frame_rows[i].game, frame_rows[i].cam[0], frame_rows[i].cam[1],
+                    frame_rows[i].cam[2], frame_rows[i].cam[3], frame_rows[i].cam[4]);
         fclose(f);
     }
     if (!samples) return;
@@ -492,6 +518,10 @@ int xrt_dev_background(void) {
  *                    or for at most MS (default 30000); logged. Lets a route survive a blocked moment (an NPC in a
  *                    corridor) instead of later gotos cutting corners on fixed times.
  *   ws:0 | ws:1      working-set probe: empty the working set | count the pages touched since (ws_probe)
+ *   fps:N            frame rate limit N (0 = unlimited with the 1 ms engine floor), as the Video menu's setting
+ *   pset:KEY:VALUE   a port setting as the menu would set it (port_settings.c xrt_port_set: 1 FieldOfView,
+ *                    2 SubtitleSize, 3 VSync, 4 HorPlus, 5 UIScale, 6 WalkingSpeed, 7 FrameRateLimit, 8 ScriptTickRate)
+ *   dmkill           terminate the DirectMusic helper process (tests the music-failure policy)
  *   size:W:H         resize the game window to a W x H client area (SetWindowPos without activation or z-order
  *                    change, as a user's resize does; applied by xrt_dev_input_window_actions inside the guest's
  *                    PeekMessage, where Windows delivers the resulting sent messages)
@@ -531,6 +561,9 @@ static void input_parse(void) {
         else if (!strcmp(verb, "face")) s.verb = 'f';
         else if (!strcmp(verb, "sync")) s.verb = 'y';
         else if (!strcmp(verb, "ws")) s.verb = 'w';
+        else if (!strcmp(verb, "fps")) s.verb = 'F';
+        else if (!strcmp(verb, "pset")) s.verb = 'P';
+        else if (!strcmp(verb, "dmkill")) s.verb = 'D';
         else { xrt_log("DEV input script: unknown verb '%s'; script ignored from here", verb); break; }
         if (*v == ':') s.a = (int)strtol(v + 1, (char **)&v, 0);
         if (*v == ':') s.b = (int)strtol(v + 1, (char **)&v, 0);
@@ -715,6 +748,9 @@ void xrt_dev_input_tick(void) {
         } else if (s->verb == 's') { in_shot = 1; perf_threads("shot"); }
         else if (s->verb == 'u') perf_threads("cpu");
         else if (s->verb == 'w') ws_probe(s->a);
+        else if (s->verb == 'F') xrt_dev_frame_limit(s->a > 0 ? (unsigned)s->a : 0, "input script");
+        else if (s->verb == 'P') xrt_port_set(s->a, s->b, "input script");
+        else if (s->verb == 'D') xrt_dev_dmusic_kill();
         {
             POINT p = in_cursor; ScreenToClient(in_window, &p);
             xrt_log("DEV input cursor client %ld,%ld", p.x, p.y);
@@ -728,6 +764,15 @@ void xrt_dev_input_tick(void) {
 static float view_m[16];
 static int view_valid;
 void xrt_dev_view(const unsigned int bits[16]) { memcpy(view_m, bits, sizeof view_m); view_valid = 1; }
+static void view_pose(float out[5]) {
+    double f[3]; int j;
+    if (!view_valid) { memset(out, 0, 5 * sizeof *out); return; }
+    for (j = 0; j < 3; j++) {
+        out[j] = (float)-(view_m[12] * view_m[j * 4 + 0] + view_m[13] * view_m[j * 4 + 1] + view_m[14] * view_m[j * 4 + 2]);
+        f[j] = view_m[j * 4 + 2];
+    }
+    out[3] = (float)(atan2(f[1], f[0]) * 57.29578); out[4] = (float)(atan2(f[2], sqrt(f[0] * f[0] + f[1] * f[1])) * 57.29578);
+}
 static void view_log(const char *why) {
     /* D3D row-vector view matrix M = [R 0; t 1]: camera c = -t R^T, forward = third column of R. */
     double c[3], f[3]; int j;
@@ -791,6 +836,14 @@ static void goto_tick(ULONGLONG now) {
 void xrt_dev_input_window_actions(void) {
     RECT r = {0, 0, 0, 0}, before = {0}, after = {0};
     DWORD style, ex;
+    if (in_window && xrt_port_vsync_reset_due()) {
+        /* VSync changed (menu): the swap effect is chosen at CreateDevice/Reset (hle_d3d8_device.inc), so the device must
+         * be reset. The game resets it when its window's client size changes (WinDrv WM_SIZE -> D3DDrv SetRes), the
+         * same path as a user's resize: report the current size once to the window procedure. */
+        GetClientRect(in_window, &before);
+        xrt_log("DEV VSync change: WM_SIZE %ldx%ld sent to the game window for a device reset", before.right, before.bottom);
+        SendMessageW(in_window, WM_SIZE, SIZE_RESTORED, MAKELPARAM(before.right, before.bottom));
+    }
     if (!in_resize_w || !in_window) return;
     r.right = in_resize_w; r.bottom = in_resize_h; in_resize_w = in_resize_h = 0;
     style = (DWORD)GetWindowLongW(in_window, GWL_STYLE); ex = (DWORD)GetWindowLongW(in_window, GWL_EXSTYLE);
@@ -914,7 +967,7 @@ void xrt_dev_scene_present(CPU *c, long hr, unsigned draws, unsigned prims, unsi
      * is a loading-screen update inside one tick (a map load presents ~500 of them) and is never waited for. */
     if (cap_period) {
         unsigned waited = 0;
-        if (engine) waited = perf_cap_wait();
+        if (engine) waited = perf_cap_wait();   /* the player's limit, or the 1 ms engine floor */
         else cap_next = 0;   /* re-anchor after the load */
         if (frame_rows && frame_count && frame_count < FRAME_ROWS) frame_rows[frame_count - 1].wait_us = waited;
     }

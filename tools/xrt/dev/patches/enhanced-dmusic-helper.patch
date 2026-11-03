@@ -1,0 +1,15 @@
+diff --git a/out/dev-init-savepoints/enhanced-start-20261102/dmusic_helper-src/main.c b/out/dev-init/dmusic_helper/main.c
+index 52c5711..7e2ca99 100644
+--- a/out/dev-init-savepoints/enhanced-start-20261102/dmusic_helper-src/main.c
++++ b/out/dev-init/dmusic_helper/main.c
+@@ -42,6 +42,10 @@ static uint32_t wrap(IUnknown*p,uint32_t type){
+  IUnknown_Release(identity);
+  EnterCriticalSection(&objects_cs);
+  for(i=0;i<used;i++)if(objects[i].refs&&objects[i].identity==identity&&objects[i].type==type){if(objects[i].p!=p)die("unmeasured interface alias");objects[i].refs++;LeaveCriticalSection(&objects_cs);return i+1;}
++ /* a slot whose references were all released is reused (enhanced batch): every level load and quickload re-creates
++  * the game's loader/performance/containers (~10 objects), and the never-reused table died at 128 (die "object limit",
++  * exit 80) after about a dozen loads in one session. The runtime matches ids only among live objects. */
++ for(i=0;i<used;i++)if(!objects[i].refs){objects[i].p=p;objects[i].identity=identity;objects[i].type=type;objects[i].refs=1;LeaveCriticalSection(&objects_cs);return i+1;}
+  if(used==128)die("object limit");objects[used].p=p;objects[used].identity=identity;objects[used].type=type;objects[used].refs=1;id=++used;
+  LeaveCriticalSection(&objects_cs);return id;
+ }

@@ -1,4 +1,4 @@
-"""Port settings package and menu overlay (walking speed, UI scale).
+"""Port settings package and menu overlay (walking speed, UI scale, frame rate limit, field of view, VSync, subtitle size).
 
   build()            compiles tools/xrt/dev/port/U2Port (UnrealScript) into out/dev-init/port/U2Port.u with the ORIGINAL
                      UCC.exe make, in a fresh staging copy of the snapshot System folder (sandbox_cmp/u2port-make; an ini
@@ -10,6 +10,12 @@
 Menu changes: Options > Game gets a Walking Speed slider (75..200, step 5, row 11); Options > Video gets a UI Scale
 selector (Auto, 100%, 125%, 150%, 200%, row 12). The game's own Fullscreen checkbox (row 10) stays: fullscreen is
 borderless in this port (runtime d3d8_borderless.inc), with the chosen resolution scaled to the monitor.
+Enhanced batch (2026-11-02): Video rows 2 and 3 (Bit-depth and Refresh Rate: without effect in the port's windowed and
+borderless presentation; 16-bit was never tested) become Frame Rate Limit (30/60/90/120/144/165/240/Unlimited, a
+User.ini value as "Custom N") and Field of View (75..120, step 5, horizontal degrees at 4:3, Hor+); the VSync checkbox
+(row 11, the game's own UseVSync only acts in exclusive full screen) is bound to the port's working VSync; HUD row 6 is
+Subtitle Size (100..200%). UIScripts/DialogUI.ui wraps the dialogue subtitles in a ScaleContainer with the marker
+RelativeSize 640.25,480.25 (runtime native/ui_scale_container.c) and Console.ui refers to it.
 """
 import re
 import shutil
@@ -86,9 +92,31 @@ MENU_EDITS = [
                       '\tObject=PortSettings\n\tVariable=WalkingSpeed\n'),
     ('Component=OptionDescription:11/260/VSync\n',
      'Component=OptionDescription:11/260/VSync\nComponent=OptionDescription:12/286/UIScale\n'),
-    (VSYNC, VSYNC + 'Component=U2Selector:286\n\tGroup=OptionWidgets_VIDEO\n' +
+    # VSync: the port's own (PortSettings.VSyncEnabled; runtime hle_d3d8_device.inc), then the UI Scale selector
+    (VSYNC, 'Component=U2CheckBox:260\n\tObject=PortSettings\n\tVariable=VSyncEnabled\n'
+     'Component=U2Selector:286\n\tGroup=OptionWidgets_VIDEO\n' +
      ''.join(f'\tListItem=UIScale{v},PortSettings,SetUIScale{v}\n' for v in ('Auto', '100', '125', '150', '200')) +
      '\tCurrentAccess=PortSettings,GetUIScaleIndex\n'),
+    # Video rows 2 and 3: Frame Rate Limit and Field of View instead of Bit-depth and Refresh Rate
+    ('Component=OptionDescription:02/26/Bit-depth\nComponent=OptionDescription:03/52/RefreshRate\n',
+     'Component=OptionDescription:02/26/FrameRateLimit\nComponent=OptionDescription:03/52/FieldOfView\n'),
+    ('Component=U2Selector:26\n\tGroup=OptionWidgets_VIDEO\n\tListItem=32-bit,CodeMonkey,SetBPP32\n'
+     '\tListItem=16-bit,CodeMonkey,SetBPP16\n\tCurrentAccess=CodeMonkey,GetBPPIndex\n',
+     'Component=U2Selector:26\n\tGroup=OptionWidgets_VIDEO\n\tAccessor=PortSettings,GetFrameRateLimits\n'
+     '\tModifier=PortSettings,SetFrameRateLimitText\n\tCurrentText=PortSettings,GetFrameRateLimitText\n'),
+    ('Component=U2Selector:52\n\tGroup=OptionWidgets_VIDEO\n\tListItem=85Hz,CodeMonkey,SetRefreshRate85\n'
+     '\tListItem=75Hz,CodeMonkey,SetRefreshRate75\n\tListItem=72Hz,CodeMonkey,SetRefreshRate72\n'
+     '\tListItem=70Hz,CodeMonkey,SetRefreshRate70\n\tListItem=60Hz,CodeMonkey,SetRefreshRate60\n'
+     '\tCurrentAccess=CodeMonkey,GetRefreshRate\n',
+     'Component=U2Slider:52\n\tRange=75,120\n\tStep=5\n\tFormat=ByteFormat\n\tObject=PortSettings\n\tVariable=FieldOfView\n'),
+    # HUD row 6: Subtitle Size
+    ('Component=OptionDescription:05/104/BroadcastObjectives\n',
+     'Component=OptionDescription:05/104/BroadcastObjectives\nComponent=OptionDescription:06/130/SubtitleSize\n'),
+    ('Component=U2CheckBox:104\n\tObject=CodeMonkey\n\tVariable=BroadcastObjectives\n',
+     'Component=U2CheckBox:104\n\tObject=CodeMonkey\n\tVariable=BroadcastObjectives\n'
+     'Component=U2Selector:130\n\tGroup=OptionWidgets_HUD\n' +
+     ''.join(f'\tListItem=Subtitle{v},PortSettings,SetSubtitleSize{v}\n' for v in ('100', '125', '150', '175', '200')) +
+     '\tCurrentAccess=PortSettings,GetSubtitleSizeIndex\n'),
     # Resolution follows the current mode (PortSettings.uc): full screen = render resolution, window = window size.
     ('\tAccessor=CodeMonkey,GetDisplayModes\n\tModifier=CodeMonkey,SetRes\n\tCurrentText=CodeMonkey,GetRes\n',
      '\tAccessor=PortSettings,GetDisplayModes\n\tModifier=PortSettings,SetResolution\n\tCurrentText=PortSettings,GetResolution\n'),
@@ -106,7 +134,33 @@ TEXT_EDITS = [
     ('MouseOver_VIDEO_01=Adjust the video resolution -- lower resolutions will improve performance on older video cards.\n',
      'MouseOver_VIDEO_01=Full screen: the resolution the game renders at, scaled to fit the screen. Window: the size of '
      'the game area inside the window.\n'),
+    ('OptionDescriptionBit-depth=Bit-depth:\n',
+     'OptionDescriptionBit-depth=Bit-depth:\nOptionDescriptionFrameRateLimit=Frame Rate Limit:\n'
+     'OptionDescriptionFieldOfView=Field of View:\nOptionDescriptionSubtitleSize=Subtitle Size:\n' +
+     ''.join(f'Subtitle{v}={v}%\n' for v in ('100', '125', '150', '175', '200'))),
+    ('MouseOver_VIDEO_02=Adjust the video bit depth -- lower bit depth will improve performance on older video cards.\n',
+     'MouseOver_VIDEO_02=Highest frame rate the game renders at. The game runs at the same speed at any frame rate; '
+     'a limit saves power and keeps the game cooler and quieter.\n'),
+    ('MouseOver_VIDEO_03=Adjust the monitor refresh rate -- setting will not take effect until the game is restarted.\n',
+     'MouseOver_VIDEO_03=Horizontal field of view in degrees for a 4:3 screen (original: 85). Wider screens show more '
+     'at the sides. Mouse turning speed follows the field of view, as in the original game.\n'),
+    ('MouseOver_VIDEO_11=Check this box to stop "tearing" in the video output.\n',
+     'MouseOver_VIDEO_11=Check this box to stop "tearing": frames are shown in step with the monitor refresh (the frame '
+     'rate is then at most the refresh rate).\n'),
+    ('MouseOver_HUD_06=\n', 'MouseOver_HUD_06=Size of the spoken dialogue subtitles, on top of the UI Scale.\n'),
+    # The game's own Mouse Smoothing extrapolates every input frame without new mouse counts; above ~120 FPS such
+    # frames are common and turns overshoot (enhanced batch launch 2: +33% at ~300 FPS, none at 90).
+    ('MouseOver_INPUT_03=Check this box to interpolate mouse input for smoother action.\n',
+     'MouseOver_INPUT_03=Check this box to interpolate mouse input for smoother action. Turn it off when playing above '
+     'about 120 frames per second: it then over-turns small and slow mouse movements.\n'),
 ]
+# Subtitle Size (runtime native/ui_scale_container.c): the subtitle container inside a marked ScaleContainer.
+DIALOG_EDITS = [
+    ('[DialogSubtitlesContainer]\n',
+     '[DialogSubtitlesScale]\nClass=ScaleContainer\nRelativeSize=640.25,480.25\nComponent=FixedSizeContainer\n'
+     '\tComponent=DialogSubtitlesContainer\n\n[DialogSubtitlesContainer]\n'),
+]
+CONSOLE_EDITS = [('Component=DialogUI.DialogSubtitlesContainer', 'Component=DialogUI.DialogSubtitlesScale')]
 
 
 def apply(sandbox):
@@ -116,3 +170,5 @@ def apply(sandbox):
     shutil.copy2(PACKAGE, sandbox / 'System' / 'U2Port.u')
     edit(sandbox / 'UIScripts' / 'U2Menus.ui', MENU_EDITS)
     edit(sandbox / 'System' / 'U2Menus.int', TEXT_EDITS)
+    edit(sandbox / 'UIScripts' / 'DialogUI.ui', DIALOG_EDITS)
+    edit(sandbox / 'UIScripts' / 'Console.ui', CONSOLE_EDITS)

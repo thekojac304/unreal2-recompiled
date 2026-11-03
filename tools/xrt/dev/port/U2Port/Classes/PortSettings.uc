@@ -1,7 +1,8 @@
 //=============================================================================
 // PortSettings - settings added by the Windows port, shown in the game's own
-// Options menu (UIScripts/U2Menus.ui: Game > Walking Speed, Video > UI Scale;
-// the menu edits are applied by tools/xrt/dev/port.py).
+// Options menu (UIScripts/U2Menus.ui: Game > Walking Speed; Video > Frame Rate
+// Limit, Field of View, VSync, UI Scale; HUD > Subtitle Size; the menu edits are
+// applied by tools/xrt/dev/port.py).
 //
 // The values are config(User), so they persist in User.ini [U2Port.PortSettings]
 // like every other player preference. They are global, not part of a saved game.
@@ -16,6 +17,17 @@ class PortSettings extends UIHelper
 var config int WalkingSpeed;
 // 0 = Auto, otherwise 100, 125, 150 or 200 percent.
 var config int UIScale;
+// Field of view in horizontal degrees at 4:3 (wider screens see more at the sides, Hor+), 75..120; default 85, the
+// game's own class default (the shipped User.ini's DefaultFOV=100 compensated the original Vert- widescreen view).
+// 0 = the game's own PlayerController.DefaultFOV (User.ini [Engine.PlayerController]).
+var config int FieldOfView;
+// Spoken-dialogue subtitles in percent of their original size (on top of UI Scale): 100, 125, 150, 175, 200.
+var config int SubtitleSize;
+// Frame rate limit in frames per second; 0 = unlimited.
+var config int FrameRateLimit;
+// VSync for the port's windowed and borderless presentation (the game's own UseVSync only acts in exclusive
+// full screen, which the port does not use).
+var config bool VSync;
 
 function int ValidWalkingSpeed(int P)
 {
@@ -132,6 +144,120 @@ function SetResolution(string S)
 		ConsoleCommand("PORTSET WindowSize" @ W @ H);
 }
 
+// Options > Video > Field of View (U2Slider Range=75,120 Step=5). Shows the game's own FOV until the player sets one.
+function float GetFieldOfView()
+{
+	if (FieldOfView >= 75 && FieldOfView <= 120)
+		return FieldOfView;
+	return int(GetPlayerOwner().DefaultFOV + 0.5);
+}
+
+function SetFieldOfView(float F)
+{
+	local int P;
+
+	P = Clamp(int((F + 2.5) / 5.0) * 5, 75, 120);
+	if (P == FieldOfView)
+		return;
+	FieldOfView = P;
+	SaveConfig();
+	ConsoleCommand("PORTSET FieldOfView" @ P);
+}
+
+// Options > Video > Frame Rate Limit (U2Selector with Accessor/Modifier/CurrentText, like Resolution): the common
+// display rates, Unlimited, and a value set in User.ini that is not one of them ("Custom N").
+function string FrameRateLimitText(int N)
+{
+	switch (N)
+	{
+		case 0:
+			return "Unlimited";
+		case 30: case 60: case 90: case 120: case 144: case 165: case 240:
+			return string(N);
+	}
+	return "Custom" @ N;
+}
+
+function array<string> GetFrameRateLimits()
+{
+	local array<string> L;
+
+	L[0] = "30"; L[1] = "60"; L[2] = "90"; L[3] = "120"; L[4] = "144"; L[5] = "165"; L[6] = "240"; L[7] = "Unlimited";
+	if (Left(FrameRateLimitText(FrameRateLimit), 6) == "Custom")
+		L[8] = FrameRateLimitText(FrameRateLimit);
+	return L;
+}
+
+function string GetFrameRateLimitText()
+{
+	return FrameRateLimitText(FrameRateLimit);
+}
+
+function SetFrameRateLimitText(string S)
+{
+	local int N;
+
+	if (S == "Unlimited")
+		N = 0;
+	else if (Left(S, 7) == "Custom ")
+		N = int(Mid(S, 7));
+	else
+		N = int(S);
+	if (N != 0 && (N < 20 || N > 1000))
+		return;
+	if (N == FrameRateLimit)
+		return;
+	FrameRateLimit = N;
+	SaveConfig();
+	ConsoleCommand("PORTSET FrameRateLimit" @ N);
+}
+
+// Options > Video > VSync (U2CheckBox Variable=VSyncEnabled). The runtime resets the device once to apply it.
+function bool GetVSyncEnabled()
+{
+	return VSync;
+}
+
+function SetVSyncEnabled(bool B)
+{
+	if (B == VSync)
+		return;
+	VSync = B;
+	SaveConfig();
+	if (B)
+		ConsoleCommand("PORTSET VSync 1");
+	else
+		ConsoleCommand("PORTSET VSync 0");
+}
+
+// Options > HUD > Subtitle Size (U2Selector): one function per list item, CurrentAccess returns the index.
+function int GetSubtitleSizeIndex()
+{
+	switch (SubtitleSize)
+	{
+		case 125: return 1;
+		case 150: return 2;
+		case 175: return 3;
+		case 200: return 4;
+	}
+	return 0;
+}
+
+function SetSubtitleSize(int P)
+{
+	if (P == SubtitleSize)
+		return;
+	SubtitleSize = P;
+	SaveConfig();
+	ConsoleCommand("PORTSET SubtitleSize" @ P);
+}
+
+function SetSubtitleSize100() { SetSubtitleSize(100); }
+function SetSubtitleSize125() { SetSubtitleSize(125); }
+function SetSubtitleSize150() { SetSubtitleSize(150); }
+function SetSubtitleSize175() { SetSubtitleSize(175); }
+function SetSubtitleSize200() { SetSubtitleSize(200); }
+
 function SetUIScaleAuto() { SetUIScale(0); }
 function SetUIScale100() { SetUIScale(100); }
 function SetUIScale125() { SetUIScale(125); }
@@ -142,4 +268,8 @@ defaultproperties
 {
 	WalkingSpeed=100
 	UIScale=100
+	FieldOfView=85
+	SubtitleSize=100
+	FrameRateLimit=0
+	VSync=false
 }
