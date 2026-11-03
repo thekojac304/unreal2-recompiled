@@ -1,4 +1,4 @@
-"""Port settings package and menu overlay (walking speed, UI scale, frame rate limit, field of view, VSync, subtitle size).
+"""Port settings package and menu overlay (walking speed, UI scale, frame rate limit, field of view, VSync).
 
   build()            compiles tools/xrt/dev/port/U2Port (UnrealScript) into out/dev-init/port/U2Port.u with the ORIGINAL
                      UCC.exe make, in a fresh staging copy of the snapshot System folder (sandbox_cmp/u2port-make; an ini
@@ -14,8 +14,8 @@ Enhanced batch (2026-11-02): Video rows 2 and 3 (Bit-depth and Refresh Rate: wit
 borderless presentation; 16-bit was never tested) become Frame Rate Limit (30/60/90/120/144/165/240/Unlimited, a
 User.ini value as "Custom N") and Field of View (75..120, step 5, horizontal degrees at 4:3, Hor+); the VSync checkbox
 (row 11, the game's own UseVSync only acts in exclusive full screen) is bound to the port's working VSync; HUD row 6 is
-Subtitle Size (100..200%). UIScripts/DialogUI.ui wraps the dialogue subtitles in a ScaleContainer with the marker
-RelativeSize 640.25,480.25 (runtime native/ui_scale_container.c) and Console.ui refers to it.
+no Subtitle Size row: both tried mechanisms (a ScaleContainer draw scale; the larger subtitle fonts SubTFonts.EE18/EE20)
+drew no dialogue subtitles at all above 100% (enhanced launches 11a-11c, 13, 13b), so subtitles stay the original.
 """
 import re
 import shutil
@@ -109,14 +109,6 @@ MENU_EDITS = [
      '\tListItem=70Hz,CodeMonkey,SetRefreshRate70\n\tListItem=60Hz,CodeMonkey,SetRefreshRate60\n'
      '\tCurrentAccess=CodeMonkey,GetRefreshRate\n',
      'Component=U2Slider:52\n\tRange=75,120\n\tStep=5\n\tFormat=ByteFormat\n\tObject=PortSettings\n\tVariable=FieldOfView\n'),
-    # HUD row 6: Subtitle Size
-    ('Component=OptionDescription:05/104/BroadcastObjectives\n',
-     'Component=OptionDescription:05/104/BroadcastObjectives\nComponent=OptionDescription:06/130/SubtitleSize\n'),
-    ('Component=U2CheckBox:104\n\tObject=CodeMonkey\n\tVariable=BroadcastObjectives\n',
-     'Component=U2CheckBox:104\n\tObject=CodeMonkey\n\tVariable=BroadcastObjectives\n'
-     'Component=U2Selector:130\n\tGroup=OptionWidgets_HUD\n' +
-     ''.join(f'\tListItem=Subtitle{v},PortSettings,SetSubtitleSize{v}\n' for v in ('100', '125', '150', '175', '200')) +
-     '\tCurrentAccess=PortSettings,GetSubtitleSizeIndex\n'),
     # Resolution follows the current mode (PortSettings.uc): full screen = render resolution, window = window size.
     ('\tAccessor=CodeMonkey,GetDisplayModes\n\tModifier=CodeMonkey,SetRes\n\tCurrentText=CodeMonkey,GetRes\n',
      '\tAccessor=PortSettings,GetDisplayModes\n\tModifier=PortSettings,SetResolution\n\tCurrentText=PortSettings,GetResolution\n'),
@@ -136,8 +128,7 @@ TEXT_EDITS = [
      'the game area inside the window.\n'),
     ('OptionDescriptionBit-depth=Bit-depth:\n',
      'OptionDescriptionBit-depth=Bit-depth:\nOptionDescriptionFrameRateLimit=Frame Rate Limit:\n'
-     'OptionDescriptionFieldOfView=Field of View:\nOptionDescriptionSubtitleSize=Subtitle Size:\n' +
-     ''.join(f'Subtitle{v}={v}%\n' for v in ('100', '125', '150', '175', '200'))),
+     'OptionDescriptionFieldOfView=Field of View:\n'),
     ('MouseOver_VIDEO_02=Adjust the video bit depth -- lower bit depth will improve performance on older video cards.\n',
      'MouseOver_VIDEO_02=Highest frame rate the game renders at. The game runs at the same speed at any frame rate; '
      'a limit saves power and keeps the game cooler and quieter.\n'),
@@ -147,22 +138,12 @@ TEXT_EDITS = [
     ('MouseOver_VIDEO_11=Check this box to stop "tearing" in the video output.\n',
      'MouseOver_VIDEO_11=Check this box to stop "tearing": frames are shown in step with the monitor refresh (the frame '
      'rate is then at most the refresh rate).\n'),
-    ('MouseOver_HUD_06=\n', 'MouseOver_HUD_06=Size of the spoken dialogue subtitles, on top of the UI Scale.\n'),
     # The game's own Mouse Smoothing extrapolates every input frame without new mouse counts; above ~120 FPS such
     # frames are common and turns overshoot (enhanced batch launch 2: +33% at ~300 FPS, none at 90).
     ('MouseOver_INPUT_03=Check this box to interpolate mouse input for smoother action.\n',
      'MouseOver_INPUT_03=Check this box to interpolate mouse input for smoother action. Turn it off when playing above '
      'about 120 frames per second: it then over-turns small and slow mouse movements.\n'),
 ]
-# Subtitle Size (runtime native/ui_scale_container.c): the subtitle container inside a marked ScaleContainer.
-DIALOG_EDITS = [
-    ('[DialogSubtitlesContainer]\n',
-     '[DialogSubtitlesScale]\nClass=ScaleContainer\nRelativeSize=640.25,480.25\nComponent=FixedSizeContainer\n'
-     '\tComponent=DialogSubtitlesContainer\n\n[DialogSubtitlesContainer]\n'),
-]
-CONSOLE_EDITS = [('Component=DialogUI.DialogSubtitlesContainer', 'Component=DialogUI.DialogSubtitlesScale')]
-
-
 def apply(sandbox):
     """Install the port package and menu edits into one run sandbox (its own copies of the files)."""
     if not PACKAGE.is_file():
@@ -170,5 +151,3 @@ def apply(sandbox):
     shutil.copy2(PACKAGE, sandbox / 'System' / 'U2Port.u')
     edit(sandbox / 'UIScripts' / 'U2Menus.ui', MENU_EDITS)
     edit(sandbox / 'System' / 'U2Menus.int', TEXT_EDITS)
-    edit(sandbox / 'UIScripts' / 'DialogUI.ui', DIALOG_EDITS)
-    edit(sandbox / 'UIScripts' / 'Console.ui', CONSOLE_EDITS)

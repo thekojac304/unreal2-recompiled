@@ -380,7 +380,7 @@ index 5c679fc..040d6b9 100644
  static void dmi_Close(CPU*c){DMI_BEGIN(DMB_CLOSE);dm_backend_invoke(c,&m);RET_STD(1,m.v[0]);}
  #undef DMI_BEGIN
 diff --git a/out/dev-init-savepoints/beta-campaign-20261102/runtime/port_settings.c b/out/dev-init/runtime/port_settings.c
-index c65f1cb..77ce49b 100644
+index c65f1cb..8e16944 100644
 --- a/out/dev-init-savepoints/beta-campaign-20261102/runtime/port_settings.c
 +++ b/out/dev-init/runtime/port_settings.c
 @@ -1,8 +1,10 @@
@@ -391,27 +391,28 @@ index c65f1cb..77ce49b 100644
   * the port's UIScripts/U2Menus.ui) keeps them as config(User) variables, i.e. User.ini [U2Port.PortSettings]
 - * WalkingSpeed=<percent 75..200> and UIScale=<0 Auto | 100 | 125 | 150 | 200>. This file reads that section once
 + * WalkingSpeed=<percent 75..200> and UIScale=<0 Auto | 100 | 125 | 150 | 200>, FieldOfView=<75..120, default 85 | 0 the game's own>,
-+ * SubtitleSize=<percent 100..200>, FrameRateLimit=<0 unlimited | 20..1000>, VSync=<True|False>; two keys have no menu
++ * SubtitleSize=<percent 100 | 112 | 125>, FrameRateLimit=<0 unlimited | 20..1000>, VSync=<True|False>; two keys have no menu
 + * entry (A/B and diagnosis only): HorPlus=<1|0> and ScriptTickRate=<0 off | 30..240 Hz>. This file reads that section once
   * from the guest's System\User.ini (before the first use) and then follows changes the helper sends through the
   * console command "PORTSET <Key> <Value>", which UWindowsViewport::Exec would otherwise reject as unknown. Missing or
   * out-of-range values mean the original behaviour (100%, UI unscaled).
-@@ -15,7 +17,13 @@
+@@ -15,7 +17,14 @@
   * virtual frame and the renderer's own projection maps it onto the full window: S times larger, aspect, anchors,
   * margins and centring kept, the renderer setting and restoring its transforms as on every frame. The real size is
   * restored right after. (A first attempt pushed an extra renderer scale around the root update: the UI stayed small
 - * and the transform leaked into the next frame's 3D view - owner's run of 2026-11-01 21:2x.) */
 + * and the transform leaked into the next frame's 3D view - owner's run of 2026-11-01 21:2x.)
 + *
-+ * Field of view and Hor+: tools/xrt/dev/native/view_fov.c (FCameraSceneNode::UpdateMatrices). Subtitle size:
-+ * native/ui_scale_container.c (the port's subtitle ScaleContainer, UIScripts/DialogUI.ui). Frame rate limit:
++ * Field of view and Hor+: tools/xrt/dev/native/view_fov.c (FCameraSceneNode::UpdateMatrices). Subtitle size: the
++ * game's subtitle font in its three sizes, chosen by the UnrealScript side and tools/xrt/dev/port.py (logged here
++ * only). Frame rate limit:
 + * dev_support.c xrt_dev_frame_limit (the limiter after each Present). VSync: hle_d3d8_device.inc (CreateDevice/Reset
 + * swap effect); a change asks for one device reset (xrt_port_vsync_reset_due). Script tick ceiling:
 + * native/script_tick.c. */
  #define WIN32_LEAN_AND_MEAN
  #include <windows.h>
  #include <stdlib.h>
-@@ -25,6 +33,9 @@
+@@ -25,6 +34,9 @@
  static int loaded, walk_percent = 100, ui_choice = 100;
  static volatile float walk_factor = 1.0f;
  static unsigned logged;
@@ -421,7 +422,7 @@ index c65f1cb..77ce49b 100644
  
  static int valid_walk(int p) { return p >= 75 && p <= 200 && p % 5 == 0; }
  static int valid_ui(int p) { return p == 0 || p == 100 || p == 125 || p == 150 || p == 200; }
-@@ -40,6 +51,37 @@ static void set_ui(int p, const char* source) {
+@@ -40,6 +52,37 @@ static void set_ui(int p, const char* source) {
      xrt_log("port: UI scale %s%d (%s)", p ? "" : "Auto/", p, source);
      xrt_event("port_setting", "\"key\":\"UIScale\",\"value\":%d,\"source\":\"%s\"", p, source);
  }
@@ -459,7 +460,7 @@ index c65f1cb..77ce49b 100644
  static void load(void) {
      XrtModule* exe;
      char path[600], *slash;
-@@ -53,6 +95,39 @@ static void load(void) {
+@@ -53,6 +96,38 @@ static void load(void) {
      snprintf(slash + 1, sizeof path - (size_t)(slash + 1 - path), "User.ini");
      set_walk((int)GetPrivateProfileIntA("U2Port.PortSettings", "WalkingSpeed", 100, path), "User.ini");
      set_ui((int)GetPrivateProfileIntA("U2Port.PortSettings", "UIScale", 100, path), "User.ini");
@@ -477,7 +478,6 @@ index c65f1cb..77ce49b 100644
 +}
 +int xrt_port_field_of_view(void) { if (!loaded) load(); return fov_choice; }
 +int xrt_port_hor_plus(void) { if (!loaded) load(); return hor_plus; }
-+float xrt_port_subtitle_scale(void) { if (!loaded) load(); return (float)subtitle_percent / 100.0f; }
 +int xrt_port_frame_limit(void) { if (!loaded) load(); return frame_limit; }
 +int xrt_port_vsync(void) { if (!loaded) load(); return vsync; }
 +int xrt_port_script_tick_rate(void) { if (!loaded) load(); return tick_rate; }
@@ -511,17 +511,16 @@ index c65f1cb..77ce49b 100644
      return 1;
  }
 diff --git a/out/dev-init-savepoints/beta-campaign-20261102/runtime/xrt_internal.h b/out/dev-init/runtime/xrt_internal.h
-index 5ccf70f..e25ae07 100644
+index 5ccf70f..dc6b883 100644
 --- a/out/dev-init-savepoints/beta-campaign-20261102/runtime/xrt_internal.h
 +++ b/out/dev-init/runtime/xrt_internal.h
-@@ -169,6 +169,18 @@ uint32_t xrt_call_guest(CPU* c, uint32_t va, int nargs, const uint32_t* args, in
+@@ -169,6 +169,17 @@ uint32_t xrt_call_guest(CPU* c, uint32_t va, int nargs, const uint32_t* args, in
  int xrt_port_call(CPU* c, unsigned kind, XrtLiftedFn fn);
  int xrt_d3d8_borderless_window(void* hwnd);   /* d3d8_borderless.inc: this window shows borderless fullscreen now */
  float xrt_port_walking_speed(void);
-+/* port_settings.c: field of view, Hor+, subtitle size, frame limit, VSync, script tick ceiling (see that file) */
++/* port_settings.c: field of view, Hor+, frame limit, VSync, script tick ceiling (see that file) */
 +int xrt_port_field_of_view(void);
 +int xrt_port_hor_plus(void);
-+float xrt_port_subtitle_scale(void);
 +int xrt_port_frame_limit(void);
 +int xrt_port_vsync(void);
 +int xrt_port_vsync_reset_due(void);

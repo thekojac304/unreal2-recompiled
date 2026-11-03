@@ -1,7 +1,8 @@
 # Unreal II Windows port — Enhanced Edition batch, 2026-11-02 (night)
 
-**Summary.** The port now has Hor+ widescreen with a field-of-view setting. Frame rate limit, a working VSync and
-subtitle size are settings in the game's own Options menus, persisted in the player's `User.ini`. Long personal play
+**Summary.** The port now has Hor+ widescreen with a field-of-view setting. Frame rate limit and a working VSync are
+settings in the game's own Options menus, persisted in the player's `User.ini`. **Subtitle Size was not delivered**
+(section 3). Long personal play
 sessions are allowed. Music failures no longer end the game.
 
 High-frame-rate behaviour was measured from 30 to ~340 FPS. The engine's simulation is time-based and matched at every
@@ -11,9 +12,10 @@ frame rate. The script-level frame-rate bugs found are fixed or documented:
 - The game's own **Mouse Smoothing** over-turns at high FPS (+33% measured). It can't be fixed natively without
   patching game bytecode, so it is documented and the Input tooltip now says to turn it off above ~120 FPS.
 
-Budget used: **17 of 28 launches, 3,224 s of 14,000 s** (journal: `out/dev-init/enhanced/journal.txt`), no fatal.
-Recommended build: save point **`out/dev-init-savepoints/enhanced-rc1-20261102`** (exe `1342d5c6…`, U2Port.u
-`64840987…`, DirectMusic helper `b47d41ee…`). The pre-batch build is kept as `enhanced-start-20261102`
+Budget used: **24 of 28 launches, 5,003 s of 14,000 s** (journal: `out/dev-init/enhanced/journal.txt`), no fatal.
+Recommended build: save point **`out/dev-init-savepoints/enhanced-final-20261102`** (exe `87a51212…`, U2Port.u
+`f8b94b10…`, DirectMusic helper `b47d41ee…`). `enhanced-rc1-20261102` (exe `1342d5c6…`) is the benchmarked build;
+the final build differs only by the removed subtitle mechanism. The pre-batch build is kept as `enhanced-start-20261102`
 (= beta-campaign, exe `e57b006e…`).
 
 ## 1. Gameplay timing at high frame rates
@@ -103,27 +105,25 @@ The engine's projection takes the FOV as the **horizontal** angle at any aspect 
 - Remaining: the sniper-scope overlay and the menu background are ScaleContainers stretched non-uniformly (1024×768
   scaled to the screen), as in the original at widescreen. Not changed.
 
-## 3. Subtitles
+## 3. Subtitles — not delivered
 
-Subtitle Size (Options > HUD, 100/125/150/175/200%) is independent of UI Scale and applies on top of it.
+An independent Subtitle Size setting was implemented twice, and both versions failed in game. The final build has no
+Subtitle Size row, so subtitles stay exactly the original (verified, launch 14).
 
-- `UIScripts/DialogUI.ui` in the run sandbox wraps the dialogue subtitle container in the game's own ScaleContainer,
-  marked by RelativeSize 640.25,480.25.
-- `native/ui_scale_container.c` sets that container's scale from the setting each frame. The bottom-centre anchor,
-  wrapping and fonts are unchanged.
-- It is limited so the 700-unit box stays inside 96% of the width and a quarter of the height. 100% is exactly the
-  original.
-- Verified:
-  - 720p at 150% and 200%, the latter clamped to ×1.617, inside the cinematic letterbox (launch 5).
-  - 4K with UI Auto (200%) at 100% and 150%; the scaler logged ×1.0 and ×1.5 in the 1920×1080 UI frame (launch 7).
-  - 1080p at 150% (launch 7b).
-  - Live from the menu: 175% selected and persisted (launch 10c).
-- Not demonstrated: 1440p and ultrawide frames with a subtitle on screen (the resizes happened between lines), and a
-  dialogue *choice* together with large subtitles. The Atlantis briefing conversation could not be triggered
-  reliably, because Aida's patrol has a random 8–18 s wait.
-- Observed edge case: resizing the window *during* a cinematic (launch 7, 720p → 1080p) left that cinematic without
-  its letterbox bars, and a letterbox line sat at the bottom edge. At a constant size the bars are normal (7b). The
-  subtitle scaler was not involved.
+1. **Draw scale.** The subtitle container was wrapped in the game's own ScaleContainer and its scale was set from the
+   setting (first plainly, then with a virtual frame W/S × H/S as the global UI scale uses). The scaler ran (logged
+   ×1.25 to ×2.0), but no subtitle was drawn at any size above 100% (launches 11b and 11c, 3440×1440).
+   - Launches 11a and 12 photographed the wrong time window.
+   - On re-checking, every subtitle earlier read as "scaled" (launches 5 and 7) was actually drawn at 100%: the
+     setting times were matched against the wrong line times.
+2. **Larger game font.** The game ships its subtitle font as SubTFonts EE16 (default), EE18 and EE20.
+   - The menu change to 125% applied and persisted, but did not reach the TutA level's DialogEngine (launch 13).
+   - A session started with EE20 drew no subtitles at all (launch 13b).
+
+Next steps for a follow-up: trace how `UIConsole.BroadcastStatusMessage` places and clips the subtitle labels, and how
+`UDialogEngine::execLoadSubtitleFont` resolves `SubTFonts.EE20`. The game's 8 KB Unreal2.log may hold the load error
+if it is flushed. The runtime keeps the `SubtitleSize` key and the UnrealScript helpers for that work, but they are not
+used.
 
 ## 4. Frame rate limit, VSync, presentation
 
@@ -211,9 +211,10 @@ stop. The old 100,000-frame stop would also have ended a session after ~11 minut
 
 - Runtime: `patches/enhanced-runtime.patch` (port_settings.c, hle_d3d8_device.inc VSync, DirectMusic recovery,
   xrt_internal.h) against `beta-campaign-20261102/runtime`. Helper: `patches/enhanced-dmusic-helper.patch`.
-- Natives (`tools/xrt/dev/native`): view_fov.c, level_tick.c, script_tick.c, ui_scale_container.c. Other changes:
+- Natives (`tools/xrt/dev/native`): view_fov.c, level_tick.c, script_tick.c (ui_scale_container.c was removed with the
+  draw-scale subtitles). Other changes:
   dev.py (PORT table, `--play` policy, `--tick-extra`), dev_support.c (limiter, probe columns, `fps`/`pset`/`dmkill`
   steps), contain.c, port.py and PortSettings.uc (menus).
 - Evidence and launch scripts: `out/dev-init/enhanced/` (journal, helpers, contact sheets, crops).
-- Save points: `enhanced-start-20261102` (before) and `enhanced-rc1-20261102` (recommended). Test profiles
-  `enhanced-menu` and `enhanced-smoothoff`. The owner profile was not modified.
+- Save points: `enhanced-start-20261102` (before), `enhanced-rc1-20261102` (benchmarked) and `enhanced-final-20261102`
+  (recommended). Test profiles `enhanced-menu`, `enhanced-smoothoff` and `enhanced-subs`. The owner profile was not modified.

@@ -851,15 +851,17 @@ Beta batch (2026-11-02 night; report tools/xrt/dev/BETA_REPORT_20261102.md; jour
     Open: intermittent DirectMusic helper failures at M08A1 save loads (3 of ~12). Ladder climbing: face the LadderVolume
     WallDir from inside the volume; quicksave rotation: the checkpoint you want may be Save1, not Save0.
 2026-11-02 night - Enhanced Edition batch (report ENHANCED_REPORT_20261102.md, journal out/dev-init/enhanced/journal.txt,
-    save points enhanced-start-20261102 -> enhanced-rc1-20261102, 17 launches / 3,224 s).
+    save points enhanced-start-20261102 -> enhanced-final-20261102, 24 launches / 5,003 s).
     Hor+ widescreen + Field of View (native/view_fov.c, default 85 = class default; FCameraSceneNode's ctor builds the
     matrices before the derived vtable is set), 60 Hz script-Tick ceiling for six frame-rate-dependent classes
     (native/script_tick.c, UObject::ProcessEvent), frame timing probe (native/level_tick.c -> frames.csv cap_fps,
-    frame_dt, game_time, cam_*), Subtitle Size (native/ui_scale_container.c + DialogUI.ui ScaleContainer marker),
-    Frame Rate Limit / VSync / FOV / Subtitle Size in the game's Options menus (port.py; selectors are drop-downs:
+    frame_dt, game_time, cam_*), Frame Rate Limit / VSync / FOV in the game's Options menus (port.py; selectors are
+    drop-downs:
     press, hold, move, release), VSync = D3DSWAPEFFECT_COPY_VSYNC on windowed devices, limiter 1 ms floor, DirectMusic
     helper failures non-fatal with bounded restart and slot reuse in both object tables (patches/enhanced-*.patch),
     dev.py run --play --session-minutes (default 720; contain.c 24 h only for real-input play). Input steps fps:N,
     pset:KEY:VALUE, dmkill; dev.py run --tick-extra CLASS (developer test). Finding: the game's Mouse Smoothing
     over-turns above ~120 FPS (script code; documented, tooltip). Scripted mouse input does not reach the in-game pause
     menu (attract menu works). Routine tests now 1280x720; the cursor tip lands (+3,+13) px from computed targets.
+    Subtitle Size NOT delivered: a ScaleContainer draw scale and the larger subtitle fonts SubTFonts.EE18/EE20 both drew
+    no dialogue subtitles above 100% (launches 11b-13b); row removed. TutA lines: 242-254 s on the bench script.

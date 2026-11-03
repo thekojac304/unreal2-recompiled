@@ -36,7 +36,6 @@ NATIVE = {'GlmLib_008.c': [('f_2fd7d20', HERE / 'native/glm_xform.c')]}
 PORT = {'Engine_025.c': [('f_103e24d0', HERE / 'native/walk_speed.c')],          # APawn::calcVelocity: Walking Speed
         'Engine_026.c': [('f_103f8a40', HERE / 'native/view_fov.c')],            # FCameraSceneNode::UpdateMatrices: Hor+, FOV
         'Engine_021.c': [('f_103b5be0', HERE / 'native/level_tick.c')],          # ULevel::Tick: frame timing probe
-        'UI_009.c': [('f_1917f270', HERE / 'native/ui_scale_container.c')],      # UScaleContainer::Update: Subtitle Size
         'Core_006.c': [('f_10125320', HERE / 'native/script_tick.c')]}           # UObject::ProcessEvent: script Tick ceiling
 DEV = WS / 'out/dev-init'
 RT = DEV / 'runtime'

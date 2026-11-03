@@ -1,7 +1,7 @@
 //=============================================================================
 // PortSettings - settings added by the Windows port, shown in the game's own
 // Options menu (UIScripts/U2Menus.ui: Game > Walking Speed; Video > Frame Rate
-// Limit, Field of View, VSync, UI Scale; HUD > Subtitle Size; the menu edits are
+// Limit, Field of View, VSync, UI Scale; the menu edits are
 // applied by tools/xrt/dev/port.py).
 //
 // The values are config(User), so they persist in User.ini [U2Port.PortSettings]
@@ -21,7 +21,8 @@ var config int UIScale;
 // game's own class default (the shipped User.ini's DefaultFOV=100 compensated the original Vert- widescreen view).
 // 0 = the game's own PlayerController.DefaultFOV (User.ini [Engine.PlayerController]).
 var config int FieldOfView;
-// Spoken-dialogue subtitles in percent of their original size (on top of UI Scale): 100, 125, 150, 175, 200.
+// Subtitle Size (100, 112, 125: the subtitle font SubTFonts.EE16/18/20). NOT in the menu and not applied at start: in the
+// enhanced batch every size above 100% drew no subtitles at all (launches 11a-13b); kept for the follow-up investigation.
 var config int SubtitleSize;
 // Frame rate limit in frames per second; 0 = unlimited.
 var config int FrameRateLimit;
@@ -233,14 +234,46 @@ function SetVSyncEnabled(bool B)
 // Options > HUD > Subtitle Size (U2Selector): one function per list item, CurrentAccess returns the index.
 function int GetSubtitleSizeIndex()
 {
-	switch (SubtitleSize)
-	{
-		case 125: return 1;
-		case 150: return 2;
-		case 175: return 3;
-		case 200: return 4;
-	}
+	if (SubtitleSize > 118)
+		return 2;
+	if (SubtitleSize > 106)
+		return 1;
 	return 0;
+}
+
+function string SubtitleFontName(int P)
+{
+	if (P > 118)
+		return "SubTFonts.EE20";
+	if (P > 106)
+		return "SubTFonts.EE18";
+	return "SubTFonts.EE16";
+}
+
+// Applies at once: every live DialogEngine gets the font (SubtitleFont, which the dialogue code measures and draws
+// with) and its SubtitleFontStr; that string also becomes the class default, so the DialogEngine of a later level
+// loads the same font in PostBeginPlay.
+function ApplySubtitleFont(int P)
+{
+	local Actor A;
+	local string F;
+	local bool bDefault;
+
+	F = SubtitleFontName(P);
+	foreach GetPlayerOwner().AllActors(class'Actor', A)
+	{
+		if (!A.IsA('DialogEngine'))
+			continue;
+		A.SetPropertyText("SubtitleFontStr", F);
+		A.SetPropertyText("SubtitleFont", "Font'" $ F $ "'");
+		if (!bDefault)
+		{
+			A.SetPropertyTextDefault("SubtitleFontStr");
+			bDefault = true;
+		}
+	}
+	if (!bDefault)
+		GetPlayerOwner().ConsoleCommand("set U2Dialog.DialogEngine SubtitleFontStr" @ F);
 }
 
 function SetSubtitleSize(int P)
@@ -249,14 +282,13 @@ function SetSubtitleSize(int P)
 		return;
 	SubtitleSize = P;
 	SaveConfig();
+	ApplySubtitleFont(P);
 	ConsoleCommand("PORTSET SubtitleSize" @ P);
 }
 
 function SetSubtitleSize100() { SetSubtitleSize(100); }
+function SetSubtitleSize112() { SetSubtitleSize(112); }
 function SetSubtitleSize125() { SetSubtitleSize(125); }
-function SetSubtitleSize150() { SetSubtitleSize(150); }
-function SetSubtitleSize175() { SetSubtitleSize(175); }
-function SetSubtitleSize200() { SetSubtitleSize(200); }
 
 function SetUIScaleAuto() { SetUIScale(0); }
 function SetUIScale100() { SetUIScale(100); }
