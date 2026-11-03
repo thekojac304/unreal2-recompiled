@@ -10,7 +10,7 @@ PA_Sanctuary → M08A1 and TutB → PD_Avalon → Atlantis work. Progress in M08
 death opens the only way on (the runoff-basin hatches, from Danny Miller's camera broadcast), and it could not be cleared
 by scripted open-loop fire, even with the owner-approved console `god`. That is a gameplay-scripting limit; no
 translation fault was observed. Budget: **20 of 36 launches, 5,075 s of 18,000 s**, no fatal, no watchdog kill. Commits
-`e9f7ffb`, `467b7dd` and the report commit, on `codex/level-initialization`, not pushed.
+`e9f7ffb`, `467b7dd`, `ddf48cd`, on `codex/level-initialization`, not pushed.
 
 Recommended build: **save point `out/dev-init-savepoints/beta-final-20261102`** (exe `A0E80527…`).
 Journal with every launch: `out/dev-init/beta-evidence-20261102/journal.txt`.
@@ -135,7 +135,7 @@ but that is unverified.
 
 - `e9f7ffb` pool split/coalesce/second segment, tests, `sync` input step, `--play`
 - `467b7dd` inline ehframe pad link/unlink, profile save carry-over, `--play` end notice
-- report commit: `face:X:Y[:Z]` pitch steering, input-log cap, README, this report
+- `ddf48cd` `face:X:Y[:Z]` pitch steering, input-log cap, README, this report
 - Save points: `beta-start-20261102` (= perf-r4d + profiles), `beta-alloc-20261102`, `beta-ehinline-20261102`,
   **`beta-final-20261102`**. New checkpoints in `out/dev-init/saves/`: `20261102-1816-…-puppeteer-prelos`,
   `…-postkill`, `20261102-1907-…-postpack-god`.
