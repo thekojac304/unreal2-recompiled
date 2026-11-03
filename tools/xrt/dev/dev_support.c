@@ -855,13 +855,19 @@ void xrt_dev_input_window_actions(void) {
     xrt_log("DEV input: window client %ldx%ld -> %ldx%ld at +%llu ms", before.right, before.bottom, after.right, after.bottom,
             GetTickCount64() - init_ms);
 }
+/* XRT_DEV_ALLOW_MAPS: map file names separated by ';' (any length), or "*" for every map (dev.py run --play). The list
+ * used to be copied into a 512-byte buffer and refused whole when longer: --play's 47 retail maps are 570 characters,
+ * so every level change of a personal session ended it (owner session 20261103-000530, M08 level change). */
 static int map_allowed(const char *path) {
-    const char *v = getenv("XRT_DEV_ALLOW_MAPS"), *base = strrchr(path, '\\');
-    char list[512], *tok, *ctx = NULL;
+    const char *v = getenv("XRT_DEV_ALLOW_MAPS"), *base = strrchr(path, '\\'), *tok;
+    size_t n = 0;
     base = base ? base + 1 : path;
-    if (!v || !*v || strlen(v) >= sizeof list) return 0;
-    strcpy(list, v);
-    for (tok = strtok_s(list, ";", &ctx); tok; tok = strtok_s(NULL, ";", &ctx)) if (!_stricmp(tok, base)) return 1;
+    if (!v || !*v) return 0;
+    if (!strcmp(v, "*")) return 1;
+    for (tok = v; *tok; tok += n + (tok[n] == ';')) {
+        n = strcspn(tok, ";");
+        if (n == strlen(base) && !_strnicmp(tok, base, n)) return 1;
+    }
     return 0;
 }
 /* A successful post-Init open of a map file is the natural transition out of

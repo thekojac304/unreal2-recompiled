@@ -178,7 +178,11 @@ stop. The old 100,000-frame stop would also have ended a session after ~11 minut
 - The Job, kill-on-close, the deadline, Ctrl+C, the sandbox, save isolation and the profile carry-over are unchanged.
 - Run output is bounded: ~44 MB per session plus the 2.1 GB sandbox. The xrt.log 50,000-line cap and the frame table
   cap are both safe.
-- Not run as a long owner session in this batch.
+- **Owner session 20261103-000530 (after the batch):** every level change ended a `--play` session. The 47-map allow-list
+  (570 characters) exceeded the runtime's 512-byte copy, so `map_allowed` refused all maps; the message box then
+  reported the clean stop as the time limit. Present since the beta added `--play`; earlier owner sessions never
+  changed level. Fixed: `map_allowed` scans any length and `--play` passes `*`; the notice names the actual stop
+  reason. Owned test of the extracted function with the real list: pass.
 
 ## 7. Windows polish, regressions, performance
 

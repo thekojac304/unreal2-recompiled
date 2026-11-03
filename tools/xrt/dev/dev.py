@@ -663,6 +663,7 @@ def play_defaults(args):
         args.trace_profile = 'quiet'
     maps = Path(GAME_INSTALL) / 'Maps'
     args.allow_map = sorted(set(args.allow_map) | {m.name for m in maps.glob('*.un2')})
+    args.allow_all_maps = True   # XRT_DEV_ALLOW_MAPS=* (the list above stays the record in trace-profile.json)
     args.question = args.question or 'Personal play session (--play)'
     args.change = args.change or 'none (personal play)'
 
@@ -670,7 +671,14 @@ def play_notice(args, out, code, outcome):
     """--play: the game window simply vanishes when the contained session limit is reached or the runtime stops on an
     unsupported call; tell the player why and where the evidence is (from this launcher process, after the game has
     ended - nothing runs inside the dying game)."""
-    if 'first-scene stop' in str(outcome) or code in (11, 124):
+    console = out / 'console.txt'
+    stop = re.findall(r'FIRST_SCENE endpoint \(([^)]*)\)', console.read_text(errors='replace')) if console.exists() else []
+    if stop and stop[-1] != 'time limit':
+        title = 'Unreal II - session stopped'
+        text = (f'The developer harness stopped the game ({stop[-1]}). This is a harness limit, not a game error: please '
+                f'report it.\n\nSaves made before this point are kept in the profile; F8 in the next session continues '
+                f'from the last quicksave.\n\nLogs: {out}')
+    elif 'first-scene stop' in str(outcome) or code in (11, 124):
         title = 'Unreal II - session time limit'
         text = (f'The session time limit ({args.scene_seconds // 60} min of play; dev.py --session-minutes) was reached '
                 'and the game was closed.\n\n'
@@ -836,7 +844,7 @@ def run(args):
         if not args.allow_input:
             env['XRT_DEV_NO_INPUT'] = '1'
         if args.allow_map:
-            env['XRT_DEV_ALLOW_MAPS'] = ';'.join(args.allow_map)
+            env['XRT_DEV_ALLOW_MAPS'] = '*' if getattr(args, 'allow_all_maps', False) else ';'.join(args.allow_map)
         if args.background:
             if args.allow_input:
                 raise RuntimeError('No launch: --background needs input isolation (drop --allow-input)')
