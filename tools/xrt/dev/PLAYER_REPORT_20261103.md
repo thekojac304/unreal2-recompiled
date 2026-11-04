@@ -93,7 +93,32 @@ game's binaries (personal use only; the README says so).
 
 ## Storage compaction
 
-See the section appended below by the compaction run (frames_cleanup_20261103.py).
+One-off script `tools/xrt/dev/player/frames_cleanup_20261103.py` (plan, then apply; reuses retention.py's verified
+lossless PNG writer and 12-frame selection). Scope: frame files only (`scene-frame-*`, `present-*`, `startup-present-*`)
+directly in `out/dev-init/runs/<run>/` and the overflow counterparts `C:\Users\lawma\Unreal2-dev-sandbox-overflow\run-<run>\`;
+runs made under the retention policy were skipped; no run directory, log, report, dump or save was touched.
+
+Classification from the project's own documents (reports, READMEs, journals, batch notes, save-point READMEs, memory):
+
+| Class | Runs | Rule | Deleted |
+|---|---|---|---|
+| milestone | 106 | run named in a narrative document (README.txt, CURRENT_STATUS.md, memory) or on any document line about visual evidence | nothing; every frame kept, BMP -> PNG |
+| failure | 17 | fatal/unexpected outcome or crash.dmp | all but first, last 3 and 12 evenly spaced (as PNG) |
+| routine | 141 | everything else (benchmarks, repeated gameplay frames) | all but first, last and 12 evenly spaced (as PNG) |
+
+Frames named explicitly in any document (11 names, e.g. `scene-frame-0064`) were kept untouched in every run.
+
+| | E: | C: | Total |
+|---|---|---|---|
+| Frames deleted (2,400 files) | 27.2 GiB | 12.4 GiB | 39.6 GiB |
+| BMP -> PNG, pixel-verified (3,602 files) | | | 62.1 -> 18.5 GiB |
+| **Recovered** | | | **83.2 GiB (89,362,773,030 bytes)** |
+
+Free space: E: 199 -> 262 GiB, C: 886 -> 906 GiB. Remaining run storage: E: `out/dev-init/runs` 38.0 GiB (PNG 15.2,
+BMP 0.3), C: overflow 16.6 GiB (PNG 4.0; the rest are save-point generated sources and kept sandboxes, untouched).
+Two BMPs could not be verified (truncated files of run 20261031-144216, the run that filled E:) and stay as they were.
+`asset_boundary.verify()` before and after: identical. Manifests: `out/player/cleanup/deleted-manifest.jsonl` (path,
+run, class, size, mtime, SHA-256 of every deleted file), `converted-manifest.jsonl`, `plan.json` (also in the save point).
 
 ## Known limitations
 
