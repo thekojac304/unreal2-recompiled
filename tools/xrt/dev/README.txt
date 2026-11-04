@@ -865,3 +865,26 @@ Beta batch (2026-11-02 night; report tools/xrt/dev/BETA_REPORT_20261102.md; jour
     menu (attract menu works). Routine tests now 1280x720; the cursor tip lands (+3,+13) px from computed targets.
     Subtitle Size NOT delivered: a ScaleContainer draw scale and the larger subtitle fonts SubTFonts.EE18/EE20 both drew
     no dialogue subtitles above 100% (launches 11b-13b); row removed. TutA lines: 242-254 s on the bench script.
+
+Standalone player (2026-11-03; report PLAYER_REPORT_20261103.md; save point out/dev-init-savepoints/player-20261103)
+  - "Unreal II Enhanced.exe" = the developer build's objects + the runtime + player.c, linked /SUBSYSTEM:WINDOWS:
+      dev.py build --lean --order tools/xrt/dev/order-r4-multi.txt     (as before; the player links its objects)
+      dev.py player-build      -> out/player/dist/Unreal II Enhanced/ (exe, dmusic_helper.exe, dxvk\, port\U2Port.u,
+                                  README.txt, build-info.json), out/player/symbols (PDB). ~15 s, not a game launch.
+    The developer exe links no player code (xrt_main.c: /alternatename default xrt_player_setup returns 0).
+  - Double-click = launcher half of player.c: data folder %LOCALAPPDATA%\UnrealIIEnhanced (System\ copy of the install's
+    System, port menu edits generated from port.py into player_edits.h, the install's folders mirrored empty, Save\,
+    Logs\), installation from --game / player.ini / exe-relative / GOG registry / folder dialog, module SHA-256 checks
+    against the lifted modules, then the same exe as the game process (--xrt-child) in a kill-on-close Job, no time
+    limit, dev.py --play's settings as defaults (XRT_DEV_SCENE=0, all maps, guard staging, quiet trace, sound on).
+  - Runtime content overlay (patches/player-runtime.patch, inert without xrt_content_root): read-only opens, fopen,
+    FindFirstFile/_findfirst (merged listings) resolve to the installation where the game root has no file; never Save\;
+    every write stays in the game root. DirectMusic helper --content (patches/player-dmusic-helper.patch): the
+    installation is its read-only root. Player focus guard (hle_gui.c player_switched_away).
+  - Tests: dev.py run --player [--player-data out/player/test-data/NAME] [--player-game DIR|-] [--player-import DIR]
+    [--player-arg=--diagnostics] with the usual --authorize-* / --first-scene / --scene-seconds / --background / --input:
+    the dist exe under contain.exe, data folder of its own. Setup without a game launch: player.exe --prepare-only;
+    owned test tools/xrt/dev/player/setup_tests.py (17 checks).
+  - Gotchas: GlmLib registers Golem meshes by _chdir into Meshes\<sub>\ and _findfirst("*.gem") - the content folders
+    must exist in the game root (mirror), or CS_Titles dies in AActor::RequiresSorting; pset only sets live values (the
+    menu's SaveConfig persists); a persisted window size moves the scripted Ok click; --player-arg needs the = form.

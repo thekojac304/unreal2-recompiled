@@ -1,0 +1,457 @@
+diff --git a/out/dev-init-savepoints/pre-player-20261103/runtime/dmusic_backend_pipe.inc b/out/dev-init/runtime/dmusic_backend_pipe.inc
+index 401f0e3..c69947c 100644
+--- a/out/dev-init-savepoints/pre-player-20261103/runtime/dmusic_backend_pipe.inc
++++ b/out/dev-init/runtime/dmusic_backend_pipe.inc
+@@ -58,6 +58,10 @@ static int dm_backend_start(CPU*c,DmbCallback cb){
+  if(dm_backend_connection.process)return 1;
+  if(!path||!xm_win_MultiByteToWideChar(CP_UTF8,MB_ERR_INVALID_CHARS,path,-1,exe,600)||!xm_win_MultiByteToWideChar(CP_ACP,0,xrt_sandbox_root,-1,root,600))
+   xrt_fatal(c,XRT_EXIT_SETUP,"DirectMusic IPC requires an explicit project helper path and isolated sandbox");
++ /* Standalone player: the music files stay in the installation; the helper gets it as its read-only root (--content;
++  * its disk guard still refuses writes and links). */
++ {WCHAR music[620],content[620];swprintf(music,620,L"%s\\Music",root);dmb_content=0;
++  if(xrt_overlay_content_dir((const uint16_t*)music,(uint16_t*)content,620)){content[wcslen(content)-6]=0;wcscpy(root,content);dmb_content=1;}}
+  if(FAILED(xm_win_CoGetApartmentType(&apt,&qualifier))||(apt!=APTTYPE_STA&&apt!=APTTYPE_MAINSTA))
+   xrt_fatal(c,XRT_EXIT_UNSUPPORTED,"DirectMusic IPC requires the measured owning STA apartment");
+  {int ok;xm_native(c,XM_BEGIN,"DirectMusic.IPC.connect",0,0);
+diff --git a/out/dev-init-savepoints/pre-player-20261103/runtime/dmusic_pipe.h b/out/dev-init/runtime/dmusic_pipe.h
+index ff188c4..b2fc508 100644
+--- a/out/dev-init-savepoints/pre-player-20261103/runtime/dmusic_pipe.h
++++ b/out/dev-init/runtime/dmusic_pipe.h
+@@ -86,6 +86,7 @@ static int dmb_exchange(DmbConnection*c,DmbMessage*m) {
+   }
+  }
+ }
++static int dmb_content;   /* 1: root is a read-only content tree (standalone player), passed as --content */
+ static int dmb_connect(DmbConnection*c,const WCHAR*exe,const WCHAR*root,int testing,DmbCallback cb,void*context) {
+  SECURITY_ATTRIBUTES sa={sizeof sa,NULL,TRUE};HANDLE childin=NULL,childout=NULL,childlog=NULL;
+  STARTUPINFOEXW si;PROCESS_INFORMATION pi;JOBOBJECT_EXTENDED_LIMIT_INFORMATION limits;
+@@ -109,8 +110,8 @@ static int dmb_connect(DmbConnection*c,const WCHAR*exe,const WCHAR*root,int test
+  si.StartupInfo.cb=sizeof si;si.StartupInfo.dwFlags=STARTF_USESHOWWINDOW|STARTF_USESTDHANDLES;si.StartupInfo.wShowWindow=SW_HIDE;
+  si.StartupInfo.hStdInput=childin;si.StartupInfo.hStdOutput=childout;si.StartupInfo.hStdError=childlog;
+  if(wcschr(exe,L'"')||wcschr(root,L'"')||wcslen(exe)>600||wcslen(root)>500)goto done;
+- swprintf(cmd,2400,L"\"%s\" --pipes %llu %llu --sandbox \"%s\" --async %llu %llu%s",exe,(unsigned long long)(uintptr_t)childin,(unsigned long long)(uintptr_t)childout,root,
+-  (unsigned long long)(uintptr_t)achildin,(unsigned long long)(uintptr_t)achildout,testing?L" --test":L"");
++ swprintf(cmd,2400,L"\"%s\" --pipes %llu %llu --sandbox \"%s\" --async %llu %llu%s%s",exe,(unsigned long long)(uintptr_t)childin,(unsigned long long)(uintptr_t)childout,root,
++  (unsigned long long)(uintptr_t)achildin,(unsigned long long)(uintptr_t)achildout,dmb_content?L" --content":L"",testing?L" --test":L"");
+  swprintf(cwd,600,L"%s\\System",root);
+  if(!CreateProcessW(exe,cmd,NULL,NULL,TRUE,CREATE_SUSPENDED|CREATE_NO_WINDOW|EXTENDED_STARTUPINFO_PRESENT,NULL,cwd,&si.StartupInfo,&pi))goto done;
+  c->process=pi.hProcess;
+diff --git a/out/dev-init-savepoints/pre-player-20261103/runtime/hle_dmusic_guest.inc b/out/dev-init/runtime/hle_dmusic_guest.inc
+index 040d6b9..ef4e76f 100644
+--- a/out/dev-init-savepoints/pre-player-20261103/runtime/hle_dmusic_guest.inc
++++ b/out/dev-init/runtime/hle_dmusic_guest.inc
+@@ -290,6 +290,8 @@ static void dmi_InitAudio(CPU*c){uint32_t p;DMI_BEGIN(DMB_INIT_AUDIO);
+ static void dmi_Search(CPU*c){WCHAR full[512];DMI_BEGIN(DMB_SEARCH);dmi_guid(c,ARG(1),m.guid[0]);dmi_text(c,ARG(2),m.text);m.v[0]=ARG(3);
+  if(!xm_win_GetFullPathNameW((WCHAR*)m.text,512,full,NULL))xrt_fatal(c,XRT_EXIT_UNSUPPORTED,"DirectMusic invalid search directory");
+  {size_t n=wcslen(full);while(n&&full[n-1]==L'\\')full[--n]=0;}
++ /* player: the music folder is read from the installation (the helper's read-only root, dmusic_backend_pipe.inc) */
++ {WCHAR content[512];if(xrt_overlay_content_dir((const uint16_t*)full,(uint16_t*)content,512))wcscpy(full,content);}
+  wcscpy((WCHAR*)m.text,full);dm_backend_invoke(c,&m);RET_STD(4,m.v[0]);}
+ static void dmi_Path(CPU*c){uint32_t p;DMI_BEGIN(DMB_PATH);com_memory(c,ARG(1),4,"DirectMusic path output");dm_backend_invoke(c,&m);p=dmi_wrap(c,&m);wr32(ARG(1),p);RET_STD(2,m.v[0]);}
+ static void dmi_Graph(CPU*c){uint32_t p;DMI_BEGIN(DMB_GRAPH);m.v[0]=ARG(1);m.v[1]=ARG(2);m.v[2]=ARG(3);m.v[3]=ARG(5);dmi_guid(c,ARG(4),m.guid[0]);dmi_guid(c,ARG(6),m.guid[1]);com_memory(c,ARG(7),4,"DirectMusic graph output");dm_backend_invoke(c,&m);p=dmi_wrap(c,&m);wr32(ARG(7),p);RET_STD(8,m.v[0]);}
+diff --git a/out/dev-init-savepoints/pre-player-20261103/runtime/hle_gui.c b/out/dev-init/runtime/hle_gui.c
+index 3f6e6a8..ed851a5 100644
+--- a/out/dev-init-savepoints/pre-player-20261103/runtime/hle_gui.c
++++ b/out/dev-init/runtime/hle_gui.c
+@@ -397,6 +397,17 @@ static int dev_background_foreign(void) {
+     if(fg)GetWindowThreadProcessId(fg,&pid);
+     return pid!=GetCurrentProcessId();
+ }
++/* Standalone player (xrt_player_mode): once the game has had the foreground and the player then switched to another
++ * application, the game's own activation requests stay virtual as in background mode (an idle desktop or an inherited
++ * foreground right would otherwise let them pull the game back to the front). Clicking or Alt+Tabbing back activates
++ * the window natively; from then on the calls pass again. */
++static int player_switched_away(void) {
++    static int had_foreground;static unsigned logged;
++    if(!xrt_player_mode)return 0;
++    if(!dev_background_foreign()){had_foreground=1;return 0;}
++    if(had_foreground&&logged++<8)xrt_log("player: the game's activation request stays virtual (another application is in front)");
++    return had_foreground;
++}
+ static HWND dev_background_foreground(HWND h) {
+     static unsigned logged;DWORD pid=0;HWND own;
+     if(h)GetWindowThreadProcessId(h,&pid);
+@@ -442,9 +453,9 @@ static void hle_SetForegroundWindow(CPU* c)
+     if(w && !hwnd)xrt_fatal(c,XRT_EXIT_UNSUPPORTED,"SetForegroundWindow: unknown HWND token %08x",w);
+     if(hwnd && xm_win_GetWindowThreadProcessId(hwnd,NULL)!=xm_win_GetCurrentThreadId())
+         xrt_fatal(c,XRT_EXIT_UNSUPPORTED,"SetForegroundWindow: cross-thread window unmeasured");
+-    if(xrt_dev_background()) { /* developer background mode: never passed on; the guest's own window is its foreground */
++    if(xrt_dev_background()||player_switched_away()) { /* developer background mode / player in another application: not passed on */
+         static unsigned logged;
+-        begin(c);result=hwnd&&IsWindow(hwnd);end(c);
++        begin(c);result=hwnd&&IsWindow(hwnd)&&xrt_dev_background();end(c);   /* player: refused, as USER32 would */
+         if(logged++<8)xrt_log("DEV background: SetForegroundWindow(%p) not passed on (result %d)",hwnd,(int)result);
+     } else {
+     callback_cpu=c;begin(c);result=xm_win_SetForegroundWindow(hwnd);end(c);callback_cpu=suspended;
+@@ -463,7 +474,7 @@ static void hle_SetActiveWindow(CPU* c)
+     if(w && !hwnd)xrt_fatal(c,XRT_EXIT_UNSUPPORTED,"SetActiveWindow: unknown HWND token %08x",w);
+     if(hwnd && xm_win_GetWindowThreadProcessId(hwnd,NULL)!=xm_win_GetCurrentThreadId())
+         xrt_fatal(c,XRT_EXIT_UNSUPPORTED,"SetActiveWindow: cross-thread window unmeasured");
+-    if(xrt_dev_background()&&hwnd&&dev_background_foreign()) { /* developer background mode: virtual activation */
++    if((xrt_dev_background()||player_switched_away())&&hwnd&&dev_background_foreign()) { /* developer background mode: virtual activation */
+         static unsigned logged;
+         begin(c);previous=GetActiveWindow();if(!previous&&dev_background_active&&IsWindow(dev_background_active))previous=dev_background_active;
+         dev_background_active=hwnd;end(c);
+@@ -493,7 +504,7 @@ static void hle_SetFocus(CPU* c)
+         hwnd=(HWND)(intptr_t)-1;
+         if(xm_win_IsWindow(hwnd))xrt_fatal(c,XRT_EXIT_SETUP,"SetFocus: invalid HWND sentinel unexpectedly valid");
+     }
+-    if(xrt_dev_background()&&w&&hwnd!=(HWND)(intptr_t)-1&&dev_background_foreign()&&GetActiveWindow()!=GetAncestor(hwnd,GA_ROOT)) {
++    if((xrt_dev_background()||player_switched_away())&&w&&hwnd!=(HWND)(intptr_t)-1&&dev_background_foreign()&&GetActiveWindow()!=GetAncestor(hwnd,GA_ROOT)) {
+         /* developer background mode: focusing a window outside the thread's (real) active window would activate it */
+         static unsigned logged;
+         begin(c);previous=GetFocus();if(!previous&&dev_background_focus&&IsWindow(dev_background_focus))previous=dev_background_focus;
+diff --git a/out/dev-init-savepoints/pre-player-20261103/runtime/hle_kernel32.c b/out/dev-init/runtime/hle_kernel32.c
+index 37c1059..89f3c47 100644
+--- a/out/dev-init-savepoints/pre-player-20261103/runtime/hle_kernel32.c
++++ b/out/dev-init/runtime/hle_kernel32.c
+@@ -71,6 +71,102 @@ static void require_sandbox(CPU* c, const uint16_t* path, const char* op) {
+ 
+ static void set_err_from_host(CPU* c) { xrt_set_last_error(c, GetLastError()); }
+ 
++/* ---------------------------------------------------------------- player content overlay (xrt_internal.h)
++ * Off unless the standalone player set xrt_content_root. Only reads are redirected: the guest sees the installation's
++ * files where its private game root has none; creation, writes, deletion and renames keep the sandbox guard above. */
++static const WCHAR* overlay_rel(const WCHAR* full) {   /* "" or "\Dir\File" below the game root; NULL outside it */
++    WCHAR root[MAX_PATH * 2];
++    size_t n;
++    MultiByteToWideChar(CP_ACP, 0, xrt_sandbox_root, -1, root, MAX_PATH * 2);
++    n = wcslen(root);
++    return n && !_wcsnicmp(full, root, n) && (full[n] == L'\\' || full[n] == 0) ? full + n : NULL;
++}
++static int overlay_excluded(const WCHAR* rel) {   /* the player's own Save folder is never read from the installation */
++    return !_wcsnicmp(rel, L"\\Save", 5) && (rel[5] == 0 || rel[5] == L'\\');
++}
++static int overlay_content(WCHAR* out, size_t n, const WCHAR* rel) {
++    if (!MultiByteToWideChar(CP_ACP, 0, xrt_content_root, -1, out, (int)n) || wcslen(out) + wcslen(rel) >= n)
++        return 0;
++    wcscat(out, rel);
++    return 1;
++}
++int xrt_overlay_read_path(const uint16_t* path, uint16_t* out, size_t n) {
++    WCHAR full[MAX_PATH * 2];
++    const WCHAR* rel;
++    if (!xrt_content_root[0] || !GetFullPathNameW((LPCWSTR)path, MAX_PATH * 2, full, NULL))
++        return 0;
++    if (!(rel = overlay_rel(full)) || !*rel || overlay_excluded(rel) || GetFileAttributesW(full) != INVALID_FILE_ATTRIBUTES)
++        return 0;
++    return overlay_content((WCHAR*)out, n, rel) && GetFileAttributesW((LPCWSTR)out) != INVALID_FILE_ATTRIBUTES;
++}
++/* A folder of the game root as the installation's folder of the same name (the player mirrors the installation's
++ * folders, empty, so that the guest can change into them): DirectMusic loads its music from the installation itself. */
++int xrt_overlay_content_dir(const uint16_t* path, uint16_t* out, size_t n) {
++    WCHAR full[MAX_PATH * 2];
++    const WCHAR* rel;
++    DWORD a;
++    if (!xrt_content_root[0] || !GetFullPathNameW((LPCWSTR)path, MAX_PATH * 2, full, NULL))
++        return 0;
++    if (!(rel = overlay_rel(full)) || !*rel || overlay_excluded(rel) || !overlay_content((WCHAR*)out, n, rel))
++        return 0;
++    a = GetFileAttributesW((LPCWSTR)out);
++    return a != INVALID_FILE_ATTRIBUTES && (a & FILE_ATTRIBUTE_DIRECTORY);
++}
++typedef struct { unsigned n, next, cap; WIN32_FIND_DATAW* e; } FindList;
++static void findlist_scan(FindList* l, const WCHAR* pattern, int root_listing) {
++    WIN32_FIND_DATAW fd;
++    HANDLE h = FindFirstFileW(pattern, &fd);
++    unsigned i, own = l->n;
++    if (h == INVALID_HANDLE_VALUE)
++        return;
++    do {
++        if (root_listing && !_wcsicmp(fd.cFileName, L"Save"))
++            continue;   /* the installation's Save (often a link to personal saves) is not part of the overlay */
++        for (i = 0; i < own && _wcsicmp(l->e[i].cFileName, fd.cFileName); i++)
++            ;
++        if (i < own)
++            continue;   /* the game root's entry wins */
++        if (l->n == l->cap) {
++            WIN32_FIND_DATAW* grown = (WIN32_FIND_DATAW*)realloc(l->e, (l->cap = l->cap ? 2 * l->cap : 64) * sizeof *grown);
++            if (!grown)
++                xrt_fatal(NULL, XRT_EXIT_SETUP, "content overlay: directory listing out of memory");
++            l->e = grown;
++        }
++        l->e[l->n++] = fd;
++    } while (FindNextFileW(h, &fd));
++    FindClose(h);
++}
++void* xrt_overlay_find_first(const uint16_t* pattern) {
++    WCHAR full[MAX_PATH * 2], content[MAX_PATH * 2], *slash;
++    const WCHAR* rel;
++    FindList* l;
++    if (!xrt_content_root[0] || !GetFullPathNameW((LPCWSTR)pattern, MAX_PATH * 2, full, NULL) || !(slash = wcsrchr(full, L'\\')))
++        return NULL;
++    *slash = 0;
++    rel = overlay_rel(full);
++    if (!rel || overlay_excluded(rel)) {
++        *slash = L'\\';
++        return NULL;
++    }
++    *slash = L'\\';
++    if (!overlay_content(content, MAX_PATH * 2, rel) || !(l = (FindList*)calloc(1, sizeof *l)))
++        return NULL;
++    findlist_scan(l, full, 0);
++    findlist_scan(l, content, rel == slash);
++    return l;
++}
++int xrt_overlay_find_next(void* list, void* find_data_w) {
++    FindList* l = (FindList*)list;
++    if (l->next >= l->n)
++        return 0;
++    memcpy(find_data_w, &l->e[l->next++], sizeof(WIN32_FIND_DATAW));
++    return 1;
++}
++void xrt_overlay_find_close(void* list) {
++    free(((FindList*)list)->e);
++    free(list);
++}
++
+ /* ---------------------------------------------------------------- files */
+ /* file_open events for the report: the first MAX_OPEN_EVENTS opens, with the path as the guest passed it and as
+  * resolved against the current directory ("<sandbox>\..." when inside the run's sandbox) */
+@@ -95,6 +191,7 @@ static uint32_t create_file(CPU* c, const uint16_t* name, uint32_t access, uint3
+                             uint32_t flags, uint32_t tmpl) {
+     HANDLE h;
+     char a[600];
++    WCHAR content[MAX_PATH * 2];
+     if (sa || tmpl)
+         xrt_fatal(c, XRT_EXIT_UNSUPPORTED, "CreateFile with security attributes or a template is not implemented");
+     if (flags & FILE_FLAG_OVERLAPPED)
+@@ -102,6 +199,8 @@ static uint32_t create_file(CPU* c, const uint16_t* name, uint32_t access, uint3
+     if ((access & (GENERIC_WRITE | GENERIC_ALL | FILE_WRITE_DATA | FILE_APPEND_DATA | DELETE)) ||
+         disp == CREATE_ALWAYS || disp == CREATE_NEW || disp == OPEN_ALWAYS || disp == TRUNCATE_EXISTING)
+         require_sandbox(c, name, "file creation/write");
++    else if (disp == OPEN_EXISTING && xrt_overlay_read_path(name, (uint16_t*)content, MAX_PATH * 2))
++        name = (const uint16_t*)content;   /* player: read-only open of an installation file */
+     h = CreateFileW((LPCWSTR)name, access, share, NULL, disp, flags, NULL);
+     WideCharToMultiByte(CP_ACP, 0, (LPCWSTR)name, -1, a, sizeof a, NULL, NULL);
+     file_open_event(a, access, disp, h != INVALID_HANDLE_VALUE);
+@@ -335,7 +434,20 @@ typedef char find_data_layout_check[sizeof(WIN32_FIND_DATAW) == 592 ? 1 : -1];
+ 
+ static void hle_FindFirstFileW(CPU* c) {
+     WIN32_FIND_DATAW fd;
+-    HANDLE h = FindFirstFileW((LPCWSTR)G2H(ARG(0)), &fd);
++    HANDLE h;
++    void* list = xrt_overlay_find_first((const uint16_t*)G2H(ARG(0)));
++    if (list) {   /* player: the game root's and the installation's entries */
++        if (!xrt_overlay_find_next(list, &fd)) {
++            xrt_overlay_find_close(list);
++            xrt_set_last_error(c, ERROR_FILE_NOT_FOUND);
++            RET_STD(2, 0xFFFFFFFFu);
++            return;
++        }
++        memcpy(G2H(ARG(1)), &fd, sizeof fd);
++        RET_STD(2, xrt_handle_new(XH_FINDLIST, list));
++        return;
++    }
++    h = FindFirstFileW((LPCWSTR)G2H(ARG(0)), &fd);
+     if (h == INVALID_HANDLE_VALUE) {
+         set_err_from_host(c);
+         RET_STD(2, 0xFFFFFFFFu);
+@@ -348,7 +460,17 @@ static void hle_FindFirstFileW(CPU* c) {
+ static void hle_FindNextFileW(CPU* c) {
+     WIN32_FIND_DATAW fd;
+     HANDLE h = (HANDLE)xrt_handle_get(ARG(0), XH_FIND);
++    void* list = xrt_handle_get(ARG(0), XH_FINDLIST);
+     BOOL ok;
++    if (list) {
++        ok = xrt_overlay_find_next(list, &fd);
++        if (ok)
++            memcpy(G2H(ARG(1)), &fd, sizeof fd);
++        else
++            xrt_set_last_error(c, ERROR_NO_MORE_FILES);
++        RET_STD(2, ok);
++        return;
++    }
+     if (!h) {
+         xrt_set_last_error(c, ERROR_INVALID_HANDLE);
+         RET_STD(2, 0);
+@@ -364,8 +486,13 @@ static void hle_FindNextFileW(CPU* c) {
+ 
+ static void hle_FindClose(CPU* c) {
+     HANDLE h = (HANDLE)xrt_handle_get(ARG(0), XH_FIND);
++    void* list = xrt_handle_get(ARG(0), XH_FINDLIST);
+     BOOL ok = FALSE;
+-    if (h) {
++    if (list) {
++        xrt_overlay_find_close(list);
++        xrt_handle_free(ARG(0));
++        ok = TRUE;
++    } else if (h) {
+         ok = FindClose(h);
+         xrt_handle_free(ARG(0));
+     } else {
+diff --git a/out/dev-init-savepoints/pre-player-20261103/runtime/hle_msvcr70.c b/out/dev-init/runtime/hle_msvcr70.c
+index 5b44ef3..01edfa5 100644
+--- a/out/dev-init-savepoints/pre-player-20261103/runtime/hle_msvcr70.c
++++ b/out/dev-init/runtime/hle_msvcr70.c
+@@ -1647,9 +1647,40 @@ static void find_failed(CPU* c) {
+     set_errno(c, e == 2 || e == 3 || e == 18 ? 2u : e == 8 ? 12u : 22u);
+ }
+ 
++/* player content overlay (xrt_internal.h): a merged listing's wide entry in the ANSI form _finddata_t is built from */
++static void finddata_a(WIN32_FIND_DATAA* a, const WIN32_FIND_DATAW* w) {
++    memset(a, 0, sizeof *a);
++    a->dwFileAttributes = w->dwFileAttributes;
++    a->ftCreationTime = w->ftCreationTime;
++    a->ftLastAccessTime = w->ftLastAccessTime;
++    a->ftLastWriteTime = w->ftLastWriteTime;
++    a->nFileSizeHigh = w->nFileSizeHigh;
++    a->nFileSizeLow = w->nFileSizeLow;
++    WideCharToMultiByte(CP_ACP, 0, w->cFileName, -1, a->cFileName, sizeof a->cFileName, NULL, NULL);
++}
+ static void hle_findfirst(CPU* c) {
+     WIN32_FIND_DATAA w;
+-    HANDLE h = FindFirstFileA((LPCSTR)G2H(ARG(0)), &w);
++    WIN32_FIND_DATAW fw;
++    WCHAR pattern[MAX_PATH * 2];
++    void* list = MultiByteToWideChar(CP_ACP, 0, (LPCSTR)G2H(ARG(0)), -1, pattern, MAX_PATH * 2)
++                     ? xrt_overlay_find_first((const uint16_t*)pattern) : NULL;
++    HANDLE h;
++    if (list) {
++        int ok = xrt_overlay_find_next(list, &fw);
++        xrt_log("_findfirst(\"%s\") -> %ls (content overlay)", (const char*)G2H(ARG(0)), ok ? fw.cFileName : L"none");
++        if (!ok) {
++            xrt_overlay_find_close(list);
++            SetLastError(ERROR_FILE_NOT_FOUND);
++            find_failed(c);
++            RET_C(0xFFFFFFFFu);
++            return;
++        }
++        finddata_a(&w, &fw);
++        put_finddata(c, ARG(1), &w);
++        RET_C(xrt_handle_new(XH_FINDLIST, list));
++        return;
++    }
++    h = FindFirstFileA((LPCSTR)G2H(ARG(0)), &w);
+     xrt_log("_findfirst(\"%s\") -> %s", (const char*)G2H(ARG(0)), h == INVALID_HANDLE_VALUE ? "none" : w.cFileName);
+     if (h == INVALID_HANDLE_VALUE) {
+         find_failed(c);
+@@ -1662,7 +1693,21 @@ static void hle_findfirst(CPU* c) {
+ 
+ static void hle_findnext(CPU* c) {
+     WIN32_FIND_DATAA w;
++    WIN32_FIND_DATAW fw;
+     HANDLE h = (HANDLE)xrt_handle_get(ARG(0), XH_FIND);
++    void* list = xrt_handle_get(ARG(0), XH_FINDLIST);
++    if (list) {
++        if (!xrt_overlay_find_next(list, &fw)) {
++            SetLastError(ERROR_NO_MORE_FILES);
++            find_failed(c);
++            RET_C(0xFFFFFFFFu);
++            return;
++        }
++        finddata_a(&w, &fw);
++        put_finddata(c, ARG(1), &w);
++        RET_C(0);
++        return;
++    }
+     if (!h || !FindNextFileA(h, &w)) {
+         if (!h)
+             SetLastError(ERROR_INVALID_HANDLE);
+@@ -1676,6 +1721,13 @@ static void hle_findnext(CPU* c) {
+ 
+ static void hle_findclose(CPU* c) {
+     HANDLE h = (HANDLE)xrt_handle_get(ARG(0), XH_FIND);
++    void* list = xrt_handle_get(ARG(0), XH_FINDLIST);
++    if (list) {
++        xrt_overlay_find_close(list);
++        xrt_handle_free(ARG(0));
++        RET_C(0);
++        return;
++    }
+     if (!h || !FindClose(h)) {
+         set_errno(c, 22);
+         RET_C(0xFFFFFFFFu);
+@@ -1835,6 +1887,7 @@ static void open_stream(CPU* c, const char* name, const WCHAR* wname, const char
+     int fd = 0, rdwr = 0, more = 1,binary=0;
+     char q[600];
+     HANDLE h;
++    WCHAR content[MAX_PATH * 2];   /* player: the installation path a read resolves to */
+     switch (*m) {
+     case 'r': access = GENERIC_READ; disp = OPEN_EXISTING; flag = 0x01; break;
+     case 'w': access = GENERIC_WRITE; disp = CREATE_ALWAYS; flag = 0x02; break;
+@@ -1866,6 +1919,12 @@ static void open_stream(CPU* c, const char* name, const WCHAR* wname, const char
+         if (wname ? !xrt_path_is_inside_sandbox(wname)
+                   : (!MultiByteToWideChar(CP_ACP, 0, name, -1, w, MAX_PATH * 2) || !xrt_path_is_inside_sandbox(w)))
+             xrt_fatal(c, XRT_EXIT_UNSUPPORTED, "fopen for writing outside the sandbox refused: \"%s\"", name);
++    } else if (xrt_content_root[0]) {
++        /* player: a read of an installation file the private game root does not have (xrt_internal.h) */
++        WCHAR w[MAX_PATH * 2];
++        if ((wname || MultiByteToWideChar(CP_ACP, 0, name, -1, w, MAX_PATH * 2)) &&
++            xrt_overlay_read_path((const uint16_t*)(wname ? wname : w), (uint16_t*)content, MAX_PATH * 2))
++            wname = content;
+     }
+     for (k = 3; k < 20 && !stream; k++)
+         if (!(rd32(iob + 32 * k + 12) & 0x83))
+diff --git a/out/dev-init-savepoints/pre-player-20261103/runtime/xrt_internal.h b/out/dev-init/runtime/xrt_internal.h
+index dc6b883..5a81363 100644
+--- a/out/dev-init-savepoints/pre-player-20261103/runtime/xrt_internal.h
++++ b/out/dev-init/runtime/xrt_internal.h
+@@ -230,7 +230,8 @@ void xrt_set_last_error(CPU* c, uint32_t e);
+ uint32_t xrt_get_last_error(CPU* c);
+ 
+ /* handles: guest handle values for host objects */
+-enum { XH_FREE, XH_FILE, XH_FIND, XH_THREAD, XH_STD, XH_DC, XH_BITMAP, XH_WINDOW, XH_FONT, XH_MODULE, XH_MUTEX, XH_IMC }; /* host objects behind guest tokens */
++enum { XH_FREE, XH_FILE, XH_FIND, XH_THREAD, XH_STD, XH_DC, XH_BITMAP, XH_WINDOW, XH_FONT, XH_MODULE, XH_MUTEX, XH_IMC,
++       XH_FINDLIST }; /* host objects behind guest tokens (XH_FINDLIST: a merged content-overlay directory listing) */
+ uint32_t xrt_handle_new(int type, void* host);
+ void* xrt_handle_get(uint32_t h, int type);
+ int xrt_handle_type(uint32_t h);
+@@ -254,6 +255,17 @@ int xrt_gui_window_destroyed(uint32_t token);   /* destroyed by the guest while
+ 
+ /* process */
+ extern char xrt_sandbox_root[520];         /* writes are only permitted below this directory */
++/* Standalone player (tools/xrt/dev/player.c; empty/0 in the developer build): the game root above is the player's private
++ * data folder and xrt_content_root the user's Unreal II installation (its singleplayer folder), read-only. A read of a
++ * file the game root does not have resolves to the same relative path in the content root (never ...\Save), and
++ * directory listings merge both (the game root wins). Every write stays confined to the game root. */
++extern char xrt_content_root[520];
++extern int xrt_player_mode;
++int xrt_overlay_read_path(const uint16_t* path, uint16_t* out, size_t n);   /* 1: out = the content-root path to read */
++int xrt_overlay_content_dir(const uint16_t* path, uint16_t* out, size_t n); /* 1: out = the content root's same folder */
++void* xrt_overlay_find_first(const uint16_t* pattern);                     /* NULL: not overlaid (use the host's find) */
++int xrt_overlay_find_next(void* list, void* find_data_w);                  /* WIN32_FIND_DATAW; 0 at the end */
++void xrt_overlay_find_close(void* list);
+ extern uint32_t xrt_cmdline_a;             /* guest ANSI command line */
+ extern uint32_t xrt_cmdline_w;             /* guest Unicode command line, preserving raw host argument text */
+ extern const char* xrt_report_path;
+diff --git a/out/dev-init-savepoints/pre-player-20261103/runtime/xrt_main.c b/out/dev-init/runtime/xrt_main.c
+index 0696631..cd8154e 100644
+--- a/out/dev-init-savepoints/pre-player-20261103/runtime/xrt_main.c
++++ b/out/dev-init/runtime/xrt_main.c
+@@ -54,6 +54,14 @@ static int ninit;
+ static char app_dir[520];           /* directory of the guest EXE: where the loader looks for DLLs first */
+ 
+ char xrt_sandbox_root[520];
++char xrt_content_root[520];         /* standalone player only (xrt_internal.h) */
++int xrt_player_mode;
++/* Standalone player build (tools/xrt/dev/player.c, linked only into "Unreal II Enhanced.exe"): returns 1 in the game
++ * process the player started (content root set, arguments as below), never returns in its setup/launcher process. The
++ * developer executable links no player code: the default below returns 0 and main runs exactly as before. */
++int xrt_player_setup(int* argc, char*** argv);
++int xrt_player_setup_none(int* argc, char*** argv) { (void)argc; (void)argv; return 0; }
++#pragma comment(linker, "/alternatename:xrt_player_setup=xrt_player_setup_none")
+ uint32_t xrt_cmdline_a;
+ uint32_t xrt_cmdline_w;
+ const char* xrt_report_path;
+@@ -423,6 +431,7 @@ static int usage(void) {
+ }
+ 
+ int main(int argc, char** argv) {
++    xrt_player_mode = xrt_player_setup(&argc, &argv);
+     dev_start();
+     const char* guest = NULL;
+     const char* log_path = NULL;
+@@ -462,8 +471,10 @@ int main(int argc, char** argv) {
+         return usage();
+     if (!GetFullPathNameA(guest, sizeof dir, dir, NULL))
+         return usage();
+-    /* sandbox discipline: never run against the original installation */
+-    if (!strstr(dir, "sandbox") || _strnicmp(dir, "E:\\Launchbox\\", 13) == 0) {
++    /* sandbox discipline: never run against the original installation (the player's game root is its private data
++     * folder, which player.c has checked is neither inside nor around the installation it reads) */
++    if ((!xrt_player_mode && !strstr(dir, "sandbox")) || _strnicmp(dir, "E:\\Launchbox\\", 13) == 0 ||
++        (xrt_content_root[0] && !_strnicmp(dir, xrt_content_root, strlen(xrt_content_root)))) {
+         fprintf(stderr, "xrt: refusing to run outside a sandbox copy: %s\n", dir);
+         return XRT_EXIT_SETUP;
+     }
