@@ -1,0 +1,321 @@
+#define WIN32_LEAN_AND_MEAN
+#include <windows.h>
+#include <stddef.h>
+#include <stdlib.h>
+#include "xrt_internal.h"
+#include "monitor.h"
+
+#define XM_MAGIC 0x31544d58u
+#define XM_LIMIT 131072u
+#define XM_DEPTH 128u
+static HANDLE sink=INVALID_HANDLE_VALUE;
+static SRWLOCK lock=SRWLOCK_INIT;
+static uint64_t serial, next_invocation;
+static uint32_t chain;
+/* Tail contains ALL accepted records after the last successful flush. It is
+ * never reused until WriteFile and FlushFileBuffers have both succeeded. */
+volatile uint64_t xm_recorded, xm_written, xm_flushes;
+volatile unsigned xm_buffer_count, xm_profile;
+XmRecord xm_buffer[4096];
+#ifdef XM_QUALIFICATION
+static unsigned hold_drain, fail_flush, partial_write;
+void xm_qualification_hold_drain(void){hold_drain=1;}
+void xm_qualification_fail_flush(void){fail_flush=1;}
+void xm_qualification_partial_write(void){partial_write=1;}
+#endif
+/* Called under the recorder lock, inside the state-preserving assembly probe.
+ * Counters are conservative on interruption. Flush success is the Windows
+ * persistence contract; storage firmware/power-loss behavior is not measured. */
+static void drain(void) {
+ DWORD written;unsigned bytes=xm_buffer_count*(unsigned)sizeof(XmRecord);
+ if(!bytes)return;
+#ifdef XM_QUALIFICATION
+ if(hold_drain)return;
+ if(partial_write){WriteFile(sink,xm_buffer,bytes/2,&written,NULL);xm_failure(9);}
+#endif
+ if(!WriteFile(sink,xm_buffer,bytes,&written,NULL)||written!=bytes)xm_failure(9);
+ xm_written=xm_recorded;MemoryBarrier();
+#ifdef XM_QUALIFICATION
+ if(fail_flush)xm_failure(23);
+#endif
+ if(!FlushFileBuffers(sink))xm_failure(9);
+ xm_committed=xm_recorded;xm_flushes++;MemoryBarrier();xm_buffer_count=0;
+}
+
+static struct {uint64_t host;unsigned guest,generation,iface,refs,bindings;} identities[4608];
+static unsigned identity_count;
+#ifdef XM_QUALIFICATION
+void xm_qualification_break_sink(void){CloseHandle(sink);sink=INVALID_HANDLE_VALUE;}
+#endif
+static volatile LONG active, initialized;
+volatile long xm_failed;
+volatile uint64_t xm_committed;
+XmRecord xm_pending;
+__declspec(thread) unsigned xm_tls_depth;   /* scope depth; read inline by ehframe pads (xrt.h) */
+static __declspec(thread) struct { unsigned busy; uint64_t id[XM_DEPTH],parent[XM_DEPTH]; unsigned domain[XM_DEPTH]; const char*name[XM_DEPTH]; CPU*cpu[XM_DEPTH];
+ struct {const void*cookie;unsigned depth;} marks[8192];unsigned marks_used;
+} tls;
+typedef char cpu_fits[sizeof(CPU)<=416?1:-1];
+typedef char fx_aligned[offsetof(XmHost,fx)==144?1:-1];
+
+/* A failed write leaves the complete intended record in debugger-readable
+ * xm_pending. No recursion into logging, cleanup, COM or guest execution. */
+__declspec(noinline) __declspec(noreturn) void xm_failure(unsigned reason) {
+    InterlockedExchange(&xm_failed,(LONG)reason);
+    TerminateProcess(GetCurrentProcess(),0xe04d0000u|reason);
+    for(;;){}
+}
+#include "monitor_crc.inc"
+static unsigned crc32_bytewise(const void *data,unsigned n) {
+    const unsigned char*p=data;unsigned crc=~0u;
+    while(n--)crc=(crc>>8)^xm_crc_table[(crc^*p++)&255];
+    return ~crc;
+}
+/* Same IEEE CRC-32, slice-by-8 (tables derived from xm_crc_table). The development
+ * recorder checksums its ~6 MB snapshot ~20 times a second during the intro; the
+ * bytewise loop was ~24% of game-thread samples. Used only after xm_init has
+ * checked it against the bytewise loop; otherwise the bytewise loop is used. */
+static uint32_t xm_crc8[8][256];static int xm_crc8_ready;
+static unsigned crc32_slice8(const void *data,unsigned n) {
+    const unsigned char*p=data;unsigned crc=~0u;
+    while(n&&((uintptr_t)p&7)){crc=(crc>>8)^xm_crc_table[(crc^*p++)&255];n--;}
+    while(n>=8){uint32_t lo=*(const uint32_t*)p^crc,hi=*(const uint32_t*)(p+4);
+        crc=xm_crc8[7][lo&255]^xm_crc8[6][(lo>>8)&255]^xm_crc8[5][(lo>>16)&255]^xm_crc8[4][lo>>24]^
+            xm_crc8[3][hi&255]^xm_crc8[2][(hi>>8)&255]^xm_crc8[1][(hi>>16)&255]^xm_crc8[0][hi>>24];p+=8;n-=8;}
+    while(n--)crc=(crc>>8)^xm_crc_table[(crc^*p++)&255];
+    return ~crc;
+}
+static void crc32_tables(void) {
+    static unsigned char probe[4099];unsigned i,k,x=0x12345678u;
+    for(i=0;i<256;i++){xm_crc8[0][i]=xm_crc_table[i];
+        for(k=1;k<8;k++)xm_crc8[k][i]=(xm_crc8[k-1][i]>>8)^xm_crc_table[xm_crc8[k-1][i]&255];}
+    for(i=0;i<sizeof probe;i++){x=x*1103515245u+12345u;probe[i]=(unsigned char)(x>>16);}
+    for(i=0;i<1000;i+=37)if(crc32_slice8(probe+i%8,sizeof probe-i-8)!=crc32_bytewise(probe+i%8,sizeof probe-i-8))return;
+    xm_crc8_ready=1;
+}
+static unsigned crc32(const void *data,unsigned n) {
+    return xm_crc8_ready?crc32_slice8(data,n):crc32_bytewise(data,n);
+}
+/* Per-thread hint of the last two single readable regions (typically guest stack and TEB): avoids two VirtualQuery
+ * syscalls per event. The runtime never sets guard pages on guest memory; a later decommit still faults inside
+ * copy_guest's __try and reports the copy as missing. */
+static __declspec(thread) struct {uintptr_t lo,hi;} rd_hint[2];static __declspec(thread) unsigned rd_next;
+static int readable(const void*p,size_t n) {
+    uintptr_t at=(uintptr_t)p,end=at+n;unsigned h;
+    if(!at||end<at)return 0;
+    for(h=0;h<2;h++)if(at>=rd_hint[h].lo&&end<=rd_hint[h].hi)return 1;
+    {MEMORY_BASIC_INFORMATION m;DWORD prot;
+     if(VirtualQuery((void*)at,&m,sizeof m)&&m.State==MEM_COMMIT&&!(m.Protect&(PAGE_GUARD|PAGE_NOACCESS))){
+      prot=m.Protect&255;
+      if((prot==PAGE_READONLY||prot==PAGE_READWRITE||prot==PAGE_WRITECOPY||prot==PAGE_EXECUTE_READ||
+          prot==PAGE_EXECUTE_READWRITE||prot==PAGE_EXECUTE_WRITECOPY)&&end<=(uintptr_t)m.BaseAddress+m.RegionSize){
+       rd_hint[rd_next].lo=(uintptr_t)m.BaseAddress;rd_hint[rd_next].hi=(uintptr_t)m.BaseAddress+m.RegionSize;
+       rd_next^=1;return 1;}}}
+    while(at<end){MEMORY_BASIC_INFORMATION m;DWORD prot;uintptr_t next;
+        if(!VirtualQuery((void*)at,&m,sizeof m))return 0;
+        prot=m.Protect&255;
+        if(m.State!=MEM_COMMIT||(m.Protect&(PAGE_GUARD|PAGE_NOACCESS))||
+           !(prot==PAGE_READONLY||prot==PAGE_READWRITE||prot==PAGE_WRITECOPY||
+             prot==PAGE_EXECUTE_READ||prot==PAGE_EXECUTE_READWRITE||prot==PAGE_EXECUTE_WRITECOPY))return 0;
+        next=(uintptr_t)m.BaseAddress+m.RegionSize;if(next<=at)return 0;at=next;
+    }return 1;
+}
+static int copy_guest(void*out,uint32_t address,unsigned size) {
+    if(!xrt_g||!address||(uint64_t)address+size>0x100000000ull||!readable(G2H(address),size))return 0;
+    __try {memcpy(out,G2H(address),size);} __except(EXCEPTION_EXECUTE_HANDLER){return 0;}
+    return 1;
+}
+int xm_enabled(void){return initialized!=0;}
+CPU* xm_current_cpu(void){return xm_tls_depth?tls.cpu[xm_tls_depth-1]:NULL;}
+/* Marks are kept in push order and searched newest-first: landing records are LIFO, so mark/forget are O(1) in
+ * deep guarded recursion. A duplicate cookie resolves to its newest (live) entry; leaks still end in failure 18. */
+unsigned xm_depth(void){return initialized?xm_tls_depth:0;}   /* ehframe landing pads record it (xrt_eh.c) */
+void xm_mark(const void*cookie){unsigned i;if(!initialized)return;
+ i=tls.marks_used;
+ if(i&&tls.marks[i-1].cookie==cookie)i--;
+ else {if(i==8192)xm_failure(18);tls.marks_used++;}
+ tls.marks[i].cookie=cookie;tls.marks[i].depth=xm_tls_depth;
+}
+void xm_forget(const void*cookie){unsigned i;if(!initialized)return;
+ for(i=tls.marks_used;i-->0;)if(tls.marks[i].cookie==cookie){
+  memmove(&tls.marks[i],&tls.marks[i+1],(tls.marks_used-i-1)*sizeof tls.marks[0]);tls.marks_used--;return;}
+ xm_failure(19);
+}
+void xm_unwind(CPU*c,unsigned depth,unsigned reason){
+ if(!initialized)return;if(depth>xm_tls_depth)xm_failure(20);
+ while(xm_tls_depth>depth){unsigned d=xm_tls_depth-1;
+  xm_scope(c,XM_ABORT,tls.domain[d],tls.name[d],reason);}
+}
+void xm_restore(CPU*c,const void*cookie,unsigned reason){unsigned i;
+ if(!initialized)return;
+ for(i=tls.marks_used;i-->0;)if(tls.marks[i].cookie==cookie){unsigned depth=tls.marks[i].depth,j,k;
+  xm_unwind(c,depth,reason);
+  /* Abandoned higher frames no longer own valid host-stack cookies. */
+  for(j=k=0;j<tls.marks_used;j++)if(tls.marks[j].depth<=depth)tls.marks[k++]=tls.marks[j];
+  tls.marks_used=k;
+  return;}
+ xm_failure(21);
+}
+#include "routine_trace.inc"
+
+/* Developer "quiet" profile (XRT_MONITOR_PROFILE=quiet): the development stream without
+ * routine detail. BEGIN/END/DATA/RESOURCE/OMITTED records are not built at all (no record
+ * fill, CPU/stack copy, identity scan, CRC or snapshot work); OPEN/CLOSE, checkpoints,
+ * FATAL, GAP and ABORT, and the UGameEngine.Init milestone, are recorded as before.
+ * Adapter argument, memory, COM and resource checks are upstream and unaffected. */
+unsigned xm_quiet;
+/* Only xm_probe calls this. Host state restored by assembly on every return. */
+void xm_emit(CPU*c,const XmRequest*q,const XmHost*host) {
+    DWORD saved=GetLastError();XmRecord r;unsigned i;int bad=0;
+    if(!initialized||xm_quiet_drop(q))return;
+    if(!c)c=xm_current_cpu();
+    if(tls.busy)xm_failure(1);
+    tls.busy=1;
+    memset(&r,0,sizeof r);r.magic=XM_MAGIC;r.version=xm_profile?5:3;r.size=sizeof r;
+    r.event=q->event;r.domain=q->domain;r.slot=q->slot;r.thread=GetCurrentThreadId();
+    r.error=saved;r.result=q->result;r.host=q->host;r.guest=q->guest;
+    r.generation=q->generation;r.interface_id=q->interface_id;r.refs=q->refs;r.bindings=q->bindings;
+    r.context=*host;
+    if(q->count>12||q->blob_size>256)bad=2;
+    else {r.count=q->count;r.blob_size=q->blob_size;memcpy(r.values,q->values,q->count*sizeof(XmValue));
+        /* The producer supplies a typed local span; invalid spans fail closed. */
+        if(q->blob_size){if(!readable(q->blob,q->blob_size))bad=3;
+            else {__try {memcpy(r.blob,q->blob,q->blob_size);}__except(EXCEPTION_EXECUTE_HANDLER){bad=3;}}}
+    }
+    if(q->name){for(i=0;i<sizeof r.name-1 && q->name[i];i++)r.name[i]=q->name[i];if(q->name[i])bad=4;}
+    if(c){r.cpu_size=sizeof *c;memcpy(r.cpu,c,sizeof *c);
+        if(copy_guest(r.stack,c->r[ESP],128))r.stack_size=128;else r.flags|=1;
+        if(!copy_guest(&r.guest_error,c->fs_base+0x34,4))r.flags|=2;
+    }
+    AcquireSRWLockExclusive(&lock);
+    if(q->event==XM_RESOURCE && q->guest){
+        for(i=0;i<identity_count;i++)if(identities[i].guest==q->guest && (!q->generation||identities[i].generation==q->generation) && identities[i].iface==q->interface_id)break;
+        if(i<identity_count&&!q->generation)r.generation=identities[i].generation;
+        /* Guest tokens are never reused, so a full table may recycle an entry whose
+         * object is gone (no references or bindings); live identities never are. */
+        if(i==identity_count){if(identity_count<4608)identity_count++;
+            else {for(i=0;i<identity_count&&(identities[i].refs||identities[i].bindings);i++){}if(i==identity_count)bad=15;}}
+        if(!bad){identities[i].host=q->host;identities[i].guest=q->guest;identities[i].generation=r.generation;
+            identities[i].iface=q->interface_id;identities[i].refs=q->refs;identities[i].bindings=q->bindings;}
+    }
+    if(q->domain==XM_NATIVE && q->host){
+        unsigned matches=0;
+        for(i=0;i<identity_count;i++)if(identities[i].host==q->host && (identities[i].refs||identities[i].bindings)){
+            matches++;r.guest=identities[i].guest;r.generation=identities[i].generation;r.refs=identities[i].refs;r.bindings=identities[i].bindings;
+            /* Buffer wrapper's canonical vertex type is resolved by registry. */
+            if(!r.interface_id || r.interface_id==106)r.interface_id=identities[i].iface;
+        }
+        if(matches!=1){r.flags|=4;r.guest=0;r.generation=0;}
+        if(matches>1)bad=16;
+    }
+    if(!xm_profile && serial>=XM_LIMIT)bad=5;
+    if(q->event==XM_BEGIN){
+        if(xm_tls_depth>=XM_DEPTH)bad=6;
+        else {unsigned d=xm_tls_depth++;tls.parent[d]=d?tls.id[d-1]:0;
+            tls.id[d]=++next_invocation;tls.domain[d]=q->domain;tls.name[d]=q->name;tls.cpu[d]=c;InterlockedIncrement(&active);}
+    }
+    if(xm_tls_depth){r.invocation=tls.id[xm_tls_depth-1];r.parent=tls.parent[xm_tls_depth-1];}
+    else {r.invocation=++next_invocation;r.parent=0;}
+    r.depth=xm_tls_depth;
+    if((q->event==XM_END||q->event==XM_ABORT) && (!xm_tls_depth||tls.domain[xm_tls_depth-1]!=q->domain||
+       !q->name||!tls.name[xm_tls_depth-1]||strcmp(q->name,tls.name[xm_tls_depth-1])))bad=7;
+    if(q->event==XM_CLOSE&&active)bad=8;
+    if(bad){r.event=XM_GAP;r.result=bad;}
+    if(xm_profile){
+        if(xd_route(&r,bad))goto finished;
+        xd_append(&r);
+        if(xd_force_flush){drain();xd_flush();}
+    }else{
+    r.sequence=++serial;r.previous_crc=chain;r.crc=crc32(&r,offsetof(XmRecord,crc));
+    xm_pending=r;MemoryBarrier();
+    if(xm_buffer_count>=4096)xm_failure(22);
+    xm_buffer[xm_buffer_count]=r;MemoryBarrier();xm_buffer_count++;
+    chain=r.crc;xm_recorded=r.sequence;MemoryBarrier();
+    }
+    if(!xm_profile || xm_buffer_count>=256 || bad || q->event==XM_OPEN ||
+       q->event==XM_CLOSE || q->event==XM_FATAL || q->event==XM_GAP ||
+       q->event==XM_CHECKPOINT ||
+       (q->event==XM_END && q->name && !strcmp(q->name,"UGameEngine.Init")))drain();
+    if(bad)xm_failure(bad);
+finished:
+    if(q->event==XM_END||q->event==XM_ABORT){xm_tls_depth--;InterlockedDecrement(&active);}
+    ReleaseSRWLockExclusive(&lock);tls.busy=0;SetLastError(saved);
+}
+/* Quiet profile: a routine request is dropped by xm_probe_gated anyway; returning before the request is built saves its
+ * zero fill on every import adapter call and resource lookup (round 4). */
+void xm_scope(CPU*c,unsigned event,unsigned domain,const char*name,uint64_t result) {
+    if(xm_quiet_routine(event,name))return;
+    {XmRequest q={0};q.event=event;q.domain=domain;q.name=name;q.result=result;xm_probe(c,&q);}
+}
+void xm_native(CPU*c,unsigned event,const char*name,uint64_t host,uint64_t result) {
+    if(xm_quiet_routine(event,name))return;
+    {XmRequest q={0};q.event=event;q.domain=XM_NATIVE;q.name=name;q.host=host;q.result=result;xm_probe(c,&q);}
+}
+void xm_resource(CPU*c,unsigned iface,unsigned guest,unsigned generation,uint64_t host,unsigned refs,unsigned bindings,const char*name) {
+    if(xm_quiet_routine(XM_RESOURCE,name))return;
+    XmRequest q={0};q.event=XM_RESOURCE;q.domain=XM_LIFETIME;q.name=name;q.guest=guest;
+    q.generation=generation;q.interface_id=iface;q.host=host;q.refs=refs;q.bindings=bindings;xm_probe(c,&q);
+}
+void xm_blob(CPU*c,const char*name,const void*trusted,unsigned size) {
+    if(xm_quiet)return;
+    {XmRequest q={0};q.event=XM_DATA;q.name=name;q.blob=trusted;q.blob_size=size;xm_probe(c,&q);}
+}
+void xm_span(CPU*c,const char*name,const void*trusted,unsigned size) {
+    unsigned off;XmValue v[2]={{XM_U32,4,size},{XM_U32,4,0}};
+    if(xm_quiet)return;
+    /* Only these two explicitly approved bulk evidence categories are omitted.
+     * Adapter range, ownership, pitch, transfer and COM checks stay upstream.
+     * No pointer is dereferenced here or forwarded to native code. */
+    if(xm_profile && !xd_selected_name(name) && !(xm_tls_depth&&xd_tls.frames[xm_tls_depth-1].selected) && (!strcmp(name,"resource.map.download") || !strcmp(name,"resource.map.upload"))){
+        XmRequest q={0};q.event=XM_OMITTED;q.name=name;q.result=size;
+        q.count=1;q.values[0]=v[0];xm_probe(c,&q);return;
+    }
+    if(size>16384){xm_scope(c,XM_GAP,0,"typed span capacity",size);xm_failure(17);}
+    for(off=0;off<size;off+=256){unsigned n=size-off;if(n>256)n=256;
+        v[1].value=off;xm_values(c,name,2,v);xm_blob(c,name,(const unsigned char*)trusted+off,n);}
+}
+void xm_values(CPU*c,const char*name,unsigned count,const XmValue*v) {
+    if(xm_quiet)return;
+    {XmRequest q={0};q.event=XM_DATA;q.name=name;q.count=count;
+    if(count<=12)memcpy(q.values,v,count*sizeof *v);xm_probe(c,&q);}
+}
+void xm_guest(CPU*c,const char*name,unsigned address,unsigned size) {
+    DWORD saved=GetLastError();unsigned char bytes[256];XmRequest q={0};
+    if(!initialized||xm_quiet)return;
+    q.event=XM_DATA;q.name=name;q.guest=address;
+    if(size>sizeof bytes||!copy_guest(bytes,address,size)){q.event=XM_GAP;q.result=10;}
+    else {q.blob=bytes;q.blob_size=size;}
+    SetLastError(saved);xm_probe(c,&q);if(q.event==XM_GAP)xm_failure(10);
+}
+void xm_init(const char*path) {
+    DWORD saved=GetLastError();
+    crc32_tables();
+    if(!path||!*path)xm_failure(11);
+    if(InterlockedCompareExchange(&initialized,1,0))xm_failure(12);
+    {const char*p=getenv("XRT_MONITOR_PROFILE");
+     if(!p || !strcmp(p,"forensic"))xm_profile=0;
+     else if(!strcmp(p,"development"))xm_profile=1;
+     else if(!strcmp(p,"quiet"))xm_profile=xm_quiet=1;
+     else xm_failure(24);}
+    sink=CreateFileA(path,GENERIC_WRITE,FILE_SHARE_READ,NULL,CREATE_NEW,
+        FILE_ATTRIBUTE_NORMAL|(xm_profile?0:FILE_FLAG_WRITE_THROUGH),NULL);
+    if(sink==INVALID_HANDLE_VALUE)xm_failure(13);
+    xd_init(path);
+    SetLastError(saved);
+    {XmRequest q={0};q.event=XM_OPEN;q.name=xm_profile?"xrt.monitor.v5.development":"xrt.monitor.v3.forensic";
+     q.count=4;q.values[0]=(XmValue){XM_U32,4,xm_profile};
+     q.values[1]=(XmValue){XM_U32,4,4096};q.values[2]=(XmValue){XM_U32,4,xm_profile?256:1};
+     q.values[3]=(XmValue){XM_U32,4,xm_profile?3:0};xm_probe(NULL,&q);}
+}
+void xm_close(void) {
+    DWORD saved=GetLastError();
+    xm_scope(NULL,XM_CLOSE,0,"xrt.monitor.v3",0);
+    /* Test/owned orderly shutdown only; genuine bounded termination uses the
+     * independently captured committed counter and live pending record. */
+    if(xm_profile&&!CloseHandle(xd_sink))xm_failure(25);
+    if(!CloseHandle(sink))xm_failure(14);sink=INVALID_HANDLE_VALUE;initialized=0;SetLastError(saved);
+}
+
+void xm_checkpoint(CPU*c,const char*name) {
+    xm_scope(c,XM_CHECKPOINT,0,name,0);
+}

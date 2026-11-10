@@ -43,8 +43,9 @@ PORT = {'Engine_025.c': [('f_103e24d0', HERE / 'native/walk_speed.c')],         
 DEV = WS / 'out/dev-init'
 RT = DEV / 'runtime'
 BUILD = DEV / 'build'
-GAME_INSTALL = r'E:\Launchbox\Games\PC Games\Unreal 2 - The Awakening\singleplayer'  # read-only content source
-VC = Path(r'C:\Program Files\Microsoft Visual Studio\18\Community\VC\Auxiliary\Build\vcvarsall.bat')
+# read-only content source; U2_GAME_INSTALL overrides it (the installation's singleplayer folder)
+GAME_INSTALL = os.environ.get('U2_GAME_INSTALL', r'E:\Launchbox\Games\PC Games\Unreal 2 - The Awakening\singleplayer')
+VC = Path(os.environ.get('U2_VCVARSALL', r'C:\Program Files\Microsoft Visual Studio\18\Community\VC\Auxiliary\Build\vcvarsall.bat'))
 # build --cc clang-cl: the generated (and sound) units compiled by LLVM's MSVC-compatible driver, linked by the MSVC linker
 # as usual; the runtime stays cl. Measured on experiments/xrt/tests/perf_kernels (2026-11-01): clang-cl 23 /O2 /fp:strict
 # runs the same lifted C 10% faster than cl on the full option set and 40% faster on a plain lift, bit-identical results.

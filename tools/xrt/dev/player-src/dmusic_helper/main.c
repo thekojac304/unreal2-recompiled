@@ -1,0 +1,432 @@
+/* Project-owned x86 DirectMusic backend. Every native COM call runs on this
+ * process's main STA. Only measured methods are dispatchable. */
+#define COBJMACROS
+#include <windows.h>
+#include <objbase.h>
+#include <stdio.h>
+#include <stdint.h>
+#include <string.h>
+#include "../runtime/dmusic_backend.h" /* out/dev-init/runtime */
+#include "file_guard.h"
+static const GUID ids[]={
+ {0},
+ {0x19e7c08c,0x0a44,0x4e6a,{0xa1,0x16,0x59,0x5a,0x7c,0xd5,0xde,0x8c}},
+ {0x679c4137,0xc62e,0x4147,{0xb2,0xb4,0x9d,0x56,0x9a,0xcb,0x25,0x4c}},
+ {0x279afa83,0x4981,0x11ce,{0xa5,0x21,0,0x20,0xaf,0xb,0xe5,0x60}},
+ {0xc87631f5,0x23be,0x4986,{0x88,0x36,5,0x83,0x2f,0xcc,0x48,0xf9}},
+ {0x2befc277,0x5497,0x11d2,{0xbc,0xcb,0,0xa0,0xc9,0x22,0xe6,0xeb}},
+ {0x9301e386,0x1f22,0x11d3,{0x82,0x26,0xd2,0xfa,0x76,0x25,0x5d,0x47}},
+ {0x2252373a,0x5814,0x489b,{0x82,9,0x31,0xfe,0xde,0xba,0xf1,0x37}}
+};
+static const GUID cls_loader={0xd2ac2892,0xb39b,0x11d1,{0x87,4,0,0x60,8,0x93,0xb1,0xbd}};
+static const GUID cls_perf={0xd2ac2881,0xb39b,0x11d1,{0x87,4,0,0x60,8,0x93,0xb1,0xbd}};
+static const GUID cls_container={0x9301e380,0x1f22,0x11d3,{0x82,0x26,0xd2,0xfa,0x76,0x25,0x5d,0x47}};
+static const GUID cls_script={0x810b5013,0xe88d,0x11d2,{0x8b,0xc1,0,0x60,8,0x93,0xb1,0xb6}};
+static const GUID all_types={0xd2ac2893,0xb39b,0x11d1,{0x87,4,0,0x60,8,0x93,0xb1,0xbd}};
+static const GUID volume_guid={0xd2ac28b1,0xb39b,0x11d1,{0x87,4,0,0x60,8,0x93,0xb1,0xbd}};
+typedef struct {IUnknown*p,*identity;uint32_t type,refs;} Object;
+static Object objects[128];static unsigned used;
+static HANDLE input,output;static DWORD owner;static uint32_t sequence;static int testing,disconnected;
+static WCHAR sandbox[600];
+static __declspec(noreturn) void die(const char*reason){fprintf(stderr,"DirectMusic helper fatal: %s\n",reason);fflush(stderr);ExitProcess(80);}
+static int read_frame(DmbMessage*m){DWORD n,total=0;while(total<sizeof *m){if(!ReadFile(input,(BYTE*)m+total,sizeof *m-total,&n,NULL)||!n)return 0;total+=n;}return 1;}
+static int write_frame(DmbMessage*m){DWORD n;return WriteFile(output,m,sizeof *m,&n,NULL)&&n==sizeof *m;}
+static int valid(DmbMessage*m){return m->magic==DMB_MAGIC&&m->version==DMB_VERSION&&m->bytes==sizeof *m;}
+static Object*get(uint32_t id,uint32_t type){if(!id||id>used||!objects[id-1].refs||(type&&objects[id-1].type!=type))return NULL;return &objects[id-1];}
+static void*method(IUnknown*p,unsigned slot){return (*(void***)p)[slot];}
+/* DirectMusic threads may now add objects (graphs met in PMSGs): the table is locked. */
+static CRITICAL_SECTION objects_cs;
+static uint32_t wrap(IUnknown*p,uint32_t type){
+ IUnknown*identity=NULL;unsigned i;uint32_t id;if(!p)return 0;
+ if(FAILED(IUnknown_QueryInterface(p,&IID_IUnknown,(void**)&identity))||!identity)die("native identity query failed");
+ IUnknown_Release(identity);
+ EnterCriticalSection(&objects_cs);
+ for(i=0;i<used;i++)if(objects[i].refs&&objects[i].identity==identity&&objects[i].type==type){if(objects[i].p!=p)die("unmeasured interface alias");objects[i].refs++;LeaveCriticalSection(&objects_cs);return i+1;}
+ /* a slot whose references were all released is reused (enhanced batch): every level load and quickload re-creates
+  * the game's loader/performance/containers (~10 objects), and the never-reused table died at 128 (die "object limit",
+  * exit 80) after about a dozen loads in one session. The runtime matches ids only among live objects. */
+ for(i=0;i<used;i++)if(!objects[i].refs){objects[i].p=p;objects[i].identity=identity;objects[i].type=type;objects[i].refs=1;LeaveCriticalSection(&objects_cs);return i+1;}
+ if(used==128)die("object limit");objects[used].p=p;objects[used].identity=identity;objects[used].type=type;objects[used].refs=1;id=++used;
+ LeaveCriticalSection(&objects_cs);return id;
+}
+/* Version 2 asynchronous channel: DirectMusic calls the guest tool from its own
+ * threads (ATTIME realtime delivery, Stop/Flush). Those callbacks travel on a
+ * separate pipe pair, serialized; the host answers from its DirectMusic callback
+ * guest thread. Nested requests issued by guest code inside such a callback
+ * (StampPMsg) execute on the waiting DirectMusic thread, as natively. */
+static HANDLE async_in,async_out;static CRITICAL_SECTION async_cs,pmsg_cs;static uint32_t async_seq;
+typedef struct {void*native;uint32_t handle,perf;} Pmsg;static Pmsg pmsgs[256];static uint32_t pmsg_next;
+static uint32_t pmsg_register(void*native,uint32_t perf){unsigned i;
+ EnterCriticalSection(&pmsg_cs);
+ for(i=0;i<256;i++)if(!pmsgs[i].native){pmsgs[i].native=native;pmsgs[i].perf=perf;pmsgs[i].handle=++pmsg_next;LeaveCriticalSection(&pmsg_cs);return pmsgs[i].handle;}
+ LeaveCriticalSection(&pmsg_cs);die("retained PMSG table full");
+}
+static void*pmsg_lookup(uint32_t handle,int remove){unsigned i;void*p=NULL;
+ EnterCriticalSection(&pmsg_cs);
+ for(i=0;i<256;i++)if(pmsgs[i].native&&pmsgs[i].handle==handle){p=pmsgs[i].native;if(remove)memset(&pmsgs[i],0,sizeof pmsgs[i]);break;}
+ LeaveCriticalSection(&pmsg_cs);return p;
+}
+/* Identity of a native pointer among bridge-wrapped objects of one type; no reference kept. */
+static uint32_t identity_id(IUnknown*p,uint32_t type);
+static uint32_t graph_id_of(IUnknown*g){uint32_t id;if(!g)return 0;id=identity_id(g,DMB_TOOLGRAPH);
+ if(!id){IUnknown_AddRef(g);id=wrap(g,DMB_TOOLGRAPH);fprintf(stderr,"PMSG graph wrapped as object %u\n",id);}return id;}
+static uint32_t identity_id(IUnknown*p,uint32_t type){IUnknown*identity=NULL;unsigned i;uint32_t id=0;
+ if(!p)return 0;if(FAILED(IUnknown_QueryInterface(p,&IID_IUnknown,(void**)&identity))||!identity)die("native identity query failed");
+ for(i=0;i<used;i++)if(objects[i].refs&&objects[i].identity==identity&&objects[i].type==type){id=i+1;break;}
+ IUnknown_Release(identity);return id;
+}
+static int async_read(DmbMessage*m){DWORD n,have,total=0;ULONGLONG deadline=GetTickCount64()+10000;
+ while(total<sizeof *m){
+  if(GetTickCount64()>=deadline)return 0;
+  if(!PeekNamedPipe(async_in,NULL,0,NULL,&have,NULL))return 0;
+  if(!have){Sleep(1);continue;}
+  if(have>sizeof *m-total)have=(DWORD)(sizeof *m-total);
+  if(!ReadFile(async_in,(BYTE*)m+total,have,&n,NULL)||!n)return 0;total+=n;
+ }
+ return 1;
+}
+static void async_nested(DmbMessage*q,DmbMessage*r);
+static DmbMessage async_exchange_owned(DmbMessage*m){DmbMessage r;DWORD n;
+ if(!async_out)die("tool callback outside STA without asynchronous channel");
+ m->kind=DMB_ASYNC_CALLBACK;m->sequence=++async_seq;
+ if(!WriteFile(async_out,m,sizeof *m,&n,NULL)||n!=sizeof *m){disconnected=1;die("host disconnected during asynchronous callback");}
+ for(;;){
+  if(!async_read(&r)){disconnected=1;die("asynchronous callback reply deadline/disconnect");}
+  if(!valid(&r)||r.sequence!=m->sequence){fprintf(stderr,"async frame magic %08x version %u bytes %u seq %u/%u kind %u op %u\n",r.magic,r.version,r.bytes,r.sequence,m->sequence,r.kind,r.op);die("invalid asynchronous frame");}
+  if(r.kind==DMB_ASYNC_NESTED){DmbMessage reply;async_nested(&r,&reply);
+   if(!WriteFile(async_out,&reply,sizeof reply,&n,NULL)||n!=sizeof reply){disconnected=1;die("host disconnected during nested request");}continue;}
+  if(r.kind!=DMB_ASYNC_REPLY||r.op!=m->op||r.object!=m->object||r.status)die("invalid asynchronous callback reply");
+  break;
+ }
+ fprintf(stderr,"async tool callback %u result %08x values %u %u\n",m->op,r.v[0],r.v[1],r.v[2]);
+ return r;
+}
+/* Tool AddRef/Release from DirectMusic threads never wait for the channel.
+ * Natively they are lock-free count changes running concurrently with
+ * ProcessPMsg. Waiting deadlocked: the caller can hold the performance lock
+ * that the channel owner's nested StampPMsg needs. They are queued in order
+ * and forwarded to the guest by whichever thread owns the channel next. */
+static CRITICAL_SECTION pend_cs;static struct {uint32_t token;unsigned slot;} pend[256];
+static unsigned pend_head,pend_count,pend_total,pend_deferred;
+static void async_drain(void){DmbMessage m;
+ for(;;){EnterCriticalSection(&pend_cs);
+  if(!pend_count){LeaveCriticalSection(&pend_cs);return;}
+  dmb_message(&m,pend[pend_head].slot,pend[pend_head].token);pend_head=(pend_head+1)%256;pend_count--;
+  LeaveCriticalSection(&pend_cs);async_exchange_owned(&m);}
+}
+static void async_settle(void){
+ while(pend_count&&TryEnterCriticalSection(&async_cs)){async_drain();LeaveCriticalSection(&async_cs);}
+}
+static DmbMessage async_exchange(DmbMessage*m){DmbMessage r;
+ EnterCriticalSection(&async_cs);async_drain();r=async_exchange_owned(m);async_drain();LeaveCriticalSection(&async_cs);
+ async_settle();return r;
+}
+static void async_count_change(uint32_t token,unsigned slot){
+ EnterCriticalSection(&pend_cs);
+ if(pend_count==256)die("deferred tool reference queue full");
+ pend[(pend_head+pend_count++)%256].token=token;pend[(pend_head+pend_count-1)%256].slot=slot;pend_total++;
+ LeaveCriticalSection(&pend_cs);
+ if(TryEnterCriticalSection(&async_cs)){async_drain();LeaveCriticalSection(&async_cs);async_settle();}
+ else if(pend_deferred++<8||!(pend_deferred%256))fprintf(stderr,"helper deferred tool reference change %u (slot %u) while channel busy\n",pend_deferred,slot);
+}
+typedef struct Tool Tool;
+typedef struct {
+ HRESULT(WINAPI*qi)(Tool*,REFIID,void**);ULONG(WINAPI*add)(Tool*);ULONG(WINAPI*release)(Tool*);
+ HRESULT(WINAPI*init)(Tool*,IUnknown*);HRESULT(WINAPI*delivery)(Tool*,DWORD*);HRESULT(WINAPI*count)(Tool*,DWORD*);
+ HRESULT(WINAPI*types)(Tool*,DWORD**,DWORD);HRESULT(WINAPI*message)(Tool*,IUnknown*,void*);HRESULT(WINAPI*flush)(Tool*,IUnknown*,void*,LONGLONG);
+} ToolVtbl;
+struct Tool {const ToolVtbl*vt;uint32_t token,graph;LONG refs;};
+static DmbMessage tool_callback(Tool*t,unsigned slot,const GUID*iid,uint32_t n){
+ DmbMessage m,r;
+ dmb_message(&m,slot,t->token);m.v[0]=n;
+ if(iid)memcpy(m.guid[0],iid,16);
+ if(disconnected){m.v[0]=0;return m;}
+ /* Off the STA, or outside an active request: DirectMusic's own threads. */
+ if(GetCurrentThreadId()!=owner||!sequence){
+  if(slot==1||slot==2){async_count_change(t->token,slot);m.v[0]=(uint32_t)(t->refs+(slot==1?1:-1));return m;}
+  return async_exchange(&m);
+ }
+ m.kind=DMB_CALLBACK;m.sequence=sequence;
+ if(!sequence)die("callback outside active request");
+ if(!write_frame(&m)||!read_frame(&r)){disconnected=1;die("host disconnected during callback");}
+ if(!valid(&r)||r.sequence!=sequence||r.kind!=DMB_CALLBACK_REPLY||r.op!=slot||r.object!=t->token||r.status)die("invalid callback reply");
+ fprintf(stderr,"tool callback %u result %08x values %u %u\n",slot,r.v[0],r.v[1],r.v[2]);return r;
+}
+static HRESULT WINAPI tool_qi(Tool*t,REFIID iid,void**p){DmbMessage m=tool_callback(t,0,iid,0);*p=NULL;if(SUCCEEDED((HRESULT)m.v[0])){if(m.v[1]!=t->token)die("tool QI identity");t->refs++;*p=t;}return m.v[0];}
+static ULONG WINAPI tool_add(Tool*t){DmbMessage m=tool_callback(t,1,NULL,0);t->refs++;return m.v[0];}
+static ULONG WINAPI tool_release(Tool*t){DmbMessage m;if(t->refs<=0)die("tool reference underflow");m=tool_callback(t,2,NULL,0);t->refs--;return m.v[0];}
+static HRESULT WINAPI tool_init(Tool*t,IUnknown*g){DmbMessage m;Object*o=get(t->graph,DMB_TOOLGRAPH);if(!o||o->p!=g)die("tool graph identity");m=tool_callback(t,3,NULL,t->graph);return m.v[0];}
+static HRESULT WINAPI tool_delivery(Tool*t,DWORD*p){DmbMessage m=tool_callback(t,4,NULL,0);*p=m.v[1];return m.v[0];}
+static HRESULT WINAPI tool_count_fn(Tool*t,DWORD*p){DmbMessage m=tool_callback(t,5,NULL,0);*p=m.v[1];return m.v[0];}
+static HRESULT WINAPI tool_types(Tool*t,DWORD**p,DWORD n){DmbMessage m;if(n!=2||!p||!*p)die("unexpected tool media buffer");m=tool_callback(t,6,NULL,n);(*p)[0]=m.v[1];(*p)[1]=m.v[2];return m.v[0];}
+#define DMUS_S_FREE_HR 0x08780212
+static Tool tools[8];static unsigned tool_count;
+static uint32_t tool_token_of(void*p){unsigned i;for(i=0;i<tool_count;i++)if(p==(void*)&tools[i])return tools[i].token;return 0;}
+/* Validate and copy a native lyric PMSG into an async frame (x86 layout). */
+static void pmsg_frame(Tool*t,IUnknown*perf,BYTE*pm,DmbMessage*m,unsigned slot){
+ DWORD size=*(DWORD*)pm,type=*(DWORD*)(pm+DMB_PMSG_TYPE);unsigned k,chars;
+ if(type!=13&&type!=14){fprintf(stderr,"PMSG type %lu\n",type);die("unmodelled PMSG type");}
+ if(size<DMB_PMSG_HEADER+2||size>sizeof m->data)die("PMSG size outside modelled lyric range");
+ chars=(size-DMB_PMSG_HEADER)/2;for(k=0;k<chars&&((WCHAR*)(pm+DMB_PMSG_HEADER))[k];k++){}
+ if(k==chars)die("PMSG lyric not terminated within dwSize");
+ if(*(void**)(pm+DMB_PMSG_USER))die("PMSG punkUser unmodelled");
+ dmb_message(m,slot,t->token);memcpy(m->data,pm,size);
+ m->v[1]=graph_id_of(*(IUnknown**)(pm+DMB_PMSG_GRAPH));
+ m->v[2]=identity_id(perf,DMB_PERFORMANCE);if(!m->v[2])die("PMSG performance is not bridge-wrapped");
+ m->v[3]=size;m->v[4]=tool_token_of(*(void**)(pm+DMB_PMSG_TOOL));
+}
+static HRESULT WINAPI tool_message(Tool*t,IUnknown*p,void*pm){DmbMessage m,r;uint32_t handle;
+ if(disconnected)return DMUS_S_FREE_HR; /* teardown only: the host is gone */
+ pmsg_frame(t,p,(BYTE*)pm,&m,7);handle=pmsg_register(pm,m.v[2]);m.v[0]=handle;
+ r=async_exchange(&m);
+ {static unsigned scripted;if(*(DWORD*)((BYTE*)pm+DMB_PMSG_TYPE)==14&&scripted++<32)
+  fprintf(stderr,"helper SCRIPTLYRIC %u '%ls' -> guest result %08x\n",scripted,(WCHAR*)((BYTE*)pm+DMB_PMSG_HEADER),r.v[0]);}
+ /* S_OK: the tool retained the message (freed later by DMB_FREE_PMSG). Any other
+  * result goes back to DirectMusic unchanged, which frees or requeues natively. */
+ if(r.v[0]!=S_OK)pmsg_lookup(handle,1);
+ return (HRESULT)r.v[0];
+}
+static HRESULT WINAPI tool_flush(Tool*t,IUnknown*p,void*pm,LONGLONG time){DmbMessage m,r;
+ if(disconnected)return S_OK;
+ pmsg_frame(t,p,(BYTE*)pm,&m,8);m.v[5]=(uint32_t)time;m.v[6]=(uint32_t)((ULONGLONG)time>>32);
+ r=async_exchange(&m);return (HRESULT)r.v[0];
+}
+typedef HRESULT(WINAPI*StampPMsgFn)(IUnknown*,void*);
+typedef HRESULT(WINAPI*FreePMsgFn)(IUnknown*,void*);
+typedef HRESULT(WINAPI*AllocPMsgFn)(IUnknown*,ULONG,void**);
+static void async_nested(DmbMessage*q,DmbMessage*r){Object*g;void*pm;
+ *r=*q;r->kind=DMB_ASYNC_NESTED_REPLY;memset(r->v,0,sizeof r->v);memset(r->data,0,sizeof r->data);
+ if(q->op!=DMB_STAMP_PMSG)die("unmodelled nested asynchronous request");
+ g=get(q->object,DMB_TOOLGRAPH);pm=pmsg_lookup(q->v[0],0);if(!g||!pm)die("StampPMsg: unknown graph or PMSG handle");
+ r->v[0]=((StampPMsgFn)method(g->p,3))(g->p,pm);
+ memcpy(r->data,pm,DMB_PMSG_HEADER);
+ r->v[1]=graph_id_of(*(IUnknown**)((BYTE*)pm+DMB_PMSG_GRAPH));
+ r->v[3]=tool_token_of(*(void**)((BYTE*)pm+DMB_PMSG_TOOL));
+}
+/* --test only: a real native LYRIC PMSG delivered from a new native thread. */
+typedef struct {Tool*t;IUnknown*perf;void*pm;HRESULT hr;} AsyncTest;
+static DWORD WINAPI async_test_thread(void*p){AsyncTest*a=(AsyncTest*)p;a->hr=tool_message(a->t,a->perf,a->pm);return 0;}
+static const ToolVtbl tool_vt={tool_qi,tool_add,tool_release,tool_init,tool_delivery,tool_count_fn,tool_types,tool_message,tool_flush};
+typedef HRESULT(WINAPI*InitAudio)(IUnknown*,IUnknown**,IUnknown**,HWND,DWORD,DWORD,DWORD,void*);
+typedef HRESULT(WINAPI*Search)(IUnknown*,REFGUID,WCHAR*,BOOL);
+typedef HRESULT(WINAPI*Out)(IUnknown*,IUnknown**);
+typedef HRESULT(WINAPI*InPath)(IUnknown*,DWORD,DWORD,DWORD,REFGUID,DWORD,REFIID,void**);
+typedef HRESULT(WINAPI*Insert)(IUnknown*,IUnknown*,DWORD*,DWORD,LONG);
+typedef HRESULT(WINAPI*LoadFile)(IUnknown*,REFGUID,REFIID,WCHAR*,void**);
+typedef HRESULT(WINAPI*LoaderObject)(IUnknown*,void*,REFIID,void**);
+typedef HRESULT(WINAPI*ScriptInit)(IUnknown*,IUnknown*,void*);
+typedef HRESULT(WINAPI*Routine)(IUnknown*,WCHAR*,void*);
+typedef HRESULT(WINAPI*EnumRoutine)(IUnknown*,DWORD,WCHAR*);
+typedef HRESULT(WINAPI*Global)(IUnknown*,REFGUID,void*,DWORD);
+typedef HRESULT(WINAPI*ReleaseObject)(IUnknown*,IUnknown*);
+typedef HRESULT(WINAPI*Stop)(IUnknown*,IUnknown*,IUnknown*,LONG,DWORD);
+typedef HRESULT(WINAPI*CloseDown)(IUnknown*);
+/* Developer heartbeat (diagnostic only): every 2 s, the performance clock and
+ * whether a primary segment state exists now. Read-only native queries.
+ * One thread follows the CURRENT open performance: InitAudio sets it; CloseDown, the
+ * performance's last bridge release and shutdown clear it before the native call. The
+ * thread holds its own reference while it queries and never holds a lock across a
+ * DirectMusic call. (It used to keep the raw pointer of every performance it was started
+ * for: after a level change closed down and released the previous performance, it called
+ * into the freed object - the intermittent helper crash at M08A1 music initialization,
+ * reproduced by experiments/xrt/tests/dmusic_heartbeat.) */
+typedef HRESULT(WINAPI*GetTimeFn)(IUnknown*,LONGLONG*,LONG*);
+typedef HRESULT(WINAPI*GetStateFn)(IUnknown*,IUnknown**,LONG);
+static CRITICAL_SECTION heartbeat_cs;static IUnknown*heartbeat_perf;static int heartbeat_started;
+static DWORD WINAPI heartbeat(void*unused){IUnknown*p,*state;LONGLONG rt;LONG mt;HRESULT h1,h2;unsigned n=0;
+ (void)unused;CoInitializeEx(NULL,COINIT_MULTITHREADED);
+ while(!disconnected){Sleep(2000);rt=0;mt=0;state=NULL;
+  EnterCriticalSection(&heartbeat_cs);p=heartbeat_perf;if(p)IUnknown_AddRef(p);LeaveCriticalSection(&heartbeat_cs);
+  if(!p)continue;
+  h1=((GetTimeFn)method(p,15))(p,&rt,&mt);h2=((GetStateFn)method(p,6))(p,&state,mt);if(state)IUnknown_Release(state);
+  IUnknown_Release(p);
+  fprintf(stderr,"helper heartbeat %u: GetTime %08lx rt %lld ms mt %ld; primary segment state %08lx; async seq %u\n",
+          ++n,(unsigned long)h1,rt/10000,mt,(unsigned long)h2,async_seq);fflush(stderr);}
+ return 0;
+}
+static void heartbeat_follow(IUnknown*p){
+ EnterCriticalSection(&heartbeat_cs);heartbeat_perf=p;LeaveCriticalSection(&heartbeat_cs);
+ if(!heartbeat_started){HANDLE th=CreateThread(NULL,0,heartbeat,NULL,0,NULL);if(th){CloseHandle(th);heartbeat_started=1;}}
+}
+static void heartbeat_forget(IUnknown*p){
+ EnterCriticalSection(&heartbeat_cs);if(!p||heartbeat_perf==p)heartbeat_perf=NULL;LeaveCriticalSection(&heartbeat_cs);
+}
+/* Opt-in script-track fallback (XRT_DMUSIC_SCRIPT_TRACK=helper), developer only. */
+#define ST_FAIL(m) die(m)
+#define ST_LOG(...) (fprintf(stderr,__VA_ARGS__),fflush(stderr))
+#include "script_track.h"
+static int st_enabled;
+static IUnknown*st_game_script(const GUID*script){unsigned i;GUID g;
+ for(i=0;i<used;i++)if(objects[i].refs&&objects[i].type==DMB_SCRIPT_OBJECT&&st_object_guid(objects[i].p,&g)&&IsEqualGUID(&g,script))return objects[i].p;
+ return NULL;
+}
+static void st_release(void){unsigned i;
+ if(st_state)IUnknown_Release(st_state);st_state=NULL;st_row=-1;
+ for(i=0;i<st_nseg;i++)if(st_seg[i].segment){IUnknown_Release(st_seg[i].segment);st_seg[i].segment=NULL;}
+ st_bound=0;st_script=NULL;
+}
+static void dispatch(DmbMessage*q,DmbMessage*r){
+ Object*o=NULL,*other;IUnknown*p=NULL;HRESULT hr=E_NOTIMPL;uint32_t type=0;WCHAR folder[600];unsigned i;
+ *r=*q;r->kind=DMB_REPLY;memset(r->v,0,sizeof r->v);memset(r->text,0,sizeof r->text);
+ if(q->op==DMB_HELLO){r->v[0]=32;r->v[1]=sizeof *q;return;}
+ if(q->op==DMB_TEST_CRASH&&testing)ExitProcess(93);
+ if(q->op==DMB_TEST_STALL&&testing){Sleep(60000);return;}
+ if(q->op==DMB_TEST_OPEN&&testing){HANDLE h=CreateFileW((WCHAR*)q->text,q->v[0],FILE_SHARE_READ,NULL,OPEN_EXISTING,0,NULL);r->v[0]=h!=INVALID_HANDLE_VALUE;r->v[1]=GetLastError();if(h!=INVALID_HANDLE_VALUE)CloseHandle(h);return;}
+ if(q->op==DMB_TEST_PROCESS&&testing&&tool_count)tool_message(&tools[0],NULL,NULL);
+ if(q->op==DMB_TEST_CALLBACK&&testing&&tool_count){tool_callback(&tools[0],7,NULL,0);return;}
+ if(q->op==DMB_SHUTDOWN){
+  heartbeat_forget(NULL);st_release();
+  for(i=0;i<256;i++)if(pmsgs[i].native){Object*pf=get(pmsgs[i].perf,DMB_PERFORMANCE);if(pf)((FreePMsgFn)method(pf->p,17))(pf->p,pmsgs[i].native);memset(&pmsgs[i],0,sizeof pmsgs[i]);}
+  /* Release bridge-owned references in reverse acquisition order; native cached
+   * references remain native-owned. CloseDown is never synthesized here. */
+  for(i=used;i;i--)while(objects[i-1].refs){IUnknown_Release(objects[i-1].p);objects[i-1].refs--;}
+  r->v[0]=S_OK;return;
+ }
+ if(q->op!=DMB_CREATE){o=get(q->object,0);if(!o){r->status=DMB_BAD_HANDLE;return;}}
+#define REQUIRE(t) if(o->type!=(t)){r->status=DMB_BAD_HANDLE;return;}
+ switch(q->op){
+ case DMB_CREATE:
+  type=q->v[0];if(type!=DMB_LOADER&&type!=DMB_PERFORMANCE){r->status=DMB_UNSUPPORTED;return;}
+  hr=CoCreateInstance(type==DMB_LOADER?&cls_loader:&cls_perf,NULL,3,&ids[type],(void**)&p);break;
+ case DMB_QI:
+  hr=IUnknown_QueryInterface(o->p,(GUID*)q->guid[0],(void**)&p);
+  if(SUCCEEDED(hr)&&(!IsEqualGUID((GUID*)q->guid[0],&IID_IUnknown)&&!IsEqualGUID((GUID*)q->guid[0],&ids[o->type]))){if(p)IUnknown_Release(p);r->status=DMB_UNSUPPORTED;return;}
+  type=o->type;break;
+ case DMB_ADDREF:r->v[0]=IUnknown_AddRef(o->p);o->refs++;return;
+ case DMB_RELEASE:if(o->type==DMB_PERFORMANCE&&o->refs==1)heartbeat_forget(o->p);r->v[0]=IUnknown_Release(o->p);o->refs--;return;
+ case DMB_INIT_AUDIO:
+  REQUIRE(DMB_PERFORMANCE);if(q->v[0]!=8||q->v[1]!=128||q->v[2]!=0x3f){r->status=DMB_UNSUPPORTED;return;}
+  hr=((InitAudio)method(o->p,44))(o->p,NULL,&p,NULL,q->v[0],q->v[1],q->v[2],NULL);type=DMB_SOUND;
+  if(SUCCEEDED(hr)&&!testing)heartbeat_follow(o->p);break;
+ case DMB_SEARCH:
+  REQUIRE(DMB_LOADER);swprintf(folder,600,L"%s\\Music",sandbox);
+  if(_wcsicmp((WCHAR*)q->text,folder)||q->v[0]||!IsEqualGUID((GUID*)q->guid[0],&all_types)){r->status=DMB_SANDBOX;return;}
+  hr=((Search)method(o->p,5))(o->p,(GUID*)q->guid[0],folder,FALSE);break;
+ case DMB_PATH:REQUIRE(DMB_PERFORMANCE);hr=((Out)method(o->p,51))(o->p,&p);type=DMB_AUDIOPATH;break;
+ case DMB_GRAPH:
+  REQUIRE(DMB_AUDIOPATH);if(q->v[0]||q->v[1]!=0x3200||q->v[2]||q->v[3]||!IsEqualGUID((GUID*)q->guid[0],&GUID_NULL)||!IsEqualGUID((GUID*)q->guid[1],&ids[DMB_TOOLGRAPH])){r->status=DMB_UNSUPPORTED;return;}
+  hr=((InPath)method(o->p,3))(o->p,0,0x3200,0,&GUID_NULL,0,&ids[DMB_TOOLGRAPH],(void**)&p);type=DMB_TOOLGRAPH;break;
+ case DMB_INSERT:
+  REQUIRE(DMB_TOOLGRAPH);if(!q->v[0]||tool_count==8){r->status=DMB_UNSUPPORTED;return;}
+  for(i=0;i<tool_count;i++)if(tools[i].token==q->v[0]){r->status=DMB_UNSUPPORTED;return;}
+  tools[tool_count].vt=&tool_vt;tools[tool_count].token=q->v[0];tools[tool_count].graph=q->object;
+  hr=((Insert)method(o->p,4))(o->p,(IUnknown*)&tools[tool_count++],NULL,0,0);break;
+ case DMB_LOAD:
+  /* Any plain container file name (levels load their own music: M08A1 is the first after Intro.con). The loader's
+   * search folder is the sandbox Music folder (DMB_SEARCH), so a name without separators or ".." stays inside it. */
+  {const WCHAR*nm=(WCHAR*)q->text;size_t n=wcsnlen(nm,64);
+   if(n<5||n>63||wcspbrk(nm,L"\\/:")||wcsstr(nm,L"..")||_wcsicmp(nm+n-4,L".con")||
+      !IsEqualGUID((GUID*)q->guid[0],&cls_container)||!IsEqualGUID((GUID*)q->guid[1],&ids[DMB_CONTAINER])){r->status=DMB_UNSUPPORTED;return;}
+   REQUIRE(DMB_LOADER);
+   hr=((LoadFile)method(o->p,14))(o->p,&cls_container,&ids[DMB_CONTAINER],nm,(void**)&p);type=DMB_CONTAINER;
+   fprintf(stderr,"helper container %ls -> %08lx\n",nm,hr);
+   if(SUCCEEDED(hr)&&st_enabled&&!st_bound&&!_wcsicmp(nm,L"Intro.con")){swprintf(folder,600,L"%s\\Music\\Intro.con",sandbox);st_load(folder);st_bind(o->p);}}
+  break;
+ case DMB_SCRIPT:{BYTE expected[848]={0};
+  REQUIRE(DMB_LOADER);*(DWORD*)expected=848;*(DWORD*)(expected+4)=0x206;memcpy(expected+24,&cls_script,16);memcpy(expected+56,L"Script1",16);
+  if(memcmp(expected,q->data,848)||!IsEqualGUID((GUID*)q->guid[0],&ids[DMB_SCRIPT_OBJECT])){r->status=DMB_UNSUPPORTED;return;}
+  hr=((LoaderObject)method(o->p,3))(o->p,expected,&ids[DMB_SCRIPT_OBJECT],(void**)&p);type=DMB_SCRIPT_OBJECT;break;}
+ case DMB_SCRIPT_INIT:
+  REQUIRE(DMB_SCRIPT_OBJECT);other=get(q->v[0],DMB_PERFORMANCE);if(!other){r->status=DMB_BAD_HANDLE;return;}
+  hr=((ScriptInit)method(o->p,3))(o->p,other->p,NULL);break;
+ case DMB_VOLUME:
+  REQUIRE(DMB_PERFORMANCE);if(!IsEqualGUID((GUID*)q->guid[0],&volume_guid)||q->v[1]!=4){r->status=DMB_UNSUPPORTED;return;}
+  hr=((Global)method(o->p,34))(o->p,&volume_guid,&q->v[0],4);break;
+ case DMB_ROUTINE:
+  /* Developer copy: named routines (the intro's music script) reach native
+   * CallRoutine; its HRESULT returns unchanged. The name must be terminated. */
+  REQUIRE(DMB_SCRIPT_OBJECT);{unsigned k;for(k=0;k<sizeof q->text/sizeof q->text[0]&&q->text[k];k++){}if(k==sizeof q->text/sizeof q->text[0]){r->status=DMB_BAD_FRAME;return;}}
+  hr=((Routine)method(o->p,4))(o->p,(WCHAR*)q->text,NULL);break;
+ case DMB_ENUM:
+  REQUIRE(DMB_SCRIPT_OBJECT);if(!testing||q->v[0]>=128){r->status=DMB_UNSUPPORTED;return;}
+  hr=((EnumRoutine)method(o->p,11))(o->p,q->v[0],(WCHAR*)r->text);break;
+ case DMB_RELEASE_OBJECT:
+  REQUIRE(DMB_LOADER);other=get(q->v[0],0);if(!other){r->status=DMB_BAD_HANDLE;return;}
+  if(other->type!=DMB_CONTAINER&&other->type!=DMB_SCRIPT_OBJECT){r->status=DMB_UNSUPPORTED;return;}
+  hr=((ReleaseObject)method(o->p,13))(o->p,other->p);break;
+ case DMB_FREE_PMSG:{void*pm;
+  REQUIRE(DMB_PERFORMANCE);pm=pmsg_lookup(q->v[0],0);if(!pm){r->status=DMB_BAD_HANDLE;return;}
+  hr=((FreePMsgFn)method(o->p,17))(o->p,pm);if(SUCCEEDED(hr))pmsg_lookup(q->v[0],1);break;}
+ case DMB_TEST_ASYNC:{BYTE*pm=NULL;AsyncTest a;HANDLE th;Object*g;
+  REQUIRE(DMB_PERFORMANCE);g=get(q->v[0],DMB_TOOLGRAPH);if(!testing||!tool_count||!g){r->status=DMB_UNSUPPORTED;return;}
+  hr=((AllocPMsgFn)method(o->p,16))(o->p,DMB_PMSG_HEADER+8,(void**)&pm);if(FAILED(hr)||!pm)break;
+  *(DWORD*)(pm+DMB_PMSG_TYPE)=13;*(void**)(pm+DMB_PMSG_TOOL)=&tools[0];*(IUnknown**)(pm+DMB_PMSG_GRAPH)=g->p;
+  IUnknown_AddRef(g->p);IUnknown_AddRef((IUnknown*)&tools[0]);
+  memcpy(pm+DMB_PMSG_HEADER,L"xrt",8);
+  a.t=&tools[0];a.perf=o->p;a.pm=pm;a.hr=E_FAIL;th=CreateThread(NULL,0,async_test_thread,&a,0,NULL);
+  if(!th)die("test thread");WaitForSingleObject(th,INFINITE);CloseHandle(th);
+  r->v[1]=(uint32_t)a.hr;r->v[2]=pmsg_next; /* handle of the delivered message when retained */
+  if(a.hr!=S_OK)hr=((FreePMsgFn)method(o->p,17))(o->p,pm);else hr=S_OK;break;}
+ case DMB_STOP:REQUIRE(DMB_PERFORMANCE);hr=((Stop)method(o->p,5))(o->p,NULL,NULL,0,0);break;
+ case DMB_CLOSE:REQUIRE(DMB_PERFORMANCE);heartbeat_forget(o->p);hr=((CloseDown)method(o->p,38))(o->p);break;
+ default:r->status=DMB_UNSUPPORTED;return;
+ }
+
+ if(SUCCEEDED(hr)&&type){if(!p)die("native success with null output");r->v[1]=wrap(p,type);r->v[2]=type;}
+ else if(p)die("native failure with nonnull output");
+ r->v[0]=hr;
+}
+/* Idle wait for the next request (developer diagnostic): every 2 s the owning
+ * STA reads the music script's TrackIndex, which only dmPlayNext advances.
+ * Read-only; no messages are dispatched. */
+typedef HRESULT(WINAPI*GetVarNumFn)(IUnknown*,WCHAR*,LONG*,void*);
+static int wait_request(void){DWORD have;static ULONGLONG next,st_next_tick;static LONG last=-2;unsigned i;
+ for(;;){
+  if(!PeekNamedPipe(input,NULL,0,NULL,&have,NULL))return 0;
+  if(have)return 1;
+  if(GetTickCount64()>=next){next=GetTickCount64()+2000;
+   for(i=0;i<used;i++)if(objects[i].refs&&objects[i].type==DMB_SCRIPT_OBJECT){LONG v=-1;
+    HRESULT h=((GetVarNumFn)method(objects[i].p,8))(objects[i].p,L"TrackIndex",&v,NULL);
+    if(v!=last){fprintf(stderr,"helper script TrackIndex %ld (hr %08lx)\n",v,(unsigned long)h);last=v;}}}
+  if(st_bound&&GetTickCount64()>=st_next_tick){st_next_tick=GetTickCount64()+5;
+   for(i=0;i<used;i++)if(objects[i].refs&&objects[i].type==DMB_PERFORMANCE){st_tick(objects[i].p);break;}}
+  Sleep(1);
+ }
+}
+/* Diagnostic: an unhandled exception (a crash inside DirectMusic or here) is reported on stderr with the faulting
+ * module and offset before the process ends; the host then sees the channel close as before. */
+static LONG WINAPI crash_report(EXCEPTION_POINTERS*e){HMODULE m=NULL;char name[MAX_PATH]="?";
+ GetModuleHandleExA(GET_MODULE_HANDLE_EX_FLAG_FROM_ADDRESS|GET_MODULE_HANDLE_EX_FLAG_UNCHANGED_REFCOUNT,(LPCSTR)e->ExceptionRecord->ExceptionAddress,&m);
+ if(m)GetModuleFileNameA(m,name,MAX_PATH);
+ fprintf(stderr,"DirectMusic helper crash: exception %08lx at %p (%s+%lx) thread %lu, access %lu %p\n",e->ExceptionRecord->ExceptionCode,
+  e->ExceptionRecord->ExceptionAddress,name,m?(unsigned long)((BYTE*)e->ExceptionRecord->ExceptionAddress-(BYTE*)m):0,GetCurrentThreadId(),
+  e->ExceptionRecord->NumberParameters>1?(unsigned long)e->ExceptionRecord->ExceptionInformation[0]:0,
+  e->ExceptionRecord->NumberParameters>1?(void*)e->ExceptionRecord->ExceptionInformation[1]:NULL);
+ fflush(stderr);return EXCEPTION_CONTINUE_SEARCH;}
+int wmain(int argc,WCHAR**argv){
+ DmbMessage q,r;HRESULT hr;uint32_t last=0;
+ SetUnhandledExceptionFilter(crash_report);
+ {int a=6;
+ if(argc<6||wcscmp(argv[1],L"--pipes")||wcscmp(argv[4],L"--sandbox"))return 2;
+ if(argc>=a+3&&!wcscmp(argv[a],L"--async")){async_in=(HANDLE)(uintptr_t)_wcstoui64(argv[a+1],NULL,10);async_out=(HANDLE)(uintptr_t)_wcstoui64(argv[a+2],NULL,10);a+=3;}
+ if(argc>a&&!wcscmp(argv[a],L"--content")){guard_content=1;a++;}   /* standalone player: read-only installation root */
+ if(argc==a+1){if(wcscmp(argv[a],L"--test"))return 2;testing=1;a++;}
+ if(argc!=a)return 2;}
+ InitializeCriticalSection(&async_cs);InitializeCriticalSection(&pend_cs);InitializeCriticalSection(&pmsg_cs);InitializeCriticalSection(&objects_cs);InitializeCriticalSection(&heartbeat_cs);
+ input=(HANDLE)(uintptr_t)_wcstoui64(argv[2],NULL,10);output=(HANDLE)(uintptr_t)_wcstoui64(argv[3],NULL,10);
+ if(wcslen(argv[5])>=550||!GetFullPathNameW(argv[5],600,sandbox,NULL))return 2;
+ owner=GetCurrentThreadId();SetErrorMode(SEM_FAILCRITICALERRORS|SEM_NOGPFAULTERRORBOX);
+ {const WCHAR*v=_wgetenv(L"XRT_DMUSIC_SCRIPT_TRACK");st_enabled=v&&!wcscmp(v,L"helper");
+  if(st_enabled)fprintf(stderr,"helper script-track fallback enabled (developer opt-in)\n");}
+ /* A noninherited Job owned by the parent kills us even during a stuck native
+  * call. Outside a call, pipe EOF terminates the receive loop. */
+ if(!guard_install(sandbox))die("cannot install isolated disk-open guard");
+ hr=CoInitializeEx(NULL,COINIT_APARTMENTTHREADED);if(FAILED(hr))die("cannot initialize STA");
+ while(wait_request()&&read_frame(&q)){
+  sequence=q.sequence;
+  if(!valid(&q)||q.kind!=DMB_REQUEST||q.sequence!=last+1||q.status||q.text[511]){
+   r=q;r.magic=DMB_MAGIC;r.version=DMB_VERSION;r.bytes=sizeof r;r.kind=DMB_REPLY;r.status=DMB_BAD_FRAME;
+   write_frame(&r);fprintf(stderr,"DirectMusic malformed frame\n");break;
+  }
+  last=q.sequence;dispatch(&q,&r);
+  fprintf(stderr,"DirectMusic IPC seq %u op %u id %u status %u result %08x out %u type %u\n",q.sequence,q.op,q.object,r.status,r.v[0],r.v[1],r.v[2]);fflush(stderr);
+  if(!write_frame(&r))break;
+  sequence=0;if(q.op==DMB_SHUTDOWN||r.status)break;
+ }
+ disconnected=1;heartbeat_forget(NULL);
+ /* On a broken connection no callback may call the dead host. Native teardown
+  * still runs on the owner STA; the parent's Job bounds its duration. */
+ for(last=used;last;last--)while(objects[last-1].refs){IUnknown_Release(objects[last-1].p);objects[last-1].refs--;}
+ CoUninitialize();CloseHandle(input);CloseHandle(output);return 0;
+}
+
