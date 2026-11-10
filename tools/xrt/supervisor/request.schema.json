@@ -1,0 +1,127 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "Unreal II owner desktop supervisor request",
+  "type": "object",
+  "additionalProperties": false,
+  "properties": {
+    "version": {
+      "const": 1
+    },
+    "id": {
+      "type": "string",
+      "format": "uuid"
+    },
+    "batch_id": {
+      "type": "string",
+      "format": "uuid"
+    },
+    "created_at": {
+      "type": "number"
+    },
+    "expires_at": {
+      "type": "number"
+    },
+    "objective": {
+      "type": "string",
+      "minLength": 12,
+      "maxLength": 1000
+    },
+    "candidate": {
+      "type": "string",
+      "pattern": "^out/desktop-supervisor/candidates/[0-9a-f-]{36}\\.json$"
+    },
+    "manifest_sha256": {
+      "type": "string",
+      "pattern": "^[0-9a-f]{64}$"
+    },
+    "expected_stop": {
+      "oneOf": [
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "kind": {
+              "enum": [
+                "fixture-complete",
+                "fixture-breakpoint"
+              ]
+            }
+          },
+          "required": [
+            "kind"
+          ]
+        },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "kind": {
+              "enum": [
+                "permanent-stop",
+                "first-unsupported-or-permanent"
+              ]
+            },
+            "guest_address": {
+              "const": "0x0696f292"
+            }
+          },
+          "required": [
+            "kind",
+            "guest_address"
+          ]
+        },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "kind": {
+              "const": "unsupported-method"
+            },
+            "code": {
+              "type": "integer",
+              "enum": [
+                75,
+                76
+              ]
+            },
+            "format": {
+              "type": "string",
+              "minLength": 1,
+              "maxLength": 512
+            }
+          },
+          "required": [
+            "kind",
+            "code",
+            "format"
+          ]
+        }
+      ]
+    },
+    "scope": {
+      "enum": [
+        "supervisor-fixture",
+        "renderer-init-before-0696f292"
+      ]
+    },
+    "timeout_seconds": {
+      "type": "integer",
+      "minimum": 1,
+      "maximum": 60
+    }
+  },
+  "required": [
+    "version",
+    "id",
+    "batch_id",
+    "created_at",
+    "expires_at",
+    "objective",
+    "candidate",
+    "manifest_sha256",
+    "expected_stop",
+    "scope",
+    "timeout_seconds"
+  ],
+  "description": "Policy also enforces owner batch, scope/stop compatibility, TTL <=300s, fresh timestamps, request-bound candidate path, immutable identities, replay and launch budget."
+}

@@ -21,6 +21,7 @@ static uint32_t borrowed_icon_token(CPU* c,HICON host);
 static HICON guest_icon(CPU* c,uint32_t token);
 static void forget_window_properties(HWND host);
 static HWND window_host(uint32_t h);
+static int registered_getobject_proc(HWND h, uint32_t proc);
 static void begin(CPU *c)
 {
     SetLastError(xrt_get_last_error(c));
@@ -65,6 +66,22 @@ static void hle_AdjustWindowRect(CPU* c)
     RET_STD(3,result);
     xrt_event("gui_adjust_window_rect_return","\"rect\":%u,\"left\":%ld,\"top\":%ld,\"right\":%ld,\"bottom\":%ld,\"result\":%u,\"last_error\":%u,\"esp_before\":%u,\"esp_after\":%u,\"return\":%u,\"actual_return\":%u",
         p,rect.left,rect.top,rect.right,rect.bottom,(unsigned)result,xrt_get_last_error(c),esp,c->r[ESP],caller,c->rv);
+}
+/* Measured by the same x86 fixture natively and lifted, across all byte virtual
+ * keys with per-thread keyboard state. Preserve the signed SHORT and last-error. */
+static void hle_GetKeyState(CPU*c) {
+    uint32_t key=ARG(0);SHORT result;
+    if(key>255)xrt_fatal(c,XRT_EXIT_UNSUPPORTED,"GetKeyState(%u): unmeasured virtual key",key);
+    begin(c);result=GetKeyState((int)key);end(c);
+    RET_STD(1,(uint32_t)(int32_t)result);
+}
+static void hle_SetKeyboardState(CPU*c) {
+    uint32_t p=ARG(0);BOOL result;
+    if(p && !xrt_is_committed(p,256))
+        xrt_fatal(c,XRT_EXIT_UNSUPPORTED,"SetKeyboardState: unreadable 256-byte guest buffer %08x",p);
+    begin(c);result=SetKeyboardState(p?(BYTE*)G2H(p):NULL);end(c);
+    xrt_event("gui_set_keyboard_state","\"buffer\":%u,\"result\":%u,\"last_error\":%u",p,(unsigned)result,xrt_get_last_error(c));
+    RET_STD(1,result);
 }
 static void hle_GetDC(CPU *c)
 {
@@ -186,8 +203,12 @@ typedef struct GuiWindow
     HFONT host_font;
     DWORD thread;
 } GuiWindow;
+/* D3D8 pins are separate from guest ownership of the HWND itself. */
+static unsigned device_window_pins[1024];
 static GuiWindow windows[1024];
 static __declspec(thread) CPU *callback_cpu;
+CPU* xrt_gui_callback_enter(CPU* c) { CPU* previous=callback_cpu;callback_cpu=c;return previous; }
+void xrt_gui_callback_leave(CPU* previous) { callback_cpu=previous; }
 /* Borrowed IMM32 contexts belong to a thread, not to an individual window.
  * No guest ImmCreate/Destroy/GetContext API is provided. Only returned contexts
  * can be reassociated on their living guest/host thread. Keep tokens after
@@ -284,6 +305,34 @@ static void forget_dead_windows(void)
             xrt_handle_free(windows[i].token);
             memset(&windows[i], 0, sizeof windows[i]);
         }
+}
+void* xrt_gui_device_window(CPU* c,uint32_t token) {
+    HWND h;DWORD pid=0,tid;unsigned i;
+    if(!token)return NULL;
+    h=window_host(token);
+    if(!h || xrt_handle_type(token)!=XH_WINDOW)
+        xrt_fatal(c,76,"D3D8: stale, unknown or wrong-type HWND token %08x",token);
+    tid=GetWindowThreadProcessId(h,&pid);
+    if(!IsWindow(h) || pid!=GetCurrentProcessId() || tid!=GetCurrentThreadId() || !c->thread || c->thread->host_tid!=tid)
+        xrt_fatal(c,76,"D3D8: foreign, dead or cross-thread HWND token %08x",token);
+    for(i=0;i<1024;i++)if(windows[i].host==h && windows[i].token==token && windows[i].thread==tid)return h;
+    xrt_fatal(c,76,"D3D8: HWND token lacks GUI registry identity %08x",token);
+}
+uint32_t xrt_gui_window_identity(CPU* c,void* host) {
+    unsigned i;if(!host)return 0;
+    for(i=0;i<1024;i++)if(windows[i].host==host && window_host(windows[i].token)==host) {
+        xrt_gui_device_window(c,windows[i].token);return windows[i].token;
+    }
+    xrt_fatal(c,76,"D3D8: unregistered native HWND result (no pointer narrowing)");
+}
+void xrt_gui_window_pin(CPU* c,uint32_t token) {
+    unsigned i;if(!token)return;xrt_gui_device_window(c,token);
+    for(i=0;i<1024;i++)if(windows[i].token==token && windows[i].host) {device_window_pins[i]++;return;}
+}
+void xrt_gui_window_unpin(uint32_t token) {
+    unsigned i;if(!token)return;
+    for(i=0;i<1024;i++)if(windows[i].token==token && windows[i].host && device_window_pins[i]) {device_window_pins[i]--;return;}
+    xrt_fatal(NULL,77,"D3D8: window pin accounting mismatch %08x",token);
 }
 /* USER32 queries this calling thread's actual input queue. Never substitute the
  * active/foreground window or cache focus. Existing GUI tokens also represent
@@ -487,6 +536,7 @@ static void unpack_windowpos(WINDOWPOS *w, uint32_t p)
     w->cy = (int)rd32(p + 20);
     w->flags = rd32(p + 24);
 }
+#include "hle_gui_diag.inc"
 static INT_PTR invoke_gui_proc(HWND h, UINT msg, WPARAM wp, LPARAM lp, uint32_t explicit_proc)
 {
     CPU nested;
@@ -497,6 +547,7 @@ static INT_PTR invoke_gui_proc(HWND h, UINT msg, WPARAM wp, LPARAM lp, uint32_t 
     DWORD error = GetLastError();
     GuiCallbackFrame frame;
     uint32_t create_words[12];
+    gui_diagnostic_ingress(h,msg,wp,lp,explicit_proc);
     if (!callback_cpu)
         xrt_fatal(NULL, XRT_EXIT_UNSUPPORTED, "GUI callback outside an active guest host call");
     args[0] = window_token(h);
@@ -521,8 +572,29 @@ static INT_PTR invoke_gui_proc(HWND h, UINT msg, WPARAM wp, LPARAM lp, uint32_t 
     nested.r[ESP] = scratch;
     switch (msg)
     {
+    case WM_GETOBJECT:
+    {
+        /* Separate native x86/x64 dialog and registered-window oracles. The
+         * registered WNDPROC executes and may delegate through its validated
+         * callback frame to real DefWindowProcW. No accessibility cookie is
+         * manufactured. Other IDs/arguments and unregistered procs stay guarded. */
+        int registered = explicit_proc && registered_getobject_proc(h, explicit_proc);
+        int client = wp == (WPARAM)0xffffffffu && (DWORD)lp == (DWORD)OBJID_CLIENT &&
+            (lp == (LPARAM)(ULONG_PTR)(DWORD)OBJID_CLIENT || lp == (LPARAM)(LONG)OBJID_CLIENT);
+        /* Measured separately on a real registered Unicode WNDPROC: scalar
+         * class-name-index query, wParam=0, zero/sign-extended -12. Windows
+         * DefWindowProcW supplies the result through the active callback frame.
+         * This does not admit the tuple to the unmeasured dialog protocol. */
+        int query_class = registered && wp == 0 && (DWORD)lp == (DWORD)-12 &&
+            (lp == (LPARAM)(ULONG_PTR)(DWORD)-12 || lp == (LPARAM)(LONG)-12);
+        if ((explicit_proc && !registered) || !IsWindowUnicode(h) || (!client && !query_class))
+            xrt_fatal(&nested, XRT_EXIT_UNSUPPORTED,
+                      "WM_GETOBJECT: unmeasured dialog/arguments (wp=%llx lp=%llx)",
+                      (unsigned long long)wp, (unsigned long long)lp);
+        break;
+    }
     case WM_GETICON:
-        if(wp>ICON_SMALL2 || lp)
+        if(wp>ICON_SMALL2 || (lp && lp!=96))
             xrt_fatal(&nested,XRT_EXIT_UNSUPPORTED,"WM_GETICON: unmeasured selector/DPI %llu/%lld",(unsigned long long)wp,(long long)lp);
         break;
     case WM_SETTEXT:
@@ -553,8 +625,8 @@ static INT_PTR invoke_gui_proc(HWND h, UINT msg, WPARAM wp, LPARAM lp, uint32_t 
         if (h || wp > 100 || lp > 100)
             xrt_fatal(&nested, XRT_EXIT_UNSUPPORTED, "class oracle scalar message outside measured range");
         break;
-    case 0xae: /* Exact observed window notification, measured through real default processing. */
-        if(wp!=8 || lp)
+    case 0xae: /* Observed (8,0)/(9,0) scalar notifications, measured with real default processing. */
+        if((wp!=8 && wp!=9) || lp)
             xrt_fatal(&nested,XRT_EXIT_UNSUPPORTED,"window callback 0xae: unmeasured arguments (wp=%llx lp=%llx)",(unsigned long long)wp,(unsigned long long)lp);
         break;
     case 0x90: /* Observed Windows theme destruction notification: both arguments zero. */
@@ -654,6 +726,15 @@ static INT_PTR invoke_gui_proc(HWND h, UINT msg, WPARAM wp, LPARAM lp, uint32_t 
     case WM_GETTEXT:
         xrt_fatal(&nested, XRT_EXIT_UNSUPPORTED, "dialog callback pointer message 0x%x requires marshalling", msg);
     default:
+        /* Exact measured registered notification; preserve error while resolving its session identity. */
+        if (msg >= 0xc000u && msg <= 0xffffu && !wp && !lp) {
+            WCHAR name[32];
+            DWORD lookup_error = GetLastError();
+            int length = GetClipboardFormatNameW(msg, name, 32);
+            int taskbar_created = length == 20 && lstrcmpW(name, L"TaskbarButtonCreated") == 0;
+            SetLastError(lookup_error);
+            if (taskbar_created) break;
+        }
         /* Only measured scalar messages may cross unmodified. */
         if (!((msg <= WM_ENABLE && msg != WM_GETTEXT) || msg == WM_PAINT || msg == WM_ERASEBKGND ||
               msg == WM_SHOWWINDOW || msg == WM_NCPAINT || msg == WM_NCACTIVATE || msg == WM_DESTROY ||
@@ -671,6 +752,17 @@ static INT_PTR invoke_gui_proc(HWND h, UINT msg, WPARAM wp, LPARAM lp, uint32_t 
     callback_frame=&frame;
     result = (INT_PTR)(int32_t)xrt_call_guest(&nested, proc, 4, args, 1);
     callback_frame=frame.previous;
+    if (msg == WM_GETOBJECT) {
+        /* No guest accessibility object/cookie marshaller has been measured.
+         * Return the actual guest result; do not replace dispatch with FALSE. */
+        if (result)
+            xrt_fatal(&nested, XRT_EXIT_UNSUPPORTED, explicit_proc ?
+                      "WM_GETOBJECT: nonzero registered WNDPROC result requires measured accessibility marshalling" :
+                      "WM_GETOBJECT: nonzero guest dialog result requires measured accessibility marshalling");
+        xrt_event("gui_get_object_callback_return",
+                  "\"hwnd\":%u,\"proc\":%u,\"wparam\":%u,\"object_id\":%u,\"result\":%d,\"last_error\":%u",
+                  args[0],proc,args[2],args[3],(int)result,xrt_get_last_error(&nested));
+    }
     if(frame.create_words && memcmp(create_words,G2H(scratch),48))
         xrt_fatal(&nested,XRT_EXIT_UNSUPPORTED,"CREATESTRUCT field mutation requires marshalling");
     if (msg == WM_WINDOWPOSCHANGING || msg == WM_WINDOWPOSCHANGED)
@@ -859,10 +951,10 @@ static void send_message(CPU *c, int wide)
     CPU *prev = callback_cpu;
     if(msg==WM_GETICON) {
         uint32_t token;
-        if(wp>ICON_SMALL2 || ARG(3))
+        if(wp>ICON_SMALL2 || (ARG(3) && ARG(3)!=96))
             xrt_fatal(c,XRT_EXIT_UNSUPPORTED,"WM_GETICON: unmeasured selector/DPI %u/%u",(unsigned)wp,ARG(3));
         callback_cpu=c;begin(c);
-        result=wide?SendMessageW(window_host(ARG(0)),msg,wp,0):SendMessageA(window_host(ARG(0)),msg,wp,0);
+        result=wide?SendMessageW(window_host(ARG(0)),msg,wp,(LPARAM)(int32_t)ARG(3)):SendMessageA(window_host(ARG(0)),msg,wp,(LPARAM)(int32_t)ARG(3));
         end(c);callback_cpu=prev;token=borrowed_icon_token(c,(HICON)result);
         RET_STD(4,token);return;
     }
@@ -928,7 +1020,10 @@ static void hle_UpdateWindow(CPU *c)
 static void hle_DestroyWindow(CPU *c)
 {
     BOOL ok;
+    unsigned i;
     CPU *prev = callback_cpu;
+    for(i=0;i<1024;i++)if(windows[i].token==ARG(0) && device_window_pins[i])
+        xrt_fatal(c,76,"DestroyWindow: live D3D8 device retains HWND token %08x",ARG(0));
     callback_cpu = c;
     begin(c);
     ok = DestroyWindow(window_host(ARG(0)));
@@ -960,6 +1055,8 @@ static void hle_InitCommonControls(CPU *c)
 const XrtHle xrt_hle_gui[] = {{"comctl32.dll", "#17", hle_InitCommonControls},
                               {"imm32.dll", "ImmAssociateContext", hle_ImmAssociateContext},
                               {"user32.dll", "AdjustWindowRect", hle_AdjustWindowRect},
+                              {"user32.dll", "GetKeyState", hle_GetKeyState},
+                              {"user32.dll", "SetKeyboardState", hle_SetKeyboardState},
                               {"user32.dll", "GetFocus", hle_GetFocus},
                               {"user32.dll", "SetFocus", hle_SetFocus},
                               {"user32.dll", "SetCapture", hle_SetCapture},

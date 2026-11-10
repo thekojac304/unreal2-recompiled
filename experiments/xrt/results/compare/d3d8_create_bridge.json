@@ -1,0 +1,640 @@
+{
+  "passed": true,
+  "binary": "E:\\Unreal2-Port-Investigation\\experiments\\xrt\\build\\d3d8-create-20261025-02\\xrt_ucc.exe",
+  "binary_sha256": "bb567875567e67a83ca30ca79d34a05790d7744626ef8c80a6e8c5f40bb14b82",
+  "measurement": {
+    "passed": true,
+    "native_processes": 26,
+    "translated_processes": 64,
+    "translated_successful_creations": 28,
+    "guard_and_failure_cases": 49,
+    "comparisons": [
+      {
+        "case": 0,
+        "values": 47,
+        "native_x86": true,
+        "native_x64": true,
+        "translated": true
+      },
+      {
+        "case": 1,
+        "values": 47,
+        "native_x86": true,
+        "native_x64": true,
+        "translated": true
+      },
+      {
+        "case": 2,
+        "values": 48,
+        "native_x86": true,
+        "native_x64": true,
+        "translated": true
+      },
+      {
+        "case": 3,
+        "values": 47,
+        "native_x86": true,
+        "native_x64": true,
+        "translated": true
+      },
+      {
+        "case": 4,
+        "values": 47,
+        "native_x86": true,
+        "native_x64": true,
+        "translated": true
+      },
+      {
+        "case": 5,
+        "values": 47,
+        "native_x86": true,
+        "native_x64": true,
+        "translated": true
+      },
+      {
+        "case": 6,
+        "values": 47,
+        "native_x86": true,
+        "native_x64": true,
+        "translated": true
+      },
+      {
+        "case": 9,
+        "values": 20,
+        "native_x86": true,
+        "native_x64": true,
+        "translated": true
+      }
+    ],
+    "compared_values": 350,
+    "callback_context_and_parent_revival": true,
+    "live_x87_and_abi": true,
+    "mxcsr_precision_status_preserved": true,
+    "all_97_guest_slots": true,
+    "pointer_guards": true,
+    "shutdown_order": true,
+    "one_real_backend_failure_injected": true,
+    "all_scalar_copyback_injected": true,
+    "fixture": "E:\\Unreal2-Port-Investigation\\experiments\\xrt\\build\\d3d8-create-fixture-20261025-06",
+    "scope": "production boundary; test-only injection clearly separated; zero graphical game clients; no rendering methods"
+  },
+  "regressions": {
+    "affected": {
+      "phase": "affected",
+      "passed": true,
+      "runs": [
+        {
+          "name": "setforeground_boundary",
+          "command": [
+            "cmd",
+            "/d",
+            "/c",
+            "experiments\\xrt\\tests\\setforeground_boundary\\build.cmd"
+          ],
+          "cwd": "E:\\Unreal2-Port-Investigation\\sandbox_d3d8_create_20261025_02",
+          "exit": 0,
+          "seconds": 3.6221919000090566,
+          "log": "E:\\Unreal2-Port-Investigation\\out\\recovery\\d3d8-create-20261025-01\\regression-setforeground_boundary-02.log",
+          "log_sha256": "23ec55d83d468bac54ef29311831e5323188d5b481b0cca66c0e5f375734fada",
+          "warnings": [],
+          "passed": true
+        },
+        {
+          "name": "setactive_boundary",
+          "command": [
+            "cmd",
+            "/d",
+            "/c",
+            "experiments\\xrt\\tests\\setactive_boundary\\build.cmd"
+          ],
+          "cwd": "E:\\Unreal2-Port-Investigation\\sandbox_d3d8_create_20261025_02",
+          "exit": 0,
+          "seconds": 3.5852636999916285,
+          "log": "E:\\Unreal2-Port-Investigation\\out\\recovery\\d3d8-create-20261025-01\\regression-setactive_boundary-02.log",
+          "log_sha256": "f33ddd63a700a68b7c07a6563c30eea90b8a760770d8e5a8ae94c499fd17a78b",
+          "warnings": [],
+          "passed": true
+        },
+        {
+          "name": "setcapture_boundary",
+          "command": [
+            "cmd",
+            "/d",
+            "/c",
+            "experiments\\xrt\\tests\\setcapture_boundary\\build.cmd"
+          ],
+          "cwd": "E:\\Unreal2-Port-Investigation\\sandbox_d3d8_create_20261025_02",
+          "exit": 0,
+          "seconds": 3.4635998999874573,
+          "log": "E:\\Unreal2-Port-Investigation\\out\\recovery\\d3d8-create-20261025-01\\regression-setcapture_boundary-02.log",
+          "log_sha256": "d212321ca575bee4bad1a16d186b55abc154b306262c863218aec3ae78dc9a62",
+          "warnings": [],
+          "passed": true
+        },
+        {
+          "name": "foreground_boundary",
+          "command": [
+            "cmd",
+            "/d",
+            "/c",
+            "experiments\\xrt\\tests\\foreground_boundary\\build.cmd"
+          ],
+          "cwd": "E:\\Unreal2-Port-Investigation\\sandbox_d3d8_create_20261025_02",
+          "exit": 0,
+          "seconds": 3.424956100003328,
+          "log": "E:\\Unreal2-Port-Investigation\\out\\recovery\\d3d8-create-20261025-01\\regression-foreground_boundary-02.log",
+          "log_sha256": "d31ca6bbce4390cc61be5ef2e7480be8c8c256e58a67b40755414e4161ce47f4",
+          "warnings": [],
+          "passed": true
+        },
+        {
+          "name": "window_ae_boundary",
+          "command": [
+            "cmd",
+            "/d",
+            "/c",
+            "experiments\\xrt\\tests\\window_ae_boundary\\build.cmd"
+          ],
+          "cwd": "E:\\Unreal2-Port-Investigation\\sandbox_d3d8_create_20261025_02",
+          "exit": 0,
+          "seconds": 3.437237300007837,
+          "log": "E:\\Unreal2-Port-Investigation\\out\\recovery\\d3d8-create-20261025-01\\regression-window_ae_boundary-02.log",
+          "log_sha256": "a3fdc28202f46ea3a252c0b23f1f3838a684816320023711d667797f6f22b45d",
+          "warnings": [],
+          "passed": true
+        },
+        {
+          "name": "clipcursor_boundary",
+          "command": [
+            "cmd",
+            "/d",
+            "/c",
+            "experiments\\xrt\\tests\\clipcursor_boundary\\build.cmd"
+          ],
+          "cwd": "E:\\Unreal2-Port-Investigation\\sandbox_d3d8_create_20261025_02",
+          "exit": 0,
+          "seconds": 3.801009200004046,
+          "log": "E:\\Unreal2-Port-Investigation\\out\\recovery\\d3d8-create-20261025-01\\regression-clipcursor_boundary-02.log",
+          "log_sha256": "961cccfa10c592840537a38ecc53137d72a49efc5dae1901b13a1156eec87a5e",
+          "warnings": [],
+          "passed": true
+        },
+        {
+          "name": "mapwindowpoints_boundary",
+          "command": [
+            "cmd",
+            "/d",
+            "/c",
+            "experiments\\xrt\\tests\\mapwindowpoints_boundary\\build.cmd"
+          ],
+          "cwd": "E:\\Unreal2-Port-Investigation\\sandbox_d3d8_create_20261025_02",
+          "exit": 0,
+          "seconds": 3.679292600005283,
+          "log": "E:\\Unreal2-Port-Investigation\\out\\recovery\\d3d8-create-20261025-01\\regression-mapwindowpoints_boundary-02.log",
+          "log_sha256": "ee8e759194a3996154a149721464e03923e00fe81520ba81cbcf880fee77698f",
+          "warnings": [],
+          "passed": true
+        },
+        {
+          "name": "window_ids_boundary",
+          "command": [
+            "cmd",
+            "/d",
+            "/c",
+            "experiments\\xrt\\tests\\window_ids_boundary\\build.cmd"
+          ],
+          "cwd": "E:\\Unreal2-Port-Investigation\\sandbox_d3d8_create_20261025_02",
+          "exit": 0,
+          "seconds": 4.061305800001719,
+          "log": "E:\\Unreal2-Port-Investigation\\out\\recovery\\d3d8-create-20261025-01\\regression-window_ids_boundary-02.log",
+          "log_sha256": "2c9e6897a711b762f6ba7646c018bf95dc7f2c57cc827cad41d7017369babcbe",
+          "warnings": [],
+          "passed": true
+        },
+        {
+          "name": "setcursor_boundary",
+          "command": [
+            "cmd",
+            "/d",
+            "/c",
+            "experiments\\xrt\\tests\\setcursor_boundary\\build.cmd"
+          ],
+          "cwd": "E:\\Unreal2-Port-Investigation\\sandbox_d3d8_create_20261025_02",
+          "exit": 0,
+          "seconds": 3.4710860999912256,
+          "log": "E:\\Unreal2-Port-Investigation\\out\\recovery\\d3d8-create-20261025-01\\regression-setcursor_boundary-02.log",
+          "log_sha256": "2fdc7b672c33f4c8feda89e0231e384f63c169d96e90d0a7dc7b1d2ee3fecc25",
+          "warnings": [],
+          "passed": true
+        },
+        {
+          "name": "geticon_boundary",
+          "command": [
+            "cmd",
+            "/d",
+            "/c",
+            "experiments\\xrt\\tests\\geticon_boundary\\build.cmd"
+          ],
+          "cwd": "E:\\Unreal2-Port-Investigation\\sandbox_d3d8_create_20261025_02",
+          "exit": 0,
+          "seconds": 3.763388200008194,
+          "log": "E:\\Unreal2-Port-Investigation\\out\\recovery\\d3d8-create-20261025-01\\regression-geticon_boundary-02.log",
+          "log_sha256": "bd795bf8ae03b099be6e872184e2fb76ceab8902fb53c8d5e75cdb504b60d4fb",
+          "warnings": [],
+          "passed": true
+        },
+        {
+          "name": "setfocus_boundary",
+          "command": [
+            "cmd",
+            "/d",
+            "/c",
+            "experiments\\xrt\\tests\\setfocus_boundary\\build.cmd"
+          ],
+          "cwd": "E:\\Unreal2-Port-Investigation\\sandbox_d3d8_create_20261025_02",
+          "exit": 0,
+          "seconds": 3.6848414999985835,
+          "log": "E:\\Unreal2-Port-Investigation\\out\\recovery\\d3d8-create-20261025-01\\regression-setfocus_boundary-02.log",
+          "log_sha256": "a4b199b597b639876527850b185321751500d7ef4c93ea4be96b813f5f4eb6e2",
+          "warnings": [],
+          "passed": true
+        },
+        {
+          "name": "immassociatecontext_boundary",
+          "command": [
+            "cmd",
+            "/d",
+            "/c",
+            "experiments\\xrt\\tests\\immassociatecontext_boundary\\build.cmd"
+          ],
+          "cwd": "E:\\Unreal2-Port-Investigation\\sandbox_d3d8_create_20261025_02",
+          "exit": 0,
+          "seconds": 3.6561932999902638,
+          "log": "E:\\Unreal2-Port-Investigation\\out\\recovery\\d3d8-create-20261025-01\\regression-immassociatecontext_boundary-02.log",
+          "log_sha256": "492253204bc3585ac9eb608b901bcd9c6bf4d0898437783ead3267115677253c",
+          "warnings": [],
+          "passed": true
+        },
+        {
+          "name": "adjustwindowrect_boundary",
+          "command": [
+            "cmd",
+            "/d",
+            "/c",
+            "experiments\\xrt\\tests\\adjustwindowrect_boundary\\build.cmd"
+          ],
+          "cwd": "E:\\Unreal2-Port-Investigation\\sandbox_d3d8_create_20261025_02",
+          "exit": 0,
+          "seconds": 4.188183899997966,
+          "log": "E:\\Unreal2-Port-Investigation\\out\\recovery\\d3d8-create-20261025-01\\regression-adjustwindowrect_boundary-02.log",
+          "log_sha256": "2bebb6d61627f45d911248f008ffe6973db92163ed13ea0b1b09ee3aae0a12d2",
+          "warnings": [],
+          "passed": true
+        },
+        {
+          "name": "gui_boundary",
+          "command": [
+            "cmd",
+            "/d",
+            "/c",
+            "experiments\\xrt\\tests\\gui_boundary\\build.cmd"
+          ],
+          "cwd": "E:\\Unreal2-Port-Investigation\\sandbox_d3d8_create_20261025_02",
+          "exit": 0,
+          "seconds": 5.351639100001194,
+          "log": "E:\\Unreal2-Port-Investigation\\out\\recovery\\d3d8-create-20261025-01\\regression-gui_boundary-02.log",
+          "log_sha256": "f71e27435d064baa0bb010f493fef88a0798af3f4971971e1cc966592b3b12ca",
+          "warnings": [],
+          "passed": true
+        },
+        {
+          "name": "class_boundary",
+          "command": [
+            "cmd",
+            "/d",
+            "/c",
+            "experiments\\xrt\\tests\\class_boundary\\build.cmd"
+          ],
+          "cwd": "E:\\Unreal2-Port-Investigation\\sandbox_d3d8_create_20261025_02",
+          "exit": 0,
+          "seconds": 6.956951300002402,
+          "log": "E:\\Unreal2-Port-Investigation\\out\\recovery\\d3d8-create-20261025-01\\regression-class_boundary-02.log",
+          "log_sha256": "e15ef0f19de96a9652d225cc4f6805860e73b6432b9bc20c66b9516771dbb764",
+          "warnings": [
+            "experiments\\xrt\\tests\\class_boundary\\classprobe.c(150): warning C4133: 'function': incompatible types - from 'LPTSTR' to 'LPCWSTR'"
+          ],
+          "passed": true
+        },
+        {
+          "name": "module_boundary",
+          "command": [
+            "cmd",
+            "/d",
+            "/c",
+            "experiments\\xrt\\tests\\module_boundary\\build.cmd"
+          ],
+          "cwd": "E:\\Unreal2-Port-Investigation\\sandbox_d3d8_create_20261025_02",
+          "exit": 0,
+          "seconds": 4.080011800004286,
+          "log": "E:\\Unreal2-Port-Investigation\\out\\recovery\\d3d8-create-20261025-01\\regression-module_boundary-02.log",
+          "log_sha256": "bfe7dae7e6aabd4ffa9e2d7ba5d56300cb71caedc3f8590ac3c15ec47075ff77",
+          "warnings": [],
+          "passed": true
+        },
+        {
+          "name": "focus_boundary",
+          "command": [
+            "cmd",
+            "/d",
+            "/c",
+            "experiments\\xrt\\tests\\focus_boundary\\build.cmd"
+          ],
+          "cwd": "E:\\Unreal2-Port-Investigation\\sandbox_d3d8_create_20261025_02",
+          "exit": 0,
+          "seconds": 3.458803400004399,
+          "log": "E:\\Unreal2-Port-Investigation\\out\\recovery\\d3d8-create-20261025-01\\regression-focus_boundary-02.log",
+          "log_sha256": "2dbfae9aca2e49ec7150255e3c350bdf87dd43d6af2d1a3bcb111e508d1934b8",
+          "warnings": [],
+          "passed": true
+        },
+        {
+          "name": "input_boundary",
+          "command": [
+            "cmd",
+            "/d",
+            "/c",
+            "experiments\\xrt\\tests\\input_boundary\\build.cmd"
+          ],
+          "cwd": "E:\\Unreal2-Port-Investigation\\sandbox_d3d8_create_20261025_02",
+          "exit": 0,
+          "seconds": 4.154077500003041,
+          "log": "E:\\Unreal2-Port-Investigation\\out\\recovery\\d3d8-create-20261025-01\\regression-input_boundary-02.log",
+          "log_sha256": "8b7d39ba81fd1276b7b424498ad81da1bc86533d7e033e5e32eeb2b859fe9a9b",
+          "warnings": [],
+          "passed": true
+        },
+        {
+          "name": "com",
+          "command": [
+            "cmd",
+            "/d",
+            "/c",
+            "experiments\\xrt\\tests\\directmusic_boundary\\build_com.cmd"
+          ],
+          "cwd": "E:\\Unreal2-Port-Investigation\\sandbox_d3d8_create_20261025_02",
+          "exit": 0,
+          "seconds": 3.846203900000546,
+          "log": "E:\\Unreal2-Port-Investigation\\out\\recovery\\d3d8-create-20261025-01\\regression-com-02.log",
+          "log_sha256": "80a8f8b323c7254761ad53ac3db503c360dab279711ae475c24f14b3f2f8fa6b",
+          "warnings": [],
+          "passed": true
+        }
+      ]
+    },
+    "d3d8": {
+      "phase": "d3d8",
+      "passed": true,
+      "runs": [
+        {
+          "name": "d3d8-build_native",
+          "command": [
+            "E:\\Unreal2-Port-Investigation\\sandbox_d3d8_create_20261025_02\\.venv\\Scripts\\python.exe",
+            "-B",
+            "-I",
+            "experiments/xrt/tests/d3d8_depth/run.py",
+            "build_native",
+            "--out",
+            "E:\\Unreal2-Port-Investigation\\sandbox_d3d8_create_20261025_02\\experiments\\xrt\\build\\d3d8-create-regression"
+          ],
+          "cwd": "E:\\Unreal2-Port-Investigation\\sandbox_d3d8_create_20261025_02",
+          "exit": 0,
+          "seconds": 2.393571799999336,
+          "log": "E:\\Unreal2-Port-Investigation\\out\\recovery\\d3d8-create-20261025-01\\regression-d3d8-build_native-02.log",
+          "log_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+          "warnings": [],
+          "passed": true
+        },
+        {
+          "name": "d3d8-characterize",
+          "command": [
+            "E:\\Unreal2-Port-Investigation\\sandbox_d3d8_create_20261025_02\\.venv\\Scripts\\python.exe",
+            "-B",
+            "-I",
+            "experiments/xrt/tests/d3d8_depth/run.py",
+            "characterize",
+            "--out",
+            "E:\\Unreal2-Port-Investigation\\sandbox_d3d8_create_20261025_02\\experiments\\xrt\\build\\d3d8-create-regression"
+          ],
+          "cwd": "E:\\Unreal2-Port-Investigation\\sandbox_d3d8_create_20261025_02",
+          "exit": 0,
+          "seconds": 6.8365474000020185,
+          "log": "E:\\Unreal2-Port-Investigation\\out\\recovery\\d3d8-create-20261025-01\\regression-d3d8-characterize-02.log",
+          "log_sha256": "bca2ca90b62eea89ef4a22402b40d62dccab63e7977c4151ba25c42299aa474a",
+          "warnings": [],
+          "passed": true
+        },
+        {
+          "name": "d3d8-build_translated",
+          "command": [
+            "E:\\Unreal2-Port-Investigation\\sandbox_d3d8_create_20261025_02\\.venv\\Scripts\\python.exe",
+            "-B",
+            "-I",
+            "experiments/xrt/tests/d3d8_depth/run.py",
+            "build_translated",
+            "--out",
+            "E:\\Unreal2-Port-Investigation\\sandbox_d3d8_create_20261025_02\\experiments\\xrt\\build\\d3d8-create-regression"
+          ],
+          "cwd": "E:\\Unreal2-Port-Investigation\\sandbox_d3d8_create_20261025_02",
+          "exit": 0,
+          "seconds": 2.6867592000053264,
+          "log": "E:\\Unreal2-Port-Investigation\\out\\recovery\\d3d8-create-20261025-01\\regression-d3d8-build_translated-02.log",
+          "log_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+          "warnings": [],
+          "passed": true
+        },
+        {
+          "name": "d3d8-compare",
+          "command": [
+            "E:\\Unreal2-Port-Investigation\\sandbox_d3d8_create_20261025_02\\.venv\\Scripts\\python.exe",
+            "-B",
+            "-I",
+            "experiments/xrt/tests/d3d8_depth/run.py",
+            "compare",
+            "--out",
+            "E:\\Unreal2-Port-Investigation\\sandbox_d3d8_create_20261025_02\\experiments\\xrt\\build\\d3d8-create-regression"
+          ],
+          "cwd": "E:\\Unreal2-Port-Investigation\\sandbox_d3d8_create_20261025_02",
+          "exit": 0,
+          "seconds": 6.777931999997236,
+          "log": "E:\\Unreal2-Port-Investigation\\out\\recovery\\d3d8-create-20261025-01\\regression-d3d8-compare-02.log",
+          "log_sha256": "f96a4bea4f643c593bfdf5de6ceab93b1078cdd6989d6c87c873eb65e52b5e39",
+          "warnings": [],
+          "passed": true
+        }
+      ]
+    },
+    "acceptance": {
+      "phase": "acceptance",
+      "passed": true,
+      "runs": [
+        {
+          "name": "tracer-build",
+          "command": [
+            "cmd",
+            "/d",
+            "/c",
+            "experiments\\xrt\\tracer\\build.cmd"
+          ],
+          "cwd": "E:\\Unreal2-Port-Investigation\\sandbox_d3d8_create_20261025_02",
+          "exit": 0,
+          "seconds": 1.0868977999925846,
+          "log": "E:\\Unreal2-Port-Investigation\\out\\recovery\\d3d8-create-20261025-01\\regression-tracer-build-02.log",
+          "log_sha256": "d8d403c66db825ec1416af80168620214015f86a6d63b39b7500144102a386ea",
+          "warnings": [],
+          "passed": true
+        },
+        {
+          "name": "commandlet-vm",
+          "command": [
+            "E:\\Unreal2-Port-Investigation\\sandbox_d3d8_create_20261025_02\\.venv\\Scripts\\python.exe",
+            "-B",
+            "-I",
+            "tools/xrt/run_xrt.py",
+            "hellofull",
+            "hello_noargs",
+            "hellonew",
+            "hellofull_nosse",
+            "simple",
+            "arraytest",
+            "hello",
+            "badclass",
+            "vmprobe"
+          ],
+          "cwd": "E:\\Unreal2-Port-Investigation\\sandbox_d3d8_create_20261025_02",
+          "exit": 0,
+          "seconds": 98.4847746000014,
+          "log": "E:\\Unreal2-Port-Investigation\\out\\recovery\\d3d8-create-20261025-01\\regression-commandlet-vm-02.log",
+          "log_sha256": "dec21200379a526f90a1d8ed2b85e662f1743f52c1f99e98044ede8314d2ab3f",
+          "warnings": [],
+          "passed": true
+        },
+        {
+          "name": "unrealscript-compiler",
+          "command": [
+            "E:\\Unreal2-Port-Investigation\\sandbox_d3d8_create_20261025_02\\.venv\\Scripts\\python.exe",
+            "-B",
+            "-I",
+            "tools/xrt/compile_xrt.py"
+          ],
+          "cwd": "E:\\Unreal2-Port-Investigation\\sandbox_d3d8_create_20261025_02",
+          "exit": 0,
+          "seconds": 180.01490769999998,
+          "log": "E:\\Unreal2-Port-Investigation\\out\\recovery\\d3d8-create-20261025-01\\resume-20261025-01\\regression-unrealscript-compiler.log",
+          "log_sha256": "189eafb3a16385e477257df81191e6e27c1413dd8306e1d7efe25df6a12a9126",
+          "warnings": [],
+          "passed": true
+        },
+        {
+          "name": "traced-vm",
+          "command": [
+            "E:\\Unreal2-Port-Investigation\\sandbox_d3d8_create_20261025_02\\.venv\\Scripts\\python.exe",
+            "-B",
+            "-I",
+            "tools/xrt/run_xrt.py",
+            "vmprobe",
+            "--trace"
+          ],
+          "cwd": "E:\\Unreal2-Port-Investigation\\sandbox_d3d8_create_20261025_02",
+          "exit": 0,
+          "seconds": 50.572427999999945,
+          "log": "E:\\Unreal2-Port-Investigation\\out\\recovery\\d3d8-create-20261025-01\\resume-20261025-01\\regression-traced-vm.log",
+          "log_sha256": "d429030e19c9edd2bee154567d09a4849cafa994be990a1030d0d3a22415add4",
+          "warnings": [],
+          "passed": true
+        },
+        {
+          "name": "traced-hello",
+          "command": [
+            "E:\\Unreal2-Port-Investigation\\sandbox_d3d8_create_20261025_02\\.venv\\Scripts\\python.exe",
+            "-B",
+            "-I",
+            "tools/xrt/run_xrt.py",
+            "hellofull",
+            "--trace"
+          ],
+          "cwd": "E:\\Unreal2-Port-Investigation\\sandbox_d3d8_create_20261025_02",
+          "exit": 0,
+          "seconds": 25.46745080000005,
+          "log": "E:\\Unreal2-Port-Investigation\\out\\recovery\\d3d8-create-20261025-01\\resume-20261025-01\\regression-traced-hello.log",
+          "log_sha256": "c50a139adcf404d853e9049ad079bde60306ee8f4063f8ab3ffc4c60f932ad87",
+          "warnings": [],
+          "passed": true
+        },
+        {
+          "name": "python",
+          "command": [
+            "E:\\Unreal2-Port-Investigation\\sandbox_d3d8_create_20261025_02\\.venv\\Scripts\\python.exe",
+            "-B",
+            "-I",
+            "-m",
+            "unittest",
+            "discover",
+            "-s",
+            "tools/xrt/tests",
+            "-v"
+          ],
+          "cwd": "E:\\Unreal2-Port-Investigation\\sandbox_d3d8_create_20261025_02",
+          "exit": 0,
+          "seconds": 12.689419199999975,
+          "log": "E:\\Unreal2-Port-Investigation\\out\\recovery\\d3d8-create-20261025-01\\resume-20261025-01\\regression-python.log",
+          "log_sha256": "fa48b7117a01f5b1e9312aee7794fa69c2f7b488148ffa2cb63839620c8870d6",
+          "warnings": [],
+          "passed": true
+        }
+      ]
+    }
+  },
+  "artifact_manifest": "E:\\Unreal2-Port-Investigation\\out\\recovery\\d3d8-create-20261025-01\\artifact-identities.json",
+  "genuine_graphical_clients": 0,
+  "rendering_methods_implemented": [],
+  "original_installation_or_saves_accessed": false,
+  "ready_for_one_bounded_game_test": true,
+  "next_static_boundary": {
+    "method": "Clear",
+    "callsite": "D3DDrv.dll+0xf165",
+    "arguments": [
+      0,
+      0,
+      1,
+      0,
+      0,
+      0
+    ],
+    "then": "Present at +0xf17f (four NULL arguments)"
+  },
+  "final_integrity": {
+    "passed": true,
+    "changed": [
+      "experiments/xrt/CURRENT_STATUS.md",
+      "experiments/xrt/runtime/hle_d3d8.inc",
+      "experiments/xrt/runtime/hle_gui.c",
+      "experiments/xrt/runtime/xrt_internal.h"
+    ],
+    "preserved_working": 602,
+    "preserved_builds": 16686,
+    "preserved_raw": 17353,
+    "generated_unchanged": true,
+    "accepted_binary_unchanged": true,
+    "dependencies_verified": true,
+    "protected_assets": {
+      "manifest_sha256": "3e1807c3c1d3c2881e3353ab46d8f571654e19d10b7ded41b88304c71e172173",
+      "files": 4122,
+      "protected_trees": 3,
+      "protected_files": 9
+    },
+    "genuine_client_sessions": 0,
+    "original_installation_or_saves_accessed": false
+  },
+  "postcrash_integrity": "E:\\Unreal2-Port-Investigation\\out\\recovery\\d3d8-create-20261025-01\\resume-20261025-01\\integrity.json",
+  "system_crash_cause": "undetermined; hardware stability not established"
+}

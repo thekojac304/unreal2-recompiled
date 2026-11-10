@@ -3,7 +3,7 @@
 #include <windows.h>
 #include <commctrl.h>
 extern IMAGE_DOS_HEADER __ImageBase;
-__declspec(dllexport) int probe_log[128], probe_log_n;
+__declspec(dllexport) int probe_log[4096], probe_log_n;
 static HWND dialog;
 static int init_ok, pos_ok, nested_ok, failures;
 static void expect(int actual, int wanted)
@@ -12,6 +12,25 @@ static void expect(int actual, int wanted)
     if (actual != wanted)
         failures++;
 }
+__declspec(dllexport) int probe_keys(void) {
+    int i,phase;BYTE state[258];probe_log_n=failures=0;
+    state[0]=0xa5;state[257]=0x5a;
+    for(phase=0;phase<4;phase++) {
+        for(i=0;i<256;i++)state[i+1]=(BYTE)((((i+phase)&2)?0x80:0)|((i+phase)&1));
+        SetLastError(0x5555);expect(SetKeyboardState(state+1),1);expect((int)GetLastError(),0x5555);
+        for(i=0;i<256;i++) {
+            SetLastError(0x5555);
+            probe_log[probe_log_n++]=(int)GetKeyState(i);
+            expect((int)GetLastError(),0x5555);
+            expect(state[i+1],(((i+phase)&2)?0x80:0)|((i+phase)&1));
+        }
+        expect(state[0],0xa5);expect(state[257],0x5a);
+    }
+    SetLastError(0x5555);probe_log[probe_log_n++]=SetKeyboardState(NULL);
+    probe_log[probe_log_n++]=(int)GetLastError();
+    return failures;
+}
+__declspec(dllexport) int probe_keys_unsupported(void) {return GetKeyState(256);}
 static INT_PTR CALLBACK callback(HWND h, UINT msg, WPARAM wp, LPARAM lp)
 {
     (void)wp;

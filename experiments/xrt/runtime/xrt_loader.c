@@ -546,6 +546,7 @@ static void dispatch(CPU* c, uint32_t target, uint32_t site, const char* what) {
             target,c->r[ESP],rd32(c->r[ESP]),c->r[ECX],rd32(c->r[ESP]+4));
         if(postload) xrt_event("level_postload_call","\"target\":%u,\"esp\":%u,\"return\":%u,\"this\":%u",target,esp,ret,self);
         fn(c);
+        xrt_world_return(c);
         if(viewport_try) xrt_event("viewport_try_render_return","\"target\":%u,\"esp_before\":%u,\"esp_after\":%u,\"return\":%u,\"actual_return\":%u,\"this\":%u",target,esp,c->r[ESP],ret,c->rv,self);
         if(viewport_open) xrt_event("viewport_open_return","\"target\":%u,\"esp_before\":%u,\"esp_after\":%u,\"return\":%u,\"actual_return\":%u,\"this\":%u",target,esp,c->r[ESP],ret,c->rv,self);
         if(loadmap) xrt_event("engine_loadmap_return","\"target\":%u,\"result\":%u,\"actual_return\":%u,\"esp_before\":%u,\"esp_after\":%u,\"return\":%u,\"this\":%u",target,c->r[EAX],c->rv,esp,c->r[ESP],ret,self);

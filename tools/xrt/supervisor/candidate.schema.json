@@ -1,0 +1,89 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "Unreal II owner desktop supervisor candidate",
+  "type": "object",
+  "additionalProperties": false,
+  "properties": {
+    "version": {
+      "const": 1
+    },
+    "kind": {
+      "enum": [
+        "fixture",
+        "genuine"
+      ]
+    },
+    "executable": {
+      "type": "string",
+      "pattern": "^experiments/xrt/build/.+\\.exe$"
+    },
+    "sha256": {
+      "type": "string",
+      "pattern": "^[0-9a-f]{64}$"
+    },
+    "pdb_sha256": {
+      "anyOf": [
+        {
+          "type": "string",
+          "pattern": "^[0-9a-f]{64}$"
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
+    "build_record": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "build_record_sha256": {
+      "anyOf": [
+        {
+          "type": "string",
+          "pattern": "^[0-9a-f]{64}$"
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
+    "sources": {
+      "type": "object",
+      "minProperties": 1,
+      "additionalProperties": {
+        "type": "string",
+        "pattern": "^[0-9a-f]{64}$"
+      }
+    },
+    "dependencies": {
+      "type": "object",
+      "additionalProperties": {
+        "type": "string",
+        "pattern": "^[0-9a-f]{64}$"
+      }
+    },
+    "fixture_case": {
+      "enum": [
+        null,
+        "ok-a",
+        "ok-b",
+        "hard-stop",
+        "routine-failure"
+      ]
+    }
+  },
+  "required": [
+    "version",
+    "kind",
+    "executable",
+    "sha256",
+    "pdb_sha256",
+    "build_record",
+    "build_record_sha256",
+    "sources",
+    "dependencies",
+    "fixture_case"
+  ]
+}

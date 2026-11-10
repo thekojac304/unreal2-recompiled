@@ -16,7 +16,7 @@
 #include <stdlib.h>
 #include "xrt_internal.h"
 
-#define MAX_EVENTS 32768 /* The real client reads thousands of Golem chunks before its renderer prerequisite. */
+#define MAX_EVENTS 262144 /* Retain the complete input/UI initialization after Golem startup. */
 #define EVENT_LEN 448
 #define XRT_MARK_KEEP 8
 #define XRT_WATCH_KEEP 64
@@ -24,6 +24,50 @@
 static char (*events)[EVENT_LEN];
 static volatile LONG64 event_seq;
 static volatile long watches_armed;
+/* Optional owner-supervisor evidence sink. Synchronous fixed records survive
+ * terminate-before-continue and watchdog cleanup; disabled for ordinary runs. */
+static HANDLE event_stream=INVALID_HANDLE_VALUE;
+
+typedef struct {
+    const char* kind;
+    const char* stage;
+    uint32_t self,world,esp,ret,popped;
+} WorldCall;
+static __declspec(thread) WorldCall world_calls[128];
+
+void xrt_world_enter(CPU*c,uint32_t target) {
+    const char*kind=NULL,*stage="";uint32_t popped=4,self=c->r[ECX],world=0;unsigned i;
+    /* Engine is lifted at 10300000, checked against its native image by the build. */
+    switch(target-0x10300000u) {
+    case 0x6630:kind="actor_lifecycle";stage="PreBeginPlay";break;
+    case 0x66a0:kind="actor_lifecycle";stage="BeginPlay";break;
+    case 0x6600:kind="actor_lifecycle";stage="PostBeginPlay";break;
+    case 0x8f460:kind="engine_init";break;
+    case 0x938f0:kind="engine_tick";popped=8;break; /* thiscall Tick(float), RET 4 */
+    case 0xb5be0:kind="level_tick";world=self;popped=12;break;
+    default:return;
+    }
+    /* Native GetLevel is MOV EAX,[ECX+d4]; RET. Never infer world from call context. */
+    if(*stage && xrt_is_committed(self+0xd4,4))world=rd32(self+0xd4);
+    for(i=0;i<128;i++)if(!world_calls[i].kind) {
+        WorldCall*p=&world_calls[i];char event[64];
+        p->kind=kind;p->stage=stage;p->self=self;p->world=world;p->esp=c->r[ESP];p->ret=rd32(p->esp);p->popped=popped;
+        snprintf(event,sizeof event,"%s_call",kind);
+        xrt_event(event,"\"stage\":\"%s\",\"this\":%u,\"world\":%u,\"esp\":%u,\"return\":%u",stage,self,world,p->esp,p->ret);
+        return;
+    }
+    xrt_fatal(c,XRT_EXIT_SETUP,"world observer pending-call bound exceeded");
+}
+void xrt_world_return(CPU*c) {
+    unsigned i;
+    for(i=0;i<128;i++) {
+        WorldCall*p=&world_calls[i];char event[64];
+        if(!p->kind || c->rv!=p->ret || c->r[ESP]!=p->esp+p->popped)continue;
+        snprintf(event,sizeof event,"%s_return",p->kind);
+        xrt_event(event,"\"stage\":\"%s\",\"this\":%u,\"world\":%u,\"esp_before\":%u,\"esp_after\":%u,\"return\":%u,\"actual_return\":%u",p->stage,p->self,p->world,p->esp,c->r[ESP],p->ret,c->rv);
+        p->kind=NULL;
+    }
+}
 
 /* s is an ANSI (CP_ACP) string, as the guest and the host adapters use them; the JSON text stays pure ASCII:
  * every character outside printable ASCII becomes a \uXXXX escape of its UTF-16 value. Truncated to fit n. */
@@ -58,10 +102,19 @@ const char* xrt_jstr(char* out, size_t n, const char* s) {
 }
 
 void xrt_events_init(void) {
+    char stream_path[32768];DWORD length;
     events = calloc(MAX_EVENTS, EVENT_LEN);
     if (!events) {
         fprintf(stderr, "xrt: cannot allocate the event timeline\n");
         exit(XRT_EXIT_SETUP);
+    }
+    length=GetEnvironmentVariableA("XRT_EVENT_STREAM",stream_path,sizeof stream_path);
+    if(length) {
+        if(length>=sizeof stream_path ||
+           (event_stream=CreateFileA(stream_path,FILE_APPEND_DATA,FILE_SHARE_READ,NULL,CREATE_NEW,FILE_ATTRIBUTE_NORMAL,NULL))==INVALID_HANDLE_VALUE) {
+            fprintf(stderr,"xrt: cannot create exclusive supervisor event stream\n");
+            exit(XRT_EXIT_SETUP);
+        }
     }
 }
 
@@ -95,6 +148,14 @@ void xrt_event(const char* kind, const char* fmt, ...) {
     } else {
         snprintf(events[seq - 1], EVENT_LEN, "{\"seq\": %lld, \"thread\": %d, \"kind\": \"%s\", \"truncated\": true}", seq,
                  thread, kind);
+    }
+    if(event_stream!=INVALID_HANDLE_VALUE) {
+        DWORD written=0;
+        if(!WriteFile(event_stream,events[seq-1],EVENT_LEN,&written,NULL) || written!=EVENT_LEN) {
+            /* Avoid recursive xrt_fatal/xrt_event after an evidence write error. */
+            fprintf(stderr,"xrt: supervisor event stream write failed\n");
+            ExitProcess(XRT_EXIT_SETUP);
+        }
     }
     /* Owner-requested continuation bound. The observer emits this event only at
      * a paired return. Stop before another guest instruction; the report checks

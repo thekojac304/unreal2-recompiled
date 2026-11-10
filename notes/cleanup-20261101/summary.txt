@@ -1,0 +1,6 @@
+
+01:07:46 ilk: deleted 272 files 6.559 GiB, skipped 14
+01:07:47 selftest: deleted 460 files 7.336 GiB, skipped 34
+01:08:01 bmp: deleted 3220 files 32.898 GiB, skipped 0
+01:42:44 assets: deleted 1377376 files 387.103 GiB, skipped 13
+TOTAL recovered: E 259.6 GiB (377.0 -> 117.3), C 174.3 GiB (184.9 -> 10.6); combined remaining 127.9 GiB. Manifests: *.tsv.gz = path, size, blake2b, reason, reference copy. Skips: *-skipped.tsv

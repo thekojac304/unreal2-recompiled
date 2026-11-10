@@ -1,0 +1,43 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "Disposable desktop fixture request v2",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["version", "id", "batch_id", "created_at", "expires_at", "objective", "profile", "family", "parameters", "candidate_id", "candidate_sha256", "timeout_seconds"],
+  "properties": {
+    "version": {"const": 2},
+    "id": {"type": "string", "format": "uuid"},
+    "batch_id": {"type": "string", "format": "uuid"},
+    "candidate_id": {"type": "string", "format": "uuid"},
+    "candidate_sha256": {"type": "string", "pattern": "^[0-9a-f]{64}$"},
+    "created_at": {"type": "number"},
+    "expires_at": {"type": "number"},
+    "objective": {"type": "string", "minLength": 12, "maxLength": 1000},
+    "profile": {"enum": ["fast-development", "formal-acceptance"]},
+    "family": {"enum": ["collector-smoke", "renderer-abi", "renderer-group", "renderer-batch-23"]},
+    "parameters": {"type": "object"},
+    "timeout_seconds": {"type": "integer", "minimum": 1, "maximum": 60}
+  },
+  "oneOf": [
+    {
+      "properties": {
+        "family": {"const": "collector-smoke"}, "profile": {"const": "fast-development"},
+        "parameters": {"type": "object", "additionalProperties": false, "required": ["arch", "case"], "properties": {
+          "arch": {"enum": ["x86", "x64"]}, "case": {"enum": ["normal", "early-exit", "linger", "descendant"]}
+        }}
+      }
+    },
+    {
+      "properties": {
+        "family": {"enum": ["renderer-abi", "renderer-group"]}, "profile": {"const": "fast-development"},
+        "parameters": {"type": "object", "additionalProperties": false, "required": ["group", "arch", "variant"], "properties": {
+          "group": {"type": "integer", "minimum": 1, "maximum": 7}, "arch": {"enum": ["x86", "x64"]}, "variant": {"enum": ["native", "translated"]}
+        }, "not": {"properties": {"arch": {"const": "x86"}, "variant": {"const": "translated"}}, "required": ["arch", "variant"]}}
+      }
+    },
+    {
+      "properties": {"family": {"const": "renderer-batch-23"}, "profile": {"const": "formal-acceptance"}, "parameters": {"type": "object", "maxProperties": 0}}
+    }
+  ],
+  "$comment": "fixture_profiles.parse additionally enforces exact canonical UUIDs, live batch authorization, finite timestamps, five-minute TTL, fixed candidate inventory and replay rejection."
+}

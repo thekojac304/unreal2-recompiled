@@ -14,6 +14,8 @@
 #include "xrt_internal.h"
 
 #ifdef STUB_EVENT
+/* These adapter-only harnesses have no observed Engine lift or pending world calls. */
+void xrt_world_return(CPU* c) { (void)c; }
 void xrt_event(const char* kind, const char* fmt, ...) {
     (void)kind;
     (void)fmt;

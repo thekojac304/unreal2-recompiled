@@ -3,8 +3,9 @@ search for "\\?\\" (long-path prefix) strings, and list the path-related imports
 
 Usage: python -I callsites.py <module.dll|exe> [...]   (reads the sandbox copy; prints addresses only)"""
 import sys
+from pathlib import Path
 
-sys.path.insert(0, r"E:\Unreal2-Port-Investigation\tools\xrt")
+sys.path.insert(0, str(Path(__file__).resolve().parents[4] / "tools" / "xrt"))
 from discover import Module  # noqa: E402
 
 GUARDED = {"CreateFileW", "CreateFileA", "SetFileAttributesW", "DeleteFileW", "SetCurrentDirectoryW"}

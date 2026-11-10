@@ -1,0 +1,3 @@
+00:24:05 ilk: deleted 0 files 0.000 GiB, skipped 14
+00:24:06 selftest: deleted 0 files 0.000 GiB, skipped 34
+00:40:49 assets: deleted 709363 files 336.339 GiB, skipped 13

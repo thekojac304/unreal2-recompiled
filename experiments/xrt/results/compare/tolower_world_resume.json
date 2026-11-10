@@ -1,0 +1,550 @@
+{
+  "status": "INTEGRITY STOP; experimental, no full regression acceptance",
+  "head": "673a4d3e502549a2b49f9051b6099c41c9a73c38",
+  "binary": {
+    "path": "experiments/xrt/build/tolower-world-client-02/xrt_ucc.exe",
+    "sha256": "696d5734773612cb1620f81c9985b752265affedabdee870fd11c383c311e6fa"
+  },
+  "binary_runtime_source": {
+    "path": "experiments/xrt/runtime",
+    "files": 27,
+    "sha256": "0f910161f4928c561e753651d96889c9cb670a41ae33ef8132efe7cdba28efec"
+  },
+  "current_uncommitted_runtime": {
+    "path": "experiments/xrt/runtime",
+    "files": 27,
+    "sha256": "930233a0dd0ca0e2853fa1a6ab6ab7f52c4bb5616d77a82fb3f9dc4048831202"
+  },
+  "source_identity_manifest": {
+    "path": "experiments/xrt/results/raw/tolower-world-20261023/integrity-stop.json",
+    "sha256": "29904e569cd2544d4d703e57c4df7608bf8c91e210ad0d270333f16f9e51d57a"
+  },
+  "native_translated_tolower": {
+    "passed": true,
+    "return_cases_per_side": 4294967296,
+    "state_cases_per_configuration": 397314,
+    "C_differences": {
+      "C": 0,
+      "C932": 0,
+      "C1254": 0
+    },
+    "identities": {
+      "experiments\\xrt\\build\\tolower_boundary\\native.exe": "21e92d8d363ba8c0a2e73b72047db14c42b9cc11c6ad55a1eb89197c375d9d49",
+      "experiments\\xrt\\build\\tolower_boundary\\cand.exe": "4762399dfac161d7048f0630455a1f876f1671806d065259cd878014e5ce5c9e",
+      "sandbox_inputs\\first-world\\content\\System\\msvcr70.dll": "f68e4cdbc879423ea47d763a6768567f5f8063924f13a74239750c13fa8d168a"
+    },
+    "supported_locale": "C only; locale/MBCS configuration imports explicitly unbound",
+    "errno_last_error_and_cdecl": "C-locale state outputs identical",
+    "non_C_measurements": {
+      "en1252": {
+        "byte_changes": {
+          "0x41": "0x61",
+          "0x42": "0x62",
+          "0x43": "0x63",
+          "0x44": "0x64",
+          "0x45": "0x65",
+          "0x46": "0x66",
+          "0x47": "0x67",
+          "0x48": "0x68",
+          "0x49": "0x69",
+          "0x4a": "0x6a",
+          "0x4b": "0x6b",
+          "0x4c": "0x6c",
+          "0x4d": "0x6d",
+          "0x4e": "0x6e",
+          "0x4f": "0x6f",
+          "0x50": "0x70",
+          "0x51": "0x71",
+          "0x52": "0x72",
+          "0x53": "0x73",
+          "0x54": "0x74",
+          "0x55": "0x75",
+          "0x56": "0x76",
+          "0x57": "0x77",
+          "0x58": "0x78",
+          "0x59": "0x79",
+          "0x5a": "0x7a",
+          "0x8a": "0x9a",
+          "0x8c": "0x9c",
+          "0x8e": "0x9e",
+          "0x9f": "0xff",
+          "0xc0": "0xe0",
+          "0xc1": "0xe1",
+          "0xc2": "0xe2",
+          "0xc3": "0xe3",
+          "0xc4": "0xe4",
+          "0xc5": "0xe5",
+          "0xc6": "0xe6",
+          "0xc7": "0xe7",
+          "0xc8": "0xe8",
+          "0xc9": "0xe9",
+          "0xca": "0xea",
+          "0xcb": "0xeb",
+          "0xcc": "0xec",
+          "0xcd": "0xed",
+          "0xce": "0xee",
+          "0xcf": "0xef",
+          "0xd0": "0xf0",
+          "0xd1": "0xf1",
+          "0xd2": "0xf2",
+          "0xd3": "0xf3",
+          "0xd4": "0xf4",
+          "0xd5": "0xf5",
+          "0xd6": "0xf6",
+          "0xd8": "0xf8",
+          "0xd9": "0xf9",
+          "0xda": "0xfa",
+          "0xdb": "0xfb",
+          "0xdc": "0xfc",
+          "0xdd": "0xfd",
+          "0xde": "0xfe"
+        },
+        "faults": 0,
+        "errno_changes": 0,
+        "last_error_changes": 526,
+        "calling_convention_failures": 0,
+        "selected": {
+          "0xffffffff": {
+            "result": "0xff",
+            "exception": "0x0",
+            "errno": "0x5a5a",
+            "last_error": "0x12345678"
+          },
+          "0x49": {
+            "result": "0x69",
+            "exception": "0x0",
+            "errno": "0x5a5a",
+            "last_error": "0x12345678"
+          },
+          "0xc0": {
+            "result": "0xe0",
+            "exception": "0x0",
+            "errno": "0x5a5a",
+            "last_error": "0x12345678"
+          },
+          "0xdd": {
+            "result": "0xfd",
+            "exception": "0x0",
+            "errno": "0x5a5a",
+            "last_error": "0x12345678"
+          },
+          "0x824f": {
+            "result": "0x6f",
+            "exception": "0x0",
+            "errno": "0x5a5a",
+            "last_error": "0x12345678"
+          },
+          "0x8260": {
+            "result": "0x60",
+            "exception": "0x0",
+            "errno": "0x5a5a",
+            "last_error": "0x12345678"
+          },
+          "0x10041": {
+            "result": "0x61",
+            "exception": "0x0",
+            "errno": "0x5a5a",
+            "last_error": "0x12345678"
+          },
+          "0x7fffffff": {
+            "result": "0xff",
+            "exception": "0x0",
+            "errno": "0x5a5a",
+            "last_error": "0x12345678"
+          },
+          "0x80000000": {
+            "result": "0x80000000",
+            "exception": "0x0",
+            "errno": "0x5a5a",
+            "last_error": "0x57"
+          }
+        }
+      },
+      "tr1254": {
+        "byte_changes": {
+          "0x41": "0x61",
+          "0x42": "0x62",
+          "0x43": "0x63",
+          "0x44": "0x64",
+          "0x45": "0x65",
+          "0x46": "0x66",
+          "0x47": "0x67",
+          "0x48": "0x68",
+          "0x49": "0x69",
+          "0x4a": "0x6a",
+          "0x4b": "0x6b",
+          "0x4c": "0x6c",
+          "0x4d": "0x6d",
+          "0x4e": "0x6e",
+          "0x4f": "0x6f",
+          "0x50": "0x70",
+          "0x51": "0x71",
+          "0x52": "0x72",
+          "0x53": "0x73",
+          "0x54": "0x74",
+          "0x55": "0x75",
+          "0x56": "0x76",
+          "0x57": "0x77",
+          "0x58": "0x78",
+          "0x59": "0x79",
+          "0x5a": "0x7a",
+          "0x8a": "0x9a",
+          "0x8c": "0x9c",
+          "0x9f": "0xff",
+          "0xc0": "0xe0",
+          "0xc1": "0xe1",
+          "0xc2": "0xe2",
+          "0xc3": "0xe3",
+          "0xc4": "0xe4",
+          "0xc5": "0xe5",
+          "0xc6": "0xe6",
+          "0xc7": "0xe7",
+          "0xc8": "0xe8",
+          "0xc9": "0xe9",
+          "0xca": "0xea",
+          "0xcb": "0xeb",
+          "0xcc": "0xec",
+          "0xcd": "0xed",
+          "0xce": "0xee",
+          "0xcf": "0xef",
+          "0xd0": "0xf0",
+          "0xd1": "0xf1",
+          "0xd2": "0xf2",
+          "0xd3": "0xf3",
+          "0xd4": "0xf4",
+          "0xd5": "0xf5",
+          "0xd6": "0xf6",
+          "0xd8": "0xf8",
+          "0xd9": "0xf9",
+          "0xda": "0xfa",
+          "0xdb": "0xfb",
+          "0xdc": "0xfc",
+          "0xde": "0xfe"
+        },
+        "faults": 0,
+        "errno_changes": 0,
+        "last_error_changes": 526,
+        "calling_convention_failures": 0,
+        "selected": {
+          "0xffffffff": {
+            "result": "0xff",
+            "exception": "0x0",
+            "errno": "0x5a5a",
+            "last_error": "0x12345678"
+          },
+          "0x49": {
+            "result": "0x69",
+            "exception": "0x0",
+            "errno": "0x5a5a",
+            "last_error": "0x12345678"
+          },
+          "0xc0": {
+            "result": "0xe0",
+            "exception": "0x0",
+            "errno": "0x5a5a",
+            "last_error": "0x12345678"
+          },
+          "0xdd": {
+            "result": "0xdd",
+            "exception": "0x0",
+            "errno": "0x5a5a",
+            "last_error": "0x12345678"
+          },
+          "0x824f": {
+            "result": "0x6f",
+            "exception": "0x0",
+            "errno": "0x5a5a",
+            "last_error": "0x12345678"
+          },
+          "0x8260": {
+            "result": "0x60",
+            "exception": "0x0",
+            "errno": "0x5a5a",
+            "last_error": "0x12345678"
+          },
+          "0x10041": {
+            "result": "0x61",
+            "exception": "0x0",
+            "errno": "0x5a5a",
+            "last_error": "0x12345678"
+          },
+          "0x7fffffff": {
+            "result": "0xff",
+            "exception": "0x0",
+            "errno": "0x5a5a",
+            "last_error": "0x12345678"
+          },
+          "0x80000000": {
+            "result": "0x80000000",
+            "exception": "0x0",
+            "errno": "0x5a5a",
+            "last_error": "0x57"
+          }
+        }
+      },
+      "ja932": {
+        "byte_changes": {
+          "0x41": "0x61",
+          "0x42": "0x62",
+          "0x43": "0x63",
+          "0x44": "0x64",
+          "0x45": "0x65",
+          "0x46": "0x66",
+          "0x47": "0x67",
+          "0x48": "0x68",
+          "0x49": "0x69",
+          "0x4a": "0x6a",
+          "0x4b": "0x6b",
+          "0x4c": "0x6c",
+          "0x4d": "0x6d",
+          "0x4e": "0x6e",
+          "0x4f": "0x6f",
+          "0x50": "0x70",
+          "0x51": "0x71",
+          "0x52": "0x72",
+          "0x53": "0x73",
+          "0x54": "0x74",
+          "0x55": "0x75",
+          "0x56": "0x76",
+          "0x57": "0x77",
+          "0x58": "0x78",
+          "0x59": "0x79",
+          "0x5a": "0x7a"
+        },
+        "faults": 0,
+        "errno_changes": 0,
+        "last_error_changes": 103553,
+        "calling_convention_failures": 0,
+        "selected": {
+          "0xffffffff": {
+            "result": "0xffffffff",
+            "exception": "0x0",
+            "errno": "0x5a5a",
+            "last_error": "0x459"
+          },
+          "0x49": {
+            "result": "0x69",
+            "exception": "0x0",
+            "errno": "0x5a5a",
+            "last_error": "0x12345678"
+          },
+          "0xc0": {
+            "result": "0xc0",
+            "exception": "0x0",
+            "errno": "0x5a5a",
+            "last_error": "0x12345678"
+          },
+          "0xdd": {
+            "result": "0xdd",
+            "exception": "0x0",
+            "errno": "0x5a5a",
+            "last_error": "0x12345678"
+          },
+          "0x824f": {
+            "result": "0x824f",
+            "exception": "0x0",
+            "errno": "0x5a5a",
+            "last_error": "0x12345678"
+          },
+          "0x8260": {
+            "result": "0x8281",
+            "exception": "0x0",
+            "errno": "0x5a5a",
+            "last_error": "0x12345678"
+          },
+          "0x10041": {
+            "result": "0x61",
+            "exception": "0x0",
+            "errno": "0x5a5a",
+            "last_error": "0x12345678"
+          },
+          "0x7fffffff": {
+            "result": "0x7fffffff",
+            "exception": "0x0",
+            "errno": "0x5a5a",
+            "last_error": "0x459"
+          },
+          "0x80000000": {
+            "result": "0x80000000",
+            "exception": "0x0",
+            "errno": "0x5a5a",
+            "last_error": "0x57"
+          }
+        }
+      }
+    }
+  },
+  "highest_milestone": "T2: selected CS_Intro LoadMap and initial actor lifecycle; later observed spawned actors also returned",
+  "selected_world": "0x12f52800",
+  "initial_lifecycle": {
+    "calls": {
+      "PreBeginPlay": 268,
+      "BeginPlay": 268,
+      "PostBeginPlay": 268
+    },
+    "paired_returns": {
+      "PreBeginPlay": 268,
+      "BeginPlay": 268,
+      "PostBeginPlay": 268
+    },
+    "distinct_actors": 267
+  },
+  "all_selected_lifecycle": {
+    "calls": {
+      "PreBeginPlay": 279,
+      "BeginPlay": 279,
+      "PostBeginPlay": 279
+    },
+    "paired_returns": {
+      "PreBeginPlay": 279,
+      "BeginPlay": 279,
+      "PostBeginPlay": 279
+    },
+    "distinct_actors": 278,
+    "unpaired": []
+  },
+  "prior_later_actor": {
+    "address": "0x1474ee00",
+    "paired_stages": [
+      {
+        "stage": "PreBeginPlay",
+        "call": 26225,
+        "returned": 26234
+      },
+      {
+        "stage": "BeginPlay",
+        "call": 26235,
+        "returned": 26236
+      },
+      {
+        "stage": "PostBeginPlay",
+        "call": 26237,
+        "returned": 26259
+      }
+    ],
+    "complete": true
+  },
+  "engine_init": {
+    "entries": 1,
+    "returns": 0
+  },
+  "engine_tick": {
+    "entries": 0,
+    "returns": 0
+  },
+  "selected_world_tick": {
+    "entries": 0,
+    "returns": 0
+  },
+  "d3d": {
+    "CreateDevice_calls": 0,
+    "Present_calls": 0,
+    "query_imports": {
+      "xrt.com!D8.GetAdapterCount": {
+        "calls": 1,
+        "by_module": {
+          "D3DDrv.dll": 1
+        }
+      },
+      "xrt.com!D8.GetAdapterIdentifier": {
+        "calls": 2,
+        "by_module": {
+          "D3DDrv.dll": 2
+        }
+      },
+      "xrt.com!D8.CheckDeviceFormat": {
+        "calls": 3,
+        "by_module": {
+          "D3DDrv.dll": 3
+        }
+      },
+      "xrt.com!D8.GetDeviceCaps": {
+        "calls": 1,
+        "by_module": {
+          "D3DDrv.dll": 1
+        }
+      }
+    }
+  },
+  "first_reproducible_execution_blocker": {
+    "seq": 74347,
+    "thread": 0,
+    "kind": "fatal",
+    "code": 75,
+    "message": "call to import user32.dll!SetKeyboardState, which has no host implementation (from 111044bd (WinDrv.dll+44bd, in f_11104430+8d ?UpdateInput@UWindowsViewport@@UAEXHM@Z))"
+  },
+  "process_exit": 75,
+  "events_recorded": 74358,
+  "events_dropped": 0,
+  "keyboard_fixture": {
+    "passed": true,
+    "GetKeyState_cases": 1024,
+    "SetKeyboardState_valid_calls": 4,
+    "SetKeyboardState_NULL": {
+      "result": 0,
+      "last_error": 998
+    },
+    "negative_key_256_exit": 76,
+    "scope": "Native x86 and actual lifted/runtime fixture; SetKeyboardState adapter has not been built into or executed in a client"
+  },
+  "regression": {
+    "focused_tolower": "PASS",
+    "focused_observer_tests": "5 PASS before client execution",
+    "gui_keyboard": "PASS",
+    "full_commandlet_VM_compiler_Python_sweep": "NOT RUN: held at unexpected binary identity drift",
+    "guest_TEB_additional_fixture": "written, NOT RUN",
+    "floor_ceil": "NOT RERUN"
+  },
+  "compiler": {
+    "full_serial_client_build": "PASS",
+    "serial_runtime_relink_02": "PASS",
+    "GUI_fixture_builds": "PASS",
+    "C1001_D8040_seen_this_phase": false,
+    "prior_instability_resolved": false,
+    "hardware_health_established": false
+  },
+  "integrity": {
+    "manifest": {
+      "manifest_sha256": "3e1807c3c1d3c2881e3353ab46d8f571654e19d10b7ded41b88304c71e172173",
+      "files": 4122,
+      "protected_trees": 3,
+      "protected_files": 9
+    },
+    "original_validated_binary_unchanged": true,
+    "prior_validation_evidence_differences": 0,
+    "all_recorded_objects_unchanged": true,
+    "generated_inputs_unchanged": true,
+    "changed_binary": {
+      "expected_binary": {
+        "path": "experiments/xrt/build/tolower-world-client-01/xrt_ucc.exe",
+        "sha256": "d17d8f639f671d1f382dcb9e0da4a4d7b7d9f9a39b7c96ff99ce9228e54a0c11"
+      },
+      "observed_sha256": [
+        "6f2d48ad78aa77c28e827e89ad77ede3a5d41d52bdf18e33b9dc99a137e6b9fe",
+        "6f2d48ad78aa77c28e827e89ad77ede3a5d41d52bdf18e33b9dc99a137e6b9fe",
+        "6f2d48ad78aa77c28e827e89ad77ede3a5d41d52bdf18e33b9dc99a137e6b9fe"
+      ],
+      "size": 121290240,
+      "mtime_ns": 1792791156257192500,
+      "ctime_ns": 1792791155931622200,
+      "nlink": 1,
+      "identity_sha256": "aca6dad2eda3e00b76b2faec7e7298fec3ca232ac0bf6b62c0b142a15be2c594",
+      "object_differences": {},
+      "generated_inputs_match": true
+    },
+    "original_installation_read": false,
+    "original_saves_read": false,
+    "prior_working_changes_preserved": true
+  },
+  "known_open_findings": {
+    "expanded_CRT": "110 mismatches / 1796 pending; not rerun",
+    "ACP932": "six differences; not rerun",
+    "x87": "sticky-status, tag/large-input and double-rounding limitations remain"
+  },
+  "first_run_observer_limit": "game-01: 74358 events, 41590 dropped; no milestone verdict accepted. game-02: capacity 262144, zero dropped",
+  "next_experiment": "Owner-reviewed integrity investigation of the preserved client-01 discrepancy, using repeated read-only binary/object/source comparisons; no game execution until that gate is resolved. Then fresh serial relink with the already fixture-tested SetKeyboardState adapter.",
+  "committed": false,
+  "pushed": false,
+  "released": false,
+  "evidence_run": "experiments\\xrt\\results\\raw\\level\\20261023-213843-9b35dfe9-candidate"
+}

@@ -20,10 +20,14 @@ for mode,c in [('positive',c)for c in range(4)]+[(m,0)for m in ['wrong-type','se
         assert n['stdout'].count('callback ')==1012
         assert any(e['kind']=='gui_get_icon_callback_return' and e['icon'] for e in data['events'])
         assert all(e['icon']==0 or 0xfb000000<=e['icon']<0xfb001000 for e in data['events'] if e['kind']=='gui_get_icon_callback_return')
+    elif mode=='dpi':
+        assert t['exit']==0 and t['stdout']==n['stdout'],runs
+        callbacks=[e for e in data['events'] if e['kind']=='gui_get_icon_callback_return']
+        assert len(callbacks)==1 and callbacks[0]['selector']==0 and callbacks[0]['dpi']==96
     else:
         assert t['exit']==76,runs
         fatal=next(e for e in data['events']if e['kind']=='fatal')
         assert ('unknown class object' if mode=='wrong-type' else 'unmeasured selector/DPI')in fatal['message']
     rows.append(dict(mode=mode,class_icons=c,passed=True,runs=runs,events_recorded=data['events_recorded'],events_dropped=data['events_dropped']))
-result=dict(passed=True,runs=rows,samples=1156,callback_records=4048,explicit_unsupported=3)
-(B/'results.json').write_text(json.dumps(result,indent=2));print('WM_GETICON native/translated PASS: 1156 samples, 4048 callback records; three explicit unsupported cases')
+result=dict(passed=True,runs=rows,samples=1156,callback_records=4048,explicit_unsupported=2,dpi96_small_native_translated_equal=True)
+(B/'results.json').write_text(json.dumps(result,indent=2));print('WM_GETICON native/translated PASS: 1156 samples, 4048 callback records; DPI96 equality and two explicit unsupported cases')

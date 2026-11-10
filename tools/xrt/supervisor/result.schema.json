@@ -1,0 +1,89 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "Unreal II owner desktop supervisor result",
+  "type": "object",
+  "additionalProperties": false,
+  "properties": {
+    "version": {
+      "const": 1
+    },
+    "request_file": {
+      "type": "string"
+    },
+    "batch_id": {
+      "type": "string",
+      "format": "uuid"
+    },
+    "evidence": {
+      "type": "string"
+    },
+    "started_at": {
+      "type": "number"
+    },
+    "finished_at": {
+      "type": "number"
+    },
+    "gameplay_verified": {
+      "const": false
+    },
+    "strict_x87": {
+      "type": "string"
+    },
+    "strict_wndproc_equality": {
+      "type": "string"
+    },
+    "classification": {
+      "enum": [
+        "fixture-complete",
+        "rejected",
+        "expected-unsupported-method",
+        "permanent-stop",
+        "unexpected-stop",
+        "timeout",
+        "unclassified-discrepancy",
+        "integrity-or-unclassified-failure"
+      ]
+    },
+    "passed": {
+      "type": "boolean"
+    },
+    "id": {
+      "type": "string",
+      "format": "uuid"
+    },
+    "sandbox": {
+      "type": "string"
+    },
+    "reason": {
+      "type": "string"
+    },
+    "error": {
+      "type": [
+        "string",
+        "null"
+      ]
+    },
+    "cleanup": {
+      "type": "object"
+    },
+    "operational_state": {
+      "enum": ["RUNNING", "DIAGNOSTIC HOLD", "SAFETY HALT"]
+    },
+    "failure_category": {
+      "type": "string"
+    }
+  },
+  "required": [
+    "version",
+    "request_file",
+    "batch_id",
+    "evidence",
+    "started_at",
+    "finished_at",
+    "gameplay_verified",
+    "strict_x87",
+    "strict_wndproc_equality",
+    "classification",
+    "passed"
+  ]
+}

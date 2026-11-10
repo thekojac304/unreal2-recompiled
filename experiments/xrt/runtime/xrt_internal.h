@@ -138,6 +138,8 @@ uint32_t xrt_module_export(XrtModule* m, const char* name, uint32_t ordinal);
 XrtFn xrt_lookup(uint32_t va, const char** stub_name);
 uint32_t xrt_lookup_containing(uint32_t va);                /* lifted function entry at or below va */
 uint32_t xrt_call_guest(CPU* c, uint32_t va, int nargs, const uint32_t* args, int stdcall);
+void xrt_world_enter(CPU* c, uint32_t target);
+void xrt_world_return(CPU* c);
 uint32_t xrt_call_funclet(CPU* c, uint32_t va);   /* EH funclet call: no args, not a host boundary */
 uint32_t xrt_call_continuation(CPU* c, uint32_t va, uint32_t expected_return);  /* run code at va until it returns */
 uint32_t xrt_hle_data(const char* dll, const char* name);  /* guest address of an HLE data object */
@@ -181,6 +183,13 @@ uint32_t xrt_system_module_generation(CPU* c,uint32_t token);
 void xrt_cleanup_atoms(void);
 void xrt_cleanup_register(void (*fn)(void)); /* owned host resources, also on handled fatal stops */
 void xrt_cleanup_input_settings(void); /* timeout watchdog: no concurrent COM Release */
+/* Scoped synchronous callbacks and owned window identities for native D3D8. */
+CPU* xrt_gui_callback_enter(CPU* c);
+void xrt_gui_callback_leave(CPU* previous);
+void* xrt_gui_device_window(CPU* c,uint32_t token);
+uint32_t xrt_gui_window_identity(CPU* c,void* host);
+void xrt_gui_window_pin(CPU* c,uint32_t token);
+void xrt_gui_window_unpin(uint32_t token);
 
 /* process */
 extern char xrt_sandbox_root[520];         /* writes are only permitted below this directory */

@@ -1,6 +1,7 @@
 """Validate reused checkpoint objects/headers, and bind a client build to its actual source and lift inputs."""
 import argparse
 import json
+import re
 from pathlib import Path
 import sys
 import pefile
@@ -44,7 +45,8 @@ def main():
                                       ("legend", "Legend.dll", "0x0ff40000"),
                                       ("ui", "UI.dll", "0x19120000"),
                                       ("u2", "U2.dll", "0x10060000"),
-                                      ("u2dialog", "U2Dialog.dll", "0x19630000")]:
+                                      ("u2dialog", "U2Dialog.dll", "0x19630000"),
+                                      ("u2ai", "U2AI.dll", "0x1c6d0000")]:
         meta = json.loads((WS / "experiments/xrt/gen" / stem / (name.split('.')[0] + "_meta.json")).read_text())
         if int(meta["base"],16) != int(expected_base,16) or meta["sha256"] != R.sha256_file(WS / "sandbox_cmp/level/System" / name):
             raise RuntimeError(f"client lift/input/base mismatch: {name}")
@@ -60,19 +62,32 @@ def main():
                 raise RuntimeError(f"overlapping client lift ranges: {name} and {other_name}")
         ranges.append((lo, hi, name))
         lifts.append(meta)
-    identity = {"git": R.git_identity(), "base_identity": R.file_identity(str(base / "identity.json")),
+    observed_engine = [p for p in sorted((WS / 'experiments/xrt/gen/engine').glob('*.c'))
+                       if p.name != 'Engine_table.c' and re.search(r'f_103(?:06630|066a0|06600|8f460|938f0|b5be0)\b',p.read_text())]
+    observed_objects = {p.stem + '.obj' for p in observed_engine}
+    client_sources = [p for stem in ["unreal2","windrv","d3ddrv","particlesystems","legend","ui","u2","u2dialog","u2ai"]
+                      for p in (WS / 'experiments/xrt/gen' / stem).glob('*.c')]
+    identity = {"git": R.git_identity(), "world_observer_units": [p.name for p in observed_engine], "base_identity": R.file_identity(str(base / "identity.json")),
                 "baseline_binary": checkpoint["binary_sha256"], "runtime": R.tree_digest(str(WS / "experiments/xrt/runtime")),
                 "generated": R.tree_digest(str(WS / "experiments/xrt/gen")), "lifter": R.file_identity(str(WS / "tools/xrt/xlift.py")),
                 "client_lifts": lifts, "build_script": R.file_identity(str(WS / "experiments/xrt/build_client.cmd")),
                 "identity_driver": R.file_identity(str(Path(__file__).resolve()))}
     out.mkdir(parents=True, exist_ok=True)
+    # Recompile the exact unchanged Engine lift with read-only direct-call observers.
+    # Other baseline generated objects remain hash-verified and are linked verbatim.
+    (out / 'base-objects.rsp').write_text('\n'.join('"' + str(base / 'obj' / p) + '"'
+        for p in checkpoint['build_outputs'] if p.startswith('gen/') and Path(p).name not in observed_objects))
+    (out / 'engine-sources.rsp').write_text('\n'.join('"' + str(p) + '"'
+        for p in observed_engine))
+    (out / 'client-sources.rsp').write_text('\n'.join('"' + str(p) + '"'
+        for p in client_sources if p.name != 'ParticleSystems_001.c'))
     if a.record:
         plan = json.loads((out / "client-plan.json").read_text())
         if any(plan[k] != identity[k] for k in ["runtime", "generated", "lifter", "base_identity", "build_script", "identity_driver"]):
             raise RuntimeError("source/lifts/base changed during client build")
-        client_sources = [p for stem in ["unreal2","windrv","d3ddrv","particlesystems","legend","ui","u2","u2dialog"] for p in (WS / "experiments/xrt/gen" / stem).glob("*.c")]
         runtime_sources = list((WS / "experiments/xrt/runtime").glob("*.c"))
-        for folder, sources in [("client",client_sources),("rt",runtime_sources)]:
+        for folder, sources in [("client",client_sources),("rt",runtime_sources),
+                                ("engine",observed_engine)]:
             if {p.name for p in (out / "obj" / folder).glob("*.obj")} != {p.stem+".obj" for p in sources}:
                 raise RuntimeError(f"unexpected/missing {folder} objects; wildcard linking refused")
         identity["binary"] = R.file_identity(str(out / "xrt_ucc.exe"))

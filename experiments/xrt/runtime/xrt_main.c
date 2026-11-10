@@ -20,7 +20,7 @@
 extern const XrtLiftedModule xrt_mod_UCC, xrt_mod_Core, xrt_mod_Engine, xrt_mod_GlmLib, xrt_mod_Editor, xrt_mod_Window,
     xrt_mod_UnrImp, xrt_mod_Fire;
 #ifdef XRT_WITH_UNREAL2
-extern const XrtLiftedModule xrt_mod_Unreal2, xrt_mod_WinDrv, xrt_mod_D3DDrv, xrt_mod_ParticleSystems, xrt_mod_Legend, xrt_mod_UI, xrt_mod_U2, xrt_mod_U2Dialog;
+extern const XrtLiftedModule xrt_mod_Unreal2, xrt_mod_WinDrv, xrt_mod_D3DDrv, xrt_mod_ParticleSystems, xrt_mod_Legend, xrt_mod_UI, xrt_mod_U2, xrt_mod_U2Dialog, xrt_mod_U2AI;
 #endif
 void hle_msvcr70_init(void);
 
@@ -35,7 +35,7 @@ void hle_msvcr70_init(void);
 static const XrtLiftedModule* const lifted_all[] = {&xrt_mod_UCC, &xrt_mod_Core, &xrt_mod_Engine, &xrt_mod_GlmLib,
                                                     &xrt_mod_Editor, &xrt_mod_Window, &xrt_mod_UnrImp, &xrt_mod_Fire
 #ifdef XRT_WITH_UNREAL2
-                                                    , &xrt_mod_Unreal2, &xrt_mod_WinDrv, &xrt_mod_D3DDrv, &xrt_mod_ParticleSystems, &xrt_mod_Legend, &xrt_mod_UI, &xrt_mod_U2, &xrt_mod_U2Dialog
+                                                    , &xrt_mod_Unreal2, &xrt_mod_WinDrv, &xrt_mod_D3DDrv, &xrt_mod_ParticleSystems, &xrt_mod_Legend, &xrt_mod_UI, &xrt_mod_U2, &xrt_mod_U2Dialog, &xrt_mod_U2AI
 #endif
 };
 #define NLIFTED ((int)(sizeof lifted_all / sizeof lifted_all[0]))

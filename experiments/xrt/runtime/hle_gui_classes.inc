@@ -176,6 +176,19 @@ CT(32) CT(33) CT(34) CT(35) CT(36) CT(37) CT(38) CT(39) CT(40) CT(41) CT(42) CT(
 CT(48) CT(49) CT(50) CT(51) CT(52) CT(53) CT(54) CT(55) CT(56) CT(57) CT(58) CT(59) CT(60) CT(61) CT(62) CT(63)};
 #undef CT
 #undef CLASS_THUNK
+/* Only the actual Unicode class registration admits the measured window
+ * protocol. Arbitrary explicit CallWindowProc targets do not inherit it. */
+static int registered_getobject_proc(HWND h, uint32_t proc) {
+    DWORD error=GetLastError();
+    WNDPROC host=(WNDPROC)GetClassLongPtrW(h,GCLP_WNDPROC);
+    unsigned i;int match=0;
+    for(i=0;i<class_count;i++)
+        if(host==class_thunks[i] && classes[i].live && classes[i].wide && classes[i].proc==proc) {
+            match=classes[i].generation==owner_generation(callback_cpu,classes[i].owner);
+            break;
+        }
+    SetLastError(error);return match;
+}
 static PriorProc* prior_find(CPU* c,uint32_t id) {
     unsigned i;
     for(i=0;i<prior_count;i++) if(prior_procs[i].id==id) {

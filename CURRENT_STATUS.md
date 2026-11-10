@@ -1,4 +1,296 @@
-# Current continuation: isolated DirectInput mouse setup works; compiler stability hold
+# Initialization monitoring milestone qualified; genuine Init NOT READY
+
+2026-10-30. All 145 inventoried host COM sites and 95 SDK-checked Windows
+signatures are instrumented. Owned validation passes for nested callbacks,
+real DirectMusic COM/IPC, resource maps/lifetimes, guest EH/ExitThread and
+production-debugger composition. Instrumentation inventory is not full live coverage.
+All 11 monitoring/containment suites and 81 supervisor tests pass. The genuine
+60-second throughput budget and remaining Init coverage/environment gates do not.
+
+Candidate `cb471ed3630158574571356806ec14d1e3a65cbd293ed50d1d5681244975d01f`; checked stop at loaded base +
+`0x6a010af`, bytes `89 5F 44`, before guest `0x1090ED5C`.
+No genuine game launched/queued/retried; prior failures, production policy and
+protected installation/save assets remain unchanged.
+
+[Report](out/recovery/init-runtime-finish-20261030-01/REPORT.txt),
+[readiness](out/recovery/init-runtime-finish-20261030-01/readiness.json),
+[reproduction](experiments/xrt/tests/init_runtime_finish/README.md).
+
+---
+
+# Common runtime monitoring implemented; genuine continuation NOT READY
+
+2026-10-30. A fresh experimental runtime now traces common imports, native COM
+entry/return, callbacks, resource lifetime and Init boundaries without routine
+method hardware breakpoints. It wraps 138 D3D8/DirectInput native COM sites with
+123 typed interface/method descriptors. Live owned tests pass for nesting,
+four actual guest threads, resource generation/binding/maps, DirectInput, GUI,
+FPU/error preservation, evidence failures and unchanged Job/watchdog containment.
+
+The 281-object candidate is `75530d04d139539a6ae8f51eee49c5b6b7770fad9c99b2536867ccdb0fc2a8cb`. Its verified Init stop is
+guest `0x1090ED5C`, host RVA `0x69f3bff`, bytes `89 5F 44`.
+No genuine candidate instruction executed. Production supervisor/runtime sources,
+authorization, prior evidence, installation and saves are preserved.
+
+Readiness remains **NOT_READY**: full typed Windows/GUI native coverage, dynamic
+payloads, nonlocal exits, cleanup identities, guest state consumers and production
+observer integration remain incomplete. Strict historical failures remain FAILED.
+One-launch/60-second/no-retry constraints are retained; no launch command is issued.
+
+[Architecture and coverage](experiments/xrt/tests/runtime_monitoring/README.md),
+[qualification report](out/recovery/runtime-monitoring-20261030-01/REPORT.txt),
+[readiness](out/recovery/runtime-monitoring-20261030-01/readiness.json).
+
+---
+
+# Init monitoring composition staged; genuine continuation NOT READY
+
+2026-10-30. Detailed renderer native/callback handlers are composed with paired
+Init observations in a separate, fail-closed preparation. Ten owned non-game
+cases pass with all-thread hardware readbacks and contained cleanup. An additional
+adversarial callback checkpoint case **fails full monitoring qualification**:
+the operation checkpoint is absent while fatal, endpoint and callback entry/return
+occupy all four slots. DirectInput/GUI and resource-lifetime integration, additional
+renderer signatures and guest error/status consumer tracking remain incomplete.
+
+The unchanged candidate `18b09c7cc054c37eca0513f24856f31483a6bc298efc7c2d2f622e3b65f66a60`
+reverifies with its PDB, 279-object lineage and 60 linked adapters. The proposed
+endpoint remains before guest `0x1090ED5C`, host RVA `0x06E043EF`, bytes `89 5F 44`.
+Strict native-x86 compatibility remains **FAILED**; measured physical renderer
+functional qualification is retained. No game launch, GPU rerun, active policy
+change, candidate retry, installation/save change or remote push occurred.
+
+No owner launch procedure is issued because the monitoring gates have not passed.
+Historical receipt content hashes match; three assessment receipts were rewritten
+byte-identically by a retained test script, changing timestamps. That runner is
+corrected, and the preservation exception is documented without backdating.
+
+[Preparation report](out/recovery/init-monitoring-20261030-01/REPORT.txt),
+[readiness](out/recovery/init-monitoring-20261030-01/readiness.json),
+[reproduction guide](experiments/xrt/tests/init_monitoring/README.md).
+
+---
+
+# Physical integrated fixtures completed; strict three-way qualification failed
+
+2026-10-30. The owner-authorized physical supervisor ran each sealed native x86,
+native x64 and translated x64 resource/surface fixture once. All physical desktop,
+process/module/build/backend/ICD and Job checks passed on the RTX 5090, with exit 0
+and zero remaining processes. All 114 operations per variant completed; draw
+readbacks and all 64 patterned CopyRects pixels agree. Original collector failures
+(`missing/duplicate ownership`) and all strict historical verdicts are preserved.
+
+The separately staged supplemental parser requires the compiler-proven CPU size
+of 408 bytes on native x86 and 416 on x64, retaining every captured byte. Ten
+qualification tests pass. Its strict physical audit still fails: seven outer
+FPU-status changes per variant, plus native-x86 CreateTexture last-error `0`
+versus `0x13572468` on both x64 variants. The remaining independent checks pass;
+native x64 and translated x64 functional measurements match. This is not a
+three-way pass or formal acceptance, and no failure was normalized away.
+
+The genuine Init continuation to guest `0x1090ED5C` was not advanced. No game ran,
+no production breakpoint or supervisor source changed, and the candidate remains
+unconsumed. The next owner action is review of these concrete compatibility
+failures and the required scope for further work; genuine execution still needs
+separate explicit authorization. The sealed original handoff is preserved.
+
+[Physical report](out/recovery/physical-integrated-20261030-01/REPORT.txt),
+[domain audit](out/recovery/physical-integrated-20261030-01/domain-audit.json).
+
+---
+
+# Integrated candidate verified; separate GPU and Init-return handoffs prepared
+
+2026-10-30. The completed surface-transfer executable is adopted unchanged as the
+single integrated experimental candidate. Combined resource/surface/scene contracts
+pass 15,331 checks per architecture; DirectInput transfer, real GUI, supervisor (81),
+collector (105), and 28 isolated evidence/observer tests pass. All 279 object
+lineages, PE/PDB identity, dependencies and 60 linked adapters verify.
+
+The audit found and fixed a staged-observer construction blocker: its old 40-byte
+D3D registry assertion now uses the exact PDB-verified 280-byte layout. The proposed
+stop before guest `0x1090ED5C` now pairs raw Init entry/return CPUs and runtime
+events. Owned non-game hardware and composed-observer failure tests pass.
+Original Init/InitAudio boundaries and the original `-nosound` branch are verified.
+No additional definite game-startup blocker warranted a runtime change.
+
+The revised three-fixture GPU package detects ignored/misplaced rectangle copies.
+It is compiled and identity-verified, unsubmitted and unexecuted. The unchanged
+collector's older numerical schema will reject the new records; a supplemental
+saved-evidence audit retains that verdict and checks physical process/GPU evidence.
+Formal physical acceptance remains pending.
+
+Candidate SHA256:
+`18b09c7cc054c37eca0513f24856f31483a6bc298efc7c2d2f622e3b65f66a60`.
+One future 60-second Init-return continuation is prepared for **separate owner
+authorization**, with no retry or main-loop tick admission. No genuine game, GPU
+fixture, supervisor authorization change or remote-console attempt occurred.
+Historical strict failures and independent DirectInput last-error differences remain.
+
+[Integrated report](out/recovery/integrated-candidate-20261030-01/REPORT.txt),
+[owner handoff](out/recovery/integrated-candidate-20261030-01/OWNER-HANDOFF.txt),
+[reproduction guide](experiments/xrt/tests/integrated_candidate/README.md).
+
+---
+
+# Surface transfer and conditional window transitions complete; physical batch prepared
+
+2026-10-30. A new isolated development runtime adds six D3D8 surface operations
+(backbuffer, render-target/depth/image creation, copied rectangles and front-buffer
+readback) and five conditional USER32 imports with STYLESTRUCT callback marshalling.
+Original PE analysis identifies the resource-cache depth creation, distinguishes
+ReadPixels from the first-frame path, and preserves the original Init sequence.
+
+Native x86/x64 protocol suites pass 15,331 checks each. Real USER32 native x86,
+native x64 and translated fixtures agree across 24 operations and 56 callback
+records; seven new Windows rejection cases pass. Supervisor/collector regressions
+(81/105), registered GUI regressions and owned non-game debugger tests pass.
+Strict x87/full WNDPROC and independent DirectInput last-error differences remain.
+
+Fresh unexecuted candidate SHA256:
+`18b09c7cc054c37eca0513f24856f31483a6bc298efc7c2d2f622e3b65f66a60`.
+All 279 object lineages, PE/PDB identity, 60 HLE bindings and nonconsumption verify.
+The proposed Init-return endpoint remains before guest `0x1090ED5C`; active
+supervisor authorization and stop policy are unchanged. No genuine game ran.
+
+One consolidated batch of three physical fixtures is compiled and identity-verified,
+but unexecuted and unsubmitted. Genuine Init completion, a genuine scene and GPU
+acceptance remain unverified. Cube/volume textures, shader programs, Reset and
+other guarded state methods remain future work. Prior evidence, candidates,
+installation/saves and production runtime verify preserved.
+
+The remote physical-console proof is **closed unsuccessful** due to Computer Use
+application-identity mismatch. Its evidence is preserved; there was no retry,
+workaround or further console-startup investigation.
+
+[Development report](out/recovery/surface-transfer-20261030-01/REPORT.txt),
+[deferred physical batch](out/recovery/surface-transfer-20261030-01/physical-batch.json).
+
+---
+
+# Resource GPU readiness reverified; physical-console owner startup required
+
+Remote proof update: the fixed observation launcher is built and its sandbox
+refusal tests pass. Its one approved Computer Use launch request unexpectedly
+requested permission for Proton VPN and was denied. No child ran successfully;
+no retry or alternate execution was attempted. [Identity-mismatch investigation](out/recovery/remote-console-proof-20261030-01/REPORT.txt).
+
+Subsequent remote-startup investigation: console session 1/Default is active;
+explicit-desktop startup is technically plausible but untested, and no approved
+unattended authorization path exists under current owner-console policy. No
+service/session/policy changes were made. Saved-evidence parsing was hardened;
+eight focused tests pass. [Investigation](out/recovery/remote-fixture-startup-20261030-01/REPORT.txt).
+
+2026-10-30: All three prepared resource fixture manifests, executables and build
+provenance verify, as do the fixture service qualification seal and authorization
+ledger. The service is stopped and its grant expired; no STOP/halt or pending
+request exists. No GPU fixture or genuine game was launched. The supplementary
+audit now checks creation/ownership and exact call arity; 192 regression tests
+pass. Candidate lineage and all 49 adapter bindings reverify; the offline
+`0x1090ED5C` mapping is unchanged. Strict x87, WNDPROC and DirectInput last-error
+discrepancies remain separate. No runtime rebuild or breakpoint change occurred.
+
+[Readiness report](out/recovery/resource-gpu-readiness-5a910a46-bb71-4068-bf4b-dea0b4aa50e7/REPORT.txt),
+[exact owner startup](out/recovery/resource-gpu-readiness-5a910a46-bb71-4068-bf4b-dea0b4aa50e7/OWNER-STARTUP.txt).
+
+---
+
+# D3D8 resources and declaration-based drawing implemented; GPU qualification pending
+
+Updated 2026-10-30. A new isolated resource-frame runtime implements render-target
+and depth-surface COM ownership, textures/mips/copied locks, vertex/index buffers,
+non-NULL bindings and buffer-backed draws. Original code at 0x0697C063 identifies
+declaration-only CreateVertexShader; typed declaration handles and multi-stream
+draw validation are now implemented too. No genuine game launch occurred.
+
+x86/x64 protocol suites pass 15,050 checks each, including 86 new resource cases
+and 29 new negatives. Real DirectInput result transfer still passes; its separate
+Acquire last-error discrepancy remains. Strict x87/WNDPROC failures are unchanged.
+The historical genuine SetRes independently re-audits successfully: 250 native
+operations, EAX=1 and verified stop-before-instruction/contained cleanup.
+
+Fresh unexecuted candidate SHA256:
+2c966f55e89d502cb89a63debcb6dbd808c70d4b39639bd69fb5e02451b81896.
+All 279 objects have verified lineage; 49 adapter bindings and PE/PDB identity
+verify. The prepared Init-return observer targets 0x1090ED5C and passes owned
+non-game hardware/containment tests; active observer policy is unchanged.
+
+Three native x86/native x64/translated x64 physical resource fixtures are compiled
+but unexecuted because the fixture service is stopped. Native GPU equality,
+genuine Init completion and a genuine scene remain unverified. Programmable
+shaders, Reset, cube/volume textures and additional surface operations remain
+guarded. Original installation/saves, production runtime and prior evidence
+are preserved.
+
+[Full report](out/recovery/resource-frame-20261030-01/REPORT.txt) and
+[reproduction guide](experiments/xrt/tests/resource_frame/README.md).
+
+---
+
+# DirectInput and scene/draw milestone implemented and tested (historical)
+
+Updated 2026-10-30. Isolated engine-bringup runtime now implements DirectInput
+Unacquire/SetCooperativeLevel/Acquire, D3D8 cooperative checks, Begin/EndScene,
+viewport get/set and safely copied DrawPrimitiveUP/DrawIndexedPrimitiveUP.
+x86/x64 suites pass 14,216 renderer checks and 349 DirectInput checks each;
+81 supervisor and 105 collector regressions pass. Real DirectInput transfers
+native results exactly; independent Acquire calls retain a last-error mismatch.
+
+Fresh unexecuted candidate SHA256:
+201e004ed469b9a01d61b7d9aa243336713d5eeeaf96f50900d1db4e95d2776b.
+Source/object/PE/PDB lineage and ten new bindings verified. Proposed stop before
+guest 0x1090ED5C is mapped and qualified with owned non-game hardware fixtures.
+No genuine launch occurred in this work; no supervisor policy changed.
+
+The prior consumed SetRes evidence independently verifies EAX=1 and 250 native
+operations. It does not establish completed engine initialization or gameplay.
+Three consolidated GPU fixtures are compiled but unexecuted. Resource/surface
+COM, textures, buffers and buffer-backed draws remain unsupported. Physical
+qualification, observer integration and separate owner authorization remain
+required before any genuine continuation. Historical strict failures remain.
+
+[Implementation and evidence report](out/recovery/engine-bringup-20261030-01/REPORT.txt)
+and [reproduction guide](experiments/xrt/tests/engine_bringup/README.md).
+
+---
+
+# SetRes semantic guard refactor prepared; physical GPU qualification pending
+
+Updated 2026-10-30 (America/New_York). The isolated experimental runtime replaces
+renderer profile/tuple admission with semantic D3D8 and Windows adapters. The
+audit contains 753 old/new source sites: 601 safety, 149 semantic, 3 strict.
+Final x86/x64 protocol fixtures pass 13,804 checks per architecture; original
+Boolean, USER32, callback, ResizeViewport, supervisor and collector regressions
+pass. Independent object/PE/PDB/disassembly and 14 HLE bindings verify fresh
+candidate c99072118b849d9aeef71e0389ea2e0b8bf86c35709f01fa61cab79d6bbec63c.
+Both hle_gui.obj and the actual D3D-owning hle_misc.obj were recompiled.
+
+The bounded initial WinDrv stop at 0x11104BF8 is prepared. No genuine game launch
+ran. Both physical services are stopped; the fixture grant expired. Broader GPU domains
+and genuine
+continuation remain unqualified and unauthorized. Production runtime, supervisor,
+ledger/hold, historical evidence and strict FAILED verdicts remain unchanged.
+
+[Comprehensive report](out/recovery/semantic-compat-20261029-01/REPORT.txt), [guard inventory](out/recovery/semantic-compat-20261029-01/guard-inventory.json).
+
+---
+
+# SetRes-attempt missing import resolved; fresh bounded candidate prepared
+
+Updated 2026-10-29 (US Eastern). Saved evidence identifies
+`USER32!AttachThreadInput(41636,41636,TRUE)` at WinDrv guest `0x11104A48`.
+A measured, guarded host bridge preserves actual FALSE/error 87 and keyboard
+effects. Focused native/translated and launcher regressions pass; a fresh verified
+candidate retains the endpoint before `0x0696D2CD`. No genuine game launch ran
+during this preparation. The consumed candidate, complete sandbox, original
+failure and ledger remain preserved. Strict x87/WNDPROC/native-x86 failures remain.
+
+[Current report and owner procedure](out/recovery/setres-import-continuation-20261029-01/REPORT.txt),
+[detailed status](experiments/xrt/CURRENT_STATUS.md).
+
+---
+
+# Historical continuation: isolated DirectInput mouse setup works; compiler stability hold
 
 Updated 2026-10-23 (US Eastern). The interrupted DirectMusic regression sweep freshly passes in full.
 The new typed DirectInput device oracle passes seven positive/six negative cases, and a genuine translated

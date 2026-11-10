@@ -1,0 +1,79 @@
+{
+  "executable_sha256": "28b7c0c76b2f5c9f1d1c9d64ee6cf5007651700d0d46c7fec0582d1af34c46d8",
+  "pdb_sha256": "f95ea699bcf179b8ee418ff7eec418c51ebb2cc329d89eb8b5f167056dad6221",
+  "symbols": {
+    "d8_CreateDevice": {
+      "rva": 116476496,
+      "size": 2227
+    },
+    "d8_device_Clear": {
+      "rva": 116468224,
+      "size": 833
+    },
+    "d8_device_Present": {
+      "rva": 116469280,
+      "size": 590
+    },
+    "d8_device_SetRenderState": {
+      "rva": 116470032,
+      "size": 607
+    },
+    "xrt_fatal": {
+      "rva": 116564096,
+      "size": 355
+    },
+    "d8_device": {
+      "rva": 120208880,
+      "size": 40
+    },
+    "d8_objects": {
+      "rva": 120205792,
+      "size": 3072
+    },
+    "xrt_g": {
+      "rva": 138989208,
+      "size": 8
+    },
+    "windows": {
+      "rva": 119987696,
+      "size": 40960
+    },
+    "device_window_pins": {
+      "rva": 119983600,
+      "size": 4096
+    },
+    "d8_attempted": {
+      "rva": 120203724,
+      "size": 4
+    },
+    "d8_creating": {
+      "rva": 120205788,
+      "size": 4
+    },
+    "d8_native_failed": {
+      "rva": 120205784,
+      "size": 4
+    },
+    "d8_rendering": {
+      "rva": 120208920,
+      "size": 4
+    },
+    "invoke_gui_proc": {
+      "rva": 116406912,
+      "size": 3734
+    }
+  },
+  "device_registry": {
+    "size": 40,
+    "fields": {
+      "guest": 0,
+      "refs": 4,
+      "focus": 8,
+      "window": 12,
+      "presents": 16,
+      "host": 24,
+      "parent": 32
+    }
+  },
+  "source": "fresh DbgHelp query of exact new PDB"
+}

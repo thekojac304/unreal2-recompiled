@@ -5,7 +5,7 @@
  * _vsnwprintf returns -1 on truncation and omits the terminator when the output fills the buffer exactly,
  * wide stdout output skips characters the "C" locale cannot convert (> 0xFF) and wprintf then counts as
  * _woutput does (xrt_fmt.c), and stdout is a text-mode stream ('\n' -> "\r\n"). qsort and atof are ports of
- * the DLL's own code (read from the binary). errno is not modelled (_errno is unbound). C++ exception
+ * the DLL's own code (read from the binary). errno uses per-guest-thread storage. C++ exception
  * dispatch (_CxxThrowException) is in xrt_eh.c. */
 #define WIN32_LEAN_AND_MEAN
 #include <windows.h>
@@ -581,6 +581,16 @@ static void hle_wtoi(CPU* c) {
 }
 
 /* ---------------------------------------------------------------- narrow characters and strings ("C" locale) */
+/* Measured x86 msvcr70!tolower: C locale compares the FULL signed int,
+ * including EOF and values outside the byte domain. Neither errno nor last-error
+ * changes. setlocale and _setmbcp remain unbound and fail explicitly if encountered;
+ * host CRT locale and code-page tables must never select this adapter's behavior.
+ * See tests/tolower_boundary for the native oracle and actual-runtime differential. */
+static void hle_tolower(CPU* c) {
+    int32_t ch = (int32_t)ARG(0);
+    RET_C((uint32_t)(ch >= 'A' && ch <= 'Z' ? ch + ('a' - 'A') : ch));
+}
+
 static void hle_toupper(CPU* c) {
     int32_t ch = (int32_t)ARG(0);
     RET_C((uint32_t)(ch >= 'a' && ch <= 'z' ? ch - ('a' - 'A') : ch));
@@ -1909,6 +1919,7 @@ const XrtHle xrt_hle_msvcr70[] = {
     {"msvcr70.dll", "vsprintf", hle_vsprintf},
     {"msvcr70.dll", "strrchr", hle_strrchr},
     {"msvcr70.dll", "strncpy", hle_strncpy},
+    {"msvcr70.dll", "tolower", hle_tolower},
     {"msvcr70.dll", "toupper", hle_toupper},
     {"msvcr70.dll", "strchr", hle_strchr},
     {"msvcr70.dll", "_stricmp", hle_stricmp},
