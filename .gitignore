@@ -36,3 +36,6 @@ third_party/
 *.lib
 *.exp
 __pycache__/
+
+# Cleanup inventories (large, local evidence of the Nov 2026 retention passes)
+notes/cleanup-*/*.gz

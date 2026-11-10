@@ -1,146 +1,168 @@
-# Unreal II: The Awakening — Native Port / Recompilation Feasibility Study
+# Unreal II: The Awakening — Native Recompilation Project
 
-Investigation workspace for a modern, portable implementation of *Unreal II: The Awakening* (Legend Entertainment, 2003), targeting Windows, Linux and Android ARM64.
+A research and engineering project that runs *Unreal II: The Awakening* (Legend Entertainment / Epic Games, 2003) as a
+**native 64-bit Windows program**. The game's original 32-bit x86 program code is statically translated into C,
+recompiled for x64, and linked against a new runtime that replaces the Windows, Direct3D 8, DirectInput and DirectMusic
+services the original binaries expect.
 
-- **Investigation date:** 2026-10-22
-- **Machine:** i7-14700K, Windows 11 Enterprise 10.0.26300
-- **Game copy:** the user's GOG *Special Edition*, at `E:\Launchbox\Games\PC Games\Unreal 2 - The Awakening`
+The project ships **no game content and no original code**. Everything here is tooling, runtime, tests and
+documentation; a build is produced locally from the user's own installed copy of the game.
 
-The original installation was treated as **read-only** throughout, and so was the `Save` junction, which points into Proton Drive. Every run of original binaries used a copy of `singleplayer\System` in `sandbox\`.
+![The recompiled x64 client in M08A1, with the HUD and the Hydra weapon](docs/images/m08a1-combat-hud.jpg)
+
+*Frame captured from the recompiled x64 player during an automated test launch (M08A1, loaded from a save).*
 
 ## Status
 
-**DirectMusic checkpoint, 2026-10-23:** real STA initialization and native x64 Loader8 now work through
-owned guest COM interfaces. Performance8 remains unavailable on x64 and produces an explicit diagnostic.
-The original trace confirms that `-nosound` still creates and starts DirectMusic output and initializes the
-real script. CS_Intro LoadMap return and translated selected-world ticks remain unreached. A bounded
-x86 helper is proposed for owner approval; no full music subsystem was begun.
-See the [measured sequence, implementation limits and decision](experiments/xrt/DIRECTMUSIC_INITIALIZATION.md).
+**Experimental, single-player, Windows x64.** The recompiled client plays real campaign content, but it is not
+finished and has not been tested end to end.
 
-**Earlier recompilation checkpoint, 2026-10-23:** the translated client completes genuine Entry LoadMap, opens
-CS_Intro.un2 and completes its package PostLoad, then stops at the DirectMusic `OLE32!CoInitialize`
-boundary. CS_Intro LoadMap return, selected-world initialization/ticks and translated device/Presents
-remain unreached. The pinned DXVK x64 query backend and measured floor/ceil adapters pass their focused
-comparisons. The original reference completes CS_Intro initialization, four world ticks and three game Presents; visual/input gameplay
-remains unverified. See [current status](CURRENT_STATUS.md) and [execution evidence](experiments/xrt/GRAPHICS_STARTUP.md).
-The initial feasibility results follow.
+What has been demonstrated with automated, contained launches (journals and reports are in the repository):
 
-Reconnaissance and seven proof-of-concept experiments are done (E1–E7 in [POC_RESULTS.md](POC_RESULTS.md)). The headline results were all validated against the **original game binaries and data**:
+- Start-up, intro, attract loop, main menu, **New Game → CS_Titles → TutA** with the opening cutscene, subtitles and
+  player control (walk, turn, strafe, look, jump).
+- Level transitions **TutB → PD_Avalon → Atlantis** and **Atlantis → PA_Sanctuary → M08A1**; combat in M08A1 with
+  enemy kills; M08A1 completed and M08A2 reached in a later batch.
+- Saving and loading (F5/F8 and menus), settings persistence, music through Windows' own DirectMusic, sound through
+  XAudio2, normal shutdown with no process left behind.
+- A 516-second three-level soak with in-map reloads and no fatal error.
+- Performance: the game thread reached about **78–103 FPS in TutA** after the first optimisation round and
+  **150–180 FPS in M08A1 combat** after round four (measurements in `tools/xrt/dev/PERF_REPORT_*.md`).
 
-| # | Experiment | Result |
-|---|---|---|
-| E1 | Independent package reader, table layer | 324 single-player packages (1.67 GB) and 210 XMP packages parse with **0 unaccounted bytes**. 23,568 cross-package imports resolve to real exports, and 1,185 resolve to C++-only classes. Of the 7 imports the checker leaves unresolved, 6 are stale references in old shipped particle packages; the 7th is the intrinsic `UPendingLevel`. |
-| E2 | Object layer and bytecode parser | **35,411 / 35,411** script objects consume exactly their serialized size. Every jump target in 8,666 bytecode bodies lands on a token boundary. Legend's format deviations are identified and documented. |
-| E3 | Native interface recovered from machine code | Every bytecode opcode, cast and native index was recovered from the DLLs' `GRegisterNative` code. All 446 name-bound and 260 of 277 numbered natives match their script declarations by name. 12 more match under a different C++ name, and 5 have no implementation in any shipped DLL. All 213 native indices called from shipped bytecode are registered. |
-| E4 | Original engine as an oracle | The original `UCC.exe` runs headless from the sandbox. It compiles our own UnrealScript with the original Unreal II compiler. |
-| E5 | **Independent C++ UnrealScript VM** | **74 / 74** output lines are byte-identical to the original engine. The tests are 4 programs: our 54-test probe and 3 shipped Core commandlets, including ArrayTest's warning text and bytecode offsets. The match holds on **Windows x64 (MSVC)**, **Linux x86-64 (GCC)** and **Linux ARM64 (GCC, QEMU)**. |
-| E6 | **Static x86→C lifting of real Core.dll code** | 13 functions (1,026 instructions, including the CRT `_ftol2` x87 helper) were lifted automatically. Output is **bit-identical** to the original DLL: 102,000 / 102,000 result lines on x64, Linux x86-64 and ARM64. The same minimal lifter handles 52–61% of all exported functions in Core, Engine and GlmLib. The blockers are measured. |
-| E7 | Existing tools: UELib, content survey, Golem, DirectMusic, saves | UELib loads every package but leaves 109,719 objects partly unparsed. 1.6 GB of class-specific native payload was mapped across 253 classes. The Golem `.gem` and DirectMusic `.con` structures were surveyed. Save games are ordinary packages, and one parses cleanly. |
+What has **not** been demonstrated: a full campaign playthrough, real interactive foreground sessions longer than a
+few minutes, multiplayer (XMP), Linux or Android builds of the full game, and audible output checks (tests ran muted
+with metered mix levels).
 
-## Verdicts
+The most recent milestone is a double-clickable standalone player, `Unreal II Enhanced.exe` (2026-11-03,
+[report](tools/xrt/dev/PLAYER_REPORT_20261103.md)), validated in 11 of 12 contained launches.
 
-The full reasoning is in [APPROACH_COMPARISON.md](APPROACH_COMPARISON.md) and [BLOCKERS.md](BLOCKERS.md).
-
-| Target | Verdict |
+| | |
 |---|---|
-| Modern Windows engine implementation | **CONDITIONAL GO.** Use the hybrid architecture, as a multi-year effort. |
-| Native Linux port | **CONDITIONAL GO.** Same conditions as Windows. The portable core is already proven on Linux. |
-| Android ARM64 port | **CONDITIONAL GO, long-term.** The script VM and lifted code are bit-exact on ARM64. Rendering, audio, Golem and performance are not yet proven. |
-| Static native recompilation | **CONDITIONAL GO, as the recommended backbone.** It is bit-exact on sampled real code on x64 and ARM64. Whole-module lifting, with SEH and indirect calls, is not yet demonstrated; experiment X1 in ROADMAP.md decides it. |
-| Full engine reconstruction (all native code rewritten) | **NO-GO** as a standalone goal. The effort is disproportionate. |
+| ![TutA training facility](docs/images/tuta-training-facility.jpg) | ![TutA console room](docs/images/tuta-console-room.jpg) |
+| TutA training facility (player control, 1600×900 window) | TutA, Hor+ widescreen field of view |
+| ![CS_Titles cutscene](docs/images/cs-titles-cutscene.jpg) | |
+| CS_Titles opening cutscene (letterboxed) | |
 
-**Most promising architecture:** the **recompile-first hybrid (D-B)**. It works in stages:
+All screenshots are frames read back from the recompiled client's presented back buffer during test runs on
+2026-11-03. They show the original game's art rendered by this project's runtime.
 
-1. All original native modules — including Golem (`GlmLib.dll`), physics, particles and the Legend UI — are statically recompiled into portable C in a shared guest address space. Their behaviour is therefore faithful by construction (method proven in E6).
-2. The platform layer is replaced once: D3D8 via DXVK's D3D8 frontend or a custom renderer, SDL3, OpenAL Soft, and a DirectMusic subset.
-3. Lifted parts are then progressively swapped for the independent components already proven here, starting with the portable package loader and UnrealScript VM (E5). Each swap is gated by the two differential oracles built here.
+## Downloads
 
-The fallback, if whole-module lifting fails, is the reimplement-first hybrid (D-R).
+There is **no binary release**. The player executable contains machine-translated code derived from the game's own
+binaries, and its redistribution has not been reviewed. Builds are made locally from your own copy (see
+[Building](#building-from-source)).
 
-**Separate, immediate option:** players who just want the game running today should use compatibility layers instead: a D3D8 wrapper on Windows, Proton on Linux, Winlator on Android. That is not a port. See APPROACH_COMPARISON strategy C.
+## Enhanced settings
 
-## Documents
+The player adds settings to the game's own Options menus, stored in `User.ini` (`[U2Port.PortSettings]`):
 
-| File | Contents |
+- Video: resolution, borderless full screen (Alt+Enter), frame-rate limit, **field of view with Hor+ widescreen**
+  (default 85°), VSync, UI scale. Windows can be resized and maximized.
+- Game: walking speed.
+- A 60 Hz script-tick ceiling for six actor classes whose scripts misbehave at high frame rates.
+
+## How it works
+
+```
+ original game install (read-only)          this repository
+ ───────────────────────────────           ─────────────────────────────────────────────
+ Core.dll, Engine.dll, GlmLib.dll, ...  ──► tools/xrt/xlift.py   static x86-32 → C translator
+ (20 modules, SHA-256 checked)               │  (whole modules: SEH/C++ EH, indirect calls, x87, SSE)
+                                             ▼
+                                       generated C (local only, never committed)
+                                             │  compiled with MSVC / clang-cl for x64
+                                             ▼
+ experiments/xrt/runtime/   ──────────► one x64 executable, one shared guest address space
+   CPU model, guest memory, loader,          │
+   HLE: kernel32, user32, msvcr70, ole32,    ├─ D3D8 → DXVK 3.1.1 (Vulkan)
+   D3D8/DirectInput COM, GUI, events          ├─ audio → OpenAL 1.0 adapter on XAudio2
+                                             └─ DirectMusic → 32-bit helper process (IPC)
+```
+
+- **Translation, not emulation.** `xlift.py` lifts entire DLLs to C functions that operate on a modelled x86 CPU state
+  in a guest address space. Indirect calls dispatch through per-module function tables with an inline call cache.
+  Optimised modes (`--opt`) add register caching, lazy program-counter updates and exception landing pads without
+  `setjmp`.
+- **High-level emulation (HLE) of the platform.** Windows, CRT and COM imports are implemented by the runtime and
+  checked by boundary tests against the native x86 behaviour of the same calls.
+- **Differential oracles.** Every stage is checked against the original: instruction-level differential tests
+  (`experiments/xrt/tests/insn_diff`, `opt_diff`, `x87`), API boundary fixtures, and the original engine run in a
+  sandbox as a reference.
+- **Independent components.** An independent package reader (all 324 single-player packages parse with zero
+  unaccounted bytes) and an independent C++ UnrealScript VM (byte-identical output to the original on Windows x64,
+  Linux x86-64 and Linux ARM64) were built in the feasibility phase as the basis for later replacement of lifted code.
+
+More detail: [ENGINE_ARCHITECTURE.md](ENGINE_ARCHITECTURE.md), [APPROACH_COMPARISON.md](APPROACH_COMPARISON.md),
+[feasibility study](docs/FEASIBILITY_STUDY.md), [ROADMAP.md](ROADMAP.md).
+
+## Platforms
+
+| Platform | Status |
 |---|---|
-| [RECONNAISSANCE.md](RECONNAISSANCE.md) | Binary, toolchain, package and file-format findings, with numbers |
-| [ENGINE_ARCHITECTURE.md](ENGINE_ARCHITECTURE.md) | Subsystem and dependency map: recoverable, reusable, replaceable or unknown |
-| [APPROACH_COMPARISON.md](APPROACH_COMPARISON.md) | Strategies A–D compared, with external prior art |
-| [POC_RESULTS.md](POC_RESULTS.md) | Experiments E1–E7 in reproducible form: attempted, artifacts, compiled, validated, failed, proves, does not prove |
-| [BLOCKERS.md](BLOCKERS.md) | Blockers and unresolved risks |
-| [ROADMAP.md](ROADMAP.md) | Phased plan with objectively testable milestones, and the next three experiments |
+| Windows 10/11 x64, Vulkan 1.3 GPU | Working player (experimental) |
+| Linux x86-64 | Script VM and lifted code proven bit-exact; full game not attempted |
+| Android ARM64 | Script VM and lifted code proven bit-exact under QEMU; full game not attempted |
+| Windows ARM64, 32-bit Windows | Not supported |
 
-## Layout
+## Requirements
 
-```
-tools/pe/           PE reconnaissance: headers, Rich header, imports/exports, demangling,
-                    native registration recovery, code statistics, x86 disassembly helpers
-tools/pkgreader/    independent Python package reader + validators (tables, objects, bytecode,
-                    native cross-check, content survey, script text, disassembler)
-tools/lift/         lift_x86.py - function-level x86-32 -> C static lifter (+ coverage mode)
-tools/run_ucc.ps1   runs the ORIGINAL UCC.exe from sandbox/System only
-tools/riff_tree.py  RIFF/DirectMusic container inspector
-experiments/vmprobe/    VMProbe.uc (our UnrealScript probe), build_probe.ps1, reference outputs
-experiments/uvm/        uvm - independent C++17 UnrealScript VM (+ MSVC / Docker build scripts)
-experiments/lift/       lifting harnesses (original-DLL x86 harness, lifted harness, runtime)
-experiments/uelib_test/ .NET harness exercising UELib on Unreal II data
-third_party/Unreal-Library/  shallow clone of EliotVU/Unreal-Library (MIT) at 8236c39
-sandbox/            LOCAL ONLY: copy of the game's System folder for running original binaries
-out/                LOCAL ONLY: generated reports, symbol dumps, native tables, JSON stats
-.venv/              Python virtual environment (pefile, capstone)
+- *Unreal II: The Awakening* Special Edition (GOG release). The build checks the SHA-256 of every module it
+  translates and refuses other versions.
+- Windows 10/11 x64, Visual Studio 2026 (MSVC 14.5x, x86 and x64 tools), optionally LLVM `clang-cl`.
+- Python 3.14 with `pefile` and `capstone`.
+- A GPU and driver with Vulkan 1.3.
+
+## Building from source
+
+The developer loop lives in `tools/xrt/dev` ([README.txt](tools/xrt/dev/README.txt)). Paths to the game installation
+and Visual Studio are set at the top of `tools/xrt/dev/dev.py` (`GAME_INSTALL`, `VC`).
+
+```bat
+python -I tools/xrt/dev/dev.py setup
+python -I tools/xrt/dev/dev.py build --lean --order tools/xrt/dev/order-r4-multi.txt
+python -I tools/xrt/dev/dev.py port-build
+python -I tools/xrt/dev/dev.py player-build
 ```
 
-## Reproducing
+The player is assembled in `out/player/dist/Unreal II Enhanced/` (executable, 32-bit DirectMusic helper, DXVK and its
+license, `U2Port.u`, `README.txt`, `build-info.json`). On first start it finds the installation (GOG registry, beside
+the executable, or a folder dialog) and keeps its settings and saves in `%LOCALAPPDATA%\UnrealIIEnhanced`. The
+installation is only read; its own `Save` folder is never used.
 
-All commands assume the paths above. Tool versions used: Python 3.14 (`pefile` 2024.8.26, `capstone` 5.0.7), Visual Studio 2026 with MSVC 14.51 (x86 and x64), .NET SDK 10.0.402, and Docker 29.7 with `gcc:13` and `alpine:3.20` (arm64 under QEMU).
+`out/`, `sandbox*/`, generated C and build trees are local only and excluded by `.gitignore`.
 
-```bash
-.venv/Scripts/python -I tools/pkgreader/validate_tables.py "<game>/singleplayer" --symbols out/symbols_sp
+## Known limitations
+
+- Experimental; no full campaign run. Scripted tests could not clear the first Izarian pack in M08A1 by open-loop
+  input (a test-scripting limit; no translation fault was observed there).
+- Subtitle size cannot be changed. Mouse Smoothing (an original game option) over-turns above about 120 FPS.
+- Not DPI-aware; one instance at a time; `xrt.log` is capped at 50,000 lines.
+- DirectMusic depends on Windows' own DirectMusic; segment script-track events need the project's fallback.
+- The strict three-way compatibility qualification (native x86 / native x64 / translated x64) of the Oct 30 init line
+  still fails on documented FPU-status and last-error differences; see [CURRENT_STATUS.md](CURRENT_STATUS.md).
+
+## Repository layout
+
+```
+tools/xrt/            translator (xlift.py), developer loop (dev/), supervisor, identity and relink tools
+tools/pe, pkgreader/  PE reconnaissance; independent package reader and validators
+tools/lift/           first function-level lifter (feasibility phase)
+experiments/xrt/      runtime sources and ~60 boundary/qualification test suites (90 with the preservation branch)
+experiments/uvm/      independent C++17 UnrealScript VM
+experiments/lift/     lifting harnesses
+docs/                 feasibility study and screenshots
 ```
 
-```bash
-.venv/Scripts/python -I tools/pkgreader/validate_objects.py "<game>/singleplayer"
-```
+Branches: `main` is the current line; `codex/level-initialization` is the development branch it was fast-forwarded
+from; `backup/workspace-preservation-2026-11-10` preserves uncommitted experimental-init work from Oct 23–30.
 
-```bash
-.venv/Scripts/python -I tools/pkgreader/crosscheck_natives.py sandbox/System out/native_table_sp.json
-```
+## Legal
 
-```bash
-experiments/vmprobe/build_probe.ps1
-```
-
-```bash
-experiments/uvm/build_msvc.cmd x64
-```
-
-```bash
-experiments/uvm/build/x64/uvm.exe sandbox/System VMProbe.VMProbe --quiet --compare experiments/vmprobe/VMProbe.reference.txt
-```
-
-```bash
-docker run --rm --platform linux/arm64 -v "E:/Unreal2-Port-Investigation:/work" alpine:3.20 sh -c "apk add --no-cache g++ && sh /work/experiments/uvm/run_linux_tests.sh linux-arm64"
-```
-
-```bash
-experiments/lift/build_and_test.cmd
-```
-
-```bash
-docker run --rm --platform linux/arm64 -v "E:/Unreal2-Port-Investigation:/work" alpine:3.20 sh -c "apk add --no-cache gcc musl-dev && sh /work/experiments/lift/run_linux_lift.sh linux-arm64"
-```
-
-The `out/` symbol and native tables are produced by `tools/pe/pe_recon.py`, `symbols.py`, `natives.py` and `native_table.py`. The exact invocations are in RECONNAISSANCE.md.
-
-## Legal and redistribution boundaries
-
-- **Never redistribute:**
-  - `sandbox/` (original Legend/Epic binaries and packages)
-  - `out/` (derived symbol dumps)
-  - `experiments/lift/lifted_core.c` and `experiments/lift/build/` (machine translations of proprietary code)
-  - any `.u` file
-  - any extracted UnrealScript source (`tools/pkgreader/scripttext.py` prints copyrighted Legend/Epic source; keep it local)
-- **Our own work** — all `tools/`, `experiments/*/src`, harnesses, `VMProbe.uc` and the documents — was written from scratch. It contains no Epic or Legend source.
-- **Third-party code** is used under its license: UELib (MIT) and capstone/pefile (via pip).
-- A `.gitignore` is provided that excludes all of the local-only material.
-- **Ownership:** Unreal II's IP is held by Epic Games, and the game was delisted from Steam and GOG in December 2022 (per PCGamingWiki). Any public project should ship only original code and require users to supply their own game files.
+- Unreal II: The Awakening is the property of its rights holders (Epic Games). This project is not affiliated with or
+  endorsed by Epic Games or Legend Entertainment. The game was delisted from sale in December 2022.
+- This repository contains only original tooling, runtime, tests and documentation. It never contains game files,
+  extracted UnrealScript, or machine translations of the game's code; `.gitignore` enforces this, and a build needs
+  your own installed copy.
+- Third-party: DXVK 3.1.1 (zlib/libpng license) is fetched at build time; UELib (MIT) and pip packages are used for
+  analysis.
+- **No license has been chosen for this repository.** All rights reserved by the author until one is added.
