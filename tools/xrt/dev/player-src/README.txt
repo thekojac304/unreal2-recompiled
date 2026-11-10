@@ -16,11 +16,7 @@ kernel32/user32/msvcr70/COM/Direct3D 8/DirectInput/DirectMusic/OpenAL, GUI, moni
 game code and no game data. The translated modules (generated C) stay local: they are produced from your own
 installation by tools/xrt/xlift.py and are never committed.
 
-To rebuild the player in a fresh clone (not yet exercised end to end on a second machine):
-  1. copy runtime/ to out/dev-init/runtime and dmusic_helper/ to out/dev-init/dmusic_helper;
-  2. lift your installation's modules (tools/xrt/xlift.py; experiments/xrt/README.md lists the invocations, and
-     dev.py lift / lift-audio produce the developer copies with the --opt list in the player's build-info.json);
-  3. set U2_GAME_INSTALL (the installation's singleplayer folder) and, if Visual Studio is elsewhere, U2_VCVARSALL;
-  4. python -I tools/xrt/dev/dev.py build --lean --order tools/xrt/dev/order-r4-multi.txt
-     python -I tools/xrt/dev/dev.py port-build
-     python -I tools/xrt/dev/dev.py player-build
+To rebuild the player in a fresh clone: set U2_GAME_INSTALL to your installation's singleplayer folder and run
+  python -I tools/xrt/dev/dev.py reproduce
+dev.py setup copies runtime/ and dmusic_helper/ from here into out/dev-init when the local baseline is absent. Verified
+from a fresh clone on 2026-11-10 (README.md, "Validation of the fresh-clone build").

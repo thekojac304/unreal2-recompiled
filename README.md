@@ -106,30 +106,94 @@ More detail: [ENGINE_ARCHITECTURE.md](ENGINE_ARCHITECTURE.md), [APPROACH_COMPARI
 
 ## Requirements
 
-- *Unreal II: The Awakening* Special Edition (GOG release). The build checks the SHA-256 of every module it
-  translates and refuses other versions.
-- Windows 10/11 x64, Visual Studio 2026 (MSVC 14.5x, x86 and x64 tools), optionally LLVM `clang-cl`.
-- Python 3.14 with `pefile` and `capstone`.
-- A GPU and driver with Vulkan 1.3.
+- **Your own installed copy** of *Unreal II: The Awakening* Special Edition (the GOG release). The build checks the
+  SHA-256 of all 22 files it translates and refuses other versions with a message naming the file.
+- Windows 10/11 x64.
+- Visual Studio 2026 (Community or Build Tools) with *Desktop development with C++*. The build uses the x64 and x86
+  compilers, the linker and `ml64`.
+- Python 3.14 with the packages in `requirements.txt` (`pefile`, `capstone`).
+- Internet access once, to download DXVK 3.1.1 from its GitHub release. The download is checked against pinned SHA-256
+  hashes.
+- About 1.6 GB of free disk space: 220 MB of generated C, 1.3 GB of build output, plus the venv.
+- To play: a GPU and driver with Vulkan 1.3.
 
 ## Building from source
 
-The developer loop lives in `tools/xrt/dev` ([README.txt](tools/xrt/dev/README.txt)). Paths to the game installation
-and Visual Studio are set at the top of `tools/xrt/dev/dev.py` (`GAME_INSTALL`, `VC`).
+A fresh clone plus your installation is enough. The game-specific code is generated on your machine from your own
+files and stays out of git: `experiments/xrt/gen/` and `out/` are ignored.
 
 ```bat
-python -I tools/xrt/dev/dev.py setup
-python -I tools/xrt/dev/dev.py build --lean --order tools/xrt/dev/order-r4-multi.txt
-python -I tools/xrt/dev/dev.py port-build
-python -I tools/xrt/dev/dev.py player-build
+git clone https://github.com/thekojac304/unreal2-recompiled.git
+cd unreal2-recompiled
+python -m venv .venv
+.venv\Scripts\python -m pip install -r requirements.txt
+set U2_GAME_INSTALL=C:\GOG Games\Unreal II The Awakening\singleplayer
+.venv\Scripts\python -I tools\xrt\dev\dev.py reproduce
 ```
 
-The player is assembled in `out/player/dist/Unreal II Enhanced/` (executable, 32-bit DirectMusic helper, DXVK and its
-license, `U2Port.u`, `README.txt`, `build-info.json`). On first start it finds the installation (GOG registry, beside
-the executable, or a folder dialog) and keeps its settings and saves in `%LOCALAPPDATA%\UnrealIIEnhanced`. The
-installation is only read; its own `Save` folder is never used.
+- **`U2_GAME_INSTALL`** must point at the installation's `singleplayer` folder: the one that contains `System`, `Maps`
+  and `Textures`. Only that folder is read.
+- **`U2_VCVARSALL`**: set it if Visual Studio isn't in the default Community location. Point it at your
+  `vcvarsall.bat`.
 
-`out/`, `sandbox*/`, generated C and build trees are local only and excluded by `.gitignore`.
+`dev.py reproduce` runs these steps. Each one is also its own `dev.py` command:
+
+1. **`fetch-dxvk`** downloads DXVK 3.1.1 into `third_party/` and checks its hashes.
+2. **`regenerate`** checks your installation and translates its modules into `experiments/xrt/gen/` with
+   `tools/xrt/xlift.py`. It uses the module list and load addresses in
+   [`tools/xrt/dev/build_manifest.json`](tools/xrt/dev/build_manifest.json): file names, hashes and addresses only.
+3. **`setup`** takes the runtime from [`tools/xrt/dev/player-src/`](tools/xrt/dev/player-src/README.txt).
+4. **`lift` / `lift-audio`** re-translate with the player's optimisation options. Afterwards the build reports how many
+   generated sources are byte-identical to those of the reference player build, and writes
+   `out/dev-init/reproduce-check.json`.
+5. **`build --lean --order tools/xrt/dev/order-r4-multi.txt`** compiles and links the developer executable.
+6. **`port-build`** compiles the Enhanced settings package `U2Port.u` with your installation's own `UCC.exe`, in a
+   temporary staging copy.
+7. **`player-build`** links and assembles the player.
+
+The player is assembled in `out/player/dist/Unreal II Enhanced/`. It contains:
+
+- the executable;
+- the 32-bit DirectMusic helper;
+- DXVK and its license;
+- `U2Port.u`;
+- `README.txt` and `build-info.json`.
+
+Start the executable. It finds the installation itself (GOG registry, beside the executable, or a folder dialog). It
+keeps its settings and saves in `%LOCALAPPDATA%\UnrealIIEnhanced` and only reads the installation.
+
+### Validation of the fresh-clone build (2026-11-10)
+
+The test used a new `git clone` of this repository, with no `out/`, `third_party/`, generated code or local sandboxes,
+and a new venv from `requirements.txt`. The installation was the GOG Special Edition.
+
+- **`dev.py reproduce` finished in 237 s** on an i7-14700K: translate, build, `U2Port.u`, link, package.
+- **Generated sources match the reference player** (the build of 2026-11-03):
+  - 262 of the 265 compiled units are byte-identical to the sources the reference build compiled.
+  - The other 3 tables (`D3DDrv`, `GlmLib`, `Window`) differ only in an evidence-only counter: the number of static
+    traps. Every translated function is identical.
+  - All 13 sound-module files and all 64 runtime sources are identical.
+- **The package matches the reference as closely as an MSVC build can.**
+  - DXVK is identical.
+  - `U2Port.u` differs only in its 16-byte package GUID, which UCC generates afresh on each compile.
+  - The executables are not bit-identical; MSVC writes link timestamps and paths.
+- **Player setup tests** (`tools/xrt/dev/player/setup_tests.py`, which starts no game process):
+  - 17 of 17 passed with a developer profile.
+  - 12 of 12 passed without one (the two profile-import cases are skipped).
+  - They cover the installation checks, wrong module version, data-folder preparation, profile import, and that the
+    installation is left unchanged.
+- **Developer harness `dev.py selftest`:** its process-containment cases pass. Its last step needs
+  `experiments/xrt/tests/practical_init/reader.py`, which isn't on this branch yet.
+- **Not yet verified: a game launch with the freshly built player.** The workstation was locked during the test, so
+  Direct3D could not initialise. The reference player, which played on 2026-11-03/04, stopped at the same point in
+  the same state.
+
+Two things found during the test are now handled by the build:
+
+- **Line endings.** Git for Windows' default CRLF conversion changed `tools/xrt/marks.json`, whose hash is compiled
+  into every generated table. `.gitattributes` now keeps such files byte-exact.
+- **UCC path length.** The game's `UCC.exe` crashes when its folder path is long; it failed at 137 characters.
+  `port-build` therefore stages under `%TEMP%` when the workspace path is long.
 
 ## Known limitations
 
