@@ -19,6 +19,9 @@ import retention
 
 WS = HERE.parents[2]
 BASE = WS / 'out/recovery/practical-init-20261031-01'
+# A fresh checkout has no out/: dev.py reproduce builds from these instead (README, "Building from source").
+MANIFEST = HERE / 'build_manifest.json'   # lift and build inputs of the reference player: names, SHA-256, addresses
+PLAYER_SRC = HERE / 'player-src'          # the reference player's runtime and DirectMusic helper sources
 DEV_OBSERVED_UNITS = {'Engine_026.c'}
 # build --diag-move: ULevel::MoveActor (Engine_020) and AActor::moveSmooth (Engine_025) also observed, so the runtime can log
 # what blocks the player (xrt_events.c, XRT_DEV_MOVE_DIAG). Observed units run slower: diagnostic builds only.
@@ -57,6 +60,16 @@ def read(path):
 
 def write(path, value):
     path.write_text(json.dumps(value, indent=2) + '\n')
+
+def ws_path(p):
+    """A path an earlier workspace location recorded (E:/Unreal2-Port-Investigation/...), as the same file here."""
+    p = Path(p)
+    if p.exists():
+        return p
+    for anchor in ('experiments', 'out', 'tools'):
+        if anchor in p.parts:
+            return WS.joinpath(*p.parts[p.parts.index(anchor):])
+    return p
 
 def independent(path):
     """Reject junction/hardlink destinations and inputs before copying/writing."""
@@ -99,20 +112,25 @@ def setup():
     if RT.exists():
         raise RuntimeError('partial setup exists; inspect out/dev-init/runtime before proceeding')
     DEV.mkdir(parents=True, exist_ok=True)
-    shutil.copytree(BASE / 'runtime', RT)
-    # Add diagnostics in the private copy; preserve all runtime safety adapters.
-    for name in ('xrt_main.c', 'xrt_diag.c'):
-        p = RT / name
-        p.write_text('#include "dev_support.h"\n' + p.read_text())
-    replace_once(RT / 'xrt_main.c', 'int main(int argc, char** argv) {',
-                 'int main(int argc, char** argv) {\n    dev_start();')
-    replace_once(RT / 'xrt_diag.c', '    xrt_cleanup_atoms();',
-                 '    dev_dump(NULL, "runtime fatal");\n    xrt_cleanup_atoms();')
-    replace_once(RT / 'xrt_diag.c', '    DWORD code = ep->ExceptionRecord->ExceptionCode;',
-                 '    DWORD code = ep->ExceptionRecord->ExceptionCode;\n'
-                 '    if (code == EXCEPTION_ACCESS_VIOLATION || code == EXCEPTION_STACK_OVERFLOW ||\n'
-                 '        code == EXCEPTION_ILLEGAL_INSTRUCTION || code == EXCEPTION_INT_DIVIDE_BY_ZERO)\n'
-                 '        dev_dump(ep, "host fault");')
+    snapshot = not (BASE / 'runtime').is_dir()
+    origin = PLAYER_SRC / 'runtime' if snapshot else BASE / 'runtime'
+    shutil.copytree(origin, RT)
+    if snapshot:   # fresh checkout: the committed player runtime already carries the diagnostics hooks added below
+        shutil.copytree(PLAYER_SRC / 'dmusic_helper', DEV / 'dmusic_helper')
+    else:
+        # Add diagnostics in the private copy; preserve all runtime safety adapters.
+        for name in ('xrt_main.c', 'xrt_diag.c'):
+            p = RT / name
+            p.write_text('#include "dev_support.h"\n' + p.read_text())
+        replace_once(RT / 'xrt_main.c', 'int main(int argc, char** argv) {',
+                     'int main(int argc, char** argv) {\n    dev_start();')
+        replace_once(RT / 'xrt_diag.c', '    xrt_cleanup_atoms();',
+                     '    dev_dump(NULL, "runtime fatal");\n    xrt_cleanup_atoms();')
+        replace_once(RT / 'xrt_diag.c', '    DWORD code = ep->ExceptionRecord->ExceptionCode;',
+                     '    DWORD code = ep->ExceptionRecord->ExceptionCode;\n'
+                     '    if (code == EXCEPTION_ACCESS_VIOLATION || code == EXCEPTION_STACK_OVERFLOW ||\n'
+                     '        code == EXCEPTION_ILLEGAL_INSTRUCTION || code == EXCEPTION_INT_DIVIDE_BY_ZERO)\n'
+                     '        dev_dump(ep, "host fault");')
     gen = DEV / 'generated'
     gen.mkdir()
     src = WS / 'experiments/xrt/gen/unreal2/Unreal2_001.c'
@@ -120,11 +138,13 @@ def setup():
     replace_once(gen / src.name, '#include "Unreal2_protos.h"',
                  '#include "Unreal2_protos.h"\nvoid xrt_dev_init_return(CPU*);')
     replace_once(gen / src.name, STOP, '    xrt_dev_init_return(c); /* developer endpoint, never returns */\n' + STOP)
-    write(DEV / 'setup.json', {'runtime_origin': str(BASE / 'runtime'),
+    write(DEV / 'setup.json', {'runtime_origin': str(origin),
                               'generated_origin': str(src), 'endpoint': 'before 0x1090ED5C'})
     print('Editable runtime:', RT)
 
 LIFT_SYSTEM = WS / 'sandbox_cmp/level/System'   # module images the shared gen/ units were lifted from
+if not LIFT_SYSTEM.is_dir():
+    LIFT_SYSTEM = Path(GAME_INSTALL) / 'System'   # fresh checkout: the installation itself (only read)
 # Sound (developer-owned lifts, not in the shared gen/ or the object lineage): Core's and ALAudio's Ogg Vorbis
 # libraries and ALAudio.dll. All prefer 0x10000000; these bases fill the gap below U2.dll (0x10060000) in load order.
 AUDIO_LIFT = DEV / 'audio-lift'
@@ -277,15 +297,19 @@ def build(full=False, fixtures_only=False, native=False, diag_move=False, lean=F
     sys.path.insert(0, str(HERE))
     from trace_profile import install
     install(RT)
-    baseline = read(BASE / 'build.json')
-    lineage = read(BASE / 'object-lineage.json')
-    old = Path(baseline['root'])
+    if (BASE / 'object-lineage.json').is_file():
+        lineage = {k: dict(v, source=str(ws_path(v['source']))) for k, v in read(BASE / 'object-lineage.json').items()}
+        baseline_abi = (BASE / 'runtime/xrt.h').read_bytes()
+    else:   # fresh checkout: the reference player's unit list; no inherited objects, every unit is compiled here
+        lineage = {k: {'source': str(WS / v['source']), 'command': ['/FIworld_observer.h'] if v['observer'] else []}
+                   for k, v in read(MANIFEST)['units'].items()}
+        baseline_abi = None
     abi = (RT / 'xrt.h').read_bytes()
     stamp = BUILD / 'xrt-abi.h'
     # Generated code embeds CPU layout/macros. An ABI edit needs a real rebuild.
     if stamp.exists() and stamp.read_bytes() != abi and not full:
         raise RuntimeError('xrt.h changed: use build --full to rebuild generated code')
-    if not stamp.exists() and abi != (BASE / 'runtime/xrt.h').read_bytes() and not full:
+    if not stamp.exists() and baseline_abi is not None and abi != baseline_abi and not full:
         raise RuntimeError('xrt.h differs from object baseline: build --full required')
     objects = []
     jobs = []
@@ -455,6 +479,96 @@ def build(full=False, fixtures_only=False, native=False, diag_move=False, lean=F
                                       'order': {'file': str(Path(order).resolve()), 'sha256': hashlib.sha256(Path(order).read_bytes()).hexdigest()}
                                       if order else None})
     print('Built (not executed):', BUILD / 'unreal2-dev.exe')
+
+def sha256(path):
+    return hashlib.sha256(Path(path).read_bytes()).hexdigest()
+
+def fetch_dxvk():
+    """DXVK 3.1.1 (zlib/libpng license) into third_party/graphics/dxvk-v3.1.1, checked against graphics_backend's pinned hashes."""
+    sys.path.insert(0, str(HERE.parent))
+    import graphics_backend as graphics
+    try:
+        return graphics.verified_pair('x64')
+    except (OSError, RuntimeError):
+        pass
+    import io, tarfile, urllib.request
+    url = 'https://github.com/doitsujin/dxvk/releases/download/v3.1.1/dxvk-3.1.1.tar.gz'
+    print('Fetching', url, flush=True)
+    data = urllib.request.urlopen(url, timeout=300).read()
+    root = WS / 'third_party/graphics/dxvk-v3.1.1'
+    with tarfile.open(fileobj=io.BytesIO(data), mode='r:gz') as tar:
+        for m in tar.getmembers():
+            if m.isfile() and re.fullmatch(r'dxvk-3\.1\.1/x(32|64)/d3d[89]\.dll', m.name):
+                (root / m.name).parent.mkdir(parents=True, exist_ok=True)
+                (root / m.name).write_bytes(tar.extractfile(m).read())
+    return graphics.verified_pair('x64')
+
+def check_install(manifest):
+    """Every file the build translates is the reference version (GOG Special Edition), by SHA-256."""
+    system = Path(GAME_INSTALL) / 'System'
+    entries = [*manifest['translator']['modules'], *manifest['translator']['audio'], manifest['sse2_function']]
+    for e in entries:
+        src = system / e['file']
+        if not src.is_file():
+            raise RuntimeError(f"{src} not found. Set U2_GAME_INSTALL to the installation's singleplayer folder.")
+        if sha256(src) != e['sha256']:
+            raise RuntimeError(f'{src} is not the version this port is made for (Unreal II: The Awakening Special Edition, GOG)')
+    print(f'Installation {GAME_INSTALL}: all {len(entries)} files to translate match', flush=True)
+
+def regenerate():
+    """Translate the installation's modules into experiments/xrt/gen as the reference build did (build_manifest.json: same
+    files, same load addresses; --base only where it differs from the module's preferred base, as dev.py lift does), plus
+    msvcr70's SSE2 pow core. Existing module folders are kept. The output is machine-translated game code: git-ignored."""
+    import struct
+    manifest = read(MANIFEST)
+    check_install(manifest)
+    system, gen = Path(GAME_INSTALL) / 'System', WS / 'experiments/xrt/gen'
+    jobs = []
+    for m in manifest['translator']['modules']:
+        src, out = system / m['file'], gen / m['dir']
+        if out.is_dir():
+            print(f"  {m['dir']}: already generated", flush=True)
+            continue
+        raw = src.read_bytes()
+        preferred = struct.unpack_from('<I', raw, struct.unpack_from('<I', raw, 0x3C)[0] + 52)[0]
+        cmd = [sys.executable, '-I', str(WS / 'tools/xrt/xlift.py'), str(src), '--out', str(out)]
+        if int(m['base'], 16) != preferred:
+            cmd += ['--base', m['base']]
+        jobs.append((m['dir'], cmd))
+    from concurrent.futures import ThreadPoolExecutor
+    with ThreadPoolExecutor(max_workers=max(1, (os.cpu_count() or 2) - 2)) as pool:
+        results = list(pool.map(lambda j: subprocess.run(j[1], capture_output=True, text=True), jobs))
+    for (name, cmd), r in zip(jobs, results):
+        if r.returncode:
+            raise RuntimeError(f'xlift {name} failed:\n{r.stdout}{r.stderr}')
+        print(' ', r.stdout.splitlines()[0][:160], flush=True)
+    p = manifest['sse2_function']
+    if not (WS / p['out']).is_file():
+        (WS / p['out']).parent.mkdir(parents=True, exist_ok=True)
+        r = subprocess.run([sys.executable, '-I', str(WS / 'tools/xrt/lift_sse2.py'), str(system / p['file']), p['entry'], p['name'],
+                            '--error-handler', p['error_handler'], '--out', str(WS / p['out'])], capture_output=True, text=True)
+        if r.returncode:
+            raise RuntimeError(f'lift_sse2 failed:\n{r.stdout}{r.stderr}')
+    units = manifest['units'].values()
+    same = sum(1 for u in units if (WS / u['source']).is_file() and sha256(WS / u['source']) == u['sha256'])
+    print(f"Generated units identical to the reference build's: {same} of {len(units)}", flush=True)
+    return same, len(units)
+
+def reproduce():
+    """Fresh checkout + your installation -> the standalone player: fetch DXVK, translate the installation, set up the
+    runtime from player-src, lift with the reference options, build, compile U2Port.u, link and assemble the player."""
+    sys.path.insert(0, str(HERE))
+    import port
+    manifest = read(MANIFEST)
+    opts = manifest['player']
+    fetch_dxvk()
+    regenerate()
+    setup()
+    lift([m['dir'] for m in manifest['translator']['modules']], set(opts['lift_options']))
+    lift_audio(set(opts['audio_lift_options']))
+    build(lean=opts['lean'], order=str(WS / opts['order']))
+    print('Built', port.build(Path(GAME_INSTALL) / 'System'), flush=True)
+    player_build()
 
 PLAYER = WS / 'out/player'
 PLAYER_NAME = 'Unreal II Enhanced'
@@ -1167,6 +1281,9 @@ def main():
     la.add_argument('--opt', default='', help='xlift --opt list; empty = plain lift')
     sub.add_parser('port-build', help='compile the port settings package U2Port.u (original UCC make, staging copy)')
     sub.add_parser('player-build', help='link the standalone player and assemble out/player/dist (after dev.py build)')
+    sub.add_parser('fetch-dxvk', help='download DXVK 3.1.1 into third_party/ and check its pinned hashes')
+    sub.add_parser('regenerate', help='translate your installation (U2_GAME_INSTALL) into experiments/xrt/gen (build_manifest.json)')
+    sub.add_parser('reproduce', help='fresh checkout: fetch-dxvk, regenerate, setup, lift, lift-audio, build, port-build, player-build')
     sub.add_parser('selftest')
     sub.add_parser('observe')
     r = sub.add_parser('run')
@@ -1268,8 +1385,15 @@ def main():
     elif args.action == 'port-build':
         sys.path.insert(0, str(HERE)); sys.path.insert(0, str(HERE.parent))
         import port, asset_boundary
-        print('Built', port.build(Path(asset_boundary.source()) / 'System'))
+        try:
+            snapshot = Path(asset_boundary.source()) / 'System'
+        except OSError:   # fresh checkout: UCC make in a staging copy of the installation's System folder
+            snapshot = Path(GAME_INSTALL) / 'System'
+        print('Built', port.build(snapshot))
     elif args.action == 'player-build': player_build()
+    elif args.action == 'fetch-dxvk': print('DXVK:', fetch_dxvk())
+    elif args.action == 'regenerate': regenerate()
+    elif args.action == 'reproduce': reproduce()
     elif args.action == 'selftest': selftest()
     elif args.action == 'observe': observe()
     else: return run(args)
