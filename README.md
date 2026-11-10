@@ -48,9 +48,22 @@ All screenshots are frames read back from the recompiled client's presented back
 
 ## Downloads
 
-There is **no binary release**. The player executable contains machine-translated code derived from the game's own
-binaries, and its redistribution has not been reviewed. Builds are made locally from your own copy (see
-[Building](#building-from-source)).
+**Experimental:** [`v0.1.0-alpha.1`](https://github.com/thekojac304/unreal2-recompiled/releases/tag/v0.1.0-alpha.1)
+(Windows x64).
+
+1. Unzip it and start `Unreal II Enhanced.exe`.
+2. It finds your GOG installation, or asks for the folder.
+3. On the first start it prepares the game for your computer, which takes a few minutes. Later starts skip this.
+
+No developer tools are needed. The download contains no game files and no translated game code: the bundled
+translator (`setup\u2gen.exe`) and LLVM toolchain make that part from your own installation, on your machine
+([how it works](tools/xrt/setup/README.md)).
+
+Status of this build:
+
+- **Verified:** first-run preparation without developer tools, caching, and the installation checks.
+- **Not yet verified:** rendering and gameplay of this build. The statically linked player built from the same
+  sources played TutA through M08A2 in automated tests.
 
 ## Enhanced settings
 
