@@ -1,0 +1,7 @@
+# Files whose exact bytes are hashed into generated code or build records: check out as committed (no CRLF
+# conversion), so a fresh clone translates and builds byte-identically to the reference player.
+tools/xrt/marks.json -text
+tools/xrt/cflags_allow.json -text
+tools/xrt/dev/build_manifest.json -text
+tools/xrt/dev/order-r4-multi.txt -text
+tools/xrt/dev/player-src/** -text

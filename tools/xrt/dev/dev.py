@@ -549,10 +549,32 @@ def regenerate():
                             '--error-handler', p['error_handler'], '--out', str(WS / p['out'])], capture_output=True, text=True)
         if r.returncode:
             raise RuntimeError(f'lift_sse2 failed:\n{r.stdout}{r.stderr}')
-    units = manifest['units'].values()
-    same = sum(1 for u in units if (WS / u['source']).is_file() and sha256(WS / u['source']) == u['sha256'])
-    print(f"Generated units identical to the reference build's: {same} of {len(units)}", flush=True)
-    return same, len(units)
+def compare_reference():
+    """After lift / lift-audio: is every generated source the build compiles byte-identical to the reference player's?
+    (build_manifest.json: the developer copy where one exists, else the shared unit; pow_sse2.c without its input-path
+    comment.) Writes out/dev-init/reproduce-check.json; differences are reported, not fatal."""
+    manifest = read(MANIFEST)
+    def canon(path):
+        data = Path(path).read_bytes()
+        if path.name == 'pow_sse2.c':
+            data = b'\n'.join(l for l in data.split(b'\n') if not l.startswith(b' * source:'))
+        return hashlib.sha256(data).hexdigest()
+    differ = []
+    for u in manifest['units'].values():
+        dev = DEV / 'generated' / Path(u['source']).name
+        src = dev if dev.is_file() else WS / u['source']
+        if not src.is_file() or canon(src) != u['sha256']:
+            differ.append(src.name)
+    audio_differ = [rel for rel, h in manifest['audio_units'].items()
+                    if not (AUDIO_LIFT / rel).is_file() or sha256(AUDIO_LIFT / rel) != h]
+    result = {'units': len(manifest['units']), 'units_identical': len(manifest['units']) - len(differ), 'units_differ': differ,
+              'audio': len(manifest['audio_units']), 'audio_identical': len(manifest['audio_units']) - len(audio_differ),
+              'audio_differ': audio_differ}
+    write(DEV / 'reproduce-check.json', result)
+    print(f"Generated sources identical to the reference player's: {result['units_identical']} of {result['units']} units, "
+          f"{result['audio_identical']} of {result['audio']} sound files" + (f'; differ: {(differ + audio_differ)[:20]}' if differ or audio_differ else ''),
+          flush=True)
+    return result
 
 def reproduce():
     """Fresh checkout + your installation -> the standalone player: fetch DXVK, translate the installation, set up the
@@ -566,6 +588,7 @@ def reproduce():
     setup()
     lift([m['dir'] for m in manifest['translator']['modules']], set(opts['lift_options']))
     lift_audio(set(opts['audio_lift_options']))
+    compare_reference()
     build(lean=opts['lean'], order=str(WS / opts['order']))
     print('Built', port.build(Path(GAME_INSTALL) / 'System'), flush=True)
     player_build()

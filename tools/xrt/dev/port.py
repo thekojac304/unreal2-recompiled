@@ -28,6 +28,11 @@ SOURCE = HERE / 'port' / 'U2Port'
 OUT = WS / 'out' / 'dev-init' / 'port'
 PACKAGE = OUT / 'U2Port.u'
 STAGE = WS / 'sandbox_cmp' / 'u2port-make'
+# The game's UCC.exe (2003) crashes (access violation, no output) when its folder path is long: it failed at 137
+# characters and works at 55. A workspace in a deep folder therefore stages in a short folder under %TEMP%.
+if len(str(STAGE / 'System')) > 64:
+    import tempfile
+    STAGE = Path(tempfile.gettempdir()) / 'u2port-make'
 
 
 def build(snapshot_system):

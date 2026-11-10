@@ -1,17 +1,21 @@
 """Player setup tests that start NO game process: the launcher half only (--prepare-only, or an installation error that
 stops it before the game). Each runs under contain.exe (Job, 60 s deadline). Checks: exit codes, player.log messages,
 the prepared data folder, the profile import, and that the installation and the import source are unchanged.
-Run: python -I tools/xrt/dev/player/setup_tests.py (needs dev.py player-build; writes out/player/test-data/setup)"""
+Run: python -I tools/xrt/dev/player/setup_tests.py (needs dev.py player-build; writes out/player/test-data/setup)
+U2_GAME_INSTALL: the installation's singleplayer folder (default: the original machine's). U2_TEST_PROFILE: a developer
+play profile folder for the two import cases; without one they are skipped (reported, not passed)."""
 import hashlib, json, os, shutil, subprocess, sys
 from pathlib import Path
 
-WS = Path(r'E:\Unreal2-Port-Investigation')
+WS = Path(__file__).resolve().parents[4]
 EXE = WS / 'out/player/dist/Unreal II Enhanced/Unreal II Enhanced.exe'
 CONTAIN = WS / 'out/dev-init/build/contain.exe'
-INSTALL = Path(r'E:\Launchbox\Games\PC Games\Unreal 2 - The Awakening')
+INSTALL = Path(os.environ['U2_GAME_INSTALL']).parent if os.environ.get('U2_GAME_INSTALL') else \
+    Path(r'E:\Launchbox\Games\PC Games\Unreal 2 - The Awakening')
 SP = INSTALL / 'singleplayer'
 ROOT = WS / 'out/player/test-data/setup'
-PROFILE = WS / 'out/dev-init/profiles/owner'
+PROFILE = Path(os.environ.get('U2_TEST_PROFILE') or WS / 'out/dev-init/profiles/owner')
+HAVE_PROFILE = (PROFILE / 'User.ini').is_file()
 results = []
 
 
@@ -55,7 +59,7 @@ def log_text(data):
 shutil.rmtree(ROOT, ignore_errors=True)
 ROOT.mkdir(parents=True)
 install_before = tree_state(INSTALL)
-profile_before = hashes(PROFILE)
+profile_before = hashes(PROFILE) if HAVE_PROFILE else None
 
 # 1. missing installation
 data = ROOT / 'd-missing'
@@ -106,30 +110,35 @@ check('second prepare uses the remembered path, keeps User.ini, copies nothing n
       code == 0 and b'Kept=1' in user_ini.read_bytes() and log_text(data).count('data folder ready: 0 installation file(s)') == 1,
       f'exit {code}')
 
-# 5. import of the owner's developer profile into a fresh data folder
-data = ROOT / 'd-import'
-code = player('import', '--data', data, '--game', INSTALL, '--import-profile', PROFILE, '--prepare-only')
-saves = sorted(p.name for p in (data / 'Save').glob('*.usa'))
-src_saves = sorted(p.name for p in (PROFILE / 'Save').glob('*.usa'))
-same = all(hashlib.sha256((data / 'Save' / n).read_bytes()).digest() == hashlib.sha256((PROFILE / 'Save' / n).read_bytes()).digest()
-           for n in src_saves)
-uni = (data / 'System' / 'Unreal2.ini').read_bytes()
-check('import -> exit 0, saves copied byte-identical', code == 0 and saves == src_saves and same, f'{saves}')
-check('import: User.ini = profile User.ini; display section from WindowsClient.ini',
-      (data / 'System' / 'User.ini').read_bytes() == (PROFILE / 'User.ini').read_bytes() and b'WindowedViewportY=1369' in uni)
-check('import: earlier User.ini/Unreal2.ini backed up', any(p.name.startswith('User.ini.before-import-') for p in (data / 'System').iterdir()))
-# 6. import again: existing saves are not overwritten
-(data / 'Save' / src_saves[0]).write_bytes(b'player-own-save')
-code = player('import2', '--data', data, '--import-profile', PROFILE, '--prepare-only')
-check('second import keeps the player\'s own save of the same name', code == 0 and
-      (data / 'Save' / src_saves[0]).read_bytes() == b'player-own-save' and 'not copied because' in log_text(data))
+if HAVE_PROFILE:
+    # 5. import of the owner's developer profile into a fresh data folder
+    data = ROOT / 'd-import'
+    code = player('import', '--data', data, '--game', INSTALL, '--import-profile', PROFILE, '--prepare-only')
+    saves = sorted(p.name for p in (data / 'Save').glob('*.usa'))
+    src_saves = sorted(p.name for p in (PROFILE / 'Save').glob('*.usa'))
+    same = all(hashlib.sha256((data / 'Save' / n).read_bytes()).digest() == hashlib.sha256((PROFILE / 'Save' / n).read_bytes()).digest()
+               for n in src_saves)
+    uni = (data / 'System' / 'Unreal2.ini').read_bytes()
+    check('import -> exit 0, saves copied byte-identical', code == 0 and saves == src_saves and same, f'{saves}')
+    check('import: User.ini = profile User.ini; display section from WindowsClient.ini',
+          (data / 'System' / 'User.ini').read_bytes() == (PROFILE / 'User.ini').read_bytes() and b'WindowedViewportY=1369' in uni)
+    check('import: earlier User.ini/Unreal2.ini backed up', any(p.name.startswith('User.ini.before-import-') for p in (data / 'System').iterdir()))
+    # 6. import again: existing saves are not overwritten
+    (data / 'Save' / src_saves[0]).write_bytes(b'player-own-save')
+    code = player('import2', '--data', data, '--import-profile', PROFILE, '--prepare-only')
+    check('second import keeps the player\'s own save of the same name', code == 0 and
+          (data / 'Save' / src_saves[0]).read_bytes() == b'player-own-save' and 'not copied because' in log_text(data))
+
+else:
+    print('SKIP import cases 5-6: no developer profile (set U2_TEST_PROFILE)', flush=True)
 
 # 7. unknown option
 code = player('badopt', '--data', ROOT / 'd-badopt', '--frobnicate')
 check('unknown option -> exit 6, nothing started', code == 6, f'exit {code}')
 
 check('installation unchanged (sizes and times of every file, Save junction not entered)', tree_state(INSTALL) == install_before)
-check('import source profile unchanged', hashes(PROFILE) == profile_before)
+if HAVE_PROFILE:
+    check('import source profile unchanged', hashes(PROFILE) == profile_before)
 json.dump([{'test': a, 'pass': b, 'detail': c} for a, b, c in results], open(ROOT / 'results.json', 'w'), indent=1)
 print(sum(r[1] for r in results), 'of', len(results), 'passed')
 sys.exit(0 if all(r[1] for r in results) else 1)
