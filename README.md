@@ -252,4 +252,6 @@ from; `backup/workspace-preservation-2026-11-10` preserves uncommitted experimen
   your own installed copy.
 - Third-party: DXVK 3.1.1 (zlib/libpng license) is fetched at build time; UELib (MIT) and pip packages are used for
   analysis.
-- **No license has been chosen for this repository.** All rights reserved by the author until one is added.
+- **License:** the project's own code and documentation are MIT ([LICENSE](LICENSE)). Game screenshots, captured
+  output of the game's tools and third-party texts are excluded; [LICENSING.md](LICENSING.md) lists exactly what is
+  and isn't covered.
