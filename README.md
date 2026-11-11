@@ -61,8 +61,9 @@ translator (`setup\u2gen.exe`) and LLVM toolchain make that part from your own i
 
 Status of this build:
 
-- **Verified:** first-run preparation without developer tools, caching, and the installation checks.
-- **Not yet verified:** rendering and gameplay of this build. The statically linked player built from the same
+- **Verified:** first-run preparation without developer tools, caching, the installation checks, and start-up to
+  the rendered intro (`CS_Intro`, the same picture as the statically linked player).
+- **Not yet verified:** gameplay past the intro with this build. The statically linked player built from the same
   sources played TutA through M08A2 in automated tests.
 
 ## Enhanced settings
