@@ -48,9 +48,23 @@ All screenshots are frames read back from the recompiled client's presented back
 
 ## Downloads
 
-There is **no binary release**. The player executable contains machine-translated code derived from the game's own
-binaries, and its redistribution has not been reviewed. Builds are made locally from your own copy (see
-[Building](#building-from-source)).
+**Experimental:** [`v0.1.0-alpha.1`](https://github.com/thekojac304/unreal2-recompiled/releases/tag/v0.1.0-alpha.1)
+(Windows x64).
+
+1. Unzip it and start `Unreal II Enhanced.exe`.
+2. It finds your GOG installation, or asks for the folder.
+3. On the first start it prepares the game for your computer, which takes a few minutes. Later starts skip this.
+
+No developer tools are needed. The download contains no game files and no translated game code: the bundled
+translator (`setup\u2gen.exe`) and LLVM toolchain make that part from your own installation, on your machine
+([how it works](tools/xrt/setup/README.md)).
+
+Status of this build:
+
+- **Verified:** first-run preparation without developer tools, caching, the installation checks, and start-up to
+  the rendered intro (`CS_Intro`, the same picture as the statically linked player).
+- **Not yet verified:** gameplay past the intro with this build. The statically linked player built from the same
+  sources played TutA through M08A2 in automated tests.
 
 ## Enhanced settings
 
@@ -161,6 +175,15 @@ The player is assembled in `out/player/dist/Unreal II Enhanced/`. It contains:
 
 Start the executable. It finds the installation itself (GOG registry, beside the executable, or a folder dialog). It
 keeps its settings and saves in `%LOCALAPPDATA%\UnrealIIEnhanced` and only reads the installation.
+
+**Downloadable release.** `tools\xrt\setup\build_release.py` builds the zip that prepares the game code on the
+player's machine. It needs Visual Studio and LLVM 23.1.4, but not the game; see
+[tools/xrt/setup/README.md](tools/xrt/setup/README.md).
+
+**Existing development trees.** `dev.py setup` doesn't overwrite an existing `out/dev-init/runtime/`. After the
+downloadable-release change (2026-11-10), copy `xrt.h`, `xrt_main.c` and `xrt_msvcr70img.c` from
+`tools/xrt/dev/player-src/runtime/` into it, then run `dev.py build --full` once. An incremental build refuses to
+run after `xrt.h` changes.
 
 ### Validation of the fresh-clone build (2026-11-10)
 

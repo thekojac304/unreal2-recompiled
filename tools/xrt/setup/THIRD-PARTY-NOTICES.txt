@@ -1,0 +1,27 @@
+Third-party components in the Unreal II Enhanced download
+==========================================================
+
+The full license texts are in LICENSES\ (and dxvk\LICENSE.txt, toolchain\LICENSE-LLVM.txt).
+
+DXVK 3.1.1 (dxvk\d3d8.dll, dxvk\d3d9.dll)
+  https://github.com/doitsujin/dxvk - zlib/libpng license. Unmodified release binaries (SHA-256 pinned in the source).
+
+LLVM 23.1.4 (toolchain\bin\clang-cl.exe, toolchain\bin\lld-link.exe, toolchain\lib\clang\23\include)
+  https://llvm.org - Apache License 2.0 with LLVM Exceptions. Unmodified release binaries, used only to compile the
+  game code prepared on your computer.
+
+Python 3.14 runtime (setup\_internal)
+  https://www.python.org - Python Software Foundation License. Bundled by PyInstaller.
+
+PyInstaller bootloader (setup\u2gen.exe)
+  https://pyinstaller.org - GPL 2.0 with the PyInstaller bootloader exception (which permits bundling programs under
+  any license).
+
+Capstone disassembly engine (setup\_internal\capstone)
+  https://www.capstone-engine.org - BSD 3-Clause license.
+
+pefile (setup\_internal)
+  https://github.com/erocarrera/pefile - MIT license.
+
+Not included: any file of Unreal II: The Awakening, and any program code translated from it. The player prepares the
+game-specific part on your computer from your own installation.

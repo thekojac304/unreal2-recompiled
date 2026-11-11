@@ -31,6 +31,9 @@
 #include <wchar.h>
 #include "xrt_internal.h"
 #include "player_edits.h"
+#ifdef XRT_SPLIT
+#include "player_split.h"   /* dev.py player-build --split: PLAYER_BUILD_ID, split_files[] */
+#endif
 
 #define PLAYER_TITLE L"Unreal II Enhanced"
 #define KEEP_SESSIONS 8
@@ -39,6 +42,9 @@ enum { EXIT_INSTALL = 3, EXIT_DATA = 4, EXIT_RUNNING = 5, EXIT_LAUNCH = 6 };
 static WCHAR exe_path[MAX_PATH], exe_dir[MAX_PATH], data_dir[MAX_PATH], game_dir[MAX_PATH], log_dir[MAX_PATH];
 static int unattended, diagnostics, nosound, prepare_only;
 static FILE* player_log;
+#ifdef XRT_SPLIT
+static WCHAR game_code_dir[MAX_PATH];   /* GameCode\<build id> in the data folder (ensure_game_code) */
+#endif
 
 static void note(const WCHAR* fmt, ...) {
     va_list a;
@@ -247,6 +253,23 @@ static const WCHAR* check_game(const WCHAR* dir) {
     join(p, dir, L"Music");
     if (has_link(p))
         return L"The installation's Music folder is a link; music cannot be read from it.";
+#ifdef XRT_SPLIT
+    (void)modules;
+    for (i = 0; i < sizeof split_files / sizeof split_files[0]; i++) {
+        MultiByteToWideChar(CP_ACP, 0, split_files[i][0], -1, w, 64);
+        _snwprintf(p, MAX_PATH, L"%s\\System\\%s", dir, w);
+        if (!sha256_file(p, hex)) {
+            _snwprintf(why, 1023, L"Required game file missing or unreadable:\n%s", p);
+            return why;
+        }
+        if (strcmp(hex, split_files[i][1])) {
+            _snwprintf(why, 1023, L"%s is not the version this port was made for (Unreal II: The Awakening Special Edition, "
+                                  L"as sold by GOG).\n\nFile: %s\nSHA-256: %hs\nexpected: %hs", w, p, hex, split_files[i][1]);
+            return why;
+        }
+    }
+    return NULL;
+#endif
     for (i = 0; i < sizeof modules / sizeof modules[0]; i++) {
         const XrtLiftedModule* l = xrt_lifted_find(modules[i]);
         MultiByteToWideChar(CP_ACP, 0, modules[i], -1, w, 64);
@@ -406,7 +429,11 @@ static void prepare_data(void) {
     join(from, game_dir, L"System");
     join(to, data_dir, L"System");
     copied = copy_system(from, to, 1);
+#ifdef XRT_SPLIT
+    join(p, game_code_dir, L"U2Port.u");
+#else
     join(p, exe_dir, L"port\\U2Port.u");
+#endif
     join(to, data_dir, L"System\\U2Port.u");
     if (!CopyFileW(p, to, FALSE))
         fail(EXIT_LAUNCH, L"The player files are incomplete: cannot copy\n%s\n(Windows error %lu).", p, GetLastError());
@@ -575,6 +602,179 @@ static int startup_fullscreen(void) {
 }
 
 /* ---------------------------------------------------------------- launcher */
+#ifdef XRT_SPLIT
+/* ---------------------------------------------------------------- split build: game code made on this machine
+ * The downloadable player contains no translated game code. On first start (and after an update of the player) the
+ * bundled generator setup\u2gen.exe translates the installation's own program files and compiles them with the
+ * bundled compiler (toolchain\) into GameCode\<build id>\UnrealII-game.dll in the data folder, plus U2Port.u compiled
+ * by the installation's own UCC.exe. Later starts reuse it. The installation is only read. */
+#include <commctrl.h>
+#pragma comment(lib, "comctl32.lib")
+int xrt_game_attach(const wchar_t* dll, char* why, size_t why_size);
+static int rebuild_game_code;
+static HWND prog_wnd, prog_bar, prog_text;
+
+static LRESULT CALLBACK prog_proc(HWND h, UINT m, WPARAM w, LPARAM l) {
+    if (m == WM_CLOSE)
+        return 0;   /* the preparation cannot be interrupted halfway from here; it is resumable by starting again */
+    return DefWindowProcW(h, m, w, l);
+}
+static void prog_pump(void) {
+    MSG msg;
+    while (PeekMessageW(&msg, NULL, 0, 0, PM_REMOVE)) {
+        TranslateMessage(&msg);
+        DispatchMessageW(&msg);
+    }
+}
+static void prog_open(void) {
+    INITCOMMONCONTROLSEX icc = {sizeof icc, ICC_PROGRESS_CLASS};
+    WNDCLASSW wc = {0};
+    RECT r;
+    HFONT font = (HFONT)GetStockObject(DEFAULT_GUI_FONT);
+    int w = 520, h = 170;
+    if (unattended)
+        return;
+    InitCommonControlsEx(&icc);
+    wc.lpfnWndProc = prog_proc;
+    wc.hInstance = GetModuleHandleW(NULL);
+    wc.hCursor = LoadCursorW(NULL, MAKEINTRESOURCEW(32512));   /* IDC_ARROW */
+    wc.hbrBackground = (HBRUSH)(COLOR_WINDOW + 1);
+    wc.lpszClassName = L"UnrealIIEnhancedSetup";
+    RegisterClassW(&wc);
+    SystemParametersInfoW(SPI_GETWORKAREA, 0, &r, 0);
+    prog_wnd = CreateWindowExW(0, wc.lpszClassName, PLAYER_TITLE L" - first start", WS_CAPTION | WS_SYSMENU | WS_VISIBLE,
+                               (r.left + r.right - w) / 2, (r.top + r.bottom - h) / 2, w, h, NULL, NULL, wc.hInstance, NULL);
+    CreateWindowExW(0, L"STATIC", L"Preparing Unreal II for this computer. This happens once and takes a few minutes; "
+                                  L"your installation is only read.",
+                    WS_CHILD | WS_VISIBLE, 16, 12, w - 48, 36, prog_wnd, NULL, wc.hInstance, NULL);
+    prog_text = CreateWindowExW(0, L"STATIC", L"", WS_CHILD | WS_VISIBLE, 16, 54, w - 48, 20, prog_wnd, NULL, wc.hInstance, NULL);
+    prog_bar = CreateWindowExW(0, PROGRESS_CLASSW, NULL, WS_CHILD | WS_VISIBLE, 16, 80, w - 48, 22, prog_wnd, NULL,
+                               wc.hInstance, NULL);
+    SendMessageW(prog_text, WM_SETFONT, (WPARAM)font, TRUE);
+    SendMessageW(prog_bar, PBM_SETRANGE, 0, MAKELPARAM(0, 100));
+    prog_pump();
+}
+static void prog_set(int pct, const WCHAR* text) {
+    if (!prog_wnd)
+        return;
+    SendMessageW(prog_bar, PBM_SETPOS, (WPARAM)pct, 0);
+    SetWindowTextW(prog_text, text);
+    prog_pump();
+}
+static void remove_tree(const WCHAR* dir) {
+    WCHAR from[MAX_PATH + 2] = {0};
+    SHFILEOPSTRUCTW op = {0};
+    if (!exists(dir))
+        return;
+    wcsncpy(from, dir, MAX_PATH);
+    op.wFunc = FO_DELETE;
+    op.pFrom = from;   /* double-NUL terminated */
+    op.fFlags = FOF_NO_UI;
+    SHFileOperationW(&op);
+}
+
+/* The game code for this installation and this player build: made now if missing (or --rebuild-game-code). */
+static void ensure_game_code(void) {
+    WCHAR dll[MAX_PATH], json[MAX_PATH], tmp[MAX_PATH], gen[MAX_PATH], lib[MAX_PATH], tool[MAX_PATH], logp[MAX_PATH],
+        cmd[4096], last_error[1024] = L"(no message)", text[256];
+    char buf[4096], line[4096];
+    size_t used = 0;
+    SECURITY_ATTRIBUTES sa = {sizeof sa, NULL, TRUE};
+    STARTUPINFOW si = {sizeof si};
+    PROCESS_INFORMATION pi = {0};
+    HANDLE rd, wr, log;
+    DWORD got, avail, code = 1, wrote;
+    _snwprintf(game_code_dir, MAX_PATH, L"%s\\GameCode\\%hs", data_dir, PLAYER_BUILD_ID);
+    join(dll, game_code_dir, L"UnrealII-game.dll");
+    join(json, game_code_dir, L"gamecode.json");
+    if (!rebuild_game_code && exists(dll) && exists(json)) {
+        note(L"game code: %s (prepared earlier)", game_code_dir);
+        env_set(L"XRT_GAME_CODE", dll);
+        return;
+    }
+    join(gen, exe_dir, L"setup\\u2gen.exe");
+    join(lib, exe_dir, L"setup\\UnrealIIEnhanced.lib");
+    join(tool, exe_dir, L"toolchain\\bin\\clang-cl.exe");
+    if (!exists(gen) || !exists(lib) || !exists(tool))
+        fail(EXIT_LAUNCH, L"The player files are incomplete (setup\\u2gen.exe, setup\\UnrealIIEnhanced.lib, toolchain\\). "
+                          L"Unpack the whole download again.");
+    join(tool, exe_dir, L"toolchain");
+    _snwprintf(tmp, MAX_PATH, L"%s.preparing", game_code_dir);
+    remove_tree(tmp);
+    join(cmd, data_dir, L"GameCode");
+    make_dir(cmd);
+    make_dir(tmp);
+    join(logp, data_dir, L"Logs\\gamecode.log");
+    log = CreateFileW(logp, GENERIC_WRITE, FILE_SHARE_READ, NULL, CREATE_ALWAYS, FILE_ATTRIBUTE_NORMAL, NULL);
+    _snwprintf(cmd, 4096, L"\"%s\" --game \"%s\" --out \"%s\" --toolchain \"%s\" --player-lib \"%s\"", gen, game_dir, tmp,
+               tool, lib);
+    note(L"preparing the game code: %s", cmd);
+    if (!CreatePipe(&rd, &wr, &sa, 0))
+        fail(EXIT_LAUNCH, L"Cannot start the preparation (Windows error %lu).", GetLastError());
+    SetHandleInformation(rd, HANDLE_FLAG_INHERIT, 0);
+    si.dwFlags = STARTF_USESTDHANDLES;
+    si.hStdOutput = si.hStdError = wr;
+    si.hStdInput = CreateFileW(L"NUL", GENERIC_READ, FILE_SHARE_READ | FILE_SHARE_WRITE, &sa, OPEN_EXISTING, 0, NULL);
+    if (!CreateProcessW(gen, cmd, NULL, NULL, TRUE, CREATE_NO_WINDOW, NULL, tmp, &si, &pi))
+        fail(EXIT_LAUNCH, L"Cannot start the preparation %s (Windows error %lu).", gen, GetLastError());
+    CloseHandle(wr);
+    prog_open();
+    prog_set(0, L"Starting");
+    for (;;) {
+        if (!PeekNamedPipe(rd, NULL, 0, NULL, &avail, NULL))
+            break;   /* the generator ended and the pipe is drained */
+        if (!avail) {
+            prog_pump();
+            Sleep(50);
+            continue;
+        }
+        if (!ReadFile(rd, buf, sizeof buf, &got, NULL) || !got)
+            break;
+        if (log != INVALID_HANDLE_VALUE)
+            WriteFile(log, buf, got, &wrote, NULL);
+        for (DWORD k = 0; k < got; k++) {
+            if (buf[k] == '\r')
+                continue;
+            if (buf[k] != '\n' && used < sizeof line - 1) {
+                line[used++] = buf[k];
+                continue;
+            }
+            line[used] = 0;
+            used = 0;
+            if (!strncmp(line, "PROGRESS ", 9)) {
+                int pct = atoi(line + 9);
+                const char* t = strchr(line + 9, ' ');
+                MultiByteToWideChar(CP_UTF8, 0, t ? t + 1 : "", -1, text, 256);
+                prog_set(pct, text);
+            } else if (!strncmp(line, "ERROR ", 6)) {
+                MultiByteToWideChar(CP_UTF8, 0, line + 6, -1, last_error, 1024);
+            }
+        }
+    }
+    WaitForSingleObject(pi.hProcess, INFINITE);
+    GetExitCodeProcess(pi.hProcess, &code);
+    CloseHandle(pi.hProcess);
+    CloseHandle(pi.hThread);
+    CloseHandle(rd);
+    if (log != INVALID_HANDLE_VALUE)
+        CloseHandle(log);
+    if (prog_wnd) {
+        DestroyWindow(prog_wnd);
+        prog_wnd = NULL;
+    }
+    note(L"game code preparation ended: exit %lu", code);
+    if (code) {
+        remove_tree(tmp);
+        fail(EXIT_LAUNCH, L"Preparing Unreal II for this computer did not succeed:\n\n%s\n\nDetails: %s", last_error, logp);
+    }
+    remove_tree(game_code_dir);
+    if (!MoveFileExW(tmp, game_code_dir, 0))
+        fail(EXIT_LAUNCH, L"Cannot finish the preparation (Windows error %lu).", GetLastError());
+    note(L"game code: %s (prepared now)", game_code_dir);
+    env_set(L"XRT_GAME_CODE", dll);
+}
+#endif
+
 static __declspec(noreturn) void launcher(void) {
     int argc = 0, i, select = 0;
     WCHAR** argv = CommandLineToArgvW(GetCommandLineW(), &argc);
@@ -620,6 +820,10 @@ static __declspec(noreturn) void launcher(void) {
             unattended = 1;
         else if (!wcscmp(argv[i], L"--prepare-only"))
             prepare_only = 1;
+#ifdef XRT_SPLIT
+        else if (!wcscmp(argv[i], L"--rebuild-game-code"))
+            rebuild_game_code = 1;
+#endif
         else
             fail(EXIT_LAUNCH, L"Unknown option: %s\n\nOptions: --game DIR, --select-game, --data DIR, --import-profile DIR, "
                               L"--diagnostics, --nosound, --prepare-only, --unattended", argv[i]);
@@ -695,6 +899,9 @@ static __declspec(noreturn) void launcher(void) {
         fail(EXIT_INSTALL, L"The Unreal II installation\n%s\ncannot be used:\n\n%s", game_dir, why);
     WritePrivateProfileStringW(L"Player", L"GamePath", game_dir, ini);
     note(L"installation %s verified", game_dir);
+#ifdef XRT_SPLIT
+    ensure_game_code();
+#endif
 
     /* 3. data folder contents, 4. import */
     prepare_data();
@@ -842,6 +1049,16 @@ int xrt_player_setup(int* argc, char*** argv) {
             fprintf(stderr, "player: the game process needs its installation (XRT_CONTENT_ROOT)\n");
             ExitProcess(EXIT_LAUNCH);
         }
+#ifdef XRT_SPLIT
+        {
+            WCHAR dll[MAX_PATH];
+            char why[300] = "";
+            if (!GetEnvironmentVariableW(L"XRT_GAME_CODE", dll, MAX_PATH) || !xrt_game_attach(dll, why, sizeof why)) {
+                fprintf(stderr, "player: the game code cannot be used: %s\n", why[0] ? why : "XRT_GAME_CODE not set");
+                ExitProcess(EXIT_LAUNCH);
+            }
+        }
+#endif
         (*argv)[1] = (*argv)[0];
         (*argv)++;
         (*argc)--;

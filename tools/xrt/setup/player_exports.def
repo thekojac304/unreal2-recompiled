@@ -1,0 +1,39 @@
+; Runtime symbols the locally compiled game code (UnrealII-game.dll) imports from the player executable.
+; Measured: lld-link's unresolved symbols for the compiled translated units (tools/xrt/setup/README.md).
+EXPORTS
+    f_10125320
+    f_103b5be0
+    f_103e24d0
+    f_103f8a40
+    xm_depth
+    xrt_badret
+    xrt_cpuid
+    xrt_dev_init_return
+    xrt_div0
+    xrt_eh_abi_frames
+    xrt_eh_pop
+    xrt_f2xm1
+    xrt_fcos
+    xrt_fist32
+    xrt_fist64
+    xrt_fldcw
+    xrt_fpatan
+    xrt_fptan
+    xrt_fround
+    xrt_fscale
+    xrt_fsin
+    xrt_fsqrt
+    xrt_fyl2x
+    xrt_icall
+    xrt_ijmp
+    xrt_mark
+    xrt_pclines_register
+    xrt_preempt
+    xrt_trap
+    xrt_watch_store
+    xrt_world_enter
+    xrt_world_return
+    xrt_g DATA
+    xrt_preempt_req DATA
+    xrt_call_cache DATA
+    xrt_call_cache_gen DATA

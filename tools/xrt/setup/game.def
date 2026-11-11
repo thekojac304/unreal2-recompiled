@@ -1,0 +1,11 @@
+; The game-code DLL as the player imports it (delay-loaded: the player starts before the DLL exists).
+LIBRARY UnrealII-game.dll
+EXPORTS
+    xrt_game_interface
+    xrt_game_modules
+    f_10125320_translated
+    f_103b5be0_translated
+    f_103e24d0_translated
+    f_103f8a40_translated
+    xrt_game_pow_sha256
+    xrt_msvcr70_pow_sse2

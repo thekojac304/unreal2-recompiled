@@ -18,6 +18,7 @@
 #include <stdlib.h>
 #include "xrt_internal.h"
 
+#ifndef XRT_SPLIT
 extern const XrtLiftedModule xrt_mod_UCC, xrt_mod_Core, xrt_mod_Engine, xrt_mod_GlmLib, xrt_mod_Editor, xrt_mod_Window,
     xrt_mod_UnrImp, xrt_mod_Fire;
 #ifdef XRT_WITH_UNREAL2
@@ -29,6 +30,7 @@ extern const XrtLiftedModule xrt_mod_Unreal2, xrt_mod_WinDrv, xrt_mod_D3DDrv, xr
  * (Core's static import) first, then its imports ogg and vorbis, then ALAudio when the engine loads it. */
 extern const XrtLiftedModule xrt_mod_vorbisfile, xrt_mod_ogg, xrt_mod_vorbis, xrt_mod_ALAudio;
 #endif
+#endif
 void hle_msvcr70_init(void);
 
 /* Every translated module linked into this host. UCC.exe and Core.dll are mapped at start (Core is UCC's static
@@ -39,6 +41,38 @@ void hle_msvcr70_init(void);
  * editor-mode initialisation loads its plugin plugins\UnrImp.gpi (a DLL with its own static CRT) and frees it again;
  * Editor.u imports the Fire package, whose native classes are in Fire.dll. The original placed these two differently
  * from run to run; this host uses the bases of one observed run, UnrImp.gpi 0x036d0000 and Fire.dll 0x03710000. */
+#ifdef XRT_SPLIT
+/* Split build (the downloadable player): the translated modules are not linked in. They are generated and compiled on
+ * the player's machine into UnrealII-game.dll (tools/xrt/setup/u2gen.py), which the game process loads before
+ * anything else (xrt_game_attach, from player.c). The list and its order are the static list's below. */
+static const XrtLiftedModule* lifted_all[XRT_MAX_MODULES];
+static int nlifted;
+#define NLIFTED nlifted
+#define XRT_GAME_INTERFACE 1   /* tools/xrt/setup/glue.c */
+/* the two modules main() names directly, found in the loaded list instead */
+#define xrt_mod_UCC (*xrt_lifted_find("UCC.exe"))
+#define xrt_mod_Core (*xrt_lifted_find("Core.dll"))
+int xrt_game_attach(const wchar_t* dll, char* why, size_t why_size) {
+    typedef int (*InterfaceFn)(void);
+    typedef const XrtLiftedModule* const* (*ModulesFn)(int*);
+    HMODULE h = LoadLibraryExW(dll, NULL, LOAD_WITH_ALTERED_SEARCH_PATH);
+    InterfaceFn version;
+    ModulesFn list;
+    const XrtLiftedModule* const* mods;
+    int i, n = 0;
+    if (!h) { _snprintf(why, why_size, "cannot load the game code (Windows error %lu)", GetLastError()); return 0; }
+    version = (InterfaceFn)GetProcAddress(h, "xrt_game_interface");
+    list = (ModulesFn)GetProcAddress(h, "xrt_game_modules");
+    if (!version || !list || version() != XRT_GAME_INTERFACE) {
+        _snprintf(why, why_size, "the game code was made for another version of the player");
+        return 0;
+    }
+    mods = list(&n);
+    for (i = 0; i < n && nlifted < XRT_MAX_MODULES; i++)
+        lifted_all[nlifted++] = mods[i];
+    return nlifted;
+}
+#else
 static const XrtLiftedModule* const lifted_all[] = {&xrt_mod_UCC, &xrt_mod_Core, &xrt_mod_Engine, &xrt_mod_GlmLib,
                                                     &xrt_mod_Editor, &xrt_mod_Window, &xrt_mod_UnrImp, &xrt_mod_Fire
 #ifdef XRT_WITH_UNREAL2
@@ -49,6 +83,7 @@ static const XrtLiftedModule* const lifted_all[] = {&xrt_mod_UCC, &xrt_mod_Core,
 #endif
 };
 #define NLIFTED ((int)(sizeof lifted_all / sizeof lifted_all[0]))
+#endif
 static XrtModule* init_order[XRT_MAX_MODULES];   /* DLLs whose DLL_PROCESS_ATTACH completed, in that order */
 static int ninit;
 static char app_dir[520];           /* directory of the guest EXE: where the loader looks for DLLs first */

@@ -11,7 +11,12 @@
 #include <stdlib.h>
 #include "xrt_internal.h"
 
+#ifdef XRT_SPLIT   /* the translated pow core is in the game-code DLL; its identity string through an accessor */
+const char* xrt_game_pow_sha256(void);
+#define xrt_msvcr70_pow_sse2_sha256 (xrt_game_pow_sha256())
+#else
 extern const char xrt_msvcr70_pow_sse2_sha256[];
+#endif
 double xrt_msvcr70_pow_sse2(double x, double y, const uint8_t* img, uint32_t* error_type);
 
 static uint8_t* image;

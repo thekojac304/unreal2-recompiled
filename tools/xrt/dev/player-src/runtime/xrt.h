@@ -28,6 +28,15 @@
 #include <stdint.h>
 #include <string.h>
 
+/* XRT_GAME_DLL: the translated modules built as a DLL on the player's machine (tools/xrt/setup), loaded by the
+ * prebuilt player. The few runtime variables translated code reads are then imported from the player executable;
+ * without XRT_GAME_DLL these are the ordinary declarations, so every existing build is unchanged. */
+#ifdef XRT_GAME_DLL
+#define XRT_SHARED __declspec(dllimport)
+#else
+#define XRT_SHARED
+#endif
+
 enum { EAX, ECX, EDX, EBX, ESP, EBP, ESI, EDI };
 
 #define XRT_HIST 64
@@ -74,7 +83,7 @@ typedef void (*XrtLiftedFn)(CPU*);
 /* ---------------------------------------------------------------- guest memory */
 #define XRT_GUEST_GUARD_BELOW 0x80000000ull   /* reserved, never committed: wrapped addr64 accesses fault here */
 #define XRT_GUEST_WINDOW 0x100010000ull        /* 4 GB + 64 KB: the top 64 KB catch [reg + disp] past the end */
-extern uint8_t* xrt_g;                 /* host address of guest address 0 */
+extern XRT_SHARED uint8_t* xrt_g;      /* host address of guest address 0 */
 #define G2H(a) ((void*)(xrt_g + (uint32_t)(a)))
 uint32_t xrt_h2g(const void* p);       /* fatal if p is not inside guest memory */
 
@@ -228,7 +237,7 @@ XRT_NORETURN void xrt_div0(CPU* c, uint32_t site);
 
 /* Every translated function entry records history and is a preemption point: when another guest thread
  * waits for the execution baton and the time slice has expired, the runtime hands the baton over here. */
-extern volatile long xrt_preempt_req;
+extern XRT_SHARED volatile long xrt_preempt_req;
 void xrt_preempt(CPU* c);
 /* XRT_LEAN_ENTER (dev.py build --lean): no per-entry history ring (fatal dumps keep their guest-stack scan); the
  * preemption check stays, it is what makes function entries the scheduling points. */
@@ -255,8 +264,8 @@ void xrt_preempt(CPU* c);
  * cached call the world-observer return check dispatch makes is made inline (c->world_floor; xrt_icall_after is the
  * same check as a function, kept for older generated code). */
 typedef struct { uint32_t va, gen; XrtLiftedFn fn; unsigned flags; } XrtCallCache;
-extern XrtCallCache xrt_call_cache[65536];
-extern uint32_t xrt_call_cache_gen;
+extern XRT_SHARED XrtCallCache xrt_call_cache[65536];
+extern XRT_SHARED uint32_t xrt_call_cache_gen;
 #define XRT_CALL_CACHE_SLOT(t) ((((t) >> 2) ^ ((t) >> 18)) & 65535)
 void xrt_icall_after(CPU* c);
 void xrt_world_return(CPU* c);
@@ -327,9 +336,15 @@ typedef struct XrtEhPad {
  * UI-heavy frames). The prefix of the runtime's XrtThread (static asserts in xrt_internal.h) and the monitor's scope
  * depth are what pad_push used; an out-of-order unlink still goes to xrt_eh_pop for its fatal diagnostic. */
 typedef struct { CPU cpu; int host_calls; XrtEhPad* eh_pads; } XrtThreadEh;
+#ifdef XRT_GAME_DLL   /* a thread-local variable cannot be imported: the monitor's accessor (same value) */
+unsigned xm_depth(void);
+#define XM_TLS_DEPTH xm_depth()
+#else
 extern __declspec(thread) unsigned xm_tls_depth;
+#define XM_TLS_DEPTH xm_tls_depth
+#endif
 #define XRT_EH_REGISTER() do { XrtThreadEh* t_ = (XrtThreadEh*)c->thread; eh_.node = c->r[ESP]; if (!eh_.active) { \
-        eh_.kind = 0; eh_.host_calls = t_->host_calls; eh_.xm_depth = xm_tls_depth; eh_.prev = t_->eh_pads; \
+        eh_.kind = 0; eh_.host_calls = t_->host_calls; eh_.xm_depth = XM_TLS_DEPTH; eh_.prev = t_->eh_pads; \
         eh_.active = 1; t_->eh_pads = &eh_; } } while (0)
 #define XRT_EH_POP() do { if (eh_.active) { XrtThreadEh* t_ = (XrtThreadEh*)c->thread; \
         if (t_->eh_pads == &eh_) { t_->eh_pads = eh_.prev; eh_.active = 0; } else xrt_eh_pop(c, &eh_); } } while (0)
